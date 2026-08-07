@@ -1,0 +1,27 @@
+# ============================================================
+#  Izomap - Blok Renk Override'ları
+#
+#  Bloklar artık Minecraft'ın kendi harita renk sistemini birebir kullanır:
+#  her blok için sunucudan "temel renk" (base color) okunur ve çekimde
+#  bloğun görünen yüzüne göre vanilla parlaklık çarpanı uygulanır
+#  (üst yüz 255, yan yüzler 220 / 180, alt yüz 135).
+#  Ayrıntı: https://minecraft.wiki/w/Map_item_format#Base_colors
+#
+#  Dolayısıyla burada varsayılan bir renk tablosu YOKTUR; bu dosya yalnızca
+#  bilinçli olarak değiştirmek istediğin bloklar içindir.
+#
+#  Değer olarak temel renk adı ya da hex verebilirsin:
+#    - Ad  : GRASS, SAND, WOOL, STONE, WATER, WOOD, QUARTZ, COLOR_ORANGE,
+#            TERRACOTTA_RED, CRIMSON_STEM, DEEPSLATE, RAW_IRON, GLOW_LICHEN ...
+#            (tam liste yukarıdaki wiki sayfasındaki "Base colors" tablosu)
+#    - Hex : "#7FB238" (en yakın temel renge eşlenir)
+#    - NONE: blok fotoğrafta tamamen saydam olur (ışın arkasını görür)
+# ============================================================
+
+version: 2
+
+overrides:
+  # Örnek: cam blokları haritada renksizdir; görünmelerini istersen:
+  # GLASS: QUARTZ
+  # Örnek: suyu daha koyu göstermek:
+  # WATER: COLOR_BLUE

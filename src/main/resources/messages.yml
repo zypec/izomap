@@ -1,0 +1,68 @@
+# ============================================================
+#  Izomap - Mesajlar (MiniMessage formatı)
+#  Renk/format için: https://docs.advntr.dev/minimessage/format.html
+# ============================================================
+
+prefix: "<gradient:#5e60ce:#48bfe3><bold>Izomap</bold></gradient> <dark_gray>»</dark_gray> "
+
+general:
+  no-permission: "<red>Bu işlem için yetkin yok."
+  player-only: "<red>Bu komut yalnızca oyuncular tarafından kullanılabilir."
+  reloaded: "<green>Yapılandırma yeniden yüklendi."
+  unknown-error: "<red>Beklenmeyen bir hata oluştu."
+
+camera:
+  created: "<green>Kamera oluşturuldu: <white><name></white>"
+  removed: "<yellow>Kamera silindi: <white><name></white>"
+  removed-all: "<yellow><count> kamera silindi."
+  moved: "<green>Kamera taşındı: <white><name></white>"
+  not-found: "<red>Kamera bulunamadı."
+  limit-reached: "<red>Maksimum kamera sayısına ulaştın (<limit>)."
+  given-item: "<green>Kamera yerleştirme eşyası envanterine eklendi."
+  name-taken: "<red>Bu isimde bir kameran zaten var: <white><name></white>"
+  list-header: "<gray>Kameralar (<count>):"
+  list-entry: "<dark_gray>› <white><name></white> <gray>(<ratio>, ölçek <scale>)"
+  list-empty: "<gray>Henüz bir kameran yok."
+  edit-property: "<gray>Ayarlanan: <white><property></white> <dark_gray>|</dark_gray> <yellow><value></yellow>"
+  edit-switched: "<gray>Ayar modu: <white><property></white>"
+  item-name: "<gradient:#5e60ce:#48bfe3>Izomap Kamerası</gradient>"
+  item-lore:
+    - "<gray>Bir bloğa <white>sağ tık</white> ile kamera yerleştir."
+
+photo:
+  capturing: "<gray>Fotoğraf çekiliyor, lütfen bekle..."
+  captured: "<green>Fotoğraf çekildi (<width>x<height> px)."
+  failed: "<red>Fotoğraf çekimi başarısız oldu."
+  saved: "<green>Fotoğraf kaydedildi: <white><file></white> <gray>(<width>x<height>, <ms>ms)"
+  ratio-set: "<green>En-boy oranı ayarlandı: <white><ratio></white>"
+  invalid-ratio: "<red>Geçersiz en-boy oranı. Seçenekler: 1:1, 16:9, 4:3"
+
+map:
+  invalid-grid: "<red>Bu en-boy oranı için geçersiz grid. <gray>/izocam grids <ad> ile bak.</gray>"
+  created: "<green><count> harita oluşturuldu (<grid>) ve envanterine eklendi. <gray>(<ms>ms)</gray>"
+  inventory-full: "<yellow>Bazı haritalar envantere sığmadı ve yere düştü."
+  grid-header: "<gray><ratio> için grid seçenekleri:"
+  grid-entry: "<dark_gray>› <white><grid></white> <gray>(<count> harita, <wpx>x<hpx>px)"
+  placed: "<green>Fotoğraf yerleştirildi: <white><name></white> <gray>(<count> harita, <ms>ms)"
+  place-blocked: "<red>Yerleştirme başarısız: önünde yeterli boş alan yok. Açık bir alana bakarak dene."
+  name-taken: "<red>Bu isimde yerleştirilmiş bir fotoğrafın zaten var: <white><name></white>"
+  photos-header: "<gray>Yerleştirilmiş fotoğraflar (<count>):"
+  photos-entry: "<dark_gray>› <white><name></white> <gray>[<id>] (<grid>)"
+  photos-empty: "<gray>Henüz yerleştirilmiş fotoğrafın yok."
+  photo-removed: "<yellow>Fotoğraf kaldırıldı: <white><name></white>"
+  photos-removed-all: "<yellow><count> fotoğraf kaldırıldı."
+  photo-not-found: "<red>Fotoğraf bulunamadı."
+  cleaned: "<green><count> kayıp/kırık fotoğraf kaydı temizlendi."
+
+dialog:
+  title: "<gradient:#5e60ce:#48bfe3>Izomap Fotoğraf</gradient>"
+  info: "<gray>Kamera: <white><camera></white>  •  Oran: <white><ratio></white>  •  Ölçek: <white><scale></white>"
+  name-label: "Fotoğraf adı"
+  scale-label: "Ölçek (yakınlaştırma)"
+  filter-label: "Renk efekti"
+  grid-label: "Yerleşim (grid)"
+  grid-option: "<grid> — <count> harita (<wpx>x<hpx>px)"
+  ratio-button: "Oran: <ratio>"
+  ratio-button-active: "Oran: <ratio> ✔"
+  confirm: "Yerleştir"
+  cancel: "İptal"

@@ -1,0 +1,45 @@
+# ============================================================
+#  Izomap - Ana Yapılandırma
+# ============================================================
+
+settings:
+  # Raycasting için maksimum menzil (blok cinsinden).
+  max-render-distance: 128
+  # Asenkron render için kullanılacak worker thread sayısı.
+  render-threads: 4
+  # Bir oyuncunun aynı anda sahip olabileceği maksimum kamera sayısı.
+  max-cameras-per-player: 5
+
+camera:
+  # Kamera modeli tipi: ITEM_DISPLAY veya BLOCK_DISPLAY
+  display-type: ITEM_DISPLAY
+  # ITEM_DISPLAY için kullanılacak model eşyası (Material adı).
+  model-material: SPYGLASS
+  # Sol/sağ tık ile ölçek ayar adımı.
+  scale-step: 0.25
+  # Yaw/Pitch ayar adımı (derece).
+  angle-step: 15.0
+  # Model rotasyon düzeltmesi (derece). Farklı bir model kullanılırsa, modelin
+  # baktığı yön ile çekim yönü hizalanana kadar bu değerler elle ayarlanır.
+  model-yaw-offset: 0.0
+  model-pitch-offset: 0.0
+
+photo:
+  # Varsayılan en-boy oranı: RATIO_1_1, RATIO_16_9, RATIO_4_3
+  default-aspect-ratio: RATIO_1_1
+  # Kameranın önünde örneklenen küp bölgenin kenar uzunluğu (blok).
+  region-size: 48
+  # Render dikey çözünürlüğü (piksel). Yatay = height * en-boy oranı.
+  resolution: 128
+  # Ray-march adım büyüklüğü (blok). Küçük = daha hassas, daha yavaş.
+  step-size: 0.25
+
+placement:
+  # Fotoğraf duvarının oyuncunun kaç blok önüne kurulacağı.
+  distance: 3
+  # Harita çerçevelerini görünmez yap (kenarlıksız, kesintisiz görsel).
+  invisible-frames: true
+  # Çerçevelerin arkasına destek bloğu inşa et (yeniden başlatmada kalıcılık).
+  build-backing-wall: true
+  # Destek bloğu materyali (çerçeve arkasında, oyuncuya görünmez).
+  backing-material: STONE

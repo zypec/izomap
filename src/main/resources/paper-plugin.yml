@@ -1,0 +1,8 @@
+name: Izomap
+version: '${version}'
+main: dev.zypec.izomap.Izomap
+api-version: '26.2'
+description: Izometrik fotoğraf çekimi ve harita panosu eklentisi
+authors:
+  - zypec
+website: https://zypec.dev
