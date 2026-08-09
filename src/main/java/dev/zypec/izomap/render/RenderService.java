@@ -19,39 +19,35 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Render işlemlerinin koordinasyonu.
+ * Coordinates renders.
  *
- * <p>İki aşama: (1) <b>ana thread</b>de kameranın geometrisi hesaplanır ve gerekli
- * bölge {@link WorldSnapshot} olarak yakalanır; (2) ağır voxel yürüyüşü
- * {@link IsometricRenderer} ile <b>asenkron</b> yürütülür. Bu sayede blok erişimi
- * daima güvenli iş parçacığında kalır, CPU-yoğun kısım ise ana thread'i bloklamaz.</p>
+ * <p>Two stages: the camera geometry is computed and the region captured as a
+ * {@link WorldSnapshot} on the main thread, then the voxel walk runs asynchronously
+ * in {@link IsometricRenderer}. Block access therefore always stays on the safe
+ * thread while the CPU-heavy part never blocks it.</p>
  *
- * <p>Kadrajı iki ayar kurar:</p>
- * <ul>
- *   <li>{@code photo.frame-height} — kadrajın dünya-uzayı yüksekliği, yani zoom.
- *       Ortografik projeksiyonda nesne boyutunu <b>yalnızca</b> bu belirler; kameranın
- *       hedefe uzaklığı boyutu değiştirmez.</li>
- *   <li>{@code photo.frame-shift} — kadrajın kameraya göre dikey kayması. {@code 0}
- *       iken kameranın baktığı nokta fotoğrafın ortasındadır.</li>
- * </ul>
+ * <p>Two settings define the frame: {@code photo.frame-height} is its world-space
+ * height (the zoom, and under orthographic projection the only thing that sets
+ * object size), and {@code photo.frame-shift} is its vertical offset from the
+ * camera.</p>
  *
- * <h2>Işın mesafesi neden ayar değil?</h2>
+ * <h2>Why ray distance is not a setting</h2>
  *
- * <p>Gereken mesafe kadrajdan ve eğimden çıkar: kadrajın üst kenarındaki ışının
- * hedef tabana inebilmesi için {@code dikey_iniş / sin(pitch)} blok yürümesi gerekir.
- * Elle ayarlanınca zoom'la birlikte güncellenmesi gerekiyor, unutulunca da kadrajın
- * üstü sessizce boş kalıyordu. Bu yüzden <b>hesaplanır</b>; ayarlanan tek maliyet
- * değeri {@code settings.max-capture-area}'dır ve hem bu mesafeyi hem kopyalanacak
- * chunk sayısını sınırlar. {@code settings.render-depth} yalnızca hedef tabanın
- * referans zeminden ne kadar aşağıda olacağını belirler; referansın neden
- * kameranın kendi sütunu olamadığı {@link #floorReference} belgesindedir.</p>
+ * <p>The required distance follows from the frame and the pitch: the ray at the top
+ * edge must travel {@code vertical_drop / sin(pitch)} blocks to reach the target
+ * floor. As a manual setting it had to be kept in sync with zoom, and forgetting
+ * left the top of the frame silently empty, so it is computed instead. The only
+ * cost setting is {@code settings.max-capture-area}, which bounds both that distance
+ * and the number of copied chunks. {@code settings.render-depth} only sets how far
+ * below the reference ground the target floor sits; see {@link #floorReference} for
+ * why that reference cannot be the camera's own column.</p>
  *
- * <p>Kadrajın kameranın altına düşen kısmı için ışınlar bakış yönünde geriye
- * çekilir; gerekçesi ve sınırı {@link RenderGeometry} belgesindedir.</p>
+ * <p>Rays covering the part of the frame below the camera are pulled back along the
+ * view direction; see {@link RenderGeometry}.</p>
  */
 public final class RenderService {
 
-    /** Bölge yakalanırken ışın prizmasının bölüneceği dilim sayısı. */
+    /** Number of slices the ray prism is cut into when capturing the region. */
     private static final int BEAM_SLICES = 8;
 
     private final Izomap plugin;
@@ -67,8 +63,8 @@ public final class RenderService {
     }
 
     /**
-     * Kamerayı, verilen tam piksel boyutunda çeker. En-boy oranı doğrudan piksel
-     * boyutlarından türetilir. <b>Ana iş parçacığında</b> çağrılmalıdır.
+     * Captures the camera at the exact pixel size given; the aspect ratio comes from
+     * those dimensions. Must be called on the main thread.
      */
     public CompletableFuture<RenderResult> capture(Camera camera, int widthPx, int heightPx) {
         Location anchor = camera.anchor();
@@ -88,16 +84,15 @@ public final class RenderService {
         Vector right = basis[0];
         Vector up = basis[1];
 
-        // Kadraj kameranın hizasındadır: frame-shift 0 iken kameranın baktığı nokta
-        // fotoğrafın tam ortasındadır. Pozitif değer kadrajı kadraj yüksekliğinin bir
-        // oranı kadar yukarı kaydırır (0.5 = kamera kadrajın alt kenarında).
+        // At frame-shift 0 the camera's target is the center of the photo; positive
+        // values move the frame up by a ratio of its height.
         double eyeY = anchor.getY();
         Vector planeCenter = anchor.toVector()
                 .add(up.clone().multiply(spanHeight * frameShift));
 
-        // Işın mesafesi ayar değil, sonuçtur: kadrajın üst kenarındaki ışının hedef
-        // tabana inebilmesi için gereken mesafedir. `right` daima yatay olduğundan
-        // kadrajın dikey uçları yalnızca `up` bileşeninden gelir.
+        // Ray distance is derived, not configured: it is what the top-edge ray needs
+        // to reach the target floor. `right` is always horizontal, so the frame's
+        // vertical extent comes from `up` alone.
         double climb = -direction.getY();
         double topAboveEye = Math.max(0.0, (0.5 + frameShift) * spanHeight * up.getY());
         double floorY = floorReference(world, anchor, eyeY) - plugin.config().renderDepth();
@@ -105,8 +100,8 @@ public final class RenderService {
                 ? Math.min((eyeY + topAboveEye - floorY) / climb, captureArea)
                 : captureArea;
 
-        // Kadrajın kameranın altına düşen kısmı, geriye çekilerek kameranın yatay
-        // düzlemine kaldırılır (bkz. RenderGeometry).
+        // The part of the frame below the camera is lifted to its horizontal plane by
+        // backoff, see RenderGeometry.
         double dropBelowEye = Math.max(0.0, (0.5 - frameShift) * spanHeight * up.getY());
         double maxBackoff = climb > 1.0e-6 ? Math.min(dropBelowEye / climb, maxDistance) : 0.0;
 
@@ -127,8 +122,8 @@ public final class RenderService {
         int threads = plugin.config().renderThreads();
         Executor executor = workers(threads);
 
-        // Dünya yükseklik sınırları ana thread'de okunur; kopya tamamen
-        // thread-güvenli olsun diye WorldSnapshot'a değer olarak taşınır.
+        // Read the height limits here and pass them by value, so the snapshot never
+        // touches the world off the main thread.
         int minY = world.getMinHeight();
         int maxY = world.getMaxHeight();
 
@@ -146,18 +141,17 @@ public final class RenderService {
     }
 
     /**
-     * Gereken chunk'ların kopyalarını toplar. <b>Ana iş parçacığında</b> başlatılır.
+     * Collects copies of the required chunks. Started on the main thread.
      *
-     * <p>Yüklü olanlar hemen kopyalanır. Yüklü olmayanlar Paper'ın asenkron chunk
-     * API'siyle yüklenir; böylece uzak manzara çekilebilirken sunucu, ana iş
-     * parçacığında chunk üretmek/okumak zorunda kalmaz.</p>
+     * <p>Loaded chunks are copied straight away; the rest go through Paper's async
+     * chunk API so the server never reads or generates chunks on the main thread.</p>
      *
-     * <p><b>Kopya, yükleme callback'inin kendisinde alınır.</b> Paper
-     * {@code getChunkAtAsync} future'ını "always executed synchronously on the main
-     * Server Thread" diye tanımlar, yani {@code thenApply} ana thread'de ve chunk'ın
-     * kesinlikle yüklü olduğu anda koşar. Kopyayı bir tick sonraya bırakmak
-     * <b>olmuyor</b>: asenkron yükleme chunk'ı ticket ile tutmadığı için o arada
-     * yeniden boşalabiliyor ve fotoğrafta chunk boyunda delikler kalıyordu.</p>
+     * <p>The copy is taken <b>inside the load callback</b>. Paper defines the
+     * {@code getChunkAtAsync} future as "always executed synchronously on the main
+     * Server Thread", so {@code thenApply} runs there at a moment the chunk is
+     * certainly loaded. Deferring the copy by a tick does not work: async loading
+     * holds no ticket, the chunk can unload again in between, and the photo ends up
+     * with chunk-sized holes.</p>
      */
     private CompletableFuture<WorldSnapshot> snapshotChunks(World world, Set<Long> keys, int minY, int maxY) {
         boolean load = plugin.config().loadMissingChunks();
@@ -171,7 +165,7 @@ public final class RenderService {
             if (world.isChunkLoaded(cx, cz)) {
                 ready.add(world.getChunkAt(cx, cz).getChunkSnapshot(false, false, false));
             } else if (load) {
-                // Üretilmemiş chunk için (generate=false) future null ile tamamlanır.
+                // With generate=false an ungenerated chunk completes the future as null.
                 loading.add(world.getChunkAtAsync(cx, cz, generate).thenApply(
                         chunk -> chunk == null ? null : chunk.getChunkSnapshot(false, false, false)));
             }
@@ -196,11 +190,8 @@ public final class RenderService {
     }
 
     /**
-     * Eksik kalan chunk'ları bildirir.
-     *
-     * <p>Kopyası alınamayan chunk fotoğrafta <b>sessizce şeffaf bir delik</b>
-     * bırakır; sebebi görünmezse hata ışın yürüyüşünde sanılır. Bu yüzden
-     * eksik sayısı ve olası sebepleri loglanır.</p>
+     * Reports chunks that could not be copied. Each one leaves a silent transparent
+     * hole in the photo, which otherwise looks like a bug in the ray walk.
      */
     private void warnIfIncomplete(World world, int requested, int captured) {
         if (captured >= requested) {
@@ -213,26 +204,24 @@ public final class RenderService {
     }
 
     /**
-     * Işın mesafesinin ölçüleceği taban yüksekliği (henüz {@code render-depth}
-     * düşülmemiş hâli).
+     * Floor height ray distance is measured against, before {@code render-depth} is
+     * subtracted.
      *
-     * <p>Kameranın <b>kendi sütunundaki</b> en yüksek blok tek başına referans
-     * olamaz: kamera bir kulenin ya da uzun bir ağacın üstündeyse o sütun yüzlerce
-     * blok yüksek okunur, taban da onunla yukarı kayar. O zaman kadrajın gördüğü
-     * uzaktaki deniz/ova ışın menzilinin dışında kalır ve fotoğrafın üstünde
-     * <b>dümdüz yatay</b> bir boşluk şeridi oluşur: en uzun yolu en üst satırdaki
-     * ışınlar gerektirdiği için ilk onlar boşa çıkar.</p>
+     * <p>The highest block in the camera's own column cannot be the reference on its
+     * own: on top of a tower or a tall tree that column reads hundreds of blocks
+     * high and drags the floor up with it, putting distant ocean or plains out of
+     * range and leaving a flat horizontal empty band across the top of the photo
+     * (the top rows need the longest travel, so they run out first).</p>
      *
-     * <p>Bu yüzden referans, deniz seviyesi ile kameranın sütunundaki zemin
-     * arasından <b>alçak</b> olanıdır; kamera ikisinin de altındaysa (mağara,
-     * vadi) kendi yüksekliği kullanılır. Gereğinden uzun kalan mesafenin bedeli
-     * zaten {@code settings.max-capture-area} ile sınırlıdır.</p>
+     * <p>The reference is therefore the lower of sea level and the ground in the
+     * camera's column, or the camera itself when it is below both. Any excess
+     * distance is already bounded by {@code settings.max-capture-area}.</p>
      */
     private static double floorReference(World world, Location anchor, double eyeY) {
         return Math.min(eyeY, Math.min(world.getSeaLevel(), world.getHighestBlockYAt(anchor)));
     }
 
-    /** Işın prizmasının dokunduğu chunk sütunları (yalnızca geometri; blok erişimi yok). */
+    /** Chunk columns the ray prism touches; geometry only, no block access. */
     private static Set<Long> chunkKeys(List<BoundingBox> beam) {
         Set<Long> keys = new HashSet<>();
         for (BoundingBox box : beam) {
@@ -249,7 +238,7 @@ public final class RenderService {
         return keys;
     }
 
-    /** Eklenti kapanırken render havuzunu serbest bırakır. */
+    /** Releases the render pool when the plugin shuts down. */
     public synchronized void shutdown() {
         if (workers != null) {
             workers.shutdownNow();
@@ -259,8 +248,8 @@ public final class RenderService {
     }
 
     /**
-     * Yapılandırılan boyutta render havuzunu döndürür.
-     * Sayı {@code /izomap reload} ile değiştiyse havuz yeniden kurulur.
+     * Returns the render pool at the configured size, rebuilding it when the count
+     * changed via {@code /izomap reload}.
      */
     private synchronized Executor workers(int threads) {
         if (threads <= 1) {
@@ -279,7 +268,7 @@ public final class RenderService {
         return workers;
     }
 
-    /** Bukkit yaw/pitch formülüyle birim yön vektörü. */
+    /** Unit direction vector from Bukkit's yaw/pitch formula. */
     private static Vector directionFrom(float yaw, float pitch) {
         double yawRad = Math.toRadians(yaw);
         double pitchRad = Math.toRadians(pitch);
@@ -287,12 +276,12 @@ public final class RenderService {
         return new Vector(-cosPitch * Math.sin(yawRad), -Math.sin(pitchRad), cosPitch * Math.cos(yawRad));
     }
 
-    /** Yön vektöründen sağ/yukarı eksenlerini türetir (dik bakışta dejenerasyonu ele alır). */
+    /** Derives the right/up axes from the direction, handling the vertical case. */
     private static Vector[] basisFrom(Vector direction) {
         Vector worldUp = new Vector(0, 1, 0);
         Vector right = direction.clone().crossProduct(worldUp);
         if (right.lengthSquared() < 1.0e-6) {
-            // Tam yukarı/aşağı bakış: referans olarak dünya +Z ekseni kullan.
+            // Straight up or down: use world +Z as the reference instead.
             right = direction.clone().crossProduct(new Vector(0, 0, 1));
         }
         right.normalize();
@@ -301,16 +290,15 @@ public final class RenderService {
     }
 
     /**
-     * Işın prizmasını derinlik boyunca dilimleyip her dilimin kutusunu döndürür.
+     * Slices the ray prism along its depth and returns a box per slice.
      *
-     * <p>Tek bir kutu kullanılsaydı, çapraz bakışta prizmanın eğik olması yüzünden
-     * kutu gereğinden çok daha geniş olur ve yakalanacak chunk sayısı katlanırdı.
-     * Dilimleme, yakalanan bölgeyi prizmanın gerçek şekline yaklaştırır.</p>
+     * <p>A single box would be far wider than the prism at diagonal yaws and would
+     * multiply the captured chunk count; slicing keeps the captured region close to
+     * the prism's real shape.</p>
      *
-     * <p>Prizma, geri çekilen ışınları da kapsaması için düzlemin
-     * {@code backoff} blok <b>gerisinden</b> başlar; o bölge yakalanmazsa geri
-     * çekilen ışınlar boş (hava) bir alandan geçer ve fotoğrafın alt kısmı
-     * yanlış çıkardı.</p>
+     * <p>The prism starts {@code backoff} blocks <b>behind</b> the plane so it covers
+     * the pulled-back rays too; without that region those rays would cross
+     * uncaptured space and the bottom of the photo would be wrong.</p>
      */
     private static List<BoundingBox> beamSlices(Vector center, Vector right, Vector up, Vector direction,
                                                 double spanW, double spanH, double backoff, double maxDist) {

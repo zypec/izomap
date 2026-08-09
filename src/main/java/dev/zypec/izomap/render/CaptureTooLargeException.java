@@ -1,11 +1,9 @@
 package dev.zypec.izomap.render;
 
 /**
- * Kadraj, {@code settings.max-capture-area} sınırından daha fazla chunk
- * gerektirdiğinde fırlatılır.
- *
- * <p>Çekimi reddetmek, sunucuyu yüzlerce megabaytlık chunk kopyasıyla dondurmaya
- * yeğdir; oyuncuya yakınlaşması (zoom artırması) söylenir.</p>
+ * Thrown when the frame needs more chunks than {@code settings.max-capture-area}
+ * allows. Rejecting the capture beats stalling the server on hundreds of megabytes
+ * of chunk copies.
  */
 public final class CaptureTooLargeException extends RuntimeException {
 
@@ -18,12 +16,12 @@ public final class CaptureTooLargeException extends RuntimeException {
         this.budget = budget;
     }
 
-    /** Kadrajın gerektirdiği chunk sayısı. */
+    /** Number of chunks the frame requires. */
     public int required() {
         return required;
     }
 
-    /** Yapılandırmadaki üst sınır. */
+    /** Configured upper bound. */
     public int budget() {
         return budget;
     }

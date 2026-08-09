@@ -3,12 +3,10 @@ package dev.zypec.izomap.render;
 import java.awt.image.BufferedImage;
 
 /**
- * Bir render işleminin çıktısı.
+ * Output of a render.
  *
- * <p>{@code argb} her piksel için harita paletine snap'lenmiş rengi tutar
- * (satır-öncelikli, uzunluk = w*h). Bu değerler hem PNG önizlemesi hem de
- * FAZ 4'te {@code MapCanvas.setPixelColor} ile karolara aktarım için kullanılır.
- * İsabetsiz pikseller şeffaftır (ARGB = 0).</p>
+ * <p>{@code argb} holds the palette-snapped color of every pixel (row-major,
+ * length = w*h). Pixels no ray hit are transparent (ARGB = 0).</p>
  */
 public final class RenderResult {
 
@@ -30,17 +28,17 @@ public final class RenderResult {
         return height;
     }
 
-    /** Harita paletine snap'lenmiş ARGB renkler (satır-öncelikli, uzunluk = w*h). */
+    /** Palette-snapped ARGB colors (row-major, length = w*h). */
     public int[] argb() {
         return argb;
     }
 
-    /** Belirli bir pikselin ARGB değeri. */
+    /** ARGB value of a single pixel. */
     public int pixel(int x, int y) {
         return argb[y * width + x];
     }
 
-    /** Önizleme/PNG için ARGB tamponundan bir {@link BufferedImage} üretir. */
+    /** Builds a {@link BufferedImage} from the ARGB buffer. */
     public BufferedImage toImage() {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         image.setRGB(0, 0, width, height, argb, 0, width);

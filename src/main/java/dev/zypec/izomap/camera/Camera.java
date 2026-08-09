@@ -7,31 +7,30 @@ import org.bukkit.Location;
 import java.util.UUID;
 
 /**
- * Bir kamerayı temsil eden veri modeli.
+ * State of a single camera.
  *
- * <p>Kamera dünyada iki entity ile modellenir: görsel model ({@code ItemDisplay}
- * veya {@code BlockDisplay}) ve tık algılama için bir {@code Interaction} entity.
- * Bu sınıf yalnızca durum tutar; entity işlemleri {@link CameraManager}
- * tarafından yürütülür.</p>
+ * <p>A camera exists in the world as two entities: a display model and an
+ * {@code Interaction} entity for clicks. This class only holds state; entity work
+ * belongs to {@link CameraManager}.</p>
  */
 public final class Camera {
 
-    /** En geniş manzara: kadraj yüksekliğinin 50 katı (48 blok -> 2400 blok). */
+    /** Widest shot: 50x the frame height. */
     public static final float MIN_ZOOM = 0.02f;
-    /** En yakın plan: kadraj yüksekliğinin 1/16'sı (48 blok -> 3 blok). */
+    /** Closest shot: 1/16 of the frame height. */
     public static final float MAX_ZOOM = 16.0f;
 
     private final UUID id;
     private final UUID owner;
     private String name;
 
-    /** Entity'lerin bulunduğu dünya konumu (çıpa). Kamera taşınınca güncellenir. */
+    /** World location the entities sit at. */
     private Location anchor;
 
     private UUID displayEntityId;
     private UUID interactionEntityId;
 
-    /** Kameranın bakış açıları ve yakınlaştırması (fotoğraf yönü bunlardan türetilir). */
+    /** View angles the photo direction is derived from. */
     private float camYaw;
     private float camPitch;
     private float zoom;
@@ -39,10 +38,9 @@ public final class Camera {
     private AspectRatio aspectRatio;
     private ColorFilter colorFilter;
 
-    /** Önizlemede üçler kuralı kılavuzu gösterilsin mi (fotoğrafa girmez). */
     private boolean thirdsGuide;
 
-    /** Kalıcı değildir: hangi özelliğin ayarlandığını tutar. */
+    /** Not persisted: which property the owner is currently adjusting. */
     private transient EditProperty editProperty = EditProperty.YAW;
 
     public Camera(UUID id, UUID owner, String name, Location anchor) {
@@ -115,12 +113,8 @@ public final class Camera {
     }
 
     /**
-     * Yakınlaştırma çarpanı. Kadrajın kapsadığı alan
-     * {@code photo.frame-height / zoom} bloktur: 1.0 varsayılan, 0.25 dört kat
-     * geniş manzara, 4.0 dört kat yakın plan.
-     *
-     * <p>Kamera modelinin görsel boyutuyla ilgisi yoktur; model boyutu
-     * {@code camera.model-scale} ile ayarlanır.</p>
+     * Zoom multiplier: the frame covers {@code photo.frame-height / zoom} blocks.
+     * Unrelated to the model's visual size, which is {@code camera.model-scale}.
      */
     public float zoom() {
         return zoom;
@@ -147,9 +141,7 @@ public final class Camera {
     }
 
     /**
-     * Üçler kuralı kılavuzu (fotoğrafçılıktaki 3×3 kadraj çizgileri).
-     * Yalnızca <b>canlı önizlemeye</b> çizilir; çekilen fotoğrafa asla girmez.
-     * Varsayılan kapalıdır, Dialog'daki butonla açılır.
+     * Rule-of-thirds guide. Drawn on the live preview only, never on a capture.
      */
     public boolean thirdsGuide() {
         return thirdsGuide;

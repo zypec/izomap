@@ -8,11 +8,10 @@ import org.bukkit.map.MapView;
 import java.awt.Color;
 
 /**
- * Bir karonun ARGB piksellerini {@link MapCanvas}'a bir kez çizen renderer.
+ * Draws a tile's ARGB pixels onto a {@link MapCanvas} once.
  *
- * <p>{@link MapCanvas#setPixelColor} palet eşlemesini içeride yaptığından ayrı bir
- * dönüşüm gerekmez. Render tek seferlik yapılır; sonraki tick'lerde tekrar
- * çizilmez (performans).</p>
+ * <p>{@link MapCanvas#setPixelColor} maps to the palette internally, so no separate
+ * conversion is needed. Drawing happens a single time, not every tick.</p>
  */
 public final class TileMapRenderer extends MapRenderer {
 
@@ -20,7 +19,7 @@ public final class TileMapRenderer extends MapRenderer {
     private boolean rendered;
 
     public TileMapRenderer(int[] argb) {
-        super(false); // tüm oyuncular için aynı içerik (contextual değil)
+        super(false); // same content for every player, not contextual
         this.argb = argb;
     }
 
@@ -34,7 +33,7 @@ public final class TileMapRenderer extends MapRenderer {
             for (int x = 0; x < size; x++) {
                 int color = argb[y * size + x];
                 if ((color >>> 24) == 0) {
-                    continue; // şeffaf piksel: boş bırak
+                    continue; // transparent pixel: leave it blank
                 }
                 canvas.setPixelColor(x, y, new Color(color, true));
             }

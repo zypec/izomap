@@ -11,11 +11,8 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import java.io.File;
 
 /**
- * messages.yml içindeki MiniMessage tabanlı mesajları yükler ve
- * {@link Component} olarak üretir.
- *
- * <p>Tüm görünür metinler MiniMessage üzerinden {@link Component}'e çevrilir;
- * hiçbir yerde legacy renk kodu ({@code &}) kullanılmaz.</p>
+ * Loads the MiniMessage strings from {@code messages.yml} and turns them into
+ * {@link Component}s. Legacy {@code &} color codes are never used.
  */
 public final class Messages {
 
@@ -38,7 +35,7 @@ public final class Messages {
         this.prefix = messages.getString("prefix", "");
     }
 
-    /** Verilen anahtardaki mesajı önek olmadan {@link Component}'e çevirir. */
+    /** Resolves the message at the given key without the prefix. */
     public Component get(String key, TagResolver... resolvers) {
         String raw = messages.getString(key);
         if (raw == null) {
@@ -47,18 +44,18 @@ public final class Messages {
         return mm.deserialize(raw, resolvers);
     }
 
-    /** Verilen anahtardaki mesajı önekle birlikte {@link Component}'e çevirir. */
+    /** Resolves the message at the given key with the prefix. */
     public Component prefixed(String key, TagResolver... resolvers) {
         String raw = messages.getString(key, "");
         return mm.deserialize(prefix + raw, resolvers);
     }
 
-    /** Önekli mesajı doğrudan bir alıcıya gönderir. */
+    /** Sends the prefixed message straight to a receiver. */
     public void send(CommandSender to, String key, TagResolver... resolvers) {
         to.sendMessage(prefixed(key, resolvers));
     }
 
-    /** Bir string listesini (ör. lore) {@link Component} listesine çevirir. */
+    /** Resolves a string list (e.g. lore) into a {@link Component} list. */
     public java.util.List<Component> list(String key, TagResolver... resolvers) {
         java.util.List<Component> out = new java.util.ArrayList<>();
         for (String line : messages.getStringList(key)) {

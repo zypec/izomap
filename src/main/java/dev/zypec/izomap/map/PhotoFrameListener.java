@@ -11,13 +11,9 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 import java.util.UUID;
 
 /**
- * Yerleştirilmiş fotoğrafların ItemFrame'lerini yönetir:
- * <ul>
- *   <li>Bir çerçeve kırıldığında (patlama/fizik/oyuncu) <b>tüm fotoğraf</b> kalkar
- *       ve hiçbir eşya düşmez.</li>
- *   <li>Çerçeveye saldırı (eşya çıkarma) engellenir ve fotoğraf kaldırılır.</li>
- *   <li>Sağ tık ile döndürme engellenir (görsel bozulmasın).</li>
- * </ul>
+ * Manages the item frames of placed photos: breaking or attacking any frame takes
+ * the whole photo down without dropping items, and rotating is blocked so the image
+ * stays intact.
  */
 public final class PhotoFrameListener implements Listener {
 
@@ -27,18 +23,18 @@ public final class PhotoFrameListener implements Listener {
         this.photos = photos;
     }
 
-    // HangingBreakByEntityEvent, HangingBreakEvent'i genişletir; tek dinleyici ikisini de yakalar.
+    // HangingBreakByEntityEvent extends HangingBreakEvent, so one handler covers both.
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onBreak(HangingBreakEvent event) {
         if (!(event.getEntity() instanceof ItemFrame frame)) {
             return;
         }
         if (removePhotoOf(frame.getUniqueId())) {
-            event.setCancelled(true); // varsayılan drop'u engelle; kaldırmayı kendimiz yaparız
+            event.setCancelled(true); // suppress the default drop; removal is ours
         }
     }
 
-    // Çerçeveye saldırı: dolu çerçevede eşyayı çıkarır. Engelle ve fotoğrafı kaldır.
+    // Attacking a filled frame would pop the item out; block it and remove the photo.
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onAttack(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof ItemFrame frame)) {
@@ -49,7 +45,7 @@ public final class PhotoFrameListener implements Listener {
         }
     }
 
-    // Sağ tık: normalde haritayı döndürür. Fotoğraf çerçevelerinde engelle.
+    // Right click would rotate the map; block it on photo frames.
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onRotate(PlayerInteractEntityEvent event) {
         if (event.getRightClicked() instanceof ItemFrame frame

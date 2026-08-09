@@ -1,15 +1,12 @@
 package dev.zypec.izomap.map;
 
 /**
- * Bir fotoğrafın yerleştirileceği harita karosu ızgarası.
- *
- * <p>Her karo 128×128 pikseldir (bir Minecraft haritası). Izgara {@code cols}
- * sütun ve {@code rows} satırdan oluşur; toplam çözünürlük
- * {@code (cols*128) × (rows*128)}'dir.</p>
+ * Grid of map tiles a photo is laid out on. Each tile is one 128x128 Minecraft map,
+ * so the total resolution is {@code (cols*128) x (rows*128)}.
  */
 public record GridOption(int cols, int rows) {
 
-    /** Bir harita karosunun kenar uzunluğu (piksel). */
+    /** Side length of one map tile, in pixels. */
     public static final int TILE = 128;
 
     public int widthPx() {
@@ -32,7 +29,7 @@ public record GridOption(int cols, int rows) {
         return cols + "x" + rows;
     }
 
-    /** "4x2" gibi bir etiketi çözer; geçersizse {@code null}. */
+    /** Parses a label such as "4x2"; {@code null} when invalid. */
     public static GridOption parse(String raw) {
         if (raw == null) {
             return null;

@@ -10,25 +10,22 @@ import java.util.EnumMap;
 import java.util.Map;
 
 /**
- * {@link Material} -&gt; harita {@link MapBaseColor temel rengi} tablosu.
+ * {@link Material} to map {@link MapBaseColor} table.
  *
- * <p>Eşleme tahmin edilmez; her blok için doğrudan sunucudan
- * {@code BlockData#getMapColor()} okunur. Bu, Minecraft'ın haritalarda kullandığı
- * <a href="https://minecraft.wiki/w/Map_item_format#Base_colors">temel renk</a>
- * değerinin ta kendisidir, dolayısıyla tüm bloklar (stairs/slab/wall varyantları,
- * yeni sürümlerde eklenen bloklar dahil) birebir doğru renge sahip olur.</p>
+ * <p>Nothing is guessed: every block's color comes from the server via
+ * {@code BlockData#getMapColor()}, which is exactly the
+ * <a href="https://minecraft.wiki/w/Map_item_format#Base_colors">base color</a>
+ * vanilla maps use, so stair/slab/wall variants and blocks added in newer versions
+ * are all correct.</p>
  *
- * <p>{@code block-colors.yml} yalnızca <b>override</b> içindir: bir bloğun temel
- * rengini bilinçli olarak değiştirmek istersen oraya yazarsın. Harita renkleri
- * için varsayılan tablo gerekmez.</p>
+ * <p>{@code block-colors.yml} exists only for overrides.</p>
  *
- * <p>Tablo yüklendikten sonra salt-okunurdur; render sırasında asenkron olarak
- * kullanılabilir.</p>
+ * <p>The table is read-only once loaded, so render threads may use it.</p>
  */
 public final class BlockColorTable {
 
     private static final String FILE_NAME = "block-colors.yml";
-    /** Dosya biçimi sürümü. Eski (yaklaşık RGB tablolu) dosyalar yedeklenip yenilenir. */
+    /** File format version; older files are backed up and replaced. */
     private static final int FILE_VERSION = 2;
 
     private final Map<Material, MapBaseColor> colors = new EnumMap<>(Material.class);
@@ -36,7 +33,7 @@ public final class BlockColorTable {
     private BlockColorTable() {
     }
 
-    /** Sunucudan gerçek harita renklerini okur, ardından kullanıcı override'larını uygular. */
+    /** Reads real map colors from the server, then applies user overrides. */
     public static BlockColorTable load(Izomap plugin) {
         BlockColorTable table = new BlockColorTable();
         table.readFromServer(plugin);
@@ -46,18 +43,16 @@ public final class BlockColorTable {
     }
 
     /**
-     * Materyalin harita temel rengi.
-     *
-     * <p>Haritada görünmeyen bloklar (hava, cam, meşale, bitki fidanları...) için
-     * {@link MapBaseColor#NONE} döner; render bu blokları saydam sayıp ışını
-     * sürdürmelidir (vanilla harita davranışı).</p>
+     * Map base color of a material. Blocks that do not show on maps (air, glass,
+     * torches, saplings) return {@link MapBaseColor#NONE} and the render must treat
+     * them as transparent and continue the ray, as vanilla maps do.
      */
     public MapBaseColor baseColorOf(Material material) {
         MapBaseColor color = colors.get(material);
         return color != null ? color : MapBaseColor.NONE;
     }
 
-    /** Her blok materyali için varsayılan blok durumunun harita rengini okur. */
+    /** Reads the map color of each material's default block state. */
     private void readFromServer(Izomap plugin) {
         int unknown = 0;
         for (Material material : Material.values()) {
@@ -68,12 +63,12 @@ public final class BlockColorTable {
             try {
                 rgb = material.createBlockData().getMapColor().asRGB();
             } catch (RuntimeException ex) {
-                // Blok durumu üretilemeyen egzotik materyaller: haritada da görünmezler.
+                // Materials without a usable block state do not show on maps either.
                 continue;
             }
             MapBaseColor base = MapBaseColor.byBaseRgb(rgb);
             if (base == null) {
-                // Bu sürümde tabloda olmayan yeni bir temel renk: en yakınına düşür.
+                // A base color this build's table does not know: fall back to the nearest.
                 base = nearestBase(rgb);
                 unknown++;
             }
@@ -85,7 +80,7 @@ public final class BlockColorTable {
         }
     }
 
-    /** {@code block-colors.yml} içindeki override'ları uygular. */
+    /** Applies the overrides from {@code block-colors.yml}. */
     private void applyOverrides(Izomap plugin, YamlConfiguration cfg) {
         ConfigurationSection section = cfg.getConfigurationSection("overrides");
         if (section == null) {
@@ -113,9 +108,8 @@ public final class BlockColorTable {
     }
 
     /**
-     * Dosyayı yükler; sürümü eskiyse (yaklaşık RGB tablolu v1) yedekleyip
-     * yeni varsayılanı yazar. Böylece güncelleme sonrası eski tahmini renkler
-     * doğru vanilla renklerinin üzerine yazmaz.
+     * Loads the file, backing up and replacing older versions so that approximated
+     * colors from v1 cannot overwrite the correct vanilla ones.
      */
     private static YamlConfiguration loadFile(Izomap plugin) {
         File file = new File(plugin.getDataFolder(), FILE_NAME);
@@ -140,7 +134,7 @@ public final class BlockColorTable {
         return YamlConfiguration.loadConfiguration(file);
     }
 
-    /** Temel renk adı ("GRASS") veya hex ("#7FB238") kabul eder. */
+    /** Accepts a base color name ("GRASS") or hex ("#7FB238"). */
     private static MapBaseColor parseBaseColor(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
@@ -160,7 +154,7 @@ public final class BlockColorTable {
         }
     }
 
-    /** Serbest bir RGB'ye en yakın temel renk (şeffaf NONE hariç). */
+    /** Nearest base color to an arbitrary RGB, excluding transparent NONE. */
     private static MapBaseColor nearestBase(int rgb) {
         int r = (rgb >> 16) & 0xFF;
         int g = (rgb >> 8) & 0xFF;

@@ -8,14 +8,14 @@ import org.bukkit.plugin.Plugin;
 import java.util.UUID;
 
 /**
- * Izomap entity'lerini ve eşyalarını tanımlamak için kullanılan
- * {@link NamespacedKey} ve {@link PersistentDataContainer} yardımcıları.
+ * {@link NamespacedKey} and {@link PersistentDataContainer} helpers that identify
+ * Izomap entities and items.
  */
 public final class CameraKeys {
 
-    /** Display/Interaction entity üzerinde: ait olduğu kameranın UUID'si. */
+    /** On a display/interaction entity: the UUID of the camera it belongs to. */
     private final NamespacedKey cameraId;
-    /** Kamera yerleştirme eşyası üzerinde işaretleyici. */
+    /** Marker on the camera placement item. */
     private final NamespacedKey cameraItem;
 
     public CameraKeys(Plugin plugin) {

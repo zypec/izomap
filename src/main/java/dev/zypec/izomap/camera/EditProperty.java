@@ -1,16 +1,13 @@
 package dev.zypec.izomap.camera;
 
-/**
- * Kamera üzerinde etkileşimle ayarlanabilen özellikler.
- * Shift + sağ tık ile sıradaki özelliğe geçilir.
- */
+/** Camera properties that can be adjusted by interacting with the model. */
 public enum EditProperty {
 
     YAW,
     PITCH,
     ZOOM;
 
-    /** Döngüsel olarak bir sonraki özelliği döndürür. */
+    /** Returns the next property, wrapping around. */
     public EditProperty next() {
         EditProperty[] values = values();
         return values[(ordinal() + 1) % values.length];

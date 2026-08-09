@@ -1,20 +1,18 @@
 package dev.zypec.izomap.render;
 
 /**
- * Rastgele bir RGB rengi, harita paletindeki en yakın gerçek renge "snap"ler.
+ * Snaps an arbitrary RGB color to the nearest real map color.
  *
- * <p>Palet, {@link MapBaseColor} temel renklerinin 4 parlaklık varyantından
- * (61 temel renk x 4 = 244 geçerli renk) oluşur; {@link MapBaseColor#NONE}
- * şeffaf olduğu için eşleşmeye dahil edilmez. Mesafe ölçütü Minecraft'ın ve
- * Bukkit {@code MapPalette}'inin kullandığı ağırlıklı ("redmean") formülüdür,
- * böylece sonuç oyunun kendi eşlemesiyle aynıdır.</p>
+ * <p>The palette is every {@link MapBaseColor} in its four brightness variants;
+ * {@link MapBaseColor#NONE} is excluded because it is transparent. Distance uses the
+ * same weighted "redmean" formula as Bukkit's {@code MapPalette}, so the result
+ * matches the game's own mapping.</p>
  *
- * <p>Tablo statik ve salt-okunur olduğundan asenkron render sırasında güvenle
- * kullanılabilir.</p>
+ * <p>The table is static and read-only, so it is safe to use from render threads.</p>
  */
 public final class MapColorConverter {
 
-    /** Geçerli (şeffaf olmayan) tüm harita renkleri, 0xRRGGBB. */
+    /** Every valid (non-transparent) map color, 0xRRGGBB. */
     private static final int[] PALETTE;
 
     static {
@@ -24,7 +22,7 @@ public final class MapColorConverter {
         int index = 0;
         for (MapBaseColor base : bases) {
             if (base == MapBaseColor.NONE) {
-                continue; // şeffaf
+                continue; // transparent
             }
             for (MapBaseColor.Shade shade : shades) {
                 palette[index++] = base.rgb(shade);
@@ -33,7 +31,7 @@ public final class MapColorConverter {
         PALETTE = palette;
     }
 
-    /** Verilen 0xRRGGBB rengini paletteki en yakın renge eşler. */
+    /** Maps a 0xRRGGBB color to the closest palette entry. */
     public int snap(int rgb) {
         int r = (rgb >> 16) & 0xFF;
         int g = (rgb >> 8) & 0xFF;
@@ -54,7 +52,7 @@ public final class MapColorConverter {
         return best;
     }
 
-    /** Bukkit {@code MapPalette} ile aynı ağırlıklı kare mesafe (tam sayı aritmetiği). */
+    /** Same weighted squared distance as Bukkit {@code MapPalette}. */
     private static long distance(int r1, int g1, int b1, int rgb2) {
         int r2 = (rgb2 >> 16) & 0xFF;
         int g2 = (rgb2 >> 8) & 0xFF;

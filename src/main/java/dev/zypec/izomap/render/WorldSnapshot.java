@@ -8,15 +8,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Bir dünya bölgesinin iş parçacığı güvenli anlık görüntüsü.
+ * Thread-safe snapshot of a region of the world.
  *
- * <p>Paper'da chunk/blok erişimi yalnızca ana (region) iş parçacığında güvenlidir.
- * Bu sınıf, gerekli chunk'ların <b>ana thread'de</b> alınmış {@link ChunkSnapshot}
- * kopyalarını tutar; ardından ağır voxel yürüyüşü bu kopyalar üzerinde
- * <b>asenkron</b> yürütülebilir.</p>
+ * <p>Chunk and block access is only safe on the main thread, so this holds
+ * {@link ChunkSnapshot} copies taken there and lets the voxel walk run
+ * asynchronously against them.</p>
  *
- * <p>Kopyası bulunmayan chunk'lar hava sayılır (fotoğrafta şeffaf kalır).
- * Chunk'ların yüklenmesi ve kopyalanması {@link RenderService}'in işidir.</p>
+ * <p>Chunks without a copy count as air. Loading and copying them is
+ * {@link RenderService}'s job.</p>
  */
 public final class WorldSnapshot {
 
@@ -31,11 +30,8 @@ public final class WorldSnapshot {
     }
 
     /**
-     * Hazır chunk kopyalarından anlık görüntü kurar.
-     *
-     * <p>Yükseklik sınırları {@code World} nesnesinden değil değer olarak alınır;
-     * böylece kopya kurulurken dünyaya hiç dokunulmaz ve çağrı ana thread dışından
-     * da güvenlidir.</p>
+     * Builds a snapshot from ready chunk copies. Height limits are passed as values
+     * rather than read off a {@code World}, so this is safe off the main thread.
      */
     public static WorldSnapshot of(Collection<ChunkSnapshot> snapshots, int minY, int maxY) {
         Map<Long, ChunkSnapshot> chunks = new HashMap<>(snapshots.size() * 2);
@@ -45,7 +41,7 @@ public final class WorldSnapshot {
         return new WorldSnapshot(chunks, minY, maxY);
     }
 
-    /** Dünya koordinatındaki bloğun materyali (kopyası yoksa AIR). */
+    /** Material at a world coordinate, or AIR when the chunk was not copied. */
     public Material materialAt(int x, int y, int z) {
         if (y < minY || y >= maxY) {
             return Material.AIR;
@@ -57,12 +53,12 @@ public final class WorldSnapshot {
         return snapshot.getBlockType(x & 15, y, z & 15);
     }
 
-    /** Dünyanın en alt blok yüksekliği (dahil). */
+    /** Lowest block height of the world (inclusive). */
     public int minY() {
         return minY;
     }
 
-    /** Dünyanın en üst blok yüksekliği (hariç). */
+    /** Highest block height of the world (exclusive). */
     public int maxY() {
         return maxY;
     }
@@ -71,7 +67,7 @@ public final class WorldSnapshot {
         return chunks.size();
     }
 
-    /** Chunk koordinatlarını tek bir {@code long} anahtara paketler. */
+    /** Packs chunk coordinates into a single {@code long} key. */
     public static long key(int chunkX, int chunkZ) {
         return ((long) chunkX << 32) ^ (chunkZ & 0xFFFFFFFFL);
     }

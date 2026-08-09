@@ -24,19 +24,15 @@ import org.bukkit.inventory.ItemStack;
 import java.util.Locale;
 
 /**
- * Kamera etkileşimlerini yönetir:
- * <ul>
- *   <li>Interaction entity'ye <b>sağ tık</b>: aktif özelliği artır.</li>
- *   <li>Interaction entity'ye <b>sol tık</b> (attack): aktif özelliği azalt.</li>
- *   <li><b>Shift + sağ tık</b>: ayarlanan özelliği (Yaw/Pitch/Scale) değiştir.</li>
- *   <li>Kamera eşyasıyla bloğa sağ tık: o konuma yeni kamera yerleştir.</li>
- * </ul>
+ * Handles camera interactions: right click raises the active property, left click
+ * lowers it, sneak switches which property is active or opens the capture dialog,
+ * and right clicking a block with the camera item places a new camera.
  */
 public final class CameraListener implements Listener {
 
     /**
-     * Bu eğimin altında ortografik ışınlar arazi yüzeyine inemez: fotoğraf gökyüzü
-     * ile toprak kesitine bölünür. Oyuncuya uyarı gönderilir.
+     * Below this pitch orthographic rays cannot reach the terrain and the photo
+     * splits into sky and a dirt slab, so the player is warned.
      */
     private static final float SHALLOW_PITCH = 10.0f;
 
@@ -52,7 +48,7 @@ public final class CameraListener implements Listener {
         this.dialogs = dialogs;
     }
 
-    // Sağ tık: artır veya (sneak) özelliği değiştir.
+    // Right click: raise, or switch property while sneaking.
     @EventHandler(ignoreCancelled = true)
     public void onRightClick(PlayerInteractEntityEvent event) {
         if (!(event.getRightClicked() instanceof Interaction interaction)) {
@@ -74,7 +70,7 @@ public final class CameraListener implements Listener {
         adjust(camera, +1, player);
     }
 
-    // Sol tık (attack): azalt.
+    // Left click: lower.
     @EventHandler(ignoreCancelled = true)
     public void onLeftClick(EntityDamageByEntityEvent event) {
         if (!(event.getEntity() instanceof Interaction interaction)) {
@@ -89,7 +85,7 @@ public final class CameraListener implements Listener {
         }
         event.setCancelled(true);
 
-        // Shift + sol tık: fotoğraf Dialog'unu aç. Aksi halde: aktif özelliği azalt.
+        // Sneaking opens the capture dialog instead of lowering the property.
         if (player.isSneaking()) {
             dialogs.openCaptureDialog(player, camera);
             return;
@@ -98,13 +94,12 @@ public final class CameraListener implements Listener {
     }
 
     /**
-     * Chunk'ı sonradan yüklenen kameraların transformunu yeniden uygular.
+     * Reapplies the transform of cameras whose chunk loads later.
      *
-     * <p>Açılışta {@code cameras.yml} okunurken kameraların çoğunun chunk'ı yüklü
-     * değildir, dolayısıyla {@code applyTransform} onları atlar. Bu kanca olmadan
-     * entity, <b>oluşturulduğu andaki</b> transformla donup kalır: model ölçeği
-     * eskiden kameranın zoom'undan geldiği için eski kameralar devasa görünür ve
-     * config'teki {@code model-scale} hiçbir zaman devreye girmezdi.</p>
+     * <p>Most cameras' chunks are unloaded while {@code cameras.yml} is read, so
+     * {@code applyTransform} skips them. Without this hook the entity stays frozen
+     * with the transform it was created with and {@code model-scale} never takes
+     * effect.</p>
      */
     @EventHandler
     public void onEntitiesLoad(EntitiesLoadEvent event) {
@@ -119,7 +114,7 @@ public final class CameraListener implements Listener {
         }
     }
 
-    // Kamera eşyasıyla bloğa sağ tık: yeni kamera.
+    // Right clicking a block with the camera item places a new camera.
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlaceItem(PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getHand() != EquipmentSlot.HAND) {
@@ -163,8 +158,8 @@ public final class CameraListener implements Listener {
                                     String.format(Locale.ROOT, "%.0f", camera.camPitch())));
                 }
             }
-            // Zoom çarpımsal ilerler: her tık yüzde olarak aynı miktarda yakınlaştırır,
-            // böylece 0.05x ile 8x arasında her yerde adım aralığı dengeli kalır.
+            // Zoom steps multiplicatively so each tick changes it by the same
+            // percentage across the whole range.
             case ZOOM -> {
                 double step = plugin.config().zoomStep();
                 camera.zoom((float) (direction > 0 ? camera.zoom() * step : camera.zoom() / step));
@@ -181,8 +176,7 @@ public final class CameraListener implements Listener {
         return switch (camera.editProperty()) {
             case YAW -> String.format(Locale.ROOT, "%.0f°", camera.camYaw());
             case PITCH -> String.format(Locale.ROOT, "%.0f°", camera.camPitch());
-            // Zoom'un yanında kadrajın kaç blok kapsadığı da gösterilir; asıl merak
-            // edilen budur ve çarpanın tek başına anlamı yoktur.
+            // The multiplier alone means little, so show the frame size in blocks too.
             case ZOOM -> String.format(Locale.ROOT, "%.2fx (%.0f blok)",
                     camera.zoom(), plugin.config().frameHeight() / camera.zoom());
         };

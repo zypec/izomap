@@ -1,11 +1,6 @@
 package dev.zypec.izomap.render;
 
-/**
- * Desteklenen fotoğraf en-boy oranları.
- *
- * <p>FAZ 4'te bu oranlara göre uygun grid (karo) seçenekleri türetilecek
- * (ör. 1:1 -&gt; 1x1, 2x2, 3x3 | 16:9 -&gt; 4x2, 16x9).</p>
- */
+/** Supported photo aspect ratios. */
 public enum AspectRatio {
 
     RATIO_1_1(1, 1),
@@ -28,12 +23,12 @@ public enum AspectRatio {
         return height;
     }
 
-    /** En-boy oranının sayısal değeri (width / height). */
+    /** The ratio as a number (width / height). */
     public double value() {
         return (double) width / height;
     }
 
-    /** İnsan tarafından okunabilir etiket (ör. "16:9"). */
+    /** Human readable label, e.g. "16:9". */
     public String label() {
         return width + ":" + height;
     }
@@ -49,7 +44,7 @@ public enum AspectRatio {
         }
     }
 
-    /** Etiket ("16:9") veya enum adından ("RATIO_16_9") çözümler; bulunamazsa null. */
+    /** Resolves a label ("16:9") or enum name ("RATIO_16_9"); null when unknown. */
     public static AspectRatio fromLabel(String raw) {
         if (raw == null) {
             return null;

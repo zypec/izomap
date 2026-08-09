@@ -5,17 +5,15 @@ import dev.zypec.izomap.render.RenderResult;
 import java.util.ArrayList;
 import java.util.List;
 
-/**
- * Render çıktısını ızgaraya göre 128×128 karolara böler.
- */
+/** Cuts a render into 128x128 tiles according to the grid. */
 public final class ImageSlicer {
 
     private ImageSlicer() {
     }
 
     /**
-     * Render sonucunu karolara böler. Render, ızgara boyutunda
-     * ({@code grid.widthPx() × grid.heightPx()}) yapılmış olmalıdır.
+     * Slices the render into tiles. The render must already be
+     * {@code grid.widthPx() x grid.heightPx()} in size.
      */
     public static List<MapTile> slice(RenderResult result, GridOption grid) {
         int tile = GridOption.TILE;

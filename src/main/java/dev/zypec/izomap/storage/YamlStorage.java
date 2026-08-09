@@ -12,12 +12,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
- * cameras.yml / maps.yml gibi YML tabanlı veri dosyaları için asenkron
- * okuma/yazma sağlayan temel sınıf.
+ * Base class for YML data files such as {@code cameras.yml} and {@code maps.yml}.
  *
- * <p><b>Kural:</b> Disk I/O işlemleri KESİNLİKLE ana iş parçacığında
- * çalıştırılmaz. Yükleme ve kaydetme, Paper'ın asenkron zamanlayıcısı
- * üzerinden yürütülür.</p>
+ * <p>Disk I/O never runs on the main thread; loading and saving go through Paper's
+ * async scheduler.</p>
  */
 public abstract class YamlStorage {
 
@@ -25,7 +23,7 @@ public abstract class YamlStorage {
     private final Path path;
     private final Executor asyncExecutor;
 
-    /** Yalnızca senkron blok içinde okunur/yazılır. */
+    /** Only read and written inside synchronized blocks. */
     private FileConfiguration data;
 
     protected YamlStorage(Izomap plugin, String fileName) {
@@ -35,7 +33,7 @@ public abstract class YamlStorage {
                 plugin.getServer().getAsyncScheduler().runNow(plugin, scheduled -> task.run());
     }
 
-    /** Dosyayı asenkron olarak yükler. */
+    /** Loads the file asynchronously. */
     public CompletableFuture<Void> load() {
         return CompletableFuture.runAsync(() -> {
             try {
@@ -54,7 +52,7 @@ public abstract class YamlStorage {
         }, asyncExecutor);
     }
 
-    /** Bellekteki veriyi asenkron olarak diske yazar. */
+    /** Writes the in-memory data to disk asynchronously. */
     public CompletableFuture<Void> save() {
         final String dump;
         synchronized (this) {
@@ -71,29 +69,28 @@ public abstract class YamlStorage {
     }
 
     /**
-     * Yükleme tamamlandığında (asenkron iş parçacığında) çağrılır.
-     * Alt sınıflar ham veriyi kendi bellek modeline dönüştürmek için ezer.
+     * Called on the async thread once loading finishes. Subclasses override it to
+     * turn the raw data into their own model.
      */
     protected void onLoaded(FileConfiguration loaded) {
-        // Varsayılan: işlem yok.
     }
 
     /**
-     * Bellekteki yapılandırmaya güvenli (senkronize) erişim sağlar.
-     * {@code null} dönebilir; {@link #load()} tamamlanmadan çağrılmamalıdır.
+     * Synchronized access to the in-memory configuration. May be {@code null} before
+     * {@link #load()} completes.
      */
     protected synchronized FileConfiguration data() {
         return data;
     }
 
-    /** Bellekteki yapılandırmayı komple değiştirir (toplu serialize için). */
+    /** Replaces the in-memory configuration wholesale, for bulk serialization. */
     protected synchronized void setData(FileConfiguration replacement) {
         this.data = replacement;
     }
 
     /**
-     * Diske SENKRON yazar. Yalnızca sunucu kapanışı (onDisable) gibi
-     * asenkron zamanlayıcının artık çalışmadığı durumlar için kullanılır.
+     * Writes to disk synchronously. Only for shutdown, where the async scheduler no
+     * longer runs.
      */
     protected void saveNow() {
         final String dump;

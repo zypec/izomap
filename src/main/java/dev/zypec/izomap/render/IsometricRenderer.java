@@ -6,23 +6,20 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
- * Ortografik voxel yürüyüşü ile bir {@link WorldSnapshot}'tan izometrik görüntü üreten
- * saf hesap motoru. Bukkit dünya durumuna dokunmaz; tamamen anlık görüntü üzerinde
- * çalışır ve bu nedenle <b>asenkron</b> yürütülebilir.
+ * Pure compute engine that walks orthographic rays over a {@link WorldSnapshot}.
+ * It never touches Bukkit world state, so it can run asynchronously.
  *
- * <p>Işınlar sabit adımla değil, Amanatides-Woo DDA algoritmasıyla <b>blok blok</b>
- * ilerler: her adım tam olarak bir sonraki blok sınırına atlar. Bu sayede ince blok
- * kaçırılmaz, gereksiz örnekleme yapılmaz ve ışının bloğa hangi yüzden girdiği
- * (gölgelendirme için) hesaplama gerektirmeden bilinir.</p>
+ * <p>Rays advance block by block with the Amanatides-Woo DDA algorithm: each step
+ * jumps exactly to the next block boundary, so thin blocks are never missed, no
+ * sample is wasted, and the face the ray entered through is known for free.</p>
  *
- * <p>Renkler harita paletinin kendi sisteminden gelir: blok
- * {@link MapBaseColor temel rengini} verir, ışının çarptığı yüz ise parlaklık
- * ({@link MapBaseColor.Shade}) varyantını seçer. Böylece filtre ve kenar yumuşatma
- * uygulanmadığında her piksel doğrudan geçerli bir harita rengidir.</p>
+ * <p>Colors come from the map palette itself: the block gives the
+ * {@link MapBaseColor} and the entered face selects the {@link MapBaseColor.Shade}.
+ * Without a filter or supersampling every pixel is already a valid map color.</p>
  */
 public final class IsometricRenderer {
 
-    /** Işının hiçbir bloğa isabet etmediğini belirtir (şeffaf piksel). */
+    /** The ray hit nothing (transparent pixel). */
     private static final int MISS = 0;
 
     private static final int AXIS_X = 0;
@@ -38,11 +35,11 @@ public final class IsometricRenderer {
     }
 
     /**
-     * Görüntüyü üretir.
+     * Renders the image.
      *
-     * @param supersampling piksel başına kenar yumuşatma ışını (NxN); 1 = kapalı
-     * @param executor      satır bantlarının dağıtılacağı havuz
-     * @param threads       kaç bant (dolayısıyla kaç iş parçacığı) kullanılacağı
+     * @param supersampling antialiasing rays per pixel (NxN); 1 disables it
+     * @param executor      pool the row bands are dispatched to
+     * @param threads       how many bands, and therefore threads, to use
      */
     public RenderResult render(WorldSnapshot snapshot, RenderGeometry geo, ColorFilter filter,
                                int supersampling, Executor executor, int threads) {
@@ -57,7 +54,7 @@ public final class IsometricRenderer {
             return new RenderResult(w, h, argb);
         }
 
-        // Görüntü yatay bantlara bölünür; son bant çağıran iş parçacığında koşar.
+        // The last band runs on the calling thread.
         int rowsPerBand = (h + bands - 1) / bands;
         CompletableFuture<?>[] pending = new CompletableFuture<?>[bands - 1];
         for (int band = 0; band < bands - 1; band++) {
@@ -72,13 +69,13 @@ public final class IsometricRenderer {
         return new RenderResult(w, h, argb);
     }
 
-    /** Verilen satır aralığını ({@code [yFrom, yTo)}) render eder. */
+    /** Renders the row range {@code [yFrom, yTo)}. */
     private void renderBand(WorldSnapshot snapshot, RenderGeometry geo, ColorFilter filter,
                             int samples, int[] argb, int yFrom, int yTo) {
         final int w = geo.widthPx();
         final int h = geo.heightPx();
 
-        // Vektörleri sıcak döngü için ilkel değerlere aç.
+        // Unpack the vectors into primitives for the hot loop.
         final double cx = geo.planeCenter().getX(), cy = geo.planeCenter().getY(), cz = geo.planeCenter().getZ();
         final double rx = geo.right().getX(), ry = geo.right().getY(), rz = geo.right().getZ();
         final double ux = geo.up().getX(), uy = geo.up().getY(), uz = geo.up().getZ();
@@ -89,8 +86,7 @@ public final class IsometricRenderer {
         final double maxDist = geo.maxDistance();
         final double eyeY = geo.eyeY();
         final double maxBackoff = geo.maxBackoff();
-        // Aşağı bakışın dikey bileşeni; ışını geriye çekmenin onu ne kadar
-        // yükselttiğini verir (yatay ya da yukarı bakışta 0 -> geri çekme yok).
+        // How much pulling a ray back raises it; 0 when not looking down, so no backoff.
         final double climbPerBlock = -dy;
         final int total = samples * samples;
         final boolean needsSnap = samples > 1 || filter != ColorFilter.ORIGINAL;
@@ -108,18 +104,15 @@ public final class IsometricRenderer {
                         double oy = cy + ry * u + uy * v;
                         double oz = cz + rz * u + uz * v;
 
-                        // Kadrajın kameranın altına düşen kısmı toprağın içinde
-                        // başlar ve fotoğrafa toprak kesiti basardı; o ışınlar
-                        // kameranın yatay düzlemine çıkacak kadar geri çekilir.
-                        // Ortografik projeksiyonda bu, görüntüyü değiştirmez.
+                        // Rays below the camera would start inside the ground and print
+                        // a dirt slab, so they are pulled back to the camera's plane.
                         double backoff = 0.0;
                         if (maxBackoff > 0.0 && oy < eyeY) {
                             double needed = (eyeY - oy) / climbPerBlock;
                             if (needed <= maxBackoff) {
                                 backoff = needed;
-                                // Hedef yükseklik tam olarak eyeY'dir; doğrudan
-                                // atanır, yoksa yuvarlama ışını bir tık aşağıda
-                                // bırakıp taban sırasına toprak bastırabilir.
+                                // Assign eyeY directly; rounding could leave the ray a
+                                // hair below it and print dirt along the bottom row.
                                 oy = eyeY;
                             } else {
                                 backoff = maxBackoff;
@@ -129,8 +122,8 @@ public final class IsometricRenderer {
                             oz -= dz * backoff;
                         }
 
-                        // İleri görüş mesafesi kamera düzleminden ölçülür: geri
-                        // çekilen ışın, çekildiği kadarını ek olarak yürür.
+                        // View distance is measured from the camera plane, so a
+                        // pulled-back ray walks the extra distance too.
                         int color = marchRay(snapshot, ox, oy, oz, dx, dy, dz, maxDist + backoff);
                         if (color != MISS) {
                             hits++;
@@ -141,7 +134,7 @@ public final class IsometricRenderer {
                     }
                 }
 
-                // Harita paleti yarı saydamlığı desteklemez: çoğunluk kararı verir.
+                // The map palette has no translucency, so the majority decides.
                 if (hits * 2 < total) {
                     argb[py * w + px] = 0;
                     continue;
@@ -150,19 +143,19 @@ public final class IsometricRenderer {
                 if (filter != ColorFilter.ORIGINAL) {
                     rgb = filter.apply(rgb);
                 }
-                // Ortalama ve efekt palet dışına çıkarabilir; gerçek harita rengine snap'le.
+                // Averaging and filtering can leave the palette; snap back onto it.
                 argb[py * w + px] = (needsSnap ? converter.snap(rgb) : rgb) | 0xFF000000;
             }
         }
     }
 
     /**
-     * Işını blok blok yürütür; ilk isabet eden bloğun harita rengini döndürür
-     * (isabet yoksa {@link #MISS}).
+     * Walks the ray block by block and returns the map color of the first hit, or
+     * {@link #MISS}.
      *
-     * <p>Amanatides-Woo: her eksen için bir sonraki blok sınırına olan parametrik
-     * uzaklık ({@code tMax}) tutulur, en küçüğü seçilerek o eksende bir blok
-     * ilerlenir. Seçilen eksen aynı zamanda ışının girdiği yüzdür.</p>
+     * <p>Amanatides-Woo: keep the parametric distance to the next boundary on each
+     * axis ({@code tMax}), step along the smallest one. That axis is also the face
+     * the ray entered through.</p>
      */
     private int marchRay(WorldSnapshot snapshot,
                          double ox, double oy, double oz,
@@ -187,8 +180,8 @@ public final class IsometricRenderer {
         double tMaxY = stepY == 0 ? Double.POSITIVE_INFINITY : (stepY > 0 ? (y + 1 - oy) : (oy - y)) * invY;
         double tMaxZ = stepZ == 0 ? Double.POSITIVE_INFINITY : (stepZ > 0 ? (z + 1 - oz) : (oz - z)) * invZ;
 
-        // İlk hücrenin giriş yüzü yoktur (ışın onun içinde doğar): bakışa en dik
-        // yüzü varsay, böylece kamera bir bloğun içindeyse de makul bir ton çıkar.
+        // The first cell has no entry face since the ray starts inside it; assume the
+        // face most perpendicular to the view so a camera inside a block still shades.
         int face = dominantAxis(dx, dy, dz);
         double t = 0.0;
 
@@ -197,13 +190,13 @@ public final class IsometricRenderer {
                 Material material = snapshot.materialAt(x, y, z);
                 if (!material.isAir()) {
                     MapBaseColor base = colorTable.baseColorOf(material);
-                    // Haritada renksiz blok (cam, meşale, fidan...): vanilla gibi ışın devam eder.
+                    // Colorless on maps (glass, torches, saplings): continue like vanilla.
                     if (base != MapBaseColor.NONE) {
                         return base.rgb(shadeOf(face, dy)) | 0xFF000000;
                     }
                 }
             } else if ((y >= snapshot.maxY() && stepY >= 0) || (y < snapshot.minY() && stepY <= 0)) {
-                // Dünyanın dışına çıktı ve geri dönmeyecek.
+                // Left the world and will not come back.
                 return MISS;
             }
 
@@ -230,12 +223,11 @@ public final class IsometricRenderer {
     }
 
     /**
-     * Işının girdiği yüzün parlaklığını seçer.
+     * Picks the brightness for the face the ray entered through.
      *
-     * <p>Vanilla haritada parlaklık yükseklik farkından gelir; izometrik görünümde
-     * karşılığı yüz yönelimidir: üst yüz en parlak (255), iki yan yüz farklı
-     * tonlarda (220 / 180), alt yüz en koyu (135). Çarpanlar harita paletiyle
-     * birebir aynı olduğundan sonuç yine geçerli bir harita rengidir.</p>
+     * <p>Vanilla derives brightness from height differences; the isometric equivalent
+     * is face orientation: top brightest (255), the two sides at 220 and 180, bottom
+     * darkest (135).</p>
      */
     private static MapBaseColor.Shade shadeOf(int face, double dy) {
         if (face == AXIS_Y) {
@@ -244,7 +236,7 @@ public final class IsometricRenderer {
         return face == AXIS_X ? MapBaseColor.Shade.NORMAL : MapBaseColor.Shade.LOW;
     }
 
-    /** Yön vektörünün en büyük bileşenine karşılık gelen eksen. */
+    /** Axis of the direction vector's largest component. */
     private static int dominantAxis(double dx, double dy, double dz) {
         double ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
         if (ay >= ax && ay >= az) {

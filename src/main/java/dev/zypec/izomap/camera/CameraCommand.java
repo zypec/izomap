@@ -30,19 +30,20 @@ import java.util.List;
 import java.util.Locale;
 
 /**
- * {@code /izocam} Brigadier komut ağacı.
+ * Brigadier command tree for {@code /izocam}.
  *
  * <ul>
- *   <li>{@code create <ad>} – bakış yönünün önüne kamera kurar.</li>
- *   <li>{@code remove <ad> | all} – kamera(ları) siler.</li>
- *   <li>{@code list cameras | photos} – kameraları/fotoğrafları listeler.</li>
- *   <li>{@code item} – kamera yerleştirme eşyası verir.</li>
- *   <li>{@code ratio <ad> <oran>} – en-boy oranını ayarlar (ör. 4:3).</li>
- *   <li>{@code maps <ad> <grid>} – harita eşyalarını envantere verir.</li>
- *   <li>{@code open <ad>} – fotoğraf Dialog'unu açar.</li>
- *   <li>{@code unplace <id> | all} – yerleştirilmiş fotoğraf(lar)ı kaldırır.</li>
- *   <li>{@code cleanup} – kırılmış/kayıp çerçeveli fotoğraf kayıtlarını temizler.</li>
- *   <li>{@code reload} – yapılandırmayı yeniden yükler (admin).</li>
+ *   <li>{@code create <name>} – places a camera in front of the player.</li>
+ *   <li>{@code move <name>} – moves a camera to where the player is looking.</li>
+ *   <li>{@code remove <name> | all} – removes cameras or photos.</li>
+ *   <li>{@code list cameras | photos} – lists cameras or photos.</li>
+ *   <li>{@code item} – gives the camera placement item.</li>
+ *   <li>{@code ratio <name> <ratio>} – sets the aspect ratio.</li>
+ *   <li>{@code maps <name> <grid>} – puts the map items in the inventory.</li>
+ *   <li>{@code open <name>} – opens the capture dialog.</li>
+ *   <li>{@code unplace <id>} – removes a placed photo.</li>
+ *   <li>{@code cleanup} – clears records whose frames are gone.</li>
+ *   <li>{@code reload} – reloads the configuration (admin).</li>
  * </ul>
  */
 public final class CameraCommand {
@@ -67,7 +68,7 @@ public final class CameraCommand {
         this.dialogs = dialogs;
     }
 
-    /** Komutu eklentinin yaşam döngüsüne kaydeder. */
+    /** Registers the command on the plugin lifecycle. */
     public static void register(Izomap plugin, CameraManager manager, RenderService renderService,
                                 MapService mapService, PhotoManager photoManager, CameraDialogs dialogs) {
         CameraCommand command = new CameraCommand(plugin, manager, renderService, mapService, photoManager, dialogs);
@@ -387,8 +388,8 @@ public final class CameraCommand {
         int removed = photoManager.cleanupOwned(player.getUniqueId());
         plugin.messages().send(player, "map.cleaned", Placeholder.unparsed("count", String.valueOf(removed)));
 
-        // Kaydı silinmiş ama dünyada kalmış kamera entity'leri (yetimler). Yalnızca
-        // yüklü chunk'lardakiler görülebilir, yani oyuncunun çevresi temizlenir.
+        // Orphaned camera entities; only loaded chunks are visible, so this cleans up
+        // the area around the player.
         int orphans = manager.removeOrphanEntities(player.getWorld());
         if (orphans > 0) {
             plugin.messages().send(player, "camera.orphans-cleaned",
@@ -407,7 +408,7 @@ public final class CameraCommand {
         plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> runnable.run());
     }
 
-    // --- öneriler ---
+    // --- suggestions ---
 
     private java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestOwnedNames(
             CommandContext<CommandSourceStack> ctx, com.mojang.brigadier.suggestion.SuggestionsBuilder builder) {
@@ -434,7 +435,7 @@ public final class CameraCommand {
         return builder.buildFuture();
     }
 
-    // Önceki "name" argümanından kameranın oranına göre geçerli grid'leri önerir.
+    // Suggests grids valid for the aspect ratio of the camera named in the previous argument.
     private java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestGrids(
             CommandContext<CommandSourceStack> ctx, com.mojang.brigadier.suggestion.SuggestionsBuilder builder) {
         CommandSender sender = ctx.getSource().getSender();

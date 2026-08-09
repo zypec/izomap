@@ -4,18 +4,18 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Minecraft harita paletinin <b>temel renkleri</b> (base colors).
+ * Base colors of the Minecraft map palette, matching the vanilla {@code MapColor}
+ * table and
+ * <a href="https://minecraft.wiki/w/Map_item_format#Base_colors">Map item format &rarr; Base colors</a>.
  *
- * <p>Değerler vanilla {@code MapColor} tablosuyla ve
- * <a href="https://minecraft.wiki/w/Map_item_format#Base_colors">Map item format &rarr; Base colors</a>
- * ile birebir aynıdır. Her temel rengin 4 parlaklık varyantı ({@link Shade}) vardır ve
- * harita üzerindeki gerçek renk şu şekilde hesaplanır:</p>
+ * <p>Each base color has four brightness variants ({@link Shade}), and the actual
+ * color on the map is:</p>
  *
- * <pre>kanal = temelKanal * shade.modifier / 255   (tam sayı, aşağı yuvarlama)</pre>
+ * <pre>channel = baseChannel * shade.modifier / 255   (integer, rounded down)</pre>
  *
- * <p>Harita verisinde saklanan bayt ise {@code baseColorId * 4 + shadeId}'dir
- * ({@link #packedId(Shade)}). Bu sınıf sayesinde render çıktısındaki her piksel
- * gerçek bir harita rengidir; yaklaşık RGB tahminlerine gerek kalmaz.</p>
+ * <p>The byte stored in map data is {@code baseColorId * 4 + shadeId}, see
+ * {@link #packedId(Shade)}. Rendering against this table means every output pixel
+ * is a real map color rather than an RGB approximation.</p>
  */
 public enum MapBaseColor {
 
@@ -83,18 +83,18 @@ public enum MapBaseColor {
     GLOW_LICHEN(61, 0x7FA796);
 
     /**
-     * Temel rengin parlaklık varyantları. Çarpanlar vanilla
-     * {@code MapColor.Brightness} ile aynıdır.
+     * Brightness variants of a base color; the modifiers match vanilla
+     * {@code MapColor.Brightness}.
      */
     public enum Shade {
 
-        /** Kuzeye doğru alçalan yüzeyler (180/255). */
+        /** Surfaces descending northwards (180/255). */
         LOW(0, 180),
-        /** Düz yüzeyler (220/255). */
+        /** Flat surfaces (220/255). */
         NORMAL(1, 220),
-        /** Kuzeye doğru yükselen yüzeyler (255/255). */
+        /** Surfaces rising northwards (255/255). */
         HIGH(2, 255),
-        /** Yalnızca derin su için kullanılan en koyu varyant (135/255). */
+        /** Darkest variant, used only for deep water (135/255). */
         LOWEST(3, 135);
 
         private final int id;
@@ -105,12 +105,12 @@ public enum MapBaseColor {
             this.modifier = modifier;
         }
 
-        /** Harita baytının alt 2 biti. */
+        /** Lower two bits of the map byte. */
         public int id() {
             return id;
         }
 
-        /** 255 tabanlı parlaklık çarpanı. */
+        /** Brightness modifier out of 255. */
         public int modifier() {
             return modifier;
         }
@@ -138,27 +138,27 @@ public enum MapBaseColor {
         }
     }
 
-    /** Harita formatındaki temel renk kimliği (0-63). */
+    /** Base color id in the map format (0-63). */
     public int id() {
         return id;
     }
 
-    /** Gölgelenmemiş temel renk (0xRRGGBB). */
+    /** Unshaded base color (0xRRGGBB). */
     public int baseRgb() {
         return baseRgb;
     }
 
-    /** Verilen parlaklıkla gerçek harita rengi (0xRRGGBB). */
+    /** Actual map color at the given brightness (0xRRGGBB). */
     public int rgb(Shade shade) {
         return shaded[shade.id()];
     }
 
-    /** Harita verisinde saklanan bayt: {@code id * 4 + shadeId}. */
+    /** The byte stored in map data: {@code id * 4 + shadeId}. */
     public byte packedId(Shade shade) {
         return (byte) ((id << 2) | shade.id());
     }
 
-    /** Kimliğe göre temel renk; tanımsızsa {@link #NONE}. */
+    /** Base color by id; {@link #NONE} when undefined. */
     public static MapBaseColor byId(int id) {
         if (id < 0 || id >= BY_ID.length) {
             return NONE;
@@ -167,12 +167,12 @@ public enum MapBaseColor {
         return color != null ? color : NONE;
     }
 
-    /** Gölgelenmemiş RGB'ye birebir eşleşen temel renk; yoksa {@code null}. */
+    /** Base color matching an unshaded RGB exactly, or {@code null}. */
     public static MapBaseColor byBaseRgb(int rgb) {
         return BY_RGB.get(rgb & 0xFFFFFF);
     }
 
-    /** İsme göre temel renk (büyük/küçük harf duyarsız); yoksa {@code null}. */
+    /** Base color by name, case insensitive, or {@code null}. */
     public static MapBaseColor byName(String name) {
         if (name == null) {
             return null;
@@ -186,7 +186,7 @@ public enum MapBaseColor {
         return null;
     }
 
-    /** Vanilla {@code ARGB.scaleRGB} ile aynı tam sayı aritmetiği. */
+    /** Same integer arithmetic as vanilla {@code ARGB.scaleRGB}. */
     private static int scale(int rgb, int modifier) {
         int r = ((rgb >> 16) & 0xFF) * modifier / 255;
         int g = ((rgb >> 8) & 0xFF) * modifier / 255;

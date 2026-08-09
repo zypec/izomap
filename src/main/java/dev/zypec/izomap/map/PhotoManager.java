@@ -21,8 +21,8 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Yerleştirilmiş fotoğrafların çalışma zamanı yönetimi: çekim + dilimleme +
- * yerleştirme + kalıcılık koordinasyonu ve yeniden başlatmada yeniden render.
+ * Runtime management of placed photos: capture, slicing, placement, persistence and
+ * re-rendering after a restart.
  */
 public final class PhotoManager {
 
@@ -45,7 +45,7 @@ public final class PhotoManager {
         this.storage = new PhotoStorage(plugin);
     }
 
-    // --- yaşam döngüsü ---
+    // --- lifecycle ---
 
     public void load() {
         storage.load().thenRun(() -> runOnMain(() -> {
@@ -61,7 +61,7 @@ public final class PhotoManager {
         plugin.getLogger().info(loaded.size() + " yerleştirilmiş fotoğraf yüklendi.");
     }
 
-    /** Kaynağı hâlâ mevcut olan fotoğrafların haritalarını yeniden çizer. */
+    /** Redraws the maps of photos whose source camera still exists. */
     private void reRenderAll() {
         for (PlacedPhoto photo : photos.values()) {
             Camera camera = cameraManager.byOwnerAndName(photo.owner(), photo.cameraName()).orElse(null);
@@ -86,7 +86,7 @@ public final class PhotoManager {
         }
     }
 
-    /** Çekim hatasını oyuncuya bildirir; bütçe aşımı için özel mesaj gönderir. */
+    /** Reports a capture failure to the player, with a dedicated budget message. */
     private void reportCaptureError(Player player, Camera camera, Throwable error) {
         Throwable cause = error instanceof java.util.concurrent.CompletionException && error.getCause() != null
                 ? error.getCause() : error;
@@ -105,14 +105,14 @@ public final class PhotoManager {
         storage.saveAllSync(photos.values());
     }
 
-    // --- çekim + yerleştirme ---
+    // --- capture and placement ---
 
     /**
-     * Kamerayı çeker, karolara böler ve dünyaya yerleştirir. Dialog onayından
-     * çağrılır. <b>Ana iş parçacığında</b> başlatılmalıdır.
+     * Captures the camera, slices it into tiles and places it in the world. Must be
+     * started on the main thread.
      */
     public void captureAndPlace(Player player, Camera camera, String name, GridOption grid) {
-        // Aynı isimde ikinci bir fotoğrafa izin verme.
+        // Names are unique per owner.
         boolean nameTaken = photos.values().stream()
                 .anyMatch(p -> p.owner().equals(player.getUniqueId()) && p.name().equalsIgnoreCase(name));
         if (nameTaken) {
@@ -147,7 +147,7 @@ public final class PhotoManager {
         });
     }
 
-    // --- yönetim ---
+    // --- management ---
 
     public List<PlacedPhoto> ownedBy(UUID owner) {
         List<PlacedPhoto> out = new ArrayList<>();
@@ -159,21 +159,21 @@ public final class PhotoManager {
         return out;
     }
 
-    /** Kısa kimliğe (ilk 8 karakter) göre, sahibe ait fotoğrafı bulur. */
+    /** Finds an owner's photo by its short id. */
     public Optional<PlacedPhoto> findByShortId(UUID owner, String shortId) {
         return photos.values().stream()
                 .filter(p -> p.owner().equals(owner) && p.shortId().equalsIgnoreCase(shortId))
                 .findFirst();
     }
 
-    /** Bir ItemFrame UUID'sinin ait olduğu fotoğrafı bulur (kırılma yönetimi için). */
+    /** Finds the photo an item frame belongs to. */
     public Optional<PlacedPhoto> findByFrame(UUID frameId) {
         return photos.values().stream()
                 .filter(p -> p.frameIds().contains(frameId))
                 .findFirst();
     }
 
-    /** Bir oyuncunun tüm yerleştirilmiş fotoğraflarını kaldırır; sayısını döndürür. */
+    /** Removes every photo placed by a player and returns how many were removed. */
     public int removeAllOwned(UUID owner) {
         List<PlacedPhoto> owned = ownedBy(owner);
         for (PlacedPhoto photo : owned) {
@@ -187,9 +187,8 @@ public final class PhotoManager {
     }
 
     /**
-     * Sahibe ait, çerçeveleri artık dünyada bulunmayan (kırılmış/kaybolmuş) fotoğraf
-     * kayıtlarını temizler. Doğru tespit için ilgili chunk yüklenir.
-     * <b>Ana iş parçacığında</b> çağrılmalıdır.
+     * Clears records of the owner's photos whose frames are gone from the world. The
+     * relevant chunks are loaded first so the check is accurate. Main thread only.
      */
     public int cleanupOwned(UUID owner) {
         int removed = 0;
@@ -197,7 +196,6 @@ public final class PhotoManager {
             if (Bukkit.getWorld(photo.worldId()) == null) {
                 continue;
             }
-            // Çerçevelerin çözümlenebilmesi için ilgili chunk'ları yükle.
             loadChunks(photo);
             boolean anyAlive = photo.frameIds().stream()
                     .anyMatch(id -> plugin.getServer().getEntity(id) != null);
@@ -212,7 +210,7 @@ public final class PhotoManager {
         return removed;
     }
 
-    /** Fotoğrafın çerçevelerini (eşya düşürmeden) kaldırır ve kaydı siler. */
+    /** Removes the photo's frames without dropping items and deletes its record. */
     public void remove(PlacedPhoto photo) {
         removeFrames(photo);
         photos.remove(photo.id());
@@ -220,9 +218,9 @@ public final class PhotoManager {
     }
 
     /**
-     * Çerçeve entity'lerini (ve içindeki haritayı) eşya düşürmeden kaldırır.
-     * Çerçeveler chunk yüklü değilse {@code getEntity} null döneceğinden, önce ilgili
-     * chunk'lar yüklenir; aksi halde çerçeveler dünyada kalırdı (bilinen silme bug'ı).
+     * Removes the frame entities and their maps without dropping items. The chunks
+     * are loaded first because {@code getEntity} returns null for unloaded ones,
+     * which would leave the frames behind in the world.
      */
     private void removeFrames(PlacedPhoto photo) {
         loadChunks(photo);
@@ -234,7 +232,7 @@ public final class PhotoManager {
         }
     }
 
-    /** Fotoğrafın kapladığı bölgedeki chunk'ları yükler (çerçeve çözümlemesi için). */
+    /** Loads the chunks the photo spans, so its frames can be resolved. */
     private void loadChunks(PlacedPhoto photo) {
         World world = Bukkit.getWorld(photo.worldId());
         if (world == null) {

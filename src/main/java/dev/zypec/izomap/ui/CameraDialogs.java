@@ -29,11 +29,11 @@ import java.util.Locale;
 import java.util.function.Consumer;
 
 /**
- * Fotoğraf çekimi/yerleştirmesi için Paper Dialog API tabanlı arayüz.
+ * Paper Dialog API interface for capturing and placing photos.
  *
- * <p>Oyuncu ad verir; ölçek, renk efekti ve yerleşim (grid) seçer. En-boy oranı ise
- * buton olarak sunulur: bir orana tıklandığında Dialog, o oranın grid seçenekleriyle
- * yeniden açılır (dinamik güncelleme), girilen ad/ölçek/efekt korunur.</p>
+ * <p>The player types a name and picks zoom, color filter and grid. Aspect ratio is
+ * a button instead: clicking one reopens the dialog with that ratio's grid options
+ * while keeping the entered name, zoom and filter.</p>
  */
 public final class CameraDialogs {
 
@@ -42,7 +42,7 @@ public final class CameraDialogs {
     private static final String INPUT_FILTER = "filter";
     private static final String INPUT_GRID = "grid";
 
-    // Geniş manzaradan yakın plana; kadrajın kapsadığı alan = frame-height / zoom.
+    // Wide shot to close-up; the frame covers frame-height / zoom blocks.
     private static final float[] ZOOM_PRESETS =
             {0.05f, 0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f};
 
@@ -112,14 +112,14 @@ public final class CameraDialogs {
         return ActionButton.builder(plugin.messages().get("dialog.cancel")).build();
     }
 
-    // --- girişler ---
+    // --- inputs ---
 
     private List<SingleOptionDialogInput.OptionEntry> zoomEntries(float initial) {
         float nearest = nearestZoom(initial);
         List<SingleOptionDialogInput.OptionEntry> entries = new ArrayList<>();
         for (float value : ZOOM_PRESETS) {
             String id = String.format(Locale.ROOT, "%.2f", value);
-            // Etikette kapsanan alan da yazar: "0.25x - 192 blok".
+            // The label also states the covered area, e.g. "0.25x - 192 blok".
             String label = String.format(Locale.ROOT, "%sx - %.0f blok",
                     id, plugin.config().frameHeight() / value);
             entries.add(SingleOptionDialogInput.OptionEntry.create(
@@ -154,13 +154,12 @@ public final class CameraDialogs {
         return entries;
     }
 
-    // --- buton eylemleri (thread garanti değil; ana thread'e alınır) ---
+    // --- button actions; the thread is not guaranteed, so work moves to the main one ---
 
     /**
-     * Dialog'u kapatmayan butonların ortak akışı (oran, üçler kuralı): formdaki
-     * ad/ölçek/efekt okunur, verilen değişiklik uygulanır, önizleme tazelenir ve
-     * Dialog yeni duruma göre yeniden açılır. Oran değişince grid seçenekleri de
-     * yenilenmiş olur.
+     * Shared flow for buttons that keep the dialog open: read the form, apply the
+     * change, refresh the preview and reopen the dialog in the new state, which also
+     * refreshes the grid options when the ratio changed.
      */
     private void applyAndReopen(DialogResponseView view, Audience audience, Camera camera,
                                 Consumer<Camera> change) {
@@ -207,7 +206,7 @@ public final class CameraDialogs {
         });
     }
 
-    // --- yardımcılar ---
+    // --- helpers ---
 
     private Component infoLine(Camera camera) {
         return plugin.messages().get("dialog.info",

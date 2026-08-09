@@ -3,42 +3,37 @@ package dev.zypec.izomap.render;
 import org.bukkit.util.Vector;
 
 /**
- * Ortografik (izometrik) render için kamera geometrisi.
+ * Camera geometry for an orthographic (isometric) render.
  *
- * <p>Görüntü düzlemi {@code planeCenter} noktasında, {@code right}/{@code up}
- * eksenleri ile tanımlanır; tüm ışınlar bu düzlemden başlayıp {@code direction}
- * yönünde paralel ilerler (ortografik projeksiyon). Bu, perspektif bozulması
- * olmayan izometrik görünümü verir.</p>
+ * <p>The image plane sits at {@code planeCenter} and is spanned by {@code right} and
+ * {@code up}; every ray starts on that plane and travels parallel along
+ * {@code direction}.</p>
  *
- * <h2>Geri çekme (backoff) neden var?</h2>
+ * <h2>Why backoff exists</h2>
  *
- * <p>Ortografik projeksiyonda ışın başlangıcını <b>bakış yönü boyunca</b> kaydırmak
- * görüntüyü değiştirmez; yalnızca ışının nereden başladığını, dolayısıyla neyin
- * önünü kapatabileceğini değiştirir. Kadrajın kameranın altına düşen kısmı, kamera
- * yere yakınsa toprağın <i>içinde</i> başlar ve fotoğrafın altına düz bir toprak
- * kesiti basar. Bu yüzden yalnızca o ışınlar, tam olarak kameranın yatay düzlemine
- * çıkacak kadar geriye çekilir ({@code maxBackoff} ile sınırlı). Kameranın hizasında
- * ve üstünde kalan ışınlar hiç geri çekilmez, yani kameranın arkasından bakan bir
- * ışın oluşmaz.</p>
+ * <p>Under orthographic projection, moving a ray's origin <b>along the view
+ * direction</b> does not change the image, only where the ray starts and therefore
+ * what can occlude it. The part of the frame below the camera starts <i>inside</i>
+ * the ground when the camera is near it, printing a flat dirt slab at the bottom of
+ * the photo. Only those rays are pulled back, just far enough to reach the camera's
+ * horizontal plane and never more than {@code maxBackoff}, so no ray ever ends up
+ * looking from behind the camera.</p>
  *
- * <p>Işınların gördüğü hacim, kendi başlangıç noktalarından itibaren
- * {@code maxDistance} blok (geri çekilenler için ek olarak geri çekildikleri kadar)
- * ileriye uzanan bir prizmadır; böylece <b>kamera düzleminden itibaren</b> ileri
- * görüş mesafesi her ışın için aynı kalır.</p>
+ * <p>Each ray sees a prism extending {@code maxDistance} blocks forward from its own
+ * origin, plus whatever it was pulled back by, keeping forward view distance
+ * measured <b>from the camera plane</b> identical for every ray.</p>
  *
- * @param planeCenter görüntü düzleminin dünya-uzayı merkezi
- * @param right       düzlemin +X (sağ) ekseni (birim, daima yatay)
- * @param up          düzlemin +Y (yukarı) ekseni (birim)
- * @param direction   ışın yönü (birim)
- * @param spanWidth   düzlemin dünya-uzayı genişliği (blok)
- * @param spanHeight  düzlemin dünya-uzayı yüksekliği (blok)
- * @param maxDistance ışınların ileri doğru kat ettiği mesafe (blok)
- * @param eyeY        kameranın dünya-uzayı yüksekliği; hiçbir ışın bunun altından
- *                    başlamaz
- * @param maxBackoff  bir ışının geriye çekilebileceği en fazla mesafe (blok);
- *                    0 ise geri çekme kapalıdır
- * @param widthPx     çıktı genişliği (piksel)
- * @param heightPx    çıktı yüksekliği (piksel)
+ * @param planeCenter world-space center of the image plane
+ * @param right       plane's +X axis (unit, always horizontal)
+ * @param up          plane's +Y axis (unit)
+ * @param direction   ray direction (unit)
+ * @param spanWidth   world-space width of the plane (blocks)
+ * @param spanHeight  world-space height of the plane (blocks)
+ * @param maxDistance distance the rays travel forward (blocks)
+ * @param eyeY        world-space height of the camera; no ray starts below it
+ * @param maxBackoff  furthest a ray may be pulled back (blocks); 0 disables backoff
+ * @param widthPx     output width (pixels)
+ * @param heightPx    output height (pixels)
  */
 public record RenderGeometry(
         Vector planeCenter,

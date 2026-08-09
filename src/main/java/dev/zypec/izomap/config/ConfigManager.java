@@ -4,18 +4,15 @@ import dev.zypec.izomap.Izomap;
 import org.bukkit.configuration.file.FileConfiguration;
 
 /**
- * config.yml için tipli erişim sağlayan sarmalayıcı.
- *
- * <p>Değerlere doğrudan string anahtarlarla erişmek yerine bu sınıf üzerinden
- * erişilir; böylece anahtar isimleri ve varsayılanlar tek yerde toplanır.</p>
+ * Typed access to {@code config.yml}, keeping key names and defaults in one place.
  */
 public final class ConfigManager {
 
     private final Izomap plugin;
 
     /**
-     * Bu değerin üstündeki {@code frame-shift}, kadrajın tamamını kameranın üstüne
-     * çıkarmaya yeter; yatay bakan kameralarda fotoğraf tamamen boş çıkar.
+     * A {@code frame-shift} at or above this lifts the whole frame above the camera,
+     * which yields fully empty photos on cameras that look horizontally.
      */
     private static final double RISKY_FRAME_SHIFT = 0.25;
 
@@ -31,10 +28,9 @@ public final class ConfigManager {
     }
 
     /**
-     * Sessizce boş fotoğraf üretebilecek ayarları açılışta/reload'da bildirir.
-     *
-     * <p>Varsayılanı değişmiş olsa bile diskteki eski {@code config.yml} korunur,
-     * yani eski bir kurulum farkında olmadan riskli değerle çalışmaya devam eder.</p>
+     * Reports settings that can silently produce empty photos. An existing
+     * {@code config.yml} is never overwritten, so an old install keeps running with
+     * risky values unless it is told.
      */
     private void warnRiskySettings() {
         double shift = frameShift();
@@ -53,14 +49,13 @@ public final class ConfigManager {
     // --- settings ---
 
     /**
-     * Bir çekimin kapsayabileceği en geniş alanın kenar uzunluğu (blok).
+     * Side length (blocks) of the widest area a capture may cover.
      *
-     * <p>Tek maliyet ayarıdır: hem kopyalanacak chunk sayısını hem de ışınların
-     * kat edebileceği mesafeyi sınırlar. Aşılırsa çekim yapılmaz ve oyuncuya
-     * yakınlaşması söylenir.</p>
+     * <p>The single cost setting: it bounds both the number of copied chunks and the
+     * distance rays may travel. Exceeding it rejects the capture.</p>
      *
-     * <p>Eski {@code settings.max-chunks-per-capture} anahtarı geriye dönük
-     * uyumluluk için okunur ve kenar uzunluğuna çevrilir ({@code √chunk × 16}).</p>
+     * <p>The legacy {@code settings.max-chunks-per-capture} key is still read and
+     * converted to a side length ({@code √chunks × 16}).</p>
      */
     public int maxCaptureArea() {
         int legacyChunks = cfg().getInt("settings.max-chunks-per-capture", 1024);
@@ -69,24 +64,20 @@ public final class ConfigManager {
     }
 
     /**
-     * Işınların, kameranın altındaki zeminden kaç blok daha aşağıya ulaşacağı.
-     *
-     * <p>Işın mesafesi geometriden hesaplanır; bu değer yalnızca "kadrajın uzak
-     * ucundaki arazi, kameranın altındaki zeminden daha alçaksa ne kadarını
-     * görelim" payıdır. Vadi/uçurum çeken biri artırır.</p>
+     * How many blocks below the ground under the camera the rays still reach; the
+     * margin for terrain at the far end of the frame that sits lower than the camera.
      */
     public int renderDepth() {
         return clamp(cfg().getInt("settings.render-depth", 64), 0, 1024);
     }
 
-    /** Render'ın kaç iş parçacığına bölüneceği (görüntü yatay bantlara ayrılır). */
+    /** Number of threads the render is split across (the image is cut into bands). */
     public int renderThreads() {
         return clamp(cfg().getInt("settings.render-threads", 4), 1, 16);
     }
 
     /**
-     * {@link #maxCaptureArea()} alanına karşılık gelen chunk sayısı bütçesi.
-     * Yakalama chunk birimiyle çalıştığı için alan burada çevrilir.
+     * Chunk budget matching {@link #maxCaptureArea()}, since capture works in chunks.
      */
     public int maxChunksPerCapture() {
         int side = (maxCaptureArea() + 15) / 16;
@@ -94,16 +85,16 @@ public final class ConfigManager {
     }
 
     /**
-     * Kadraja giren ama yüklü olmayan chunk'ların diskten yüklenip
-     * yüklenmeyeceği. Yükleme <b>asenkron</b> yapılır, ana thread donmaz.
+     * Whether unloaded chunks inside the frame are loaded from disk. Loading is
+     * asynchronous and never stalls the main thread.
      */
     public boolean loadMissingChunks() {
         return cfg().getBoolean("settings.load-missing-chunks", true);
     }
 
     /**
-     * Hiç üretilmemiş chunk'ların çekim için üretilip üretilmeyeceği.
-     * Varsayılan {@code false}: fotoğraf çekmek dünyayı büyütmemelidir.
+     * Whether chunks that were never generated get generated for a capture.
+     * Defaults to {@code false}: taking a photo should not grow the world.
      */
     public boolean generateMissingChunks() {
         return cfg().getBoolean("settings.generate-missing-chunks", false);
@@ -123,17 +114,13 @@ public final class ConfigManager {
         return cfg().getString("camera.model-material", "SPYGLASS");
     }
 
-    /**
-     * Zoom ayar adımı: <b>çarpan</b>dır, toplanan bir miktar değil.
-     * 1.25 = her tık %25 yakınlaştırır/uzaklaştırır.
-     */
+    /** Zoom step as a <b>multiplier</b>, not an addend: 1.25 means 25% per tick. */
     public double zoomStep() {
         return clamp(cfg().getDouble("camera.zoom-step", 1.25), 1.01, 4.0);
     }
 
     /**
-     * Kamera modelinin görsel boyutu. Fotoğrafın yakınlaştırmasıyla ilgisi yoktur;
-     * yalnızca dünyada duran modelin ne kadar büyük göründüğünü belirler.
+     * Visual size of the camera model in the world. Unrelated to photo zoom.
      */
     public double modelScale() {
         return clamp(cfg().getDouble("camera.model-scale", 1.0), 0.1, 8.0);
@@ -144,34 +131,30 @@ public final class ConfigManager {
     }
 
     /**
-     * Yeni kurulan kameranın dikey açısı (derece, pozitif = aşağı bakış).
-     * 30 klasik izometrik açıdır; 0 yatay bakıştır.
+     * Pitch of a newly placed camera (degrees, positive looks down). 30 is the
+     * classic isometric angle, 0 is horizontal.
      */
     public double defaultPitch() {
         return clamp(cfg().getDouble("camera.default-pitch", 30.0), -90.0, 90.0);
     }
 
     /**
-     * Model rotasyon düzeltmesi: X ekseni (pitch, öne/arkaya eğme), derece.
-     *
-     * <p>Eski {@code camera.model-pitch-offset} anahtarı geriye dönük uyumluluk
-     * için varsayılan olarak okunur.</p>
+     * Model rotation offset around X (pitch), degrees. The legacy
+     * {@code camera.model-pitch-offset} key is read as the default.
      */
     public double modelRotationX() {
         return cfg().getDouble("camera.model-rotation.x", cfg().getDouble("camera.model-pitch-offset", 0.0));
     }
 
     /**
-     * Model rotasyon düzeltmesi: Y ekseni (yaw, sağa/sola çevirme), derece.
-     *
-     * <p>Eski {@code camera.model-yaw-offset} anahtarı geriye dönük uyumluluk
-     * için varsayılan olarak okunur.</p>
+     * Model rotation offset around Y (yaw), degrees. The legacy
+     * {@code camera.model-yaw-offset} key is read as the default.
      */
     public double modelRotationY() {
         return cfg().getDouble("camera.model-rotation.y", cfg().getDouble("camera.model-yaw-offset", 0.0));
     }
 
-    /** Model rotasyon düzeltmesi: Z ekseni (roll, kendi ekseninde yatırma), derece. */
+    /** Model rotation offset around Z (roll), degrees. */
     public double modelRotationZ() {
         return cfg().getDouble("camera.model-rotation.z", 0.0);
     }
@@ -183,14 +166,12 @@ public final class ConfigManager {
     }
 
     /**
-     * Kadrajın kapsadığı dikey alan (blok) — yani zoom.
+     * Vertical area the frame covers (blocks), i.e. zoom.
      *
-     * <p>Ortografik projeksiyonda nesnelerin boyutunu <b>yalnızca</b> bu belirler;
-     * kameranın hedefe uzaklığı boyutu değiştirmez. Kameranın ölçeği (scale) bunu
-     * böler: 2.0x ölçek yarısı kadar alan, yani iki kat yakın demektir.</p>
+     * <p>Under orthographic projection this alone sets object size; distance to the
+     * subject does not. The camera's own scale divides it.</p>
      *
-     * <p>Eski {@code photo.region-size} anahtarı geriye dönük uyumluluk için
-     * varsayılan olarak okunur.</p>
+     * <p>The legacy {@code photo.region-size} key is read as the default.</p>
      */
     public double frameHeight() {
         double legacy = cfg().getDouble("photo.region-size", 48.0);
@@ -198,23 +179,21 @@ public final class ConfigManager {
     }
 
     /**
-     * Kadrajın kameraya göre dikey kayması, kadraj yüksekliğinin oranı olarak.
+     * Vertical shift of the frame relative to the camera, as a ratio of frame height.
      *
-     * <p>{@code 0.0} (varsayılan) kamerayı kadrajın tam ortasına koyar: kameranın
-     * baktığı nokta fotoğrafın merkezidir. Pozitif değerler kadrajı yukarı kaydırır;
-     * {@code 0.5} kamerayı kadrajın alt kenarına alır ve kadrajın tamamını kameranın
-     * üstüne çıkarır — bu, yatay ya da yukarı bakan bir kamerada <b>tamamen boş</b>
-     * fotoğraf demektir, çünkü ortografik ışınların hiçbiri araziye inmez.</p>
+     * <p>{@code 0.0} (default) centers the camera in the frame. Positive values move
+     * the frame up; {@code 0.5} lifts it entirely above the camera, which produces a
+     * fully empty photo on a horizontal camera because no orthographic ray ever
+     * reaches the terrain.</p>
      *
-     * <p>Kadrajın kameranın altına düşen kısmının toprak kesiti basması,
-     * bu kaydırmayla değil ışınların geriye çekilmesiyle çözülür
-     * ({@link dev.zypec.izomap.render.RenderGeometry}).</p>
+     * <p>Dirt slabs from the part of the frame below the camera are solved by ray
+     * backoff instead, see {@link dev.zypec.izomap.render.RenderGeometry}.</p>
      */
     public double frameShift() {
         return clamp(cfg().getDouble("photo.frame-shift", 0.0), -1.0, 1.0);
     }
 
-    /** Kenar yumuşatma: piksel başına NxN ışın. 1 = kapalı. Maliyet N² kat artar. */
+    /** Antialiasing: NxN rays per pixel. 1 disables it; cost grows by N². */
     public int supersampling() {
         return clamp(cfg().getInt("photo.supersampling", 2), 1, 4);
     }
@@ -237,7 +216,7 @@ public final class ConfigManager {
         return cfg().getString("placement.backing-material", "STONE");
     }
 
-    // --- yardımcılar ---
+    // --- helpers ---
 
     private static int clamp(int value, int min, int max) {
         return Math.max(min, Math.min(max, value));

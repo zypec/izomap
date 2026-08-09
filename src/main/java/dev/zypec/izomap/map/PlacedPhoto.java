@@ -4,23 +4,22 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Dünyaya yerleştirilmiş bir fotoğraf (ItemFrame ızgarası).
+ * A photo placed in the world as a grid of item frames.
  *
- * <p>Yeniden başlatma sonrası haritaların yeniden çizilebilmesi için kaynağı
- * ({@code cameraName}) ve harita kimlikleri saklanır; yönetim için çerçeve
- * UUID'leri tutulur.</p>
+ * <p>The source camera and the map ids are stored so the maps can be redrawn after a
+ * restart; the frame UUIDs are kept for management.</p>
  *
- * @param id         benzersiz fotoğraf kimliği
- * @param owner      yerleştiren oyuncu
- * @param name       fotoğraf adı (Dialog'da girilir)
- * @param cameraName kaynak kamera adı (yeniden render için)
- * @param worldId    dünya UUID'si
- * @param grid       kullanılan ızgara
- * @param mapIds     harita view kimlikleri (karo sırasıyla: satır-öncelikli)
- * @param frameIds   ItemFrame entity UUID'leri (karo sırasıyla)
- * @param baseX      yerleşim çıpa bloğunun X'i (cleanup'ta chunk yüklemek için)
- * @param baseY      yerleşim çıpa bloğunun Y'si
- * @param baseZ      yerleşim çıpa bloğunun Z'si
+ * @param id         unique photo id
+ * @param owner      player who placed it
+ * @param name       photo name
+ * @param cameraName source camera name, used to re-render
+ * @param worldId    world UUID
+ * @param grid       grid used
+ * @param mapIds     map view ids in tile order (row-major)
+ * @param frameIds   item frame entity UUIDs in tile order
+ * @param baseX      X of the anchor block, used to load the chunk during cleanup
+ * @param baseY      Y of the anchor block
+ * @param baseZ      Z of the anchor block
  */
 public record PlacedPhoto(
         UUID id,
@@ -35,7 +34,7 @@ public record PlacedPhoto(
         int baseY,
         int baseZ) {
 
-    /** Kısa görüntüleme kimliği (ilk 8 karakter). */
+    /** Short display id: the first 8 characters. */
     public String shortId() {
         return id.toString().substring(0, 8);
     }

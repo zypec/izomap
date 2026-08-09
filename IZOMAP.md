@@ -451,10 +451,15 @@ mantığıyla çalışır — kısmi güncellemeden daha basit ve daha az hataya
 4. **Komutlar Brigadier ile.** Argümanlar için anlamlı `suggests` sağlanır.
 5. **Config erişimi `ConfigManager` üzerinden.** Doğrudan `getConfig().getX("...")` yazılmaz.
 6. **Özellik bazlı paketleme** korunur; yeni bir alan gerekiyorsa yeni paket açılır.
-7. **Türkçe javadoc.** Sınıf ve kritik metotlar *neden* öyle yapıldığını anlatır, *ne*
-   yaptığını değil. Mevcut dosyalardaki üslup korunur.
-8. **Geriye dönük uyumluluk.** Bir config/veri anahtarı yeniden adlandırılırsa eskisi
-   fallback olarak okunmaya devam eder.
+7. **İngilizce javadoc.** Koddaki tüm javadoc ve yorumlar İngilizce yazılır.
+8. **Minimum yorum.** Yorum yalnızca koddan okunamayan bir *neden* varsa yazılır;
+   kodun ne yaptığını tekrar eden açıklama eklenmez. Uzun anlatım kodda değil, bu
+   belgede durur.
+9. **Kodda planlama izi olmaz.** Konuşmalarımıza, TODO madde kimliklerine (T1, T2 …),
+   yol haritasına veya geçmiş kararların gerekçesine kod içinden atıf yapılmaz;
+   yorumlar yalnızca kodun kendisini anlatır.
+10. **Geriye dönük uyumluluk.** Bir config/veri anahtarı yeniden adlandırılırsa eskisi
+    fallback olarak okunmaya devam eder.
 
 ---
 
@@ -481,7 +486,7 @@ kullanılır.
 ## 11. Çalışma düzeni
 
 - **Git:** Değişiklikler mantıklı parçalar hâlinde commit edilir ve `origin/main`'e
-  push'lanır. Commit mesajları Türkçe, imperative ve kapsamı belirten kısa bir özet
+  push'lanır. Commit mesajları İngilizce, imperative ve kapsamı belirten kısa bir özet
   içerir.
 - **Doğrulama:** Kod değişikliğinden sonra `./gradlew build` çalıştırılır; derleme
   kırıksa commit edilmez.

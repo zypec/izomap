@@ -26,11 +26,11 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Kameraların çalışma zamanı kaydı: entity yaşam döngüsü, transform uygulama
- * ve kalıcılık ({@link CameraStorage}) koordinasyonu.
+ * Runtime registry of cameras: entity lifecycle, transforms and persistence through
+ * {@link CameraStorage}.
  *
- * <p>Bellek modeli tek doğruluk kaynağıdır; her değişiklikte tüm koleksiyon
- * asenkron olarak diske yazılır.</p>
+ * <p>The in-memory model is the source of truth; every change writes the whole
+ * collection to disk asynchronously.</p>
  */
 public final class CameraManager {
 
@@ -47,11 +47,11 @@ public final class CameraManager {
         this.storage = new CameraStorage(plugin);
     }
 
-    // --- yaşam döngüsü ---
+    // --- lifecycle ---
 
     /**
-     * cameras.yml'i asenkron yükler, ardından ana thread'de belleğe alır.
-     * Dönen future belleğe alma tamamlandığında (ana thread'de) tamamlanır.
+     * Loads {@code cameras.yml} asynchronously, then ingests it on the main thread.
+     * The returned future completes once ingestion is done.
      */
     public java.util.concurrent.CompletableFuture<Void> load() {
         return storage.load().thenCompose(v -> {
@@ -83,13 +83,13 @@ public final class CameraManager {
         storage.saveAll(new ArrayList<>(byId.values()));
     }
 
-    // --- sorgular ---
+    // --- queries ---
 
     public Camera byInteractionEntity(UUID interactionId) {
         return byInteraction.get(interactionId);
     }
 
-    /** Kamera kimliğine göre kayıt; yoksa {@code null}. */
+    /** Camera by id, or {@code null}. */
     public Camera byId(UUID cameraId) {
         return cameraId != null ? byId.get(cameraId) : null;
     }
@@ -118,11 +118,11 @@ public final class CameraManager {
         return byId.values();
     }
 
-    // --- oluşturma / silme ---
+    // --- creation and removal ---
 
     /**
-     * Verilen konumda yeni bir kamera oluşturur (display + interaction entity).
-     * Limit aşılırsa {@code null} döner.
+     * Creates a camera with its display and interaction entities at the given
+     * location, or returns {@code null} when the owner is at their limit.
      */
     public Camera create(Player owner, String name, Location anchor) {
         if (ownedCount(owner.getUniqueId()) >= plugin.config().maxCamerasPerPlayer()) {
@@ -136,9 +136,8 @@ public final class CameraManager {
         Camera camera = new Camera(UUID.randomUUID(), owner.getUniqueId(), name, anchor);
         camera.displayEntityId(display.getUniqueId());
         camera.interactionEntityId(interaction.getUniqueId());
-        // Varsayılan olarak oyuncunun yatay yönüne bakan, aşağı eğimli (izometrik) açı.
-        // Oyuncunun anlık pitch'i kopyalanmaz; aksi halde yukarı bakarken kurulan kamera
-        // "ters açıdan" (aşağıdan yukarı) çekebilir. Pitch etkileşimle ayarlanabilir.
+        // Face the player's yaw at the configured downward pitch. Copying the player's
+        // pitch would let a camera placed while looking up shoot from below.
         camera.camYaw(owner.getLocation().getYaw());
         camera.camPitch((float) plugin.config().defaultPitch());
         camera.aspectRatio(AspectRatio.fromString(plugin.config().defaultAspectRatio(), AspectRatio.RATIO_1_1));
@@ -159,7 +158,7 @@ public final class CameraManager {
         persistAsync();
     }
 
-    /** Kamerayı (display + interaction entity) yeni konuma taşır. */
+    /** Moves the camera and both of its entities to a new location. */
     public void move(Camera camera, Location newAnchor) {
         Entity display = plugin.getServer().getEntity(camera.displayEntityId());
         if (display != null) {
@@ -174,7 +173,7 @@ public final class CameraManager {
         persistAsync();
     }
 
-    /** Bir oyuncunun tüm kameralarını siler; silinen sayısını döndürür. */
+    /** Removes every camera owned by a player and returns how many were removed. */
     public int removeAllOwned(UUID owner) {
         List<Camera> owned = ownedBy(owner);
         for (Camera camera : owned) {
@@ -187,12 +186,11 @@ public final class CameraManager {
     }
 
     /**
-     * Kameranın entity'lerini kaldırır ve kaydını bellekten düşürür.
+     * Removes the camera's entities and drops its record.
      *
-     * <p>Entity'ler yalnızca chunk yüklüyken çözümlenebildiğinden önce çıpanın
-     * chunk'ı yüklenir. Aksi halde kayıt silinir ama display/interaction entity
-     * dünyada <b>yetim</b> olarak kalırdı: artık hiçbir kameraya ait olmayan,
-     * silinemeyen, eski transformuyla donmuş bir model.</p>
+     * <p>Entities only resolve while their chunk is loaded, so the anchor's chunk is
+     * loaded first. Otherwise the record would go but the entities would stay behind
+     * as orphans: models belonging to no camera and removable by nothing.</p>
      */
     private void forget(Camera camera) {
         loadAnchorChunk(camera);
@@ -205,12 +203,11 @@ public final class CameraManager {
     }
 
     /**
-     * Dünyada kalmış ama hiçbir kamera kaydına ait olmayan Izomap entity'lerini
-     * siler; silinen sayısını döndürür.
+     * Removes Izomap entities left in the world that belong to no camera record and
+     * returns how many were removed.
      *
-     * <p>Yalnızca <b>yüklü chunk'lardaki</b> entity'ler görülebilir
-     * ({@link World#getEntities()}), dolayısıyla oyuncunun çevresini temizler.
-     * Kaydı duran kameralara dokunulmaz.</p>
+     * <p>{@link World#getEntities()} only sees loaded chunks, so this cleans up the
+     * area around the player. Cameras that still have a record are untouched.</p>
      */
     public int removeOrphanEntities(World world) {
         int removed = 0;
@@ -228,7 +225,7 @@ public final class CameraManager {
         return removed;
     }
 
-    /** Çıpanın chunk'ını yükler; entity çözümlemesi ancak o zaman mümkündür. */
+    /** Loads the anchor's chunk, without which entities cannot be resolved. */
     private void loadAnchorChunk(Camera camera) {
         Location anchor = camera.anchor();
         World world = anchor.getWorld();
@@ -240,15 +237,13 @@ public final class CameraManager {
     // --- transform ---
 
     /**
-     * Kameranın yaw/pitch değerlerini görsel display entity'ye uygular.
+     * Applies the camera's yaw/pitch to its display entity.
      *
-     * <p>Entity yüklü değilse atlanır; chunk sonradan yüklendiğinde
-     * {@link CameraListener} bunu yakalayıp yeniden uygular. Aksi halde entity,
-     * <b>oluşturulduğu andaki</b> transformla donup kalırdı — model ölçeği eskiden
-     * kameranın zoom'undan geliyordu, yani eski kameralar devasa görünürdü.</p>
+     * <p>Skipped when the entity is not loaded; {@link CameraListener} reapplies it
+     * once the chunk loads, otherwise the entity would stay frozen with the
+     * transform it was created with.</p>
      *
-     * <p>Modelin boyutu {@code camera.model-scale} config değeridir; kameranın
-     * yakınlaştırması (zoom) modelin boyutunu <b>etkilemez</b>.</p>
+     * <p>Model size comes from {@code camera.model-scale}; zoom does not affect it.</p>
      */
     public void applyTransform(Camera camera) {
         if (camera.displayEntityId() == null) {
@@ -259,12 +254,10 @@ public final class CameraManager {
         }
     }
 
-    /** Transformu, elde hazır olan display entity'ye uygular. */
+    /** Applies the transform to a display entity already at hand. */
     public void applyTransform(Camera camera, Display display) {
-        // Model, camYaw/camPitch yönüne bakacak şekilde döndürülür. Config'teki üç eksenli
-        // rotasyon offseti (X=pitch, Y=yaw, Z=roll) farklı bir model kullanıldığında görsel
-        // hizalamayı elle düzeltmeye yarar; sıra Y -> X -> Z olduğundan Z, modelin kendi
-        // bakış ekseni etrafında yatırma (roll) sağlar.
+        // The configured offsets (X=pitch, Y=yaw, Z=roll) correct visual alignment for
+        // custom models; the Y -> X -> Z order makes Z a roll around the view axis.
         double yaw = camera.camYaw() + plugin.config().modelRotationY();
         double pitch = camera.camPitch() + plugin.config().modelRotationX();
         double roll = plugin.config().modelRotationZ();
@@ -284,10 +277,8 @@ public final class CameraManager {
     }
 
     /**
-     * Yüklü tüm kameraların transformunu yeniden uygular.
-     *
-     * <p>Config'teki model rotasyon offseti değiştirilip {@code /izomap reload}
-     * çalıştırıldığında sonucun anında görünmesi için kullanılır.</p>
+     * Reapplies the transform of every loaded camera, so a changed model rotation
+     * offset takes effect right after {@code /izomap reload}.
      */
     public void refreshTransforms() {
         for (Camera camera : byId.values()) {
@@ -295,13 +286,13 @@ public final class CameraManager {
         }
     }
 
-    /** Değişiklik sonrası transform'u uygular ve kalıcılığı tetikler. */
+    /** Applies the transform after a change and triggers persistence. */
     public void applyAndPersist(Camera camera) {
         applyTransform(camera);
         persistAsync();
     }
 
-    // --- kamera eşyası ---
+    // --- camera item ---
 
     public ItemStack createCameraItem() {
         Material material = resolveMaterial(plugin.config().modelMaterial(), Material.SPYGLASS);
@@ -317,7 +308,7 @@ public final class CameraManager {
         return item;
     }
 
-    // --- iç yardımcılar ---
+    // --- internals ---
 
     private Display spawnDisplay(World world, Location anchor) {
         String type = plugin.config().displayType();

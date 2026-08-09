@@ -5,11 +5,10 @@ import dev.zypec.izomap.render.AspectRatio;
 import java.util.List;
 
 /**
- * Her en-boy oranı için sunulan geçerli ızgara seçenekleri.
+ * Grid options valid for each aspect ratio.
  *
- * <p>Dialog UI (FAZ 5) bu listeyi kullanarak yalnızca uygun yerleşim boyutlarını
- * gösterir. Seçilen ızgaranın piksel boyutu render çözünürlüğünü belirler; fotoğraf
- * ızgarayı tam dolduracak şekilde çekilir (letterbox yok).</p>
+ * <p>The chosen grid's pixel size is the render resolution; the photo fills the grid
+ * exactly, with no letterboxing.</p>
  */
 public final class GridLayouts {
 
@@ -32,7 +31,7 @@ public final class GridLayouts {
         };
     }
 
-    /** Verilen ızgaranın bu oran için geçerli olup olmadığı. */
+    /** Whether the grid is valid for the ratio. */
     public static boolean isValid(AspectRatio ratio, GridOption option) {
         return optionsFor(ratio).contains(option);
     }

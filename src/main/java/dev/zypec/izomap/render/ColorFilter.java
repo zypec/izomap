@@ -1,10 +1,8 @@
 package dev.zypec.izomap.render;
 
 /**
- * Fotoğraf çekimine uygulanan renk efektleri.
- *
- * <p>Efekt, gölgelenmiş RGB'ye harita paletine snap'lenmeden önce uygulanır;
- * böylece sonuç harita renkleriyle tutarlı kalır.</p>
+ * Color effects applied to a capture. The effect runs on the shaded RGB before it
+ * snaps to the map palette, so the result stays consistent with map colors.
  */
 public enum ColorFilter {
 
@@ -23,7 +21,7 @@ public enum ColorFilter {
         return label;
     }
 
-    /** Verilen 0xRRGGBB rengine efekti uygular (alfa yok). */
+    /** Applies the effect to a 0xRRGGBB color (no alpha). */
     public int apply(int rgb) {
         int r = (rgb >> 16) & 0xFF;
         int g = (rgb >> 8) & 0xFF;

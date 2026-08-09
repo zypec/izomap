@@ -16,11 +16,10 @@ import dev.zypec.izomap.ui.CameraDialogs;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
- * Izomap ana eklenti sınıfı.
+ * Plugin entry point.
  *
- * <p>Sorumluluk alanı yalnızca yaşam döngüsü (enable/disable) ve alt sistemlerin
- * (config, mesajlar, depolama, kamera, render, ui) bir araya getirilmesidir. Ağır
- * işlemler ilgili yöneticilere ve asenkron zamanlayıcılara devredilir.</p>
+ * <p>Owns only the enable/disable lifecycle and the wiring between subsystems;
+ * all real work is delegated to the managers it creates.</p>
  */
 public final class Izomap extends JavaPlugin {
 
@@ -49,7 +48,7 @@ public final class Izomap extends JavaPlugin {
 
         CameraDialogs cameraDialogs = new CameraDialogs(this, cameraManager, photoManager);
 
-        // Kameraları yükle; tamamlanınca fotoğrafları yükle (yeniden render kameralara bağlı).
+        // Photos re-render from their camera, so they must load afterwards.
         this.cameraManager.load().thenRun(() -> photoManager.load());
 
         getServer().getPluginManager().registerEvents(
@@ -75,11 +74,11 @@ public final class Izomap extends JavaPlugin {
         getLogger().info("Izomap devre dışı bırakıldı.");
     }
 
-    /** Tüm alt sistemlerin yapılandırmasını yeniden yükler. */
+    /** Reloads the configuration of every subsystem. */
     public void reloadAll() {
         this.configManager.reload();
         this.messages.reload();
-        // Model rotasyon offseti gibi görsel ayarların anında etkili olması için.
+        // Visual settings such as the model rotation offset take effect immediately.
         if (cameraManager != null) {
             cameraManager.refreshTransforms();
         }

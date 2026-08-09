@@ -17,11 +17,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Kameraların {@code cameras.yml} dosyasına asenkron kalıcılığı.
+ * Asynchronous persistence of cameras to {@code cameras.yml}.
  *
- * <p>Kamera sayısı oyuncu başına düşük tutulduğu için tüm koleksiyon
- * her kaydetmede toplu olarak serialize edilir; bu, kısmi güncelleme
- * mantığından daha basit ve daha az hataya açıktır.</p>
+ * <p>Camera counts stay low per player, so every save serializes the whole
+ * collection, which is simpler and safer than partial updates.</p>
  */
 public final class CameraStorage extends YamlStorage {
 
@@ -29,13 +28,13 @@ public final class CameraStorage extends YamlStorage {
         super(plugin, "cameras.yml");
     }
 
-    /** Tüm koleksiyonu belleğe serialize edip asenkron kaydeder. */
+    /** Serializes the whole collection and saves it asynchronously. */
     public void saveAll(Collection<Camera> cameras) {
         setData(serialize(cameras));
         save();
     }
 
-    /** Kapanışta senkron kaydeder. */
+    /** Saves synchronously, for shutdown. */
     public void saveAllSync(Collection<Camera> cameras) {
         setData(serialize(cameras));
         saveNow();
@@ -67,8 +66,8 @@ public final class CameraStorage extends YamlStorage {
     }
 
     /**
-     * Yüklenmiş veriyi {@link Camera} nesnelerine dönüştürür.
-     * <b>Ana iş parçacığında</b> çağrılmalıdır (dünya çözümlemesi için).
+     * Turns loaded data into {@link Camera} objects. Must run on the main thread
+     * because it resolves worlds.
      */
     public List<Camera> readAll() {
         List<Camera> result = new ArrayList<>();
@@ -116,7 +115,7 @@ public final class CameraStorage extends YamlStorage {
         camera.interactionEntityId(parseUuid(s.getString("interaction-entity")));
         camera.camYaw((float) s.getDouble("cam-yaw"));
         camera.camPitch((float) s.getDouble("cam-pitch"));
-        // Eski kayıtlarda anahtar "scale" idi; anlamı aynı olduğu için doğrudan okunur.
+        // Older records used the key "scale" with the same meaning.
         camera.zoom((float) s.getDouble("zoom", s.getDouble("scale", 1.0)));
         camera.aspectRatio(AspectRatio.fromString(s.getString("aspect-ratio"), AspectRatio.RATIO_1_1));
         camera.colorFilter(ColorFilter.fromString(s.getString("color-filter"), ColorFilter.ORIGINAL));

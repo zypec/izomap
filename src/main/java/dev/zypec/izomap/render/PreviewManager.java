@@ -26,36 +26,32 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Oyuncunun offhand'ine, kameranın gördüğünü gösteren 1x1 (128x128) canlı önizleme
- * haritası koyar ve kamera düzenlendikçe günceller.
+ * Puts a live 128x128 preview map of what the camera sees in the player's offhand
+ * and refreshes it as the camera is edited.
  *
- * <p>Kurallar:</p>
- * <ul>
- *   <li>Önizlemeye girmek için offhand <b>boş</b> olmalıdır.</li>
- *   <li>Önizleme haritası yere atılamaz, envanterde taşınamaz, mainhand'e geçirilemez.</li>
- *   <li>Oyuncu çıkınca harita silinir; tekrar girdiğinde yeniden başlar.</li>
- * </ul>
+ * <p>The offhand must be empty to enter preview, the map cannot be dropped, moved in
+ * the inventory or swapped to the main hand, and it is removed when the player
+ * quits.</p>
  *
- * <p>Her oyuncu için tek bir {@link MapView} yeniden kullanılır; aynı MapView yeniden
- * render edilince eldeki harita otomatik güncellenir.</p>
+ * <p>A single {@link MapView} is reused per player, so re-rendering it updates the
+ * held map in place.</p>
  *
- * <h2>Önizleme kameranın en-boy oranında çekilir</h2>
+ * <h2>The preview is captured at the camera's aspect ratio</h2>
  *
- * <p>Karo kare (128×128) olsa da render, kameranın oranına göre küçültülüp karonun
- * ortasına yerleştirilir (letterbox). Önizleme bir zamanlar oran ne olursa olsun 1:1
- * çekiliyordu ve bu iki şeyi birden yanlış gösteriyordu: gerçek kadrajı ve
- * <b>maliyeti</b>. Geniş kadrajda ışın prizması oranla birlikte genişlediği için
- * 16:9 bir fotoğraf 1:1 önizlemenin neredeyse iki katı chunk ister; önizleme
- * geçtiği hâlde yerleştirme "kadraj çok geniş" ile düşerdi. Aynı oranla çekilince
- * bütçe aşımı doğru yerde, yerleştirmeden önce görünür.</p>
+ * <p>The tile is square, so the render is fitted to the camera's ratio and
+ * letterboxed into its center. Capturing 1:1 regardless of ratio used to misreport
+ * both the real frame and the cost: the ray prism widens with the ratio, so a 16:9
+ * photo needs nearly twice the chunks of a 1:1 preview and placement failed with
+ * "frame too wide" after the preview had passed. Matching the ratio surfaces a
+ * budget overrun before placement instead.</p>
  */
 public final class PreviewManager implements Listener {
 
     private static final int TILE = 128;
 
-    /** Üçler kuralı çizgisinin kesik uzunluğu (piksel). */
+    /** Dash length of a guide line, in pixels. */
     private static final int DASH = 3;
-    /** Kesikli çizginin iki tonu: açık ve koyu arazide de seçilebilsin diye. */
+    /** Two tones so the guide stays visible on both light and dark terrain. */
     private static final int GUIDE_LIGHT = 0xFFFFFFFF;
     private static final int GUIDE_DARK = 0xFF303030;
 
@@ -75,21 +71,21 @@ public final class PreviewManager implements Listener {
     }
 
     /**
-     * Önizlemeyi yeniden render eder. Offhand boşsa önizleme başlatılır; önizleme zaten
-     * varsa güncellenir; offhand başka bir eşyayla doluysa hiçbir şey yapılmaz.
-     * <b>Ana iş parçacığında</b> çağrılmalıdır.
+     * Re-renders the preview: starts one when the offhand is empty, updates an
+     * existing one, and does nothing when the offhand holds something else. Must be
+     * called on the main thread.
      */
     public void refresh(Player player, Camera camera) {
         ItemStack offhand = player.getInventory().getItemInOffHand();
         boolean hasPreview = isPreview(offhand);
         boolean offhandEmpty = offhand == null || offhand.getType().isAir();
         if (!hasPreview && !offhandEmpty) {
-            return; // offhand dolu: önizlemeye girilemez
+            return; // offhand is occupied
         }
 
         UUID id = player.getUniqueId();
         if (!inFlight.add(id)) {
-            return; // aynı anda tek render; tıklama spam'ini yut
+            return; // one render at a time; swallow click spam
         }
         MapView view = views.computeIfAbsent(id, key -> mapService.createMapView(player.getWorld(), blank()));
 
@@ -100,7 +96,7 @@ public final class PreviewManager implements Listener {
         try {
             capture = renderService.capture(camera, width, height);
         } catch (RuntimeException ex) {
-            // Senkron hata: kilit burada bırakılmazsa önizleme kalıcı olarak donar.
+            // Without releasing the lock here a synchronous failure freezes the preview.
             inFlight.remove(id);
             throw ex;
         }
@@ -113,7 +109,7 @@ public final class PreviewManager implements Listener {
                         placeIfEmpty(player, view);
                         return;
                     }
-                    // Önizleme sessizce donmasın: bütçe aşımının nedeni action bar'da yazar.
+                    // Report a budget overrun on the action bar instead of stalling silently.
                     Throwable cause = error instanceof java.util.concurrent.CompletionException
                             && error.getCause() != null ? error.getCause() : error;
                     if (cause instanceof CaptureTooLargeException tooLarge) {
@@ -124,23 +120,23 @@ public final class PreviewManager implements Listener {
                 }));
     }
 
-    // --- karo bileşimi ---
+    // --- tile composition ---
 
-    /** Kameranın oranı 128×128 karoya sığdırıldığında render genişliği. */
+    /** Render width once the camera's ratio is fitted into the 128x128 tile. */
     private static int previewWidth(AspectRatio ratio) {
         double value = ratio.value();
         return value >= 1.0 ? TILE : Math.max(1, (int) Math.round(TILE * value));
     }
 
-    /** Kameranın oranı 128×128 karoya sığdırıldığında render yüksekliği. */
+    /** Render height once the camera's ratio is fitted into the 128x128 tile. */
     private static int previewHeight(AspectRatio ratio) {
         double value = ratio.value();
         return value >= 1.0 ? Math.max(1, (int) Math.round(TILE / value)) : TILE;
     }
 
     /**
-     * Render sonucunu karonun ortasına yerleştirir; artan yer şeffaf kalır, yani
-     * haritanın kendi parşömen zemini letterbox bandı olarak görünür.
+     * Centers the render on the tile; the remaining area stays transparent, so the
+     * map's own parchment shows through as the letterbox bars.
      */
     private static int[] tileFrom(RenderResult result, boolean thirdsGuide) {
         int[] tile = new int[TILE * TILE];
@@ -158,12 +154,11 @@ public final class PreviewManager implements Listener {
     }
 
     /**
-     * Üçler kuralı kılavuzu: kadrajı yatayda ve dikeyde üçe bölen çizgiler.
-     * Yalnızca <b>önizlemeye</b> çizilir — çekilen fotoğraf bu koddan hiç geçmez.
+     * Draws the lines splitting the frame into thirds. Preview only; a capture never
+     * goes through this code.
      *
-     * <p>Çizgi tek renk olsaydı kar/kum üstünde beyazı, gölgeli ormanda koyusu
-     * kaybolurdu; bu yüzden iki ton {@link #DASH} piksellik kesiklerle dönüşümlü
-     * basılır ve her zeminde seçilir.</p>
+     * <p>A single color would vanish on snow or in a shaded forest, so the two tones
+     * alternate in {@link #DASH}-pixel dashes and stay visible on any terrain.</p>
      */
     private static void drawThirdsGuide(int[] tile, int offsetX, int offsetY, int w, int h) {
         for (int third = 1; third <= 2; third++) {
@@ -182,12 +177,12 @@ public final class PreviewManager implements Listener {
         return (along / DASH) % 2 == 0 ? GUIDE_LIGHT : GUIDE_DARK;
     }
 
-    /** Offhand boşsa önizleme haritasını koyar (zaten önizlemeyse dokunmaz). */
+    /** Puts the preview map in an empty offhand; leaves an existing preview alone. */
     private void placeIfEmpty(Player player, MapView view) {
         PlayerInventory inventory = player.getInventory();
         ItemStack current = inventory.getItemInOffHand();
         if (isPreview(current)) {
-            return; // aynı MapView güncellendiği için içerik zaten tazelendi
+            return; // the same MapView was updated, so the content is already fresh
         }
         if (current == null || current.getType().isAir()) {
             inventory.setItemInOffHand(previewItem(view));
@@ -201,7 +196,7 @@ public final class PreviewManager implements Listener {
         return item;
     }
 
-    /** Önizlemeyi sonlandırır: offhand'deki haritayı kaldırır. */
+    /** Ends the preview and removes the map from the offhand. */
     public void endPreview(Player player) {
         ItemStack offhand = player.getInventory().getItemInOffHand();
         if (isPreview(offhand)) {
@@ -217,9 +212,9 @@ public final class PreviewManager implements Listener {
                 .get(previewKey, PersistentDataType.BOOLEAN));
     }
 
-    // --- kilitleme ve temizlik ---
+    // --- locking and cleanup ---
 
-    // Q ile atma: yere düşürmek yerine önizlemeyi temiz şekilde sonlandır.
+    // Dropping ends the preview cleanly instead of leaving the map on the ground.
     @EventHandler(ignoreCancelled = true)
     public void onDrop(PlayerDropItemEvent event) {
         if (isPreview(event.getItemDrop().getItemStack())) {
@@ -228,7 +223,7 @@ public final class PreviewManager implements Listener {
         }
     }
 
-    // F ile el değiştirme engellenir.
+    // Hand swapping is blocked.
     @EventHandler(ignoreCancelled = true)
     public void onSwap(PlayerSwapHandItemsEvent event) {
         if (isPreview(event.getOffHandItem()) || isPreview(event.getMainHandItem())) {
@@ -236,7 +231,7 @@ public final class PreviewManager implements Listener {
         }
     }
 
-    // Envanterde taşıma/sürükleme engellenir.
+    // Moving or dragging it in the inventory is blocked.
     @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
     public void onClick(InventoryClickEvent event) {
         if (isPreview(event.getCurrentItem()) || isPreview(event.getCursor())) {
@@ -249,7 +244,7 @@ public final class PreviewManager implements Listener {
         endPreview(event.getPlayer());
     }
 
-    // Sunucu çökmesi gibi durumlarda offhand'de kalmış olabilecek önizlemeyi temizle.
+    // Clear a preview left in the offhand by a crash.
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         ItemStack offhand = event.getPlayer().getInventory().getItemInOffHand();

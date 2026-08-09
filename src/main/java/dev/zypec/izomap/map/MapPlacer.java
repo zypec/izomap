@@ -16,11 +16,10 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * Harita karolarını dünyaya {@link ItemFrame} ızgarası olarak yerleştirir.
+ * Places map tiles in the world as a grid of {@link ItemFrame}s.
  *
- * <p>Duvar, oyuncunun baktığı yönde, oyuncuya bakacak şekilde kurulur. Görselin
- * yönü korunur: sol üst karo (col=0,row=0) ızgaranın sol üstünde belirir.
- * <b>Ana iş parçacığında</b> çağrılmalıdır (blok/entity işlemleri).</p>
+ * <p>The wall goes up in front of the player, facing them, and the image keeps its
+ * orientation: tile (0,0) ends up top-left. Must be called on the main thread.</p>
  */
 public final class MapPlacer {
 
@@ -33,20 +32,20 @@ public final class MapPlacer {
     }
 
     /**
-     * Karoları yerleştirir. Yeterli boş alan yoksa {@code null} döner (hiçbir şey
-     * değiştirilmez).
+     * Places the tiles, or returns {@code null} without changing anything when there
+     * is not enough free space.
      */
     public PlacedPhoto place(Player player, Camera camera, String name, GridOption grid, List<MapTile> tiles) {
         World world = player.getWorld();
         BlockFace forward = horizontalFacing(player);
         BlockFace right = clockwise(forward);
-        BlockFace frameFacing = forward.getOppositeFace(); // oyuncuya bakar
+        BlockFace frameFacing = forward.getOppositeFace(); // faces the player
 
         int distance = plugin.config().placementDistance();
         Block base = player.getEyeLocation().getBlock().getRelative(forward, distance);
         int colOffset = (grid.cols() - 1) / 2;
 
-        // Önce tüm hedef blokların boş olduğunu doğrula (non-destructive).
+        // Verify every target block is free first, so placement stays non-destructive.
         for (MapTile tile : tiles) {
             if (!frameBlock(base, right, forward, colOffset, grid, tile).isEmpty()) {
                 return null;
@@ -77,8 +76,8 @@ public final class MapPlacer {
                 f.setFacingDirection(frameFacing, true);
                 f.setItem(mapItem, false);
                 f.setVisible(!invisible);
-                // fixed=false: kırılabilir olsun; kırılma/döndürme/eşya düşürme
-                // PhotoFrameListener tarafından yönetilir (biri kırılınca hepsi kalkar).
+                // Breakable on purpose; PhotoFrameListener handles breaking, rotating
+                // and item removal, taking the whole photo down at once.
                 f.setFixed(false);
                 f.setPersistent(true);
             });
@@ -107,7 +106,7 @@ public final class MapPlacer {
         };
     }
 
-    /** Yukarıdan bakışta saat yönünde 90° (görüntünün +X/sağ ekseni). */
+    /** 90° clockwise seen from above: the image's +X axis. */
     private static BlockFace clockwise(BlockFace forward) {
         return switch (forward) {
             case NORTH -> BlockFace.EAST;

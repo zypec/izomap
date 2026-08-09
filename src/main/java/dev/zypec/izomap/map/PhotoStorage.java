@@ -11,9 +11,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Yerleştirilmiş fotoğrafların {@code maps.yml} dosyasına asenkron kalıcılığı.
- */
+/** Asynchronous persistence of placed photos to {@code maps.yml}. */
 public final class PhotoStorage extends YamlStorage {
 
     public PhotoStorage(Izomap plugin) {
@@ -48,7 +46,7 @@ public final class PhotoStorage extends YamlStorage {
         return cfg;
     }
 
-    /** Yüklenmiş veriyi {@link PlacedPhoto} nesnelerine dönüştürür. */
+    /** Turns loaded data into {@link PlacedPhoto} objects. */
     public List<PlacedPhoto> readAll() {
         List<PlacedPhoto> result = new ArrayList<>();
         FileConfiguration cfg = data();

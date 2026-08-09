@@ -13,10 +13,10 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Karolardan {@link MapView} ve doldurulmuş harita eşyaları üretir.
+ * Builds {@link MapView}s and filled map items from tiles.
  *
- * <p>{@link Bukkit#createMap(World)} ana iş parçacığı gerektirdiğinden bu sınıfın
- * metotları <b>ana thread'de</b> çağrılmalıdır.</p>
+ * <p>{@link Bukkit#createMap(World)} requires the main thread, so every method here
+ * must be called from it.</p>
  */
 public final class MapService {
 
@@ -26,7 +26,7 @@ public final class MapService {
         this.plugin = plugin;
     }
 
-    /** Bir karo için yeni bir {@link MapView} oluşturur (karo renderer'ı ekli). */
+    /** Creates a {@link MapView} for a tile, with its renderer attached. */
     public MapView createMapView(World world, int[] argb) {
         MapView view = Bukkit.createMap(world);
         applyTile(view, argb);
@@ -36,7 +36,7 @@ public final class MapService {
         return view;
     }
 
-    /** Mevcut bir {@link MapView}'in renderer'larını temizleyip karoyu yeniden çizer. */
+    /** Clears an existing {@link MapView}'s renderers and redraws the tile. */
     public void applyTile(MapView view, int[] argb) {
         for (MapRenderer renderer : new ArrayList<>(view.getRenderers())) {
             view.removeRenderer(renderer);
@@ -44,19 +44,19 @@ public final class MapService {
         view.addRenderer(new TileMapRenderer(argb));
     }
 
-    /** Bir {@link MapView}'i gösteren doldurulmuş harita eşyası üretir. */
+    /** Builds a filled map item showing a {@link MapView}. */
     public ItemStack itemFor(MapView view) {
         ItemStack item = ItemStack.of(Material.FILLED_MAP);
         item.editMeta(MapMeta.class, meta -> meta.setMapView(view));
         return item;
     }
 
-    /** Tek bir karo için doldurulmuş harita eşyası oluşturur. */
+    /** Creates a filled map item for a single tile. */
     public ItemStack createMapItem(World world, MapTile tile) {
         return itemFor(createMapView(world, tile.argb()));
     }
 
-    /** Karo listesini, ızgara sırasını koruyarak harita eşyalarına dönüştürür. */
+    /** Converts a tile list to map items, preserving grid order. */
     public List<ItemStack> createMapItems(World world, List<MapTile> tiles) {
         List<ItemStack> items = new ArrayList<>(tiles.size());
         for (MapTile tile : tiles) {
