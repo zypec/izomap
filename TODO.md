@@ -44,31 +44,6 @@ T30 (renk pipeline'ının parametrikleşmesi)
 
 ## P1 — Kamera ve etkileşim
 
-### T4 — EditProperty'ye hareket seçenekleri
-
-`[ ]` **P1**
-
-`YAW → PITCH → ZOOM` döngüsüne iki hareket modu eklenecek: **dikey** ve **yatay**.
-Sol/sağ tık kamerayı ilgili eksende ileri/geri (ya da yukarı/aşağı) taşır.
-
-- Action bar etiketi sadece **"Hareket"** yazar; parantezde eksen: `Hareket(x)` yatay,
-  `Hareket(y)` dikey. T11 satırı `EditProperty.values()` üzerinde döndüğü için yeni
-  modlar kendiliğinden görünür; yapılacak tek şey `messages.yml`'e
-  `preview.property.MOVE_X` / `MOVE_Y` etiketlerini ve değer biçimini eklemek.
-- Yatay hareket kameranın kendi bakış yönünde mi, yoksa dünya eksenlerinde mi olsun?
-  → Kameranın bakış yönünün **yatay izdüşümü** boyunca (ileri/geri) daha sezgisel;
-  sağa/sola için ayrı bir mod gerekiyorsa üçüncü bir seçenek eklenir. Karar T4
-  uygulanırken netleşecek, varsayılan: bakış yönünde ileri/geri.
-- Adım miktarı config'ten (`camera.move-step`, varsayılan 1.0 blok).
-- Hareket, display + interaction entity'yi birlikte taşır (`CameraManager#move` var).
-- Hareket sonrası preview yenilenir; durum satırı (T11) zaten tazelenir.
-- Hologram (T6) kamerayla birlikte taşınır.
-
-**Dokunulacak yerler:** `EditProperty`, `CameraListener#adjust`, `CameraManager#move`,
-`config.yml`, `messages.yml`.
-
----
-
 ### T6 — Kameranın üstünde bilgi hologramı (TextDisplay)
 
 `[ ]` **P1**
@@ -220,23 +195,6 @@ Hedef akış:
 
 ---
 
-### T23 — Fotoğrafı dosyaya kaydetme (admin komutu)
-
-`[ ]` **P2**
-
-`RenderResult#toImage()` hazır ama hiçbir yerden çağrılmıyor.
-
-- `/izocam export <id|kamera adı> [dosya-adı]`, izin: `izomap.admin`.
-- PNG olarak `plugins/Izomap/exports/` altına yazılır; dosya adı verilmezse
-  `<foto-adı>-<zaman damgası>.png`.
-- **Dosya yazma asenkron** olacak (proje kuralı).
-- Dosya adı sanitize edilir (path traversal, geçersiz karakterler).
-- Çekim yapılmışsa mevcut sonuç, yoksa parametrelerden yeniden render edilir (T1).
-- Sonuçta oyuncuya dosya yolu ve boyutu bildirilir (`photo.saved` anahtarı zaten var,
-  kullanılmıyor).
-
----
-
 ## P1 — Render ve görsel
 
 ### T30 — Renk pipeline'ını parametrik hâle getir
@@ -385,14 +343,6 @@ manzarayı göstermek).
 
 ## P2 — Teknik borç
 
-### T40 — Kullanılmayan yüzeyleri temizle veya bağla
-
-`[~]` **P2** · Kalan: T23'e bağlı
-
-Sahipsiz yüzeylerin çoğu 2026-08-10'da silindi (aşağıdaki arşiv notu). Geriye yalnızca
-**T23'ün (export) kullanacağı** ikisi kaldı: `messages.yml` → `photo.saved` ve
-`RenderResult#toImage`. T23 yapılınca bağlanmış olacaklar; T23 iptal edilirse silinecekler.
-
 ### T41 — İlk birim testleri
 
 `[ ]` **P2**
@@ -401,7 +351,13 @@ Sunucu gerektirmeyen saf hesap sınıfları test edilebilir:
 `MapColorConverter#snap` (bilinen renk → bilinen palet girişi), `ImageSlicer#slice`
 (karo sınırları ve sıra), `GridOption#parse`, `AspectRatio#fromLabel`,
 `ColorFilter#apply` (T31 sonrası filtre zinciri), `WorldSnapshot#key/chunkX/chunkZ`
-(negatif koordinatlar dahil), `Camera` clamp'leri (zoom/pitch sınırları, yaw normalize).
+(negatif koordinatlar dahil), `Camera` clamp'leri (zoom/pitch sınırları, yaw normalize),
+`PhotoExporter#sanitize` (path traversal, geçersiz karakter, boş ad, uzunluk sınırı).
+
+**Önce altyapı gerekiyor:** `build.gradle.kts` içinde ne JUnit bağımlılığı ne de
+`test` görevi var (`./gradlew build` → `compileTestJava NO-SOURCE`). İlk iş
+`testImplementation(platform("org.junit:junit-bom:…"))` + `junit-jupiter` eklemek ve
+`tasks.test { useJUnitPlatform() }` yazmak.
 
 İlk aday hazır: T1'de `MapColorConverter#packedId`/`#argbOf` için yazılan tur testi
 (244 palet renginin tamamı + şeffaflık + palet dışı renk) tek seferlik bir betikti,
@@ -421,6 +377,66 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 
 ## Arşiv
 
+### T4 — EditProperty'ye hareket seçenekleri
+
+`[x]` **P1** · 2026-08-10
+
+`YAW → PITCH → ZOOM` döngüsüne `MOVE_X` (yatay) ve `MOVE_Y` (dikey) eklendi; adım
+`camera.move-step` (yeni ayar, varsayılan 1.0 blok).
+
+Açık bırakılan karar netleşti: **yatay hareket dünya eksenlerinde değil, kameranın bakış
+yönünün yatay izdüşümünde ileri/geri**. Gerekçe: "biraz daha yaklaştır" isteği neredeyse
+her zaman bakılan yönde ilerlemek demek; dünya ekseni seçilseydi oyuncunun kameranın
+hangi eksene baktığını kafadan hesaplaması gerekirdi. Sağa/sola kaydırma isteği çıkarsa
+üçüncü bir mod olarak eklenebilir. Yön vektörü `(-sin(yaw), 0, cos(yaw))`.
+`MOVE_Y` dünya sınırlarına clamp'leniyor.
+
+Durum satırı (T11) beklendiği gibi kendiliğinden büyüdü; yalnızca etiketler
+(`preview.property.MOVE_X/MOVE_Y`) ve değer biçimleri eklendi. Hareket modlarının
+"değeri" yok, o yüzden kameranın vardığı konumu gösteriyorlar.
+
+Yan düzeltme: `CameraManager#move` ikiye ayrıldı (`reposition` + persist). Hareket her
+tıkta çağrıldığı ve etkileşimin sonunda zaten ortak bir `applyAndPersist` olduğu için
+eski hâli tık başına **iki** tam koleksiyon serialize'i yapardı.
+
+### T23 — Fotoğrafı dosyaya kaydetme (admin komutu)
+
+`[x]` **P2** · 2026-08-10 · Kapattığı: T40
+
+`/izocam export <id> [dosya]` fotoğrafı PNG olarak `plugins/Izomap/exports/` altına
+yazıyor. `RenderResult#toImage()` böylece kullanıma girdi.
+
+Görüntü yeni `PhotoManager#image` üzerinden geliyor: **önce ön bellek, olmazsa
+`CaptureSpec`'ten yeniden render**. Bu metot bilerek genel tutuldu, T20 (retake) da aynı
+kaynağı kullanacak. Yeniden render ana thread'de başlatılmak zorunda olduğu için
+(chunk kopyası) asenkron zincirin içinden `runOnMain` ile sıçranıyor.
+
+Dosya adı oyuncu girdisi olduğundan reddedilmek yerine temizleniyor
+(`[A-Za-z0-9._-]` dışı `_`, baştaki noktalar atılıyor, 64 karaktere kırpılıyor) **ve
+ayrıca** sonuç yolun export klasörünün içinde kaldığı doğrulanıyor — tek başına
+sanitize yeterli sayılmadı. Ad verilmezse `<foto-adı>-<yyyyMMdd-HHmmss>.png`.
+
+Komut `izomap.admin` istediği için kısa kimliği sahiplikten bağımsız çözüyor
+(`findByShortId(String)`), tab-complete de tüm fotoğrafları öneriyor. `photo.saved`
+mesajına dosya boyutu (`<size>` KB) eklendi; `photo.exporting` ve `photo.export-failed`
+yeni.
+
+**Sunucuda denenmedi** — özellikle büyük ızgarada (16x9 = 2048x1152) PNG yazma süresi
+ve `exports/` klasörünün ilk oluşturulması gözlenmeli.
+
+### T40 — Kullanılmayan yüzeyleri temizle veya bağla
+
+`[x]` **P2** · 2026-08-10
+
+Silinenler: `general.no-permission` (Brigadier `requires` zaten komutu gizliyor, mesaj
+hiç gönderilmiyordu), `general.unknown-error`, `photo.captured`, `map.grid-header`,
+`map.grid-entry` (T2 bunlara ihtiyaç duymadan çözüldü), `RenderResult#pixel`.
+`MapService#createMapItem` private yapıldı. `CameraKeys#readCameraId` T14'te,
+`photo.saved` ile `RenderResult#toImage` T23'te kullanıma girdi.
+
+Doğrulama: `messages.yml`'deki anahtarlar kodda aranan anahtarlarla karşılaştırıldı;
+eksik yok, sahipsiz kalan yok.
+
 ### T43 — Her önizleme oturumu bir harita kimliği harcıyordu
 
 `[x]` **P2** · 2026-08-10
@@ -434,18 +450,6 @@ Seçenek (a) uygulandı: kimlik kameraya ait, `cameras.yml` → `preview-map-id`
 boşaltma şart, yoksa önizleme bir önceki oturumun donmuş görüntüsüyle açılıyordu.
 Harita silinmişse yenisi üretilip kayda yazılıyor. Kamera silinince kimlik bırakılıyor;
 dosya kalıyor ama artık kamera sayısıyla sınırlı.
-
-### T40 — Sahipsiz mesaj anahtarları ve metotlar (kısmen)
-
-`[~]` **P2** · 2026-08-10
-
-Silinenler: `general.no-permission` (Brigadier `requires` zaten komutu gizliyor,
-mesaj hiç gönderilmiyordu), `general.unknown-error`, `photo.captured`,
-`map.grid-header`, `map.grid-entry` (T2 bunlara ihtiyaç duymadan çözüldü),
-`RenderResult#pixel`. `MapService#createMapItem` private yapıldı (yalnızca
-`createMapItems` çağırıyor). `CameraKeys#readCameraId` T14'te zaten kullanıma girmişti.
-
-Kalan ikisi T23'e bağlı, madde açık tutuluyor.
 
 ### T8 — Interaction entity'nin boyutu model ölçeğine uyuyor
 

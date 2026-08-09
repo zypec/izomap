@@ -276,7 +276,7 @@ Dünyada zaten kalmış yetimler için `/izocam cleanup`, oyuncunun bulunduğu d
 |---|---|
 | Sağ tık | Aktif özelliği **artır** |
 | Sol tık (attack) | Aktif özelliği **azalt** |
-| Shift + sağ tık | Aktif özelliği değiştir (YAW → PITCH → ZOOM → …) |
+| Shift + sağ tık | Aktif özelliği değiştir (YAW → PITCH → ZOOM → MOVE_X → MOVE_Y → …) |
 | Shift + sol tık | Fotoğraf Dialog'unu aç |
 | Kamera eşyasıyla bloğa sağ tık | O konuma yeni kamera kur (eşya harcanır) |
 
@@ -287,6 +287,23 @@ Yaw/Pitch `camera.angle-step` kadar değişir. **Zoom çarpımsaldır**: her tı
 `camera.zoom-step` ile çarpar/böler, böylece 0.02x–16x aralığının her yerinde adım
 oransal olarak aynı kalır. Action bar'da çarpanın yanında kadrajın kaç blok kapsadığı da
 yazar — asıl merak edilen odur.
+
+### Hareket modları
+
+`MOVE_X` ve `MOVE_Y`, kamerayı komut yazmadan yerinde kaydırır; adım
+`camera.move-step` (varsayılan 1.0 blok).
+
+- **`MOVE_X`** kameranın bakış yönünün **yatay izdüşümü** boyunca ileri/geri taşır.
+  Dünya eksenleri yerine bakış yönü seçildi: kadrajı "biraz daha yaklaştır" isteği
+  neredeyse her zaman bakılan yönde ileri gitmek demektir, hangi eksene denk geldiğini
+  oyuncunun hesaplaması gerekmez. Yön vektörü `(-sin(yaw), 0, cos(yaw))`.
+- **`MOVE_Y`** dikey taşır ve dünya sınırlarına clamp'lenir.
+- İkisi de `CameraManager#reposition` kullanır: display + interaction entity birlikte
+  taşınır, ama **disk yazımı yapılmaz**. Yazma, her etkileşimin sonundaki ortak
+  `applyAndPersist` adımında bir kez olur — kayıt tüm koleksiyonu serialize ettiği için
+  tık başına iki yazma boşa maliyetti.
+- Durum satırında hareket modlarının "değeri" kameranın vardığı konumdur
+  (`MOVE_X` → `x, z`, `MOVE_Y` → `y`).
 
 ### Zoom ile model boyutu ayrıdır
 
@@ -497,6 +514,22 @@ Fotoğraf silinince ön bellek dosyası da silinir. Açılışta `retainOnly` sa
 dosyalarını süpürür (çökme kalıntısı, yarış durumu); kayıt kümesi **boşsa** süpürme
 yapılmaz, çünkü `maps.yml` yüklenememişse tüm ön belleği silmek olurdu.
 
+### Dosyaya aktarma (`PhotoExporter`)
+
+`/izocam export <id> [dosya]` fotoğrafı PNG olarak `plugins/Izomap/exports/` altına
+yazar. Görüntü `PhotoManager#image` üzerinden gelir: **önce ön bellek, olmazsa
+`CaptureSpec`'ten yeniden render**. Aynı metot ileride retake'in de kaynağıdır.
+
+- Kodlama ve disk yazımı asenkrondur; tam boy bir ızgara birkaç megapikseldir ve ana
+  thread'de tick düşürürdü.
+- Dosya adı oyuncu girdisidir: `[A-Za-z0-9._-]` dışındaki her karakter `_` ile
+  değiştirilir, baştaki noktalar atılır, uzunluk 64'e kırpılır ve **sonuç yol olarak da
+  export klasörünün içinde mi diye ayrıca doğrulanır**. Reddetmek yerine temizlemek
+  tercih edildi ama tek başına yeterli sayılmadı.
+- Ad verilmezse `<foto-adı>-<yyyyMMdd-HHmmss>.png`.
+- Komut `izomap.admin` ister ve bu yüzden kimin olduğuna bakmadan **tüm** fotoğrafları
+  kısa kimlikten çözer; tab-complete de hepsini önerir.
+
 ---
 
 ## 7. Komutlar ve izinler
@@ -518,6 +551,7 @@ yapılmaz, çünkü `maps.yml` yüklenememişse tüm ön belleği silmek olurdu.
 | `open <ad>` | Fotoğraf Dialog'unu açar |
 | `unplace <id>` | Kısa kimlikle (ilk 8 karakter) yerleştirilmiş fotoğrafı kaldırır |
 | `cleanup` | Çerçeveleri kaybolmuş fotoğraf kayıtlarını temizler |
+| `export <id> [dosya]` | Fotoğrafı PNG olarak `exports/` altına yazar (`izomap.admin`) |
 | `reload` | Yapılandırmayı yeniden yükler (`izomap.admin`) |
 
 Ad, oran, grid ve fotoğraf kimliği argümanlarının tamamı tab-complete'lidir; grid önerileri
@@ -538,7 +572,7 @@ toplanır ve değerler mantıklı aralıklara clamp'lenir.
 | Bölüm | Anahtarlar |
 |---|---|
 | `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player` |
-| `camera` | `display-type`, `model-material`, `item-display-transform`, `interaction-size` (0.1-3.0), `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `default-pitch` (-90..90), `edit-lock-seconds` (1-3600), `model-rotation.{x,y,z}` |
+| `camera` | `display-type`, `model-material`, `item-display-transform`, `interaction-size` (0.1-3.0), `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `move-step` (0.05-16.0), `default-pitch` (-90..90), `edit-lock-seconds` (1-3600), `model-rotation.{x,y,z}` |
 | `photo` | `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
 | `placement` | `distance`, `invisible-frames`, `build-backing-wall`, `backing-material` |
 
@@ -564,6 +598,7 @@ kontrol edip `0.25`'in üstündeyse log uyarısı verir.
 | `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, üçler kuralı, entity UUID'leri, önizleme harita kimliği) |
 | `maps.yml` | Yerleştirilmiş fotoğraflar (harita id'leri, çerçeve UUID'leri, çıpa koordinatı, `capture` bloğunda çekim parametreleri) |
 | `photos/<uuid>.izm` | Fotoğrafın çekilmiş görüntüsü (palet indeksi + Deflate); YML değil, ikili |
+| `exports/<ad>.png` | `/izocam export` çıktısı; eklenti hiç okumaz, yalnızca yazar |
 
 `YamlStorage` disk I/O'yu **daima** asenkron yapar; tek istisna `onDisable`'daki
 `saveNow()`'dır (asenkron zamanlayıcı artık çalışmadığı için). Kayıt toplu serialize
@@ -605,7 +640,6 @@ kullanılır.
 
 | Konu | Madde |
 |---|---|
-| `photo.saved` ve `RenderResult#toImage` hâlâ boşta (export bekliyor) | T40 → T23 |
 | Birim test yok | T41 |
 
 ---

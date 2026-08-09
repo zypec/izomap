@@ -171,6 +171,16 @@ public final class CameraManager {
 
     /** Moves the camera and both of its entities to a new location. */
     public void move(Camera camera, Location newAnchor) {
+        reposition(camera, newAnchor);
+        persistAsync();
+    }
+
+    /**
+     * Moves the camera without writing to disk, for callers that persist once at the
+     * end of a larger change; a save serializes the whole collection, so doing it twice
+     * per click is pure waste.
+     */
+    public void reposition(Camera camera, Location newAnchor) {
         Entity display = plugin.getServer().getEntity(camera.displayEntityId());
         if (display != null) {
             display.teleport(newAnchor);
@@ -181,7 +191,6 @@ public final class CameraManager {
         }
         camera.anchor(newAnchor);
         applyTransform(camera);
-        persistAsync();
     }
 
     /** Removes every camera owned by a player and returns how many were removed. */

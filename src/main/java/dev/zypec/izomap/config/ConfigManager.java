@@ -138,6 +138,11 @@ public final class ConfigManager {
         return cfg().getDouble("camera.angle-step", 15.0);
     }
 
+    /** Distance one click moves the camera in the movement edit modes, in blocks. */
+    public double moveStep() {
+        return clamp(cfg().getDouble("camera.move-step", 1.0), 0.05, 16.0);
+    }
+
     /**
      * Pitch of a newly placed camera (degrees, positive looks down). 30 is the
      * classic isometric angle, 0 is horizontal.

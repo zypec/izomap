@@ -59,6 +59,10 @@ camera:
   model-scale: 1.0
   # Yaw/Pitch ayar adımı (derece).
   angle-step: 15.0
+  # Hareket modlarında (Hareket(x)/Hareket(y)) her tıkın kamerayı kaç blok
+  # taşıyacağı. Hareket(x) kameranın bakış yönünün yatay izdüşümünde ileri/geri,
+  # Hareket(y) dikey olarak yukarı/aşağı taşır. Aralık: 0.05-16.0.
+  move-step: 1.0
   # Yeni kurulan kameranın dikey açısı (derece, pozitif = aşağı bakış).
   # 30 klasik izometrik açıdır. Ortografik projeksiyonda ışınlar paralel olduğu
   # için 0'a (yatay bakış) yaklaştıkça kamera arazi YÜZEYİNİ göremez hale gelir:

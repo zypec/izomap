@@ -130,6 +130,14 @@ public final class CameraCommand {
                                 .executes(this::unplace)))
                 .then(Commands.literal("cleanup")
                         .executes(this::cleanup))
+                .then(Commands.literal("export")
+                        .requires(source -> source.getSender().hasPermission(PERM_ADMIN))
+                        .then(Commands.argument("id", StringArgumentType.word())
+                                .suggests(this::suggestAllPhotoIds)
+                                .executes(ctx -> export(ctx, null))
+                                .then(Commands.argument("file", StringArgumentType.word())
+                                        .executes(ctx -> export(ctx,
+                                                StringArgumentType.getString(ctx, "file"))))))
                 .then(Commands.literal("reload")
                         .requires(source -> source.getSender().hasPermission(PERM_ADMIN))
                         .executes(this::reload))
@@ -427,6 +435,22 @@ public final class CameraCommand {
         return com.mojang.brigadier.Command.SINGLE_SUCCESS;
     }
 
+    /** Admin only, so it resolves any owner's photo rather than just the caller's. */
+    private int export(CommandContext<CommandSourceStack> ctx, String fileName) {
+        Player player = requirePlayer(ctx);
+        if (player == null) {
+            return 0;
+        }
+        PlacedPhoto photo = photoManager.findByShortId(StringArgumentType.getString(ctx, "id")).orElse(null);
+        if (photo == null) {
+            plugin.messages().send(player, "map.photo-not-found");
+            return 0;
+        }
+        plugin.messages().send(player, "photo.exporting", Placeholder.unparsed("name", photo.name()));
+        photoManager.export(player, photo, fileName);
+        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+    }
+
     private int cleanup(CommandContext<CommandSourceStack> ctx) {
         Player player = requirePlayer(ctx);
         if (player == null) {
@@ -496,6 +520,18 @@ public final class CameraCommand {
                         builder.suggest(option.label());
                     }
                 }
+            }
+        }
+        return builder.buildFuture();
+    }
+
+    // Every photo, not just the caller's: the command that uses it is admin only.
+    private java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestAllPhotoIds(
+            CommandContext<CommandSourceStack> ctx, com.mojang.brigadier.suggestion.SuggestionsBuilder builder) {
+        String prefix = builder.getRemaining();
+        for (PlacedPhoto photo : photoManager.all()) {
+            if (photo.shortId().startsWith(prefix)) {
+                builder.suggest(photo.shortId());
             }
         }
         return builder.buildFuture();

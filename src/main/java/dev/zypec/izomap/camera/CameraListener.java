@@ -4,6 +4,7 @@ import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.ui.CameraDialogs;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Display;
@@ -173,10 +174,26 @@ public final class CameraListener implements Listener {
                 double step = plugin.config().zoomStep();
                 camera.zoom((float) (direction > 0 ? camera.zoom() * step : camera.zoom() / step));
             }
+            case MOVE_X -> {
+                double step = direction * plugin.config().moveStep();
+                double yaw = Math.toRadians(camera.camYaw());
+                manager.reposition(camera, camera.anchor().add(-Math.sin(yaw) * step, 0.0, Math.cos(yaw) * step));
+            }
+            case MOVE_Y -> manager.reposition(camera,
+                    clampToWorld(camera.anchor().add(0.0, direction * plugin.config().moveStep(), 0.0)));
         }
         manager.applyAndPersist(camera);
         plugin.preview().refresh(player, camera);
         plugin.preview().showStatus(camera, player);
+    }
+
+    /** Keeps vertical movement inside the world; entities outside it behave oddly. */
+    private static Location clampToWorld(Location location) {
+        World world = location.getWorld();
+        if (world != null) {
+            location.setY(Math.max(world.getMinHeight(), Math.min(world.getMaxHeight() - 1, location.getY())));
+        }
+        return location;
     }
 
     private String defaultName(Player player) {

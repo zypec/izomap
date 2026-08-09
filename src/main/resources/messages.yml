@@ -50,17 +50,23 @@ preview:
   entry-active: "<yellow><bold><label> <value></bold></yellow>"
   value-angle: "<deg>°"
   value-zoom: "<zoom>x <gray>(<blocks> blok)</gray>"
+  value-position-xz: "<x>, <z>"
+  value-position-y: "<y>"
   # Etiketler EditProperty adlarına göre aranır; eksik anahtar action bar'da görünür.
   property:
     YAW: "Yön"
     PITCH: "Eğim"
     ZOOM: "Zoom"
+    MOVE_X: "Hareket(x)"
+    MOVE_Y: "Hareket(y)"
 
 photo:
   capturing: "<gray>Fotoğraf çekiliyor, lütfen bekle..."
   failed: "<red>Fotoğraf çekimi başarısız oldu."
   too-large: "<red>Kadraj çok geniş: <white><required></white> chunk gerekiyor, sınır <white><budget></white> <gray>(settings.max-capture-area)</gray>. Yakınlaştırmayı (zoom) artır."
-  saved: "<green>Fotoğraf kaydedildi: <white><file></white> <gray>(<width>x<height>, <ms>ms)"
+  exporting: "<gray>Fotoğraf dosyaya yazılıyor: <white><name></white>..."
+  saved: "<green>Fotoğraf kaydedildi: <white><file></white> <gray>(<width>x<height>, <size> KB, <ms>ms)"
+  export-failed: "<red>Fotoğraf dışa aktarılamadı. Ayrıntı için sunucu log'una bak."
   ratio-set: "<green>En-boy oranı ayarlandı: <white><ratio></white>"
   invalid-ratio: "<red>Geçersiz en-boy oranı. Seçenekler: 1:1, 16:9, 4:3"
 

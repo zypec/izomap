@@ -5,6 +5,7 @@ import dev.zypec.izomap.camera.Camera;
 import dev.zypec.izomap.camera.CameraManager;
 import dev.zypec.izomap.render.CaptureSpec;
 import dev.zypec.izomap.render.CaptureTooLargeException;
+import dev.zypec.izomap.render.RenderResult;
 import dev.zypec.izomap.render.RenderService;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -34,6 +36,7 @@ public final class PhotoManager {
     private final MapPlacer placer;
     private final PhotoStorage storage;
     private final PhotoCache cache;
+    private final PhotoExporter exporter;
 
     private final Map<UUID, PlacedPhoto> photos = new ConcurrentHashMap<>();
 
@@ -52,6 +55,7 @@ public final class PhotoManager {
         this.placer = new MapPlacer(plugin, mapService, keys);
         this.storage = new PhotoStorage(plugin);
         this.cache = new PhotoCache(plugin);
+        this.exporter = new PhotoExporter(plugin);
     }
 
     // --- lifecycle ---
@@ -218,6 +222,83 @@ public final class PhotoManager {
         });
     }
 
+    // --- image access ---
+
+    /**
+     * The photo's image: the cache first, a re-render from its capture parameters when
+     * the cache cannot serve it.
+     *
+     * <p>Fails only when neither is available, which is a photo placed before specs
+     * were recorded whose cache file is also gone.</p>
+     */
+    public CompletableFuture<RenderResult> image(PlacedPhoto photo) {
+        return cache.read(photo.id(), photo.grid())
+                // A cache miss is expected, not exceptional; it decides the next step.
+                .handle((result, error) -> result)
+                .thenCompose(cached -> cached != null
+                        ? CompletableFuture.completedFuture(cached)
+                        : renderFromSpec(photo));
+    }
+
+    /** Re-renders from the stored spec. The capture itself has to start on the main thread. */
+    private CompletableFuture<RenderResult> renderFromSpec(PlacedPhoto photo) {
+        CaptureSpec spec = photo.spec();
+        if (spec == null) {
+            return CompletableFuture.failedFuture(new IllegalStateException(
+                    "Fotoğrafın ne ön belleği ne çekim parametreleri var: " + photo.shortId()));
+        }
+        CompletableFuture<RenderResult> out = new CompletableFuture<>();
+        runOnMain(() -> renderService.capture(spec, photo.grid().widthPx(), photo.grid().heightPx())
+                .whenComplete((result, error) -> {
+                    if (error != null) {
+                        out.completeExceptionally(error);
+                    } else {
+                        out.complete(result);
+                    }
+                }));
+        return out;
+    }
+
+    /** Writes the photo to a PNG under {@code exports/} and reports the result. */
+    public void export(Player player, PlacedPhoto photo, String fileName) {
+        long start = System.currentTimeMillis();
+        image(photo)
+                .thenCompose(result -> exporter.write(result, photo.name(), fileName)
+                        .thenApply(file -> Map.entry(result, file)))
+                .whenComplete((written, error) -> {
+                    if (error != null || written == null) {
+                        Throwable cause = error instanceof java.util.concurrent.CompletionException
+                                && error.getCause() != null ? error.getCause() : error;
+                        plugin.getLogger().warning("Fotoğraf dışa aktarılamadı ("
+                                + photo.shortId() + "): " + (cause != null ? cause.getMessage() : "boş sonuç"));
+                        runOnMain(() -> plugin.messages().send(player, "photo.export-failed"));
+                        return;
+                    }
+                    RenderResult result = written.getKey();
+                    java.nio.file.Path file = written.getValue();
+                    runOnMain(() -> plugin.messages().send(player, "photo.saved",
+                            Placeholder.unparsed("file", relativePath(file)),
+                            Placeholder.unparsed("width", String.valueOf(result.width())),
+                            Placeholder.unparsed("height", String.valueOf(result.height())),
+                            Placeholder.unparsed("size", String.valueOf(kilobytes(file))),
+                            Placeholder.unparsed("ms", String.valueOf(System.currentTimeMillis() - start))));
+                });
+    }
+
+    /** Shown to the player relative to the data folder; the absolute path is noise. */
+    private String relativePath(java.nio.file.Path file) {
+        java.nio.file.Path base = plugin.getDataFolder().toPath();
+        return file.startsWith(base) ? base.relativize(file).toString() : file.toString();
+    }
+
+    private static long kilobytes(java.nio.file.Path file) {
+        try {
+            return Math.max(1L, java.nio.file.Files.size(file) / 1024L);
+        } catch (java.io.IOException ex) {
+            return 0L;
+        }
+    }
+
     // --- management ---
 
     public List<PlacedPhoto> ownedBy(UUID owner) {
@@ -239,6 +320,13 @@ public final class PhotoManager {
     public Optional<PlacedPhoto> findByShortId(UUID owner, String shortId) {
         return photos.values().stream()
                 .filter(p -> p.owner().equals(owner) && p.shortId().equalsIgnoreCase(shortId))
+                .findFirst();
+    }
+
+    /** Finds any photo by its short id, whoever owns it; for admin commands. */
+    public Optional<PlacedPhoto> findByShortId(String shortId) {
+        return photos.values().stream()
+                .filter(p -> p.shortId().equalsIgnoreCase(shortId))
                 .findFirst();
     }
 

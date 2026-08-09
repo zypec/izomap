@@ -5,7 +5,11 @@ public enum EditProperty {
 
     YAW,
     PITCH,
-    ZOOM;
+    ZOOM,
+    /** Moves along the horizontal projection of the view direction: forward/back. */
+    MOVE_X,
+    /** Moves straight up and down. */
+    MOVE_Y;
 
     /** Returns the next property, wrapping around. */
     public EditProperty next() {

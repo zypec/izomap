@@ -52,7 +52,17 @@ public final class CameraStatus {
                     Placeholder.unparsed("zoom", String.format(Locale.ROOT, "%.2f", camera.zoom())),
                     Placeholder.unparsed("blocks", String.format(Locale.ROOT, "%.0f",
                             plugin.config().frameHeight() / camera.zoom())));
+            // Movement has no value of its own, so it reports where the camera ended up.
+            case MOVE_X -> plugin.messages().get("preview.value-position-xz",
+                    Placeholder.unparsed("x", coordinate(camera.anchor().getX())),
+                    Placeholder.unparsed("z", coordinate(camera.anchor().getZ())));
+            case MOVE_Y -> plugin.messages().get("preview.value-position-y",
+                    Placeholder.unparsed("y", coordinate(camera.anchor().getY())));
         };
+    }
+
+    private static String coordinate(double value) {
+        return String.format(Locale.ROOT, "%.1f", value);
     }
 
     private static Component angle(Izomap plugin, float degrees) {
