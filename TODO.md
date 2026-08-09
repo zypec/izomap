@@ -662,6 +662,25 @@ T10 tamamlandıktan sonra tekrar değerlendirilecek.
 
 ## Arşiv
 
+### T15 — Fotoğrafta chunk boyunda şeffaf delikler
+
+`[x]` **P0** · 2026-08-09
+
+Önizlemede/fotoğrafta rastgele dağılmış, chunk hizasında dikdörtgen boşluklar
+çıkıyordu. Yakındakiler sağlam, uzaktakilerin bir kısmı eksikti; `max-render-distance`
+artırmak da düzeltmiyordu — çünkü sorun ışın menzilinde değil, **chunk kopyalamada**.
+
+`getChunkAtAsync` chunk'ı ticket ile tutmuyor. Eski kod tüm future'ların bitmesini
+bekleyip kopyaları **bir sonraki tick'te** `getGlobalRegionScheduler` içinde alıyor,
+o arada boşalmış chunk'ları `isLoaded()` kontrolüyle **sessizce atlıyordu**. Atlanan
+her chunk fotoğrafta şeffaf bir delik demekti.
+
+Kopya artık future'ın kendi devamında (`thenApply`) alınıyor; Paper bu future'ı ana
+thread'de ve chunk yüklüyken tamamlıyor. Ayrıca eksik kalan chunk sayısı loglanıyor
+(`RenderService#warnIfIncomplete`), böylece bir delik bir daha sessizce oluşmaz.
+`WorldSnapshot.of` artık `World` yerine minY/maxY değerlerini alıyor; kopya kurulumu
+tamamen thread-güvenli.
+
 ### T14 — Devasa / silinemeyen kamera modelleri
 
 `[x]` **P0** · 2026-08-09

@@ -173,9 +173,28 @@ Geniş kadraj yüzlerce chunk kopyası demektir. Korumalar:
 - Gereken chunk sayısı `settings.max-chunks-per-capture` sınırını aşarsa çekim
   **yapılmaz**: `CaptureTooLargeException` fırlar ve oyuncuya yakınlaşması söylenir.
 - Yüklü olmayan chunk'lar `settings.load-missing-chunks` açıksa `getChunkAtAsync` ile
-  ana thread dışında yüklenir; kopya alma işlemi ana thread'e dönülerek yapılır.
+  yüklenir.
 - `settings.generate-missing-chunks` varsayılan **kapalıdır**: fotoğraf çekmek dünyayı
   büyütmemelidir.
+
+#### Kopya, yükleme callback'inde alınır
+
+`getChunkAtAsync` chunk'ı **ticket ile tutmaz**: future tamamlandıktan sonra chunk
+istediği an yeniden boşalabilir. Kopyayı "hepsi bitince, bir sonraki tick'te" almak bu
+yüzden çalışmaz — o arada boşalan chunk'lar atlanır ve fotoğrafta **chunk boyunda
+şeffaf delikler** kalır. Delikler rastgele dağıldığı için hata ışın yürüyüşünde sanılır.
+
+Doğrusu, kopyayı future'ın kendi devamında almaktır:
+
+```java
+world.getChunkAtAsync(cx, cz, generate)
+     .thenApply(chunk -> chunk == null ? null : chunk.getChunkSnapshot(false, false, false))
+```
+
+Paper bu future'ı *"always executed synchronously on the main Server Thread"* diye
+tanımlar, yani `thenApply` hem ana thread'de hem de chunk'ın kesin yüklü olduğu anda
+koşar. Ayrıca eksik kalan chunk sayısı `RenderService#warnIfIncomplete` ile loglanır;
+bir delik bir daha sessizce oluşmaz.
 
 ---
 

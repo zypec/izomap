@@ -2,7 +2,6 @@ package dev.zypec.izomap.render;
 
 import org.bukkit.ChunkSnapshot;
 import org.bukkit.Material;
-import org.bukkit.World;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -31,13 +30,19 @@ public final class WorldSnapshot {
         this.maxY = maxY;
     }
 
-    /** Hazır chunk kopyalarından anlık görüntü kurar. */
-    public static WorldSnapshot of(World world, Collection<ChunkSnapshot> snapshots) {
+    /**
+     * Hazır chunk kopyalarından anlık görüntü kurar.
+     *
+     * <p>Yükseklik sınırları {@code World} nesnesinden değil değer olarak alınır;
+     * böylece kopya kurulurken dünyaya hiç dokunulmaz ve çağrı ana thread dışından
+     * da güvenlidir.</p>
+     */
+    public static WorldSnapshot of(Collection<ChunkSnapshot> snapshots, int minY, int maxY) {
         Map<Long, ChunkSnapshot> chunks = new HashMap<>(snapshots.size() * 2);
         for (ChunkSnapshot snapshot : snapshots) {
             chunks.put(key(snapshot.getX(), snapshot.getZ()), snapshot);
         }
-        return new WorldSnapshot(chunks, world.getMinHeight(), world.getMaxHeight());
+        return new WorldSnapshot(chunks, minY, maxY);
     }
 
     /** Dünya koordinatındaki bloğun materyali (kopyası yoksa AIR). */

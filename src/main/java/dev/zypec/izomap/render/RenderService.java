@@ -2,7 +2,6 @@ package dev.zypec.izomap.render;
 
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.camera.Camera;
-import org.bukkit.Chunk;
 import org.bukkit.ChunkSnapshot;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -110,7 +109,12 @@ public final class RenderService {
         int threads = plugin.config().renderThreads();
         Executor executor = workers(threads);
 
-        return snapshotChunks(world, chunkKeys).thenCompose(snapshot -> {
+        // Dünya yükseklik sınırları ana thread'de okunur; kopya tamamen
+        // thread-güvenli olsun diye WorldSnapshot'a değer olarak taşınır.
+        int minY = world.getMinHeight();
+        int maxY = world.getMaxHeight();
+
+        return snapshotChunks(world, chunkKeys, minY, maxY).thenCompose(snapshot -> {
             CompletableFuture<RenderResult> future = new CompletableFuture<>();
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                 try {
@@ -127,45 +131,67 @@ public final class RenderService {
      * Gereken chunk'ların kopyalarını toplar. <b>Ana iş parçacığında</b> başlatılır.
      *
      * <p>Yüklü olanlar hemen kopyalanır. Yüklü olmayanlar Paper'ın asenkron chunk
-     * API'siyle <b>ana thread dışında</b> yüklenir; ancak yükleme bittikten sonra
-     * ana thread'e dönülüp kopya alınır. Böylece uzak manzara çekilebilirken
-     * sunucu, ana iş parçacığında chunk üretmek/okumak zorunda kalmaz.</p>
+     * API'siyle yüklenir; böylece uzak manzara çekilebilirken sunucu, ana iş
+     * parçacığında chunk üretmek/okumak zorunda kalmaz.</p>
+     *
+     * <p><b>Kopya, yükleme callback'inin kendisinde alınır.</b> Paper
+     * {@code getChunkAtAsync} future'ını "always executed synchronously on the main
+     * Server Thread" diye tanımlar, yani {@code thenApply} ana thread'de ve chunk'ın
+     * kesinlikle yüklü olduğu anda koşar. Kopyayı bir tick sonraya bırakmak
+     * <b>olmuyor</b>: asenkron yükleme chunk'ı ticket ile tutmadığı için o arada
+     * yeniden boşalabiliyor ve fotoğrafta chunk boyunda delikler kalıyordu.</p>
      */
-    private CompletableFuture<WorldSnapshot> snapshotChunks(World world, Set<Long> keys) {
+    private CompletableFuture<WorldSnapshot> snapshotChunks(World world, Set<Long> keys, int minY, int maxY) {
         boolean load = plugin.config().loadMissingChunks();
         boolean generate = plugin.config().generateMissingChunks();
 
         List<ChunkSnapshot> ready = new ArrayList<>(keys.size());
-        List<CompletableFuture<Chunk>> loading = new ArrayList<>();
+        List<CompletableFuture<ChunkSnapshot>> loading = new ArrayList<>();
         for (long key : keys) {
             int cx = WorldSnapshot.chunkX(key);
             int cz = WorldSnapshot.chunkZ(key);
             if (world.isChunkLoaded(cx, cz)) {
                 ready.add(world.getChunkAt(cx, cz).getChunkSnapshot(false, false, false));
             } else if (load) {
-                loading.add(world.getChunkAtAsync(cx, cz, generate));
+                // Üretilmemiş chunk için (generate=false) future null ile tamamlanır.
+                loading.add(world.getChunkAtAsync(cx, cz, generate).thenApply(
+                        chunk -> chunk == null ? null : chunk.getChunkSnapshot(false, false, false)));
             }
         }
 
+        int requested = keys.size();
         if (loading.isEmpty()) {
-            return CompletableFuture.completedFuture(WorldSnapshot.of(world, ready));
+            warnIfIncomplete(world, requested, ready.size());
+            return CompletableFuture.completedFuture(WorldSnapshot.of(ready, minY, maxY));
         }
 
-        return CompletableFuture.allOf(loading.toArray(new CompletableFuture<?>[0])).thenCompose(ignored -> {
-            CompletableFuture<WorldSnapshot> done = new CompletableFuture<>();
-            plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> {
-                for (CompletableFuture<Chunk> future : loading) {
-                    // Üretilmemiş chunk için null döner; yükleme sonrası tekrar
-                    // boşaltılmış olabileceğinden isLoaded ile doğrulanır.
-                    Chunk chunk = future.getNow(null);
-                    if (chunk != null && chunk.isLoaded()) {
-                        ready.add(chunk.getChunkSnapshot(false, false, false));
-                    }
+        return CompletableFuture.allOf(loading.toArray(new CompletableFuture<?>[0])).thenApply(ignored -> {
+            for (CompletableFuture<ChunkSnapshot> future : loading) {
+                ChunkSnapshot snapshot = future.getNow(null);
+                if (snapshot != null) {
+                    ready.add(snapshot);
                 }
-                done.complete(WorldSnapshot.of(world, ready));
-            });
-            return done;
+            }
+            warnIfIncomplete(world, requested, ready.size());
+            return WorldSnapshot.of(ready, minY, maxY);
         });
+    }
+
+    /**
+     * Eksik kalan chunk'ları bildirir.
+     *
+     * <p>Kopyası alınamayan chunk fotoğrafta <b>sessizce şeffaf bir delik</b>
+     * bırakır; sebebi görünmezse hata ışın yürüyüşünde sanılır. Bu yüzden
+     * eksik sayısı ve olası sebepleri loglanır.</p>
+     */
+    private void warnIfIncomplete(World world, int requested, int captured) {
+        if (captured >= requested) {
+            return;
+        }
+        plugin.getLogger().warning("Kadraja giren " + requested + " chunk'ın "
+                + (requested - captured) + " tanesinin kopyası alınamadı (" + world.getName()
+                + "); o bölgeler fotoğrafta şeffaf kalacak. Muhtemel sebep: chunk hiç üretilmemiş"
+                + " (settings.generate-missing-chunks kapalı) ya da settings.load-missing-chunks kapalı.");
     }
 
     /** Işın prizmasının dokunduğu chunk sütunları (yalnızca geometri; blok erişimi yok). */
