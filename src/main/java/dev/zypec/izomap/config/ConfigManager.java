@@ -77,14 +77,6 @@ public final class ConfigManager {
     }
 
     /**
-     * Chunk budget matching {@link #maxCaptureArea()}, since capture works in chunks.
-     */
-    public int maxChunksPerCapture() {
-        int side = (maxCaptureArea() + 15) / 16;
-        return side * side;
-    }
-
-    /**
      * Whether unloaded chunks inside the frame are loaded from disk. Loading is
      * asynchronous and never stalls the main thread.
      */

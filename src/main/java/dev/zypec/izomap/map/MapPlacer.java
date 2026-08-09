@@ -2,6 +2,7 @@ package dev.zypec.izomap.map;
 
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.camera.Camera;
+import dev.zypec.izomap.render.CaptureSpec;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Block;
@@ -25,17 +26,20 @@ public final class MapPlacer {
 
     private final Izomap plugin;
     private final MapService mapService;
+    private final PhotoKeys keys;
 
-    public MapPlacer(Izomap plugin, MapService mapService) {
+    public MapPlacer(Izomap plugin, MapService mapService, PhotoKeys keys) {
         this.plugin = plugin;
         this.mapService = mapService;
+        this.keys = keys;
     }
 
     /**
      * Places the tiles, or returns {@code null} without changing anything when there
      * is not enough free space.
      */
-    public PlacedPhoto place(Player player, Camera camera, String name, GridOption grid, List<MapTile> tiles) {
+    public PlacedPhoto place(Player player, Camera camera, CaptureSpec spec, String name,
+                             GridOption grid, List<MapTile> tiles) {
         World world = player.getWorld();
         BlockFace forward = horizontalFacing(player);
         BlockFace right = clockwise(forward);
@@ -56,10 +60,13 @@ public final class MapPlacer {
         boolean backing = plugin.config().buildBackingWall();
         Material backingMaterial = resolveMaterial(plugin.config().backingMaterial());
 
+        // Known before the frames exist so each one can carry the id in its PDC.
+        UUID photoId = UUID.randomUUID();
         List<Integer> mapIds = new ArrayList<>(tiles.size());
         List<UUID> frameIds = new ArrayList<>(tiles.size());
 
-        for (MapTile tile : tiles) {
+        for (int index = 0; index < tiles.size(); index++) {
+            MapTile tile = tiles.get(index);
             Block frameBlock = frameBlock(base, right, forward, colOffset, grid, tile);
 
             if (backing) {
@@ -72,6 +79,7 @@ public final class MapPlacer {
             MapView view = mapService.createMapView(world, tile.argb());
             ItemStack mapItem = mapService.itemFor(view);
 
+            final int tileIndex = index;
             ItemFrame frame = world.spawn(frameBlock.getLocation(), ItemFrame.class, f -> {
                 f.setFacingDirection(frameFacing, true);
                 f.setItem(mapItem, false);
@@ -80,13 +88,14 @@ public final class MapPlacer {
                 // and item removal, taking the whole photo down at once.
                 f.setFixed(false);
                 f.setPersistent(true);
+                keys.tagFrame(f.getPersistentDataContainer(), photoId, tileIndex);
             });
 
             mapIds.add(view.getId());
             frameIds.add(frame.getUniqueId());
         }
 
-        return new PlacedPhoto(UUID.randomUUID(), player.getUniqueId(), name, camera.name(),
+        return new PlacedPhoto(photoId, player.getUniqueId(), name, camera.name(), spec,
                 world.getUID(), grid, mapIds, frameIds,
                 base.getX(), base.getY(), base.getZ());
     }

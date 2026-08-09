@@ -1,6 +1,8 @@
 package dev.zypec.izomap.map;
 
 import dev.zypec.izomap.Izomap;
+import dev.zypec.izomap.render.CaptureSpec;
+import dev.zypec.izomap.render.ColorFilter;
 import dev.zypec.izomap.storage.YamlStorage;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -42,8 +44,47 @@ public final class PhotoStorage extends YamlStorage {
             cfg.set(base + ".base-x", p.baseX());
             cfg.set(base + ".base-y", p.baseY());
             cfg.set(base + ".base-z", p.baseZ());
+            writeSpec(cfg, base + ".capture", p.spec());
         }
         return cfg;
+    }
+
+    private static void writeSpec(FileConfiguration cfg, String base, CaptureSpec spec) {
+        if (spec == null || spec.worldId() == null) {
+            return;
+        }
+        cfg.set(base + ".world", spec.worldId().toString());
+        cfg.set(base + ".x", spec.x());
+        cfg.set(base + ".y", spec.y());
+        cfg.set(base + ".z", spec.z());
+        cfg.set(base + ".yaw", spec.yaw());
+        cfg.set(base + ".pitch", spec.pitch());
+        cfg.set(base + ".zoom", spec.zoom());
+        cfg.set(base + ".color-filter", spec.colorFilter().name());
+        cfg.set(base + ".frame-height", spec.frameHeight());
+        cfg.set(base + ".frame-shift", spec.frameShift());
+        cfg.set(base + ".supersampling", spec.supersampling());
+        cfg.set(base + ".max-capture-area", spec.maxCaptureArea());
+        cfg.set(base + ".render-depth", spec.renderDepth());
+    }
+
+    /** Reads a capture spec; {@code null} for records written before it existed. */
+    private static CaptureSpec readSpec(ConfigurationSection s) {
+        if (s == null) {
+            return null;
+        }
+        UUID world = parseUuid(s.getString("world"));
+        if (world == null) {
+            return null;
+        }
+        return new CaptureSpec(world,
+                s.getDouble("x"), s.getDouble("y"), s.getDouble("z"),
+                (float) s.getDouble("yaw"), (float) s.getDouble("pitch"),
+                (float) s.getDouble("zoom", 1.0),
+                ColorFilter.fromString(s.getString("color-filter"), ColorFilter.ORIGINAL),
+                s.getDouble("frame-height", 48.0), s.getDouble("frame-shift", 0.0),
+                s.getInt("supersampling", 1), s.getInt("max-capture-area", 512),
+                s.getInt("render-depth", 64));
     }
 
     /** Turns loaded data into {@link PlacedPhoto} objects. */
@@ -87,7 +128,8 @@ public final class PhotoStorage extends YamlStorage {
             }
         }
         return new PlacedPhoto(id, owner, s.getString("name", "photo"),
-                s.getString("camera", ""), world, grid, mapIds, frameIds,
+                s.getString("camera", ""), readSpec(s.getConfigurationSection("capture")),
+                world, grid, mapIds, frameIds,
                 s.getInt("base-x"), s.getInt("base-y"), s.getInt("base-z"));
     }
 

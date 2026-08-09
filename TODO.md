@@ -16,10 +16,10 @@
 ## Bağımlılık haritası
 
 ```
-T1 (fotoğraf cache'i + çekim parametreleri)
- ├── T20 (retake komutu)
- └── T21 (fotoğraf listesi + hayalet yerleştirme UI'ı)
-      └── T22 (kamera başına fotoğraf limiti + permission)
+T21 (fotoğraf listesi + hayalet yerleştirme UI'ı)
+ └── T22 (kamera başına fotoğraf limiti + permission)
+
+T20 (retake komutu) — bağımsız (T1 bittiği için serbest)
 
 T6 (hologram) ←→ T8 (interaction/hologram ölçeği) — birlikte ele alınmalı
 
@@ -37,98 +37,6 @@ T30 (renk pipeline'ının parametrikleşmesi)
 ---
 
 ## P0 — Önce bunlar
-
-### T1 — Fotoğraflar dosyada cache'lensin, açılışta yeniden render edilmesin
-
-`[ ]` **P0** · Bloke ettikleri: T20, T21
-
-**Sorun (daha önce sorduğum 3. madde, açıklamasıyla):** Sunucu her açılışta
-`maps.yml`'deki her fotoğrafı kaynak kameradan **yeniden çekiyor**
-(`PhotoManager#reRenderAll`). İki ayrı problemi var:
-
-1. **Maliyet.** Her fotoğraf için chunk kopyalama + milyonlarca ışın demek. 10 fotoğraflı
-   bir sunucuda açılış ciddi biçimde yavaşlar ve boşuna CPU yakılır — üstelik sonuç zaten
-   bilinen bir görüntü.
-2. **Sessizce değişme.** Yeniden çekim kameranın **o anki** ayarlarını kullanıyor. Yani
-   fotoğrafı astıktan sonra kamerayı çevirir, zoom'unu ya da filtresini değiştirirsen,
-   sunucu yeniden başladığında duvardaki tablo da değişmiş oluyor. Oyuncu açısından
-   "astığım tablo kendi kendine değişti" demek.
-
-**Çözüm:** Çekilen görüntü diske cache'lensin; açılışta render değil, **dosyadan yükleme**
-yapılsın.
-
-#### Cache formatı
-
-Piksel başına **1 bayt vanilla harita paleti indeksi** — `MapBaseColor#packedId(Shade)`
-zaten tam olarak bu baytı (`baseId * 4 + shadeId`) üretiyor. İndeks `0` şeffaftır
-(vanilla ile aynı).
-
-| Seçenek | Boyut (16x9 ızgara) | Not |
-|---|---|---|
-| ARGB, 4 bayt/piksel | ~9,4 MB | Gereksiz; alfa tek bit bilgi taşıyor |
-| **Palet indeksi, 1 bayt/piksel + Deflate** | **~2,4 MB ham, sıkışınca çok daha az** | Seçilen. Düz alanlar çok iyi sıkışır |
-| PNG | Orta | Kodlama/çözme daha yavaş, ARGB dönüşümü gerekir |
-
-PNG **dışa aktarma** formatı olarak kalsın (T23); iç cache için ham indeks + Deflate hem
-daha küçük hem daha hızlı.
-
-- Dosya: `plugins/Izomap/photos/<foto-uuid>.izm`
-- Başlık: sihirli sayı (`IZMP`), format sürümü, genişlik, yükseklik, grid `cols`/`rows`.
-- Gövde: `Deflater` ile sıkıştırılmış indeks dizisi (satır öncelikli).
-- Yüklerken indeks → ARGB genişletmesi **tablo aramasıdır** (`MapBaseColor.byId` +
-  `Shade`), renk eşleştirme yapılmaz — yani yükleme neredeyse bedavadır.
-- Render tarafında `MapColorConverter#snap`'in indeksi de döndürmesi gerekir
-  (`PALETTE` dizisine paralel bir indeks dizisi yeter).
-
-#### Parametreler de saklanacak (ama ikincil)
-
-Cache birincil kaynaktır; parametreler retake (T20) ve cache kaybı/bozulması için
-saklanır: dünya, konum, `cam-yaw`, `cam-pitch`, `zoom`, `aspect-ratio`, `color-filter`,
-`frame-height`, `frame-shift`, `supersampling`, `max-render-distance` ve ileride
-eklenecek gökyüzü (T32) / gölgelendirme (T33) ayarları.
-
-#### Asenkronluk
-
-- Cache **yazma** ve **okuma** asenkron (proje kuralı; `YamlStorage`'daki desen).
-- Yalnızca `MapView`'a uygulama ana thread'de.
-- Açılışta fotoğraflar sırayla değil, toplu ve asenkron yüklenir; ana thread'e yalnızca
-  hazır olan karo uygulanır. Açılış hızı etkilenmez.
-
-#### Yükleme tamamlanana kadar çerçeve güvenliği
-
-Bugün koruma `photos.findByFrame` üzerinden çalışıyor, yani **fotoğraf bellekte yoksa
-çerçeve korumasızdır**. `maps.yml` asenkron yüklendiği için açılıştan hemen sonra kısa
-bir pencere var; yükleme hata verirse pencere kalıcı hâle gelir. Çözüm:
-
-- Her `ItemFrame`'in **PDC**'sine yazılsın: `izomap:photo_id` (UUID) + `izomap:tile_index`.
-  (`ItemFrame` bir `Entity`'dir, dolayısıyla `PersistentDataHolder`'dır — PDC var.)
-- `PhotoFrameListener` korumayı **önce PDC'ye bakarak** yapsın: bellekte kayıt olmasa
-  bile "bu bir Izomap çerçevesi" bilgisi entity'nin üstünde durur → kırma/eşya çıkarma/
-  döndürme reddedilir.
-- Fotoğraf henüz yüklenmediyse oyuncuya "fotoğraf yükleniyor, birazdan" mesajı gider;
-  boş/yarım görünen çerçeve kırılamaz.
-- Yan fayda: kaydı silinmiş ama dünyada kalmış **yetim çerçeveler** PDC'den tanınır ve
-  `/izocam cleanup` bunları temizleyebilir.
-
-#### Senaryolar
-
-- Fotoğraf asıldıktan sonra kamera çevrilir → duvardaki fotoğraf **değişmez**.
-- Kamera tamamen silinir → fotoğraf cache'ten yüklenmeye devam eder.
-- Cache dosyası silinmiş/bozuk → parametrelerden bir kez yeniden render edilir ve cache
-  yeniden yazılır; parametre de yoksa haritalar son hâlinde bırakılır + log uyarısı.
-- Fotoğraf silinince cache dosyası da silinir (dosya sızıntısı olmasın).
-- Format sürümü ileride değişirse: eski sürüm okunamıyorsa parametrelerden yeniden
-  render (cache kaybı ölümcül değil, çünkü her zaman yeniden üretilebilir).
-- `settings.max-chunks-per-capture` sonradan düşürülse bile açılış etkilenmez — artık
-  açılışta render yok.
-
-**Dokunulacak yerler:** `PlacedPhoto`, `PhotoStorage`, `PhotoManager#reRenderAll`
-(→ `loadFromCache`), yeni `PhotoCache` sınıfı, `MapColorConverter` (indeks döndürme),
-`MapPlacer` (PDC etiketleme), `PhotoFrameListener` (PDC bazlı koruma),
-`RenderService#capture` (kameradan değil parametre nesnesinden çalışacak bir
-`CaptureSpec` ayrımı).
-
----
 
 ### T12 — Kamera silinince o kameranın preview'ı kapanmıyor (bug)
 
@@ -322,7 +230,7 @@ Preview modundaki oyuncu, tık atmasa da sürekli kamera bilgilerini action bar'
 
 ### T20 — `/izocam retake <id>`
 
-`[ ]` **P1** · Bağımlı: T1
+`[ ]` **P1**
 
 Duvarda asılı bir fotoğrafı sökmeden, kameranın güncel ayarlarıyla yeniden çeker ve aynı
 haritalara uygular.
@@ -340,7 +248,7 @@ haritalara uygular.
 
 ### T21 — Fotoğraf çekme/listeleme/yerleştirme akışının yeniden tasarımı
 
-`[ ]` **P1** · Bağımlı: T1 · Bloke ettikleri: T22
+`[ ]` **P1** · Bloke ettikleri: T22
 
 Şu an Dialog'daki tek buton "Yerleştir" ve fotoğraf anında duvara asılıyor — oyuncunun
 sonucu görme, beğenmezse tekrar çekme veya nereye asılacağını seçme şansı yok.
@@ -510,7 +418,7 @@ Gökyüzü eklenebilmeli.
 - Ayrıca "şeffaf" seçeneği korunmalı (bugünkü davranış) — fotoğrafı arka planı olmadan
   asmak isteyenler için.
 - Hava durumu (yağmur/kar) etkisi opsiyonel, ikinci aşama.
-- Ayar T1 kapsamında fotoğrafla birlikte kaydedilir (yeniden render'da saat kaymasın).
+- Ayar `CaptureSpec`'e eklenir (T1), böylece yeniden render'da saat kaymaz.
 
 ---
 
@@ -621,6 +529,48 @@ T10 tamamlandıktan sonra tekrar değerlendirilecek.
 ---
 
 ## Arşiv
+
+### T1 — Fotoğraflar dosyada cache'leniyor, açılışta yeniden render edilmiyor
+
+`[x]` **P0** · 2026-08-09 · Serbest bıraktıkları: T20, T21
+
+Sunucu her açılışta `maps.yml`'deki her fotoğrafı kaynak kameradan yeniden çekiyordu
+(`PhotoManager#reRenderAll`). İki problemi vardı: **maliyet** (fotoğraf başına chunk
+kopyalama + milyonlarca ışın, sonuç zaten bilinen bir görüntü) ve **sessizce değişme**
+(yeniden çekim kameranın *o anki* ayarlarını kullandığı için, fotoğrafı astıktan sonra
+kamerayı çevirmek duvardaki tabloyu da değiştiriyordu).
+
+**Ön bellek:** `plugins/Izomap/photos/<foto-uuid>.izm`, piksel başına 1 bayt vanilla
+palet indeksi + Deflate. Ölçüldü (16x9, 2048x1152): ham 2,25 MB → tipik arazide
+**0,89 MB**, rastgele gürültüde 1,50 MB, düz alanda 0,01 MB; ARGB olsaydı 9 MB.
+244 palet renginin tamamı ve şeffaflık, argb → indeks → argb turunda **birebir**
+korunuyor (round-trip testi ile doğrulandı).
+
+Plandan bir sapma: `MapColorConverter#snap`'in indeks de döndürmesi yerine
+`packedId(argb)` **ters arama** eklendi. Render'ın her pikseli zaten bir palet girdisi
+olduğundan sonuç aynı, ama renderer'ın sıcak döngüsüne ve `RenderResult`'a hiç
+dokunulmadı.
+
+**`CaptureSpec`** (yeni) çekimi belirleyen değerleri kopyayla taşır ve `maps.yml`'de
+`capture` bloğunda saklanır; `RenderService#capture` artık kameradan değil bundan
+çalışıyor (kamera imzası spec üreten ince bir sarmalayıcı). Sonucu etkilemeyen
+`render-threads` ve chunk yükleme ayarları config'te kaldı. Artık kullanılmayan
+`ConfigManager#maxChunksPerCapture` silindi (bütçe `CaptureSpec#chunkBudget`).
+
+**Çerçeve güvenliği:** `PhotoKeys` ile her `ItemFrame`'in PDC'sine `photo_id` +
+`tile_index` yazılıyor. Koruma artık kayda değil etikete bakıyor → `maps.yml`
+yüklenmeden önceki pencere kapandı. Kayıt yüklenmemişse "yükleniyor" mesajı verilip
+çerçeveye dokundurulmuyor; kayıtlar yüklüyse ve eşleşme yoksa çerçeve yetimdir ve
+eşya düşürmeden kaldırılıyor (kırılamayan kalıntı bırakmamak için).
+
+Yan düzeltme: `Messages#prefixed` eksik anahtarda boş satır göndermek yerine
+`<missing: anahtar>` yazıyor — `messages.yml` güncellemede üzerine yazılmadığı için
+yeni anahtarlar eski kurulumlarda sessizce boş çıkıyordu.
+
+Senaryolar: kamera çevrilse/silinse fotoğraf değişmez · ön bellek silinirse spec'ten
+bir kez yeniden çekilir ve yeniden yazılır · spec'i de olmayan eski kayıt kameraya
+düşer ve kullanılan spec kayda işlenir · fotoğraf silinince dosya da silinir · açılışta
+`retainOnly` sahipsiz dosyaları süpürür (kayıt kümesi boşsa süpürmez).
 
 ### T3 — İzinler `paper-plugin.yml`'de tanımlandı
 

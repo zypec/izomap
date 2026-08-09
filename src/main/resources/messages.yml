@@ -50,6 +50,8 @@ map:
   grid-entry: "<dark_gray>› <white><grid></white> <gray>(<count> harita, <wpx>x<hpx>px)"
   placed: "<green>Fotoğraf yerleştirildi: <white><name></white> <gray>(<count> harita, <ms>ms)"
   place-blocked: "<red>Yerleştirme başarısız: önünde yeterli boş alan yok. Açık bir alana bakarak dene."
+  still-loading: "<yellow>Bu fotoğraf hâlâ yükleniyor; birazdan tekrar dene."
+  orphan-frame: "<gray>Kaydı bulunmayan bir Izomap çerçevesi kaldırıldı."
   name-taken: "<red>Bu isimde yerleştirilmiş bir fotoğrafın zaten var: <white><name></white>"
   photos-header: "<gray>Yerleştirilmiş fotoğraflar (<count>):"
   photos-entry: "<dark_gray>› <white><name></white> <gray>[<id>] (<grid>)"

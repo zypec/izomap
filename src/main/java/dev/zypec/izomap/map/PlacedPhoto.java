@@ -1,19 +1,24 @@
 package dev.zypec.izomap.map;
 
+import dev.zypec.izomap.render.CaptureSpec;
+
 import java.util.List;
 import java.util.UUID;
 
 /**
  * A photo placed in the world as a grid of item frames.
  *
- * <p>The source camera and the map ids are stored so the maps can be redrawn after a
- * restart; the frame UUIDs are kept for management.</p>
+ * <p>The image itself lives in {@link PhotoCache}; the {@link CaptureSpec} here is the
+ * backup that lets it be rendered again if the cache file is lost, and the source of
+ * truth for a retake. The frame UUIDs are kept for management.</p>
  *
  * @param id         unique photo id
  * @param owner      player who placed it
  * @param name       photo name
- * @param cameraName source camera name, used to re-render
- * @param worldId    world UUID
+ * @param cameraName source camera name, kept for display and for retakes
+ * @param spec       capture parameters, or {@code null} for photos placed before they
+ *                   were recorded; those fall back to their camera's current settings
+ * @param worldId    world the frames hang in
  * @param grid       grid used
  * @param mapIds     map view ids in tile order (row-major)
  * @param frameIds   item frame entity UUIDs in tile order
@@ -26,6 +31,7 @@ public record PlacedPhoto(
         UUID owner,
         String name,
         String cameraName,
+        CaptureSpec spec,
         UUID worldId,
         GridOption grid,
         List<Integer> mapIds,
@@ -37,5 +43,11 @@ public record PlacedPhoto(
     /** Short display id: the first 8 characters. */
     public String shortId() {
         return id.toString().substring(0, 8);
+    }
+
+    /** Copy carrying the capture parameters the image was last produced with. */
+    public PlacedPhoto withSpec(CaptureSpec spec) {
+        return new PlacedPhoto(id, owner, name, cameraName, spec, worldId, grid,
+                mapIds, frameIds, baseX, baseY, baseZ);
     }
 }

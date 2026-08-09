@@ -67,7 +67,7 @@ ConfigManager, Messages
 CameraKeys → CameraManager ──┐
 BlockColorTable → RenderService ──┐
 MapService ──────────────────────┼→ PreviewManager
-                                 └→ PhotoManager → MapPlacer, PhotoStorage
+PhotoKeys ───────────────────────┴→ PhotoManager → MapPlacer, PhotoStorage, PhotoCache
                                           ↓
                                     CameraDialogs
                                           ↓
@@ -75,7 +75,8 @@ MapService ──────────────────────┼
 ```
 
 Yükleme sırası önemlidir: `cameraManager.load()` tamamlanmadan `photoManager.load()`
-çağrılmaz, çünkü yerleştirilmiş fotoğrafların yeniden render'ı kaynak kameraya bağlıdır.
+çağrılmaz. Fotoğraflar artık kendi ön belleğinden yüklense de, ön bellek kaybolduğunda
+yedek yol kaynak kameraya düşebiliyor.
 
 ---
 
@@ -184,6 +185,10 @@ Renkler tahmin edilmez, **vanilla harita paletinin kendisidir**:
 4. Filtre veya kenar yumuşatma devredeyse ortalama palet dışına çıkabilir;
    `MapColorConverter#snap` Bukkit `MapPalette` ile **aynı ağırlıklı (redmean)** mesafeyi
    kullanarak en yakın gerçek harita rengine geri çeker (61 temel renk × 4 ton = 244 renk).
+
+Sonuç olarak **her çıktı pikseli gerçek bir harita rengidir**. Ön bellek bunun üstüne
+kurulur: `MapColorConverter#packedId` piksel → harita baytı dönüşümünü tam eşleşmeyle
+(yeniden renk arama yapmadan), `#argbOf` ters yönü 256 girişli tabloyla yapar.
 
 `block-colors.yml` yalnızca **override** dosyasıdır; varsayılan tablo içermez. `version: 2`
 taşır, eski v1 dosyaları `.v1.bak` olarak yedeklenip yenilenir.
@@ -360,13 +365,50 @@ dönülür ve oyuncuya "yeterli boş alan yok" denir. `placement.build-backing-w
 Bir çerçeve kırıldığında (oyuncu/patlama/fizik) **tüm fotoğraf** kalkar ve hiçbir eşya
 düşmez. Çerçeveye saldırı ve sağ tıkla döndürme engellenir.
 
+Çerçeve, bellekteki kayıttan değil **kendi PDC etiketinden** tanınır
+(`PhotoKeys`: `izomap:photo_id` + `izomap:tile_index`). Böylece koruma `maps.yml`
+yüklenmeden önce de geçerlidir — kayıt henüz yoksa oyuncuya "yükleniyor" denir ve
+çerçeveye dokundurulmaz. Kayıtlar yüklendiği hâlde eşleşen kayıt yoksa çerçeve
+**yetim** demektir: eşya düşürmeden kaldırılır, yoksa duvarda kırılamayan bir kalıntı
+kalırdı. Etiketsiz eski çerçeveler eskisi gibi yalnızca kayıt üzerinden bulunur.
+
 `PhotoManager#removeFrames` çerçeveleri kaldırmadan önce ilgili chunk'ları yükler;
 aksi halde chunk yüklü değilken `getEntity` null döner ve çerçeveler dünyada kalırdı.
 
-### Yeniden başlatma
+### Yeniden başlatma — fotoğraf ön belleği (`PhotoCache`)
 
-`maps.yml`'deki her fotoğraf için kaynak kamera hâlâ varsa görüntü yeniden render edilip
-mevcut `MapView`'lara uygulanır. Kamera silinmişse fotoğraf olduğu gibi kalır (son hâliyle).
+Fotoğraflar açılışta **yeniden çekilmez**; görüntü diskten yüklenir. Kaynak:
+`plugins/Izomap/photos/<foto-uuid>.izm`.
+
+Format piksel başına **1 bayt vanilla harita paleti indeksi**
+(`baseId * 4 + shadeId`, `0` şeffaf), gövdesi Deflate ile sıkıştırılmış:
+
+```
+int  "IZMP" · int sürüm · int genişlik, yükseklik · int cols, rows · deflate(indeksler)
+```
+
+Render'ın ürettiği her piksel zaten bir palet girdisi olduğu için yazma kayıpsız, okuma
+ise **tablo aramasıdır** (`MapColorConverter#packedId` / `#argbOf`) — renk eşleştirme
+yapılmaz. Ölçüm (16x9 ızgara, 2048x1152): ham 2,25 MB → tipik arazide **~0,9 MB**,
+rastgele gürültüde 1,5 MB, düz alanda 0,01 MB. ARGB olarak saklansa 9 MB olurdu.
+
+Ön bellek **birincil kaynaktır ama vazgeçilmez değildir**: dosya yoksa, sürümü
+uymuyorsa ya da bozuksa fotoğrafın kayıtlı `CaptureSpec`'inden bir kez yeniden render
+edilir ve ön bellek yeniden yazılır. Format değişirse sürüm numarası artırılır,
+migrasyon yazılmaz.
+
+**`CaptureSpec`** çekimi belirleyen her şeyi kopyayla taşır (dünya, konum, yaw, pitch,
+zoom, filtre, `frame-height`, `frame-shift`, `supersampling`, `max-capture-area`,
+`render-depth`). Sonucu değiştirmeyen ayarlar (`render-threads`, chunk yükleme) config'te
+kalır ve render anında okunur. Kamera sonradan çevrilse, zoom'u/filtresi değişse ya da
+tamamen silinse bile duvardaki fotoğraf **değişmez** — eskiden değişiyordu.
+
+Parametresi de olmayan eski kayıtlar kaynak kameraya düşer; o çekimden sonra kullanılan
+spec kayda yazılır, böylece fotoğraf bir daha kamerayı takip etmez.
+
+Fotoğraf silinince ön bellek dosyası da silinir. Açılışta `retainOnly` sahipsiz `.izm`
+dosyalarını süpürür (çökme kalıntısı, yarış durumu); kayıt kümesi **boşsa** süpürme
+yapılmaz, çünkü `maps.yml` yüklenememişse tüm ön belleği silmek olurdu.
 
 ---
 
@@ -431,7 +473,8 @@ kontrol edip `0.25`'in üstündeyse log uyarısı verir.
 | `messages.yml` | MiniMessage mesajları (`prefix` + anahtar ağacı) |
 | `block-colors.yml` | Blok rengi override'ları (v2) |
 | `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, üçler kuralı, entity UUID'leri) |
-| `maps.yml` | Yerleştirilmiş fotoğraflar (harita id'leri, çerçeve UUID'leri, çıpa koordinatı) |
+| `maps.yml` | Yerleştirilmiş fotoğraflar (harita id'leri, çerçeve UUID'leri, çıpa koordinatı, `capture` bloğunda çekim parametreleri) |
+| `photos/<uuid>.izm` | Fotoğrafın çekilmiş görüntüsü (palet indeksi + Deflate); YML değil, ikili |
 
 `YamlStorage` disk I/O'yu **daima** asenkron yapar; tek istisna `onDisable`'daki
 `saveNow()`'dır (asenkron zamanlayıcı artık çalışmadığı için). Kayıt toplu serialize
@@ -473,8 +516,6 @@ kullanılır.
 
 | Konu | Madde |
 |---|---|
-| Her açılışta tüm fotoğraflar kameradan yeniden render ediliyor (maliyetli), üstelik kameranın *güncel* ayarlarıyla — kamera çevrilince duvardaki fotoğraf da değişiyor | T1 |
-| Fotoğraf çerçevesi koruması bellekteki kayda bağlı; `maps.yml` yüklenmeden önce çerçeveler korumasız | T1 |
 | Kamera silindiğinde izleyicilerin önizlemesi kapanmıyor | T12 |
 | Kullanılmayan mesaj anahtarları ve metotlar | T40 |
 | Birim test yok | T41 |

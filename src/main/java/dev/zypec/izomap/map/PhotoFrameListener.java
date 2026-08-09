@@ -1,10 +1,14 @@
 package dev.zypec.izomap.map;
 
+import dev.zypec.izomap.Izomap;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemFrame;
+import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.hanging.HangingBreakByEntityEvent;
 import org.bukkit.event.hanging.HangingBreakEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 
@@ -14,13 +18,29 @@ import java.util.UUID;
  * Manages the item frames of placed photos: breaking or attacking any frame takes
  * the whole photo down without dropping items, and rotating is blocked so the image
  * stays intact.
+ *
+ * <p>A frame is recognised by its {@link PhotoKeys} tag, not by the in-memory record,
+ * so protection holds during the window before {@code maps.yml} finishes loading and
+ * survives a failed load. Three cases follow from the tag:</p>
+ *
+ * <ul>
+ *   <li><b>Record known</b> – the whole photo comes down, as before.</li>
+ *   <li><b>Records not loaded yet</b> – the frame is protected and the player is told
+ *       to wait, so a half-drawn photo cannot be knocked apart.</li>
+ *   <li><b>Records loaded, no match</b> – an orphan left over from a lost record; it is
+ *       quietly removed without dropping its map.</li>
+ * </ul>
  */
 public final class PhotoFrameListener implements Listener {
 
+    private final Izomap plugin;
     private final PhotoManager photos;
+    private final PhotoKeys keys;
 
-    public PhotoFrameListener(PhotoManager photos) {
+    public PhotoFrameListener(Izomap plugin, PhotoManager photos, PhotoKeys keys) {
+        this.plugin = plugin;
         this.photos = photos;
+        this.keys = keys;
     }
 
     // HangingBreakByEntityEvent extends HangingBreakEvent, so one handler covers both.
@@ -29,7 +49,8 @@ public final class PhotoFrameListener implements Listener {
         if (!(event.getEntity() instanceof ItemFrame frame)) {
             return;
         }
-        if (removePhotoOf(frame.getUniqueId())) {
+        Entity remover = event instanceof HangingBreakByEntityEvent byEntity ? byEntity.getRemover() : null;
+        if (handleDamage(frame, remover)) {
             event.setCancelled(true); // suppress the default drop; removal is ours
         }
     }
@@ -40,7 +61,7 @@ public final class PhotoFrameListener implements Listener {
         if (!(event.getEntity() instanceof ItemFrame frame)) {
             return;
         }
-        if (removePhotoOf(frame.getUniqueId())) {
+        if (handleDamage(frame, event.getDamager())) {
             event.setCancelled(true);
         }
     }
@@ -48,18 +69,54 @@ public final class PhotoFrameListener implements Listener {
     // Right click would rotate the map; block it on photo frames.
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onRotate(PlayerInteractEntityEvent event) {
-        if (event.getRightClicked() instanceof ItemFrame frame
-                && photos.findByFrame(frame.getUniqueId()).isPresent()) {
+        if (event.getRightClicked() instanceof ItemFrame frame && isPhotoFrame(frame)) {
             event.setCancelled(true);
         }
     }
 
-    private boolean removePhotoOf(UUID frameId) {
-        PlacedPhoto photo = photos.findByFrame(frameId).orElse(null);
-        if (photo == null) {
+    /**
+     * Reacts to a frame being broken or hit. Returns whether the event should be
+     * cancelled, i.e. whether the frame was ours.
+     */
+    private boolean handleDamage(ItemFrame frame, Entity source) {
+        if (!isPhotoFrame(frame)) {
             return false;
         }
-        photos.remove(photo);
+        PlacedPhoto photo = resolve(frame);
+        if (photo != null) {
+            photos.remove(photo);
+            return true;
+        }
+        if (!photos.isLoaded()) {
+            if (source instanceof Player player) {
+                plugin.messages().send(player, "map.still-loading");
+            }
+            return true;
+        }
+        // No record can ever claim this frame again; take it down instead of leaving
+        // an indestructible leftover on the wall.
+        frame.remove();
+        if (source instanceof Player player) {
+            plugin.messages().send(player, "map.orphan-frame");
+        }
         return true;
+    }
+
+    private boolean isPhotoFrame(ItemFrame frame) {
+        return keys.isPhotoFrame(frame.getPersistentDataContainer())
+                || photos.findByFrame(frame.getUniqueId()).isPresent();
+    }
+
+    /** The photo a frame belongs to: by tag first, then by the frame's own id. */
+    private PlacedPhoto resolve(ItemFrame frame) {
+        UUID taggedId = keys.readPhotoId(frame.getPersistentDataContainer());
+        if (taggedId != null) {
+            PlacedPhoto tagged = photos.byId(taggedId).orElse(null);
+            if (tagged != null) {
+                return tagged;
+            }
+        }
+        // Frames placed before tagging existed are only findable through their record.
+        return photos.findByFrame(frame.getUniqueId()).orElse(null);
     }
 }

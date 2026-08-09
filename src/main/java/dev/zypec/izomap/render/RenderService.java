@@ -63,23 +63,47 @@ public final class RenderService {
     }
 
     /**
-     * Captures the camera at the exact pixel size given; the aspect ratio comes from
-     * those dimensions. Must be called on the main thread.
+     * Builds the spec describing what this camera would capture right now, freezing
+     * the config values the image depends on.
      */
-    public CompletableFuture<RenderResult> capture(Camera camera, int widthPx, int heightPx) {
+    public CaptureSpec specFor(Camera camera) {
         Location anchor = camera.anchor();
         World world = anchor.getWorld();
+        return new CaptureSpec(
+                world != null ? world.getUID() : null,
+                anchor.getX(), anchor.getY(), anchor.getZ(),
+                camera.camYaw(), camera.camPitch(), camera.zoom(), camera.colorFilter(),
+                plugin.config().frameHeight(), plugin.config().frameShift(),
+                plugin.config().supersampling(), plugin.config().maxCaptureArea(),
+                plugin.config().renderDepth());
+    }
+
+    /**
+     * Captures the camera at its current settings; see
+     * {@link #capture(CaptureSpec, int, int)}.
+     */
+    public CompletableFuture<RenderResult> capture(Camera camera, int widthPx, int heightPx) {
+        return capture(specFor(camera), widthPx, heightPx);
+    }
+
+    /**
+     * Captures the spec at the exact pixel size given; the aspect ratio comes from
+     * those dimensions. Must be called on the main thread.
+     */
+    public CompletableFuture<RenderResult> capture(CaptureSpec spec, int widthPx, int heightPx) {
+        World world = spec.worldId() != null ? plugin.getServer().getWorld(spec.worldId()) : null;
         if (world == null) {
             return CompletableFuture.failedFuture(new IllegalStateException("Kamera dünyası yüklü değil."));
         }
+        Location anchor = new Location(world, spec.x(), spec.y(), spec.z());
 
         double ratio = (double) widthPx / heightPx;
-        double frameShift = plugin.config().frameShift();
-        double spanHeight = plugin.config().frameHeight() / camera.zoom();
+        double frameShift = spec.frameShift();
+        double spanHeight = spec.frameHeight() / spec.zoom();
         double spanWidth = spanHeight * ratio;
-        int captureArea = plugin.config().maxCaptureArea();
+        int captureArea = spec.maxCaptureArea();
 
-        Vector direction = directionFrom(camera.camYaw(), camera.camPitch());
+        Vector direction = directionFrom(spec.yaw(), spec.pitch());
         Vector[] basis = basisFrom(direction);
         Vector right = basis[0];
         Vector up = basis[1];
@@ -95,7 +119,7 @@ public final class RenderService {
         // vertical extent comes from `up` alone.
         double climb = -direction.getY();
         double topAboveEye = Math.max(0.0, (0.5 + frameShift) * spanHeight * up.getY());
-        double floorY = floorReference(world, anchor, eyeY) - plugin.config().renderDepth();
+        double floorY = floorReference(world, anchor, eyeY) - spec.renderDepth();
         double maxDistance = climb > 1.0e-6
                 ? Math.min((eyeY + topAboveEye - floorY) / climb, captureArea)
                 : captureArea;
@@ -109,7 +133,7 @@ public final class RenderService {
                 planeCenter, right, up, direction, spanWidth, spanHeight, maxBackoff, maxDistance);
         Set<Long> chunkKeys = chunkKeys(beam);
 
-        int budget = plugin.config().maxChunksPerCapture();
+        int budget = spec.chunkBudget();
         if (chunkKeys.size() > budget) {
             return CompletableFuture.failedFuture(new CaptureTooLargeException(chunkKeys.size(), budget));
         }
@@ -117,8 +141,8 @@ public final class RenderService {
         RenderGeometry geometry = new RenderGeometry(
                 planeCenter, right, up, direction, spanWidth, spanHeight, maxDistance,
                 eyeY, maxBackoff, widthPx, heightPx);
-        ColorFilter filter = camera.colorFilter();
-        int supersampling = plugin.config().supersampling();
+        ColorFilter filter = spec.colorFilter();
+        int supersampling = spec.supersampling();
         int threads = plugin.config().renderThreads();
         Executor executor = workers(threads);
 

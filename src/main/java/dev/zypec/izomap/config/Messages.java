@@ -44,9 +44,16 @@ public final class Messages {
         return mm.deserialize(raw, resolvers);
     }
 
-    /** Resolves the message at the given key with the prefix. */
+    /**
+     * Resolves the message at the given key with the prefix. A key an older
+     * {@code messages.yml} does not have yet is reported rather than sent as a blank
+     * line, since the file on disk is never overwritten on upgrade.
+     */
     public Component prefixed(String key, TagResolver... resolvers) {
-        String raw = messages.getString(key, "");
+        String raw = messages.getString(key);
+        if (raw == null) {
+            return Component.text("<missing: " + key + ">");
+        }
         return mm.deserialize(prefix + raw, resolvers);
     }
 

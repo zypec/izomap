@@ -1,19 +1,35 @@
 package dev.zypec.izomap.render;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
- * Snaps an arbitrary RGB color to the nearest real map color.
+ * Snaps an arbitrary RGB color to the nearest real map color, and converts between
+ * that color and the byte the map format stores.
  *
  * <p>The palette is every {@link MapBaseColor} in its four brightness variants;
  * {@link MapBaseColor#NONE} is excluded because it is transparent. Distance uses the
  * same weighted "redmean" formula as Bukkit's {@code MapPalette}, so the result
  * matches the game's own mapping.</p>
  *
- * <p>The table is static and read-only, so it is safe to use from render threads.</p>
+ * <p>Every pixel a render produces is already a palette entry (see
+ * {@link IsometricRenderer}), so {@link #packedId(int)} is an exact reverse lookup
+ * rather than a second color match, and {@link #argbOf(byte)} is a table read. That
+ * is what makes the photo cache cheap in both directions.</p>
+ *
+ * <p>The tables are static and read-only, so they are safe to use from render
+ * threads.</p>
  */
 public final class MapColorConverter {
 
     /** Every valid (non-transparent) map color, 0xRRGGBB. */
     private static final int[] PALETTE;
+
+    /** 0xRRGGBB of a palette entry to its map byte. */
+    private static final Map<Integer, Byte> ID_BY_RGB = new HashMap<>();
+
+    /** Map byte to 0xAARRGGBB; entries with no color stay transparent. */
+    private static final int[] ARGB_BY_ID = new int[256];
 
     static {
         MapBaseColor[] bases = MapBaseColor.values();
@@ -25,10 +41,38 @@ public final class MapColorConverter {
                 continue; // transparent
             }
             for (MapBaseColor.Shade shade : shades) {
-                palette[index++] = base.rgb(shade);
+                int rgb = base.rgb(shade);
+                byte id = base.packedId(shade);
+                palette[index++] = rgb;
+                // Distinct bases can scale down to the same color; either byte paints
+                // the same pixel, so the first one wins.
+                ID_BY_RGB.putIfAbsent(rgb, id);
+                ARGB_BY_ID[id & 0xFF] = 0xFF000000 | rgb;
             }
         }
         PALETTE = palette;
+    }
+
+    /**
+     * Map format byte of an ARGB pixel: {@code baseId * 4 + shadeId}, or {@code 0}
+     * (transparent) when the pixel is transparent. Colors off the palette are snapped
+     * first; a render never produces one, but a corrupted buffer should not throw.
+     */
+    public byte packedId(int argb) {
+        if ((argb >>> 24) == 0) {
+            return 0;
+        }
+        int rgb = argb & 0xFFFFFF;
+        Byte exact = ID_BY_RGB.get(rgb);
+        if (exact != null) {
+            return exact;
+        }
+        return ID_BY_RGB.getOrDefault(snap(rgb), (byte) 0);
+    }
+
+    /** ARGB color of a map format byte; transparent for {@code 0} and unused ids. */
+    public static int argbOf(byte packedId) {
+        return ARGB_BY_ID[packedId & 0xFF];
     }
 
     /** Maps a 0xRRGGBB color to the closest palette entry. */

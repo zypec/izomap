@@ -8,6 +8,7 @@ import dev.zypec.izomap.config.ConfigManager;
 import dev.zypec.izomap.config.Messages;
 import dev.zypec.izomap.map.MapService;
 import dev.zypec.izomap.map.PhotoFrameListener;
+import dev.zypec.izomap.map.PhotoKeys;
 import dev.zypec.izomap.map.PhotoManager;
 import dev.zypec.izomap.render.BlockColorTable;
 import dev.zypec.izomap.render.PreviewManager;
@@ -44,16 +45,19 @@ public final class Izomap extends JavaPlugin {
         this.renderService = new RenderService(this, colorTable);
         this.mapService = new MapService(this);
         this.previewManager = new PreviewManager(this, renderService, mapService);
-        this.photoManager = new PhotoManager(this, cameraManager, renderService, mapService);
+        PhotoKeys photoKeys = new PhotoKeys(this);
+        this.photoManager = new PhotoManager(this, cameraManager, renderService, mapService, photoKeys);
 
         CameraDialogs cameraDialogs = new CameraDialogs(this, cameraManager, photoManager);
 
-        // Photos re-render from their camera, so they must load afterwards.
+        // Photos load from their own cache, but a lost cache falls back to the source
+        // camera, so cameras still have to be there first.
         this.cameraManager.load().thenRun(() -> photoManager.load());
 
         getServer().getPluginManager().registerEvents(
                 new CameraListener(this, cameraManager, cameraKeys, cameraDialogs), this);
-        getServer().getPluginManager().registerEvents(new PhotoFrameListener(photoManager), this);
+        getServer().getPluginManager().registerEvents(
+                new PhotoFrameListener(this, photoManager, photoKeys), this);
         getServer().getPluginManager().registerEvents(previewManager, this);
         CameraCommand.register(this, cameraManager, renderService, mapService, photoManager, cameraDialogs);
 
