@@ -102,22 +102,23 @@ public final class CameraListener implements Listener {
     }
 
     /**
-     * Reapplies the transform of cameras whose chunk loads later.
+     * Reapplies the transform and click box of cameras whose chunk loads later.
      *
      * <p>Most cameras' chunks are unloaded while {@code cameras.yml} is read, so
-     * {@code applyTransform} skips them. Without this hook the entity stays frozen
-     * with the transform it was created with and {@code model-scale} never takes
-     * effect.</p>
+     * {@code applyTransform} skips them. Without this hook the entities stay frozen
+     * as they were created and {@code model-scale} never takes effect.</p>
      */
     @EventHandler
     public void onEntitiesLoad(EntitiesLoadEvent event) {
         for (Entity entity : event.getEntities()) {
-            if (!(entity instanceof Display display)) {
+            Camera camera = manager.byId(keys.readCameraId(entity.getPersistentDataContainer()));
+            if (camera == null) {
                 continue;
             }
-            Camera camera = manager.byId(keys.readCameraId(entity.getPersistentDataContainer()));
-            if (camera != null) {
+            if (entity instanceof Display display) {
                 manager.applyTransform(camera, display);
+            } else if (entity instanceof Interaction interaction) {
+                manager.applyInteractionSize(interaction);
             }
         }
     }

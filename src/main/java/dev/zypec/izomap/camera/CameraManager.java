@@ -20,6 +20,7 @@ import org.joml.Vector3f;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
@@ -33,6 +34,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * collection to disk asynchronously.</p>
  */
 public final class CameraManager {
+
+    /** Smallest click box, so a shrunk camera can still be hit. */
+    private static final double MIN_INTERACTION = 0.25;
+    /** Largest click box, so a grown one does not swallow its surroundings. */
+    private static final double MAX_INTERACTION = 3.0;
 
     private final Izomap plugin;
     private final CameraKeys keys;
@@ -81,6 +87,11 @@ public final class CameraManager {
 
     private void persistAsync() {
         storage.saveAll(new ArrayList<>(byId.values()));
+    }
+
+    /** Writes the collection out after a change made outside this class. */
+    public void persist() {
+        persistAsync();
     }
 
     // --- queries ---
@@ -243,20 +254,22 @@ public final class CameraManager {
     // --- transform ---
 
     /**
-     * Applies the camera's yaw/pitch to its display entity.
+     * Applies the camera's yaw/pitch to its display entity and resizes its click box.
      *
-     * <p>Skipped when the entity is not loaded; {@link CameraListener} reapplies it
-     * once the chunk loads, otherwise the entity would stay frozen with the
-     * transform it was created with.</p>
+     * <p>Skipped when the entities are not loaded; {@link CameraListener} reapplies
+     * this once the chunk loads, otherwise they would stay frozen as they were
+     * created.</p>
      *
      * <p>Model size comes from {@code camera.model-scale}; zoom does not affect it.</p>
      */
     public void applyTransform(Camera camera) {
-        if (camera.displayEntityId() == null) {
-            return;
-        }
-        if (plugin.getServer().getEntity(camera.displayEntityId()) instanceof Display display) {
+        if (camera.displayEntityId() != null
+                && plugin.getServer().getEntity(camera.displayEntityId()) instanceof Display display) {
             applyTransform(camera, display);
+        }
+        if (camera.interactionEntityId() != null
+                && plugin.getServer().getEntity(camera.interactionEntityId()) instanceof Interaction interaction) {
+            applyInteractionSize(interaction);
         }
     }
 
@@ -280,6 +293,38 @@ public final class CameraManager {
         display.setInterpolationDuration(3);
         display.setInterpolationDelay(0);
         display.setTransformation(transformation);
+
+        if (display instanceof ItemDisplay item) {
+            item.setItemDisplayTransform(resolveDisplayTransform());
+        }
+    }
+
+    /**
+     * Sizes the click box with the model.
+     *
+     * <p>A fixed box stops matching the model as soon as {@code model-scale} moves:
+     * clicks land next to a scaled-up camera with no response, and a scaled-down one
+     * keeps an invisible area clickable. The bounds keep a tiny camera reachable and
+     * a huge one from swallowing everything around it.</p>
+     */
+    public void applyInteractionSize(Interaction interaction) {
+        float size = (float) Math.max(MIN_INTERACTION, Math.min(MAX_INTERACTION,
+                plugin.config().interactionSize() * plugin.config().modelScale()));
+        interaction.setInteractionWidth(size);
+        interaction.setInteractionHeight(size);
+    }
+
+    /** Falls back to the default pose rather than dropping the model's look entirely. */
+    private ItemDisplay.ItemDisplayTransform resolveDisplayTransform() {
+        String name = plugin.config().itemDisplayTransform();
+        try {
+            return ItemDisplay.ItemDisplayTransform.valueOf(name.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            plugin.getLogger().warning("camera.item-display-transform = '" + name
+                    + "' geçersiz; FIXED kullanılıyor. Geçerli değerler: "
+                    + java.util.Arrays.toString(ItemDisplay.ItemDisplayTransform.values()));
+            return ItemDisplay.ItemDisplayTransform.FIXED;
+        }
     }
 
     /**
@@ -340,8 +385,7 @@ public final class CameraManager {
 
     private Interaction spawnInteraction(World world, Location anchor) {
         return world.spawn(anchor, Interaction.class, e -> {
-            e.setInteractionWidth(0.6f);
-            e.setInteractionHeight(0.6f);
+            applyInteractionSize(e);
             e.setResponsive(true);
             e.setPersistent(true);
         });

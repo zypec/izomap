@@ -36,6 +36,11 @@ public final class MapService {
         return view;
     }
 
+    /** Looks up a map by id, or {@code null} when it no longer exists. */
+    public MapView viewById(int id) {
+        return id < 0 ? null : Bukkit.getMap(id);
+    }
+
     /** Clears an existing {@link MapView}'s renderers and redraws the tile. */
     public void applyTile(MapView view, int[] argb) {
         for (MapRenderer renderer : new ArrayList<>(view.getRenderers())) {
@@ -52,7 +57,7 @@ public final class MapService {
     }
 
     /** Creates a filled map item for a single tile. */
-    public ItemStack createMapItem(World world, MapTile tile) {
+    private ItemStack createMapItem(World world, MapTile tile) {
         return itemFor(createMapView(world, tile.argb()));
     }
 

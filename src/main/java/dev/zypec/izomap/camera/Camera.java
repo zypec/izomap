@@ -20,6 +20,9 @@ public final class Camera {
     /** Closest shot: 1/16 of the frame height. */
     public static final float MAX_ZOOM = 16.0f;
 
+    /** No preview map has been created for this camera yet. */
+    public static final int NO_PREVIEW_MAP = -1;
+
     private final UUID id;
     private final UUID owner;
     private String name;
@@ -39,6 +42,9 @@ public final class Camera {
     private ColorFilter colorFilter;
 
     private boolean thirdsGuide;
+
+    /** Id of the reused preview map, or {@link #NO_PREVIEW_MAP}. */
+    private int previewMapId = NO_PREVIEW_MAP;
 
     /** Not persisted: which property the owner is currently adjusting. */
     private transient EditProperty editProperty = EditProperty.YAW;
@@ -149,6 +155,18 @@ public final class Camera {
 
     public void thirdsGuide(boolean thirdsGuide) {
         this.thirdsGuide = thirdsGuide;
+    }
+
+    /**
+     * Map the live preview is drawn on, reused for the camera's whole life. Every
+     * session creating its own would spend a map id per open and close.
+     */
+    public int previewMapId() {
+        return previewMapId;
+    }
+
+    public void previewMapId(int previewMapId) {
+        this.previewMapId = previewMapId;
     }
 
     public EditProperty editProperty() {

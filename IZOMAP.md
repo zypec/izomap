@@ -239,8 +239,14 @@ bir delik bir daha sessizce oluşmaz.
 Dünyada iki entity ile modellenir:
 
 - **Görsel model:** `ItemDisplay` (varsayılan, SPYGLASS) veya `BLOCK_DISPLAY`.
-  `Billboard.FIXED`, kalıcı, viewRange 1.0.
-- **Interaction entity:** tık algılama (0.6 × 0.6, responsive).
+  `Billboard.FIXED`, kalıcı, viewRange 1.0. `ItemDisplay` ise duruşu
+  `camera.item-display-transform` belirler (varsayılan `FIXED` = duvara asılı eşya
+  görünümü); geçersiz değer varsayılana düşer ve log'a uyarı yazılır.
+- **Interaction entity:** tık algılama, responsive. Kenar uzunluğu
+  `camera.interaction-size × camera.model-scale`, 0.25-3.0 arasına sıkıştırılır.
+  Sabit bir kutu model ölçeği değişince modele uymayı bırakıyordu: büyütülen kameranın
+  gövdesine tıklamak tepkisiz kalıyor, küçültülende görünmeyen bir alan tıklanabiliyordu.
+  Alt sınır küçük kamerayı tıklanabilir, üst sınır büyük kamerayı çevresini yutmaz tutar.
 
 İkisi de PDC'de kamera UUID'si taşır (`CameraKeys`). `Camera` yalnızca durum tutar;
 entity işleri `CameraManager`'dadır. Bellek modeli tek doğruluk kaynağıdır, her
@@ -306,6 +312,15 @@ harita koyar ve kamera her düzenlendiğinde günceller.
   envanterde taşınamaz.
 - Oyuncu çıkınca silinir; girişte offhand'de kalmış artık varsa temizlenir (çökme sonrası).
 - Bütçe aşımı sessizce donmaz, izleyenlerin action bar'ında bildirilir.
+
+### Harita kimliği kamera başına, oturum başına değil
+
+Bir harita kimliği dağıtıldığı anda **kalıcı olarak harcanır**: sunucu ona bir
+`map_<n>.dat` yazar ve geri veren bir API yoktur. Oturum başına `MapView` üretmek, her
+önizleme açılışının bir kimlik yakması demekti — sayaç kamera sayısıyla değil kullanım
+sayısıyla büyüyordu. Kimlik artık kameranın kendisine ait ve `cameras.yml`'de
+`preview-map-id` olarak saklanır; oturum açılırken var olan view yeniden kullanılıp
+boşaltılır (eski görüntüyle açılmasın diye).
 
 ### Oturum kamerayadır, oyuncuya değil
 
@@ -523,7 +538,7 @@ toplanır ve değerler mantıklı aralıklara clamp'lenir.
 | Bölüm | Anahtarlar |
 |---|---|
 | `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player` |
-| `camera` | `display-type`, `model-material`, `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `default-pitch` (-90..90), `edit-lock-seconds` (1-3600), `model-rotation.{x,y,z}` |
+| `camera` | `display-type`, `model-material`, `item-display-transform`, `interaction-size` (0.1-3.0), `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `default-pitch` (-90..90), `edit-lock-seconds` (1-3600), `model-rotation.{x,y,z}` |
 | `photo` | `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
 | `placement` | `distance`, `invisible-frames`, `build-backing-wall`, `backing-material` |
 
@@ -546,7 +561,7 @@ kontrol edip `0.25`'in üstündeyse log uyarısı verir.
 | `config.yml` | Ayarlar |
 | `messages.yml` | MiniMessage mesajları (`prefix` + anahtar ağacı) |
 | `block-colors.yml` | Blok rengi override'ları (v2) |
-| `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, üçler kuralı, entity UUID'leri) |
+| `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, üçler kuralı, entity UUID'leri, önizleme harita kimliği) |
 | `maps.yml` | Yerleştirilmiş fotoğraflar (harita id'leri, çerçeve UUID'leri, çıpa koordinatı, `capture` bloğunda çekim parametreleri) |
 | `photos/<uuid>.izm` | Fotoğrafın çekilmiş görüntüsü (palet indeksi + Deflate); YML değil, ikili |
 
@@ -590,8 +605,7 @@ kullanılır.
 
 | Konu | Madde |
 |---|---|
-| Her önizleme oturumu yeni bir harita kimliği (`map_N.dat`) harcıyor | T43 |
-| Kullanılmayan mesaj anahtarları ve metotlar | T40 |
+| `photo.saved` ve `RenderResult#toImage` hâlâ boşta (export bekliyor) | T40 → T23 |
 | Birim test yok | T41 |
 
 ---

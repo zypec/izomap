@@ -33,11 +33,6 @@ public final class RenderResult {
         return argb;
     }
 
-    /** ARGB value of a single pixel. */
-    public int pixel(int x, int y) {
-        return argb[y * width + x];
-    }
-
     /** Builds a {@link BufferedImage} from the ARGB buffer. */
     public BufferedImage toImage() {
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);

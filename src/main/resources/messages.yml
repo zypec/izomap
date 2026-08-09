@@ -6,10 +6,8 @@
 prefix: "<gradient:#5e60ce:#48bfe3><bold>Izomap</bold></gradient> <dark_gray>»</dark_gray> "
 
 general:
-  no-permission: "<red>Bu işlem için yetkin yok."
   player-only: "<red>Bu komut yalnızca oyuncular tarafından kullanılabilir."
   reloaded: "<green>Yapılandırma yeniden yüklendi."
-  unknown-error: "<red>Beklenmeyen bir hata oluştu."
 
 camera:
   created: "<green>Kamera oluşturuldu: <white><name></white>"
@@ -60,7 +58,6 @@ preview:
 
 photo:
   capturing: "<gray>Fotoğraf çekiliyor, lütfen bekle..."
-  captured: "<green>Fotoğraf çekildi (<width>x<height> px)."
   failed: "<red>Fotoğraf çekimi başarısız oldu."
   too-large: "<red>Kadraj çok geniş: <white><required></white> chunk gerekiyor, sınır <white><budget></white> <gray>(settings.max-capture-area)</gray>. Yakınlaştırmayı (zoom) artır."
   saved: "<green>Fotoğraf kaydedildi: <white><file></white> <gray>(<width>x<height>, <ms>ms)"
@@ -71,8 +68,6 @@ map:
   invalid-grid: "<red>Bu en-boy oranı için geçersiz grid. <gray><ratio> için seçenekler: <white><grids></white></gray>"
   created: "<green><count> harita oluşturuldu (<grid>) ve envanterine eklendi. <gray>(<ms>ms)</gray>"
   inventory-full: "<yellow>Bazı haritalar envantere sığmadı ve yere düştü."
-  grid-header: "<gray><ratio> için grid seçenekleri:"
-  grid-entry: "<dark_gray>› <white><grid></white> <gray>(<count> harita, <wpx>x<hpx>px)"
   placed: "<green>Fotoğraf yerleştirildi: <white><name></white> <gray>(<count> harita, <ms>ms)"
   place-blocked: "<red>Yerleştirme başarısız: önünde yeterli boş alan yok. Açık bir alana bakarak dene."
   still-loading: "<yellow>Bu fotoğraf hâlâ yükleniyor; birazdan tekrar dene."

@@ -61,6 +61,7 @@ public final class CameraStorage extends YamlStorage {
             cfg.set(base + ".aspect-ratio", c.aspectRatio().name());
             cfg.set(base + ".color-filter", c.colorFilter().name());
             cfg.set(base + ".thirds-guide", c.thirdsGuide());
+            cfg.set(base + ".preview-map-id", c.previewMapId());
         }
         return cfg;
     }
@@ -120,6 +121,7 @@ public final class CameraStorage extends YamlStorage {
         camera.aspectRatio(AspectRatio.fromString(s.getString("aspect-ratio"), AspectRatio.RATIO_1_1));
         camera.colorFilter(ColorFilter.fromString(s.getString("color-filter"), ColorFilter.ORIGINAL));
         camera.thirdsGuide(s.getBoolean("thirds-guide", false));
+        camera.previewMapId(s.getInt("preview-map-id", Camera.NO_PREVIEW_MAP));
         return camera;
     }
 

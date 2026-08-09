@@ -106,6 +106,22 @@ public final class ConfigManager {
         return cfg().getString("camera.model-material", "SPYGLASS");
     }
 
+    /**
+     * How an {@code ITEM_DISPLAY} model is posed, as an
+     * {@code ItemDisplay.ItemDisplayTransform} name. Ignored by {@code BLOCK_DISPLAY}.
+     */
+    public String itemDisplayTransform() {
+        return cfg().getString("camera.item-display-transform", "FIXED");
+    }
+
+    /**
+     * Side of the click box at {@code model-scale} 1.0; the real box scales with the
+     * model so a resized camera stays clickable exactly where it looks.
+     */
+    public double interactionSize() {
+        return clamp(cfg().getDouble("camera.interaction-size", 0.6), 0.1, 3.0);
+    }
+
     /** Zoom step as a <b>multiplier</b>, not an addend: 1.25 means 25% per tick. */
     public double zoomStep() {
         return clamp(cfg().getDouble("camera.zoom-step", 1.25), 1.01, 4.0);

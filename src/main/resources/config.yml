@@ -39,6 +39,18 @@ camera:
   display-type: ITEM_DISPLAY
   # ITEM_DISPLAY için kullanılacak model eşyası (Material adı).
   model-material: SPYGLASS
+  # ITEM_DISPLAY modelinin duruşu. Eşyanın hangi bağlamda çizileceğini seçer ve
+  # görünümü belirgin biçimde değiştirir: NONE, THIRDPERSON_RIGHTHAND,
+  # THIRDPERSON_LEFTHAND, FIRSTPERSON_RIGHTHAND, FIRSTPERSON_LEFTHAND, HEAD, GUI,
+  # GROUND, FIXED. Varsayılan FIXED = duvara asılı eşya görünümü (spyglass için en
+  # makulü). Geçersiz değer varsayılana düşer ve log'a uyarı yazılır.
+  # BLOCK_DISPLAY seçiliyken yok sayılır.
+  item-display-transform: FIXED
+  # Tık kutusunun model ölçeği 1.0'ken kenar uzunluğu. Gerçek kutu bununla
+  # model-scale'in çarpımıdır (0.25-3.0 arasına sıkıştırılır): büyütülen kamerada
+  # modelin gövdesine tıklamak çalışsın, küçültülende de görünmeyen bir alan
+  # tıklanabilir kalmasın. Aralık: 0.1-3.0.
+  interaction-size: 0.6
   # Sol/sağ tık ile yakınlaştırma adımı. ÇARPANDIR, eklenen bir miktar değil:
   # 1.25 = her tık %25 yakınlaştırır/uzaklaştırır. Aralık: 1.01-4.0.
   zoom-step: 1.25

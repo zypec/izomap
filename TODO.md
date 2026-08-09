@@ -21,7 +21,8 @@ T21 (fotoğraf listesi + hayalet yerleştirme UI'ı)
 
 T20 (retake komutu) — bağımsız (T1 bittiği için serbest)
 
-T6 (hologram) ←→ T8 (interaction/hologram ölçeği) — birlikte ele alınmalı
+T6 (hologram) — bağımsız (T8 bitti; hologramın dikey offset'i de model ölçeğini
+                takip etmeli, hesap `CameraManager#applyInteractionSize` deseninde)
 
 T10 (çoklu preview altyapısı) ✔
  └── T11 (preview action bar) ✔
@@ -68,24 +69,6 @@ Sol/sağ tık kamerayı ilgili eksende ileri/geri (ya da yukarı/aşağı) taş�
 
 ---
 
-### T5 — ItemDisplay transform'u config'ten ayarlanabilsin
-
-`[ ]` **P1**
-
-`camera.display-type: ITEM_DISPLAY` iken `ItemDisplay#setItemDisplayTransform` ile
-görünüm belirgin biçimde değişiyor (`NONE`, `THIRDPERSON_RIGHTHAND`,
-`THIRDPERSON_LEFTHAND`, `FIRSTPERSON_*`, `HEAD`, `GUI`, `GROUND`, `FIXED`). Şu an hiç
-ayarlanmıyor, yani `NONE` kalıyor.
-
-- Yeni anahtar: `camera.item-display-transform` (varsayılan `FIXED` — duvara asılı
-  eşya görünümü, spyglass için en makulü; uygulama sırasında görsel olarak doğrulanacak).
-- Geçersiz değer → varsayılana düş + log uyarısı.
-- `/izocam reload` sonrası `refreshTransforms()` ile anında uygulanmalı (şu an yalnızca
-  rotasyon/ölçek yeniden uygulanıyor, transform da eklenecek).
-- `BLOCK_DISPLAY` seçiliyken anahtar yok sayılır.
-
----
-
 ### T6 — Kameranın üstünde bilgi hologramı (TextDisplay)
 
 `[ ]` **P1**
@@ -129,28 +112,6 @@ verilebilmeli.
   toplanınca fotoğraflar da silinir; oyuncuya onay sorulur (Dialog).
 - Komutla oluşturulmuş kamerada `pickup` çalışır ama eşya **verilmez**, sadece silinir
   (ya da mesajla reddedilir — uygulama sırasında karar).
-
----
-
-### T8 — Interaction entity'nin boyutu model ölçeğine uysun
-
-`[ ]` **P1**
-
-`CameraManager#spawnInteraction` tık kutusunu sabit `0.6 × 0.6` olarak kuruyor. Model
-`camera.model-scale` ile büyütülüp küçültüldüğünde tık alanı aynı kalıyor: büyük modelde
-kameranın görünen gövdesinin dışına tıklayınca tepki alınmıyor, küçük modelde ise
-görünmeyen bir alan tıklanabiliyor.
-
-- Tık kutusu `0.6 × model-scale` olarak hesaplanacak (taban değer de config'e alınabilir:
-  `camera.interaction-size`, varsayılan 0.6).
-- **Alt/üst sınır:** çok küçük ölçekte kamera tıklanamaz hâle gelmemeli (öneri: min 0.25),
-  çok büyük ölçekte de etrafındaki her şeyi yutmamalı (öneri: max 3.0).
-- `/izocam reload` sonrası `refreshTransforms()` bugün yalnızca display entity'ye
-  dokunuyor; interaction entity'nin boyutunu da yeniden uygulamalı.
-- `model-scale` şu an **global** bir config değeri; ileride kamera başına ölçek eklenirse
-  tık kutusu onu takip etmeli.
-- T6'daki hologramın dikey offset'i de ölçekle birlikte kaymalı, yoksa büyük modelde
-  metin modelin içinde kalır — iki madde birlikte ele alınmalı.
 
 ---
 
@@ -426,15 +387,11 @@ manzarayı göstermek).
 
 ### T40 — Kullanılmayan yüzeyleri temizle veya bağla
 
-`[ ]` **P2**
+`[~]` **P2** · Kalan: T23'e bağlı
 
-- `messages.yml`: `general.no-permission`, `general.unknown-error`, `photo.captured`,
-  `photo.saved` (T23 kullanacak), `map.grid-header`, `map.grid-entry` (T2 bunları
-kullanmadan çözüldüğü için artık sahipsiz — silinecek ya da bir listeleme komutuna
-bağlanacak).
-- Kod: `CameraKeys#readCameraId`, `RenderResult#pixel`, `RenderResult#toImage`
-  (T23 kullanacak), `MapService#createMapItem` tekil kullanımı.
-- Ya bir özelliğe bağlanacak ya silinecek; her biri için karar T23 sonrası netleşir.
+Sahipsiz yüzeylerin çoğu 2026-08-10'da silindi (aşağıdaki arşiv notu). Geriye yalnızca
+**T23'ün (export) kullanacağı** ikisi kaldı: `messages.yml` → `photo.saved` ve
+`RenderResult#toImage`. T23 yapılınca bağlanmış olacaklar; T23 iptal edilirse silinecekler.
 
 ### T41 — İlk birim testleri
 
@@ -460,26 +417,69 @@ T10 çoklu izleyiciyi getirdi ama `/izocam preview <ad>` hâlâ `byOwnerAndName`
 tıklayarak izleyici olabilirsin (etkileşim sahiplik sormuyor). Sahiplik modeli
 genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre çözmeli.
 
-### T43 — Her önizleme oturumu bir harita kimliği harcıyor
-
-`[ ]` **P2**
-
-Oturum başlarken `Bukkit.createMap` çağrılıyor; oturum bitince o `MapView` bırakılıyor
-ama dünya klasöründeki `map_<n>.dat` kalıyor ve bir dahaki açılışta yenisi üretiliyor.
-Yani "önizleme aç/kapa" sayısı kadar harita dosyası birikiyor (T10 öncesinde de böyleydi,
-üstelik oyuncu başınaydı; T10 bunu kamera başına indirdi ama kökten çözmedi).
-
-- Seçenek (a): kamera başına `MapView`'ı **kalıcı** tut, `cameras.yml`'e `preview-map-id`
-  olarak yaz ve yeniden kullan. Kamera silinince kimlik de bırakılır (yine dosya kalır
-  ama artık kamera sayısıyla sınırlı, aç/kapa sayısıyla değil).
-- Seçenek (b): dosyaları temizleyen bir bakım komutu — Bukkit API'si harita silmeyi
-  desteklemediği için dosya seviyesinde iş, riskli.
-- (a) tercih ediliyor. Ölçüm: her `map_n.dat` birkaç KB, yani asıl sorun disk değil,
-  sunucunun harita sayacının sürekli büyümesi.
-
 ---
 
 ## Arşiv
+
+### T43 — Her önizleme oturumu bir harita kimliği harcıyordu
+
+`[x]` **P2** · 2026-08-10
+
+Harita kimliği dağıtıldığı anda kalıcı olarak harcanıyor (sunucu `map_<n>.dat` yazıyor,
+geri veren API yok). Oturum başına `MapView` üretmek her önizleme açılışının bir kimlik
+yakması demekti: sayaç kamera sayısıyla değil **kullanım** sayısıyla büyüyordu.
+
+Seçenek (a) uygulandı: kimlik kameraya ait, `cameras.yml` → `preview-map-id` (varsayılan
+`-1`). Oturum açılırken `Bukkit.getMap` ile bulunup boşaltılarak yeniden kullanılıyor —
+boşaltma şart, yoksa önizleme bir önceki oturumun donmuş görüntüsüyle açılıyordu.
+Harita silinmişse yenisi üretilip kayda yazılıyor. Kamera silinince kimlik bırakılıyor;
+dosya kalıyor ama artık kamera sayısıyla sınırlı.
+
+### T40 — Sahipsiz mesaj anahtarları ve metotlar (kısmen)
+
+`[~]` **P2** · 2026-08-10
+
+Silinenler: `general.no-permission` (Brigadier `requires` zaten komutu gizliyor,
+mesaj hiç gönderilmiyordu), `general.unknown-error`, `photo.captured`,
+`map.grid-header`, `map.grid-entry` (T2 bunlara ihtiyaç duymadan çözüldü),
+`RenderResult#pixel`. `MapService#createMapItem` private yapıldı (yalnızca
+`createMapItems` çağırıyor). `CameraKeys#readCameraId` T14'te zaten kullanıma girmişti.
+
+Kalan ikisi T23'e bağlı, madde açık tutuluyor.
+
+### T8 — Interaction entity'nin boyutu model ölçeğine uyuyor
+
+`[x]` **P1** · 2026-08-10
+
+Tık kutusu sabit `0.6 × 0.6` idi; `camera.model-scale` değişince modele uymayı
+bırakıyordu. Artık `camera.interaction-size` (yeni ayar, varsayılan 0.6) × `model-scale`,
+`0.25`-`3.0` arasına sıkıştırılmış. Alt sınır küçültülmüş kamerayı tıklanabilir tutar,
+üst sınır büyütülmüşün çevresindeki her şeyi yutmasını engeller.
+
+`applyTransform(Camera)` artık interaction entity'yi de çözüp boyutunu uyguluyor, yani
+`/izocam reload` → `refreshTransforms()` kutuyu da yeniliyor. `EntitiesLoadEvent`
+döngüsü de `Interaction`'ı ele alıyor (eskiden yalnızca `Display`'e bakıyordu), böylece
+sonradan yüklenen chunk'lardaki kameralar da güncel kutuyu alıyor.
+
+Not: `model-scale` hâlâ global bir ayar. Kamera başına ölçek eklenirse kutu onu takip
+etmeli — hesap tek yerde (`applyInteractionSize`) olduğu için tek satırlık iş.
+
+### T5 — ItemDisplay duruşu config'ten ayarlanabiliyor
+
+`[x]` **P1** · 2026-08-10
+
+`ItemDisplay#setItemDisplayTransform` hiç çağrılmıyordu, yani model `NONE` duruşunda
+kalıyordu. Yeni anahtar `camera.item-display-transform`, varsayılan `FIXED` (duvara
+asılı eşya görünümü). Geçersiz değer `FIXED`'e düşüyor ve log'a geçerli değerlerin
+listesiyle birlikte uyarı yazılıyor.
+
+Duruş `applyTransform(Camera, Display)` içinde uygulanıyor; o metot hem oluşturma, hem
+`/izocam reload`, hem `EntitiesLoadEvent` yolundan geçtiği için ayrı bir tazeleme
+gerekmedi. `BLOCK_DISPLAY` seçiliyken `instanceof ItemDisplay` tutmadığı için anahtar
+kendiliğinden yok sayılıyor.
+
+**Görsel doğrulama yapılmadı** — `FIXED`'in spyglass modeliyle nasıl durduğu sunucuda
+bakılıp gerekirse varsayılan değiştirilmeli.
 
 ### T11 — Preview action bar'ında canlı kamera bilgisi
 

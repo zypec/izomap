@@ -159,7 +159,7 @@ public final class PreviewManager implements Listener {
 
         PreviewSession session = sessions.computeIfAbsent(camera.id(), PreviewSession::new);
         if (session.view == null) {
-            session.view = mapService.createMapView(worldOf(camera), blank());
+            session.view = previewView(camera);
         }
         session.watchers.add(playerId);
         watchedCamera.put(playerId, camera.id());
@@ -533,6 +533,26 @@ public final class PreviewManager implements Listener {
         if (isPreviewOrLegacy(event.getPlayer().getInventory().getItemInOffHand())) {
             event.getPlayer().getInventory().setItemInOffHand(null);
         }
+    }
+
+    /**
+     * The camera's own preview map, created once and reused for its whole life.
+     *
+     * <p>A map id is spent for good the moment it is handed out — the server writes a
+     * {@code map_<n>.dat} for it and nothing gives it back. Creating one per session
+     * meant every open and close of a preview cost one, so the count grew with use
+     * rather than with the number of cameras.</p>
+     */
+    private MapView previewView(Camera camera) {
+        MapView existing = mapService.viewById(camera.previewMapId());
+        if (existing != null) {
+            mapService.applyTile(existing, blank()); // the last session's image is stale
+            return existing;
+        }
+        MapView created = mapService.createMapView(worldOf(camera), blank());
+        camera.previewMapId(created.getId());
+        plugin.cameras().persist();
+        return created;
     }
 
     private World worldOf(Camera camera) {
