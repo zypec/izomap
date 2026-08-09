@@ -16,10 +16,12 @@
 ## Bağımlılık haritası
 
 ```
-T1 (çekim parametrelerinin saklanması)
+T1 (fotoğraf cache'i + çekim parametreleri)
  ├── T20 (retake komutu)
  └── T21 (fotoğraf listesi + hayalet yerleştirme UI'ı)
       └── T22 (kamera başına fotoğraf limiti + permission)
+
+T6 (hologram) ←→ T8 (interaction/hologram ölçeği) — birlikte ele alınmalı
 
 T10 (çoklu preview altyapısı)
  ├── T11 (preview action bar)
@@ -36,43 +38,94 @@ T30 (renk pipeline'ının parametrikleşmesi)
 
 ## P0 — Önce bunlar
 
-### T1 — Fotoğrafın çekim parametreleri kayıtlı olsun
+### T1 — Fotoğraflar dosyada cache'lensin, açılışta yeniden render edilmesin
 
 `[ ]` **P0** · Bloke ettikleri: T20, T21
 
-**Sorun (daha önce sorduğum 3. madde, açıklamasıyla):** Sunucu yeniden başladığında
-`maps.yml`'deki her fotoğraf, kaynak kameradan **yeniden çekilir** (`PhotoManager#reRenderAll`).
-Yeniden çekim kameranın **o anki** ayarlarını kullanır. Yani duvara astığın fotoğrafı
-çektikten sonra kamerayı çevirir, zoom'unu değiştirir ya da filtresini değiştirirsen,
-sunucu yeniden başladığında duvardaki fotoğraf da değişmiş olur. Oyuncu açısından
-"astığım tablo kendi kendine değişti" demektir — istenmeyen bir davranış.
+**Sorun (daha önce sorduğum 3. madde, açıklamasıyla):** Sunucu her açılışta
+`maps.yml`'deki her fotoğrafı kaynak kameradan **yeniden çekiyor**
+(`PhotoManager#reRenderAll`). İki ayrı problemi var:
 
-Ayrıca aynı kamerayla ikinci bir fotoğraf çekip astığında iki tablo birbirinin aynısı
-olur; kamerayı her fotoğraf için ayrı ayrı ayarlamak zorunda kalırsın.
+1. **Maliyet.** Her fotoğraf için chunk kopyalama + milyonlarca ışın demek. 10 fotoğraflı
+   bir sunucuda açılış ciddi biçimde yavaşlar ve boşuna CPU yakılır — üstelik sonuç zaten
+   bilinen bir görüntü.
+2. **Sessizce değişme.** Yeniden çekim kameranın **o anki** ayarlarını kullanıyor. Yani
+   fotoğrafı astıktan sonra kamerayı çevirir, zoom'unu ya da filtresini değiştirirsen,
+   sunucu yeniden başladığında duvardaki tablo da değişmiş oluyor. Oyuncu açısından
+   "astığım tablo kendi kendine değişti" demek.
 
-**Çözüm:** Fotoğraf çekilirken kullanılan parametreler fotoğrafın kendi kaydına yazılsın
-ve yeniden render bunları kullansın. Kamera bundan sonra yalnızca "hangi noktadan"
-bilgisinin kaynağı olur, canlı bağlantı kesilir.
+**Çözüm:** Çekilen görüntü diske cache'lensin; açılışta render değil, **dosyadan yükleme**
+yapılsın.
 
-Saklanacaklar: dünya, konum (x/y/z), `cam-yaw`, `cam-pitch`, `zoom`, `aspect-ratio`,
-`color-filter`, `frame-height`, `frame-shift`, `supersampling`, `max-render-distance` ve
-ileride eklenecek gökyüzü/gölgelendirme ayarları.
+#### Cache formatı
 
-**Neden ham piksel saklamıyoruz:** 16x9 ızgara 2048×1152 piksel = ~9,4 MB/fotoğraf.
-YML'de tutulamaz. Parametre saklayıp yeniden render etmek hem küçük hem de T20/T21'i
-doğrudan mümkün kılıyor.
+Piksel başına **1 bayt vanilla harita paleti indeksi** — `MapBaseColor#packedId(Shade)`
+zaten tam olarak bu baytı (`baseId * 4 + shadeId`) üretiyor. İndeks `0` şeffaftır
+(vanilla ile aynı).
 
-**Senaryolar:**
+| Seçenek | Boyut (16x9 ızgara) | Not |
+|---|---|---|
+| ARGB, 4 bayt/piksel | ~9,4 MB | Gereksiz; alfa tek bit bilgi taşıyor |
+| **Palet indeksi, 1 bayt/piksel + Deflate** | **~2,4 MB ham, sıkışınca çok daha az** | Seçilen. Düz alanlar çok iyi sıkışır |
+| PNG | Orta | Kodlama/çözme daha yavaş, ARGB dönüşümü gerekir |
+
+PNG **dışa aktarma** formatı olarak kalsın (T23); iç cache için ham indeks + Deflate hem
+daha küçük hem daha hızlı.
+
+- Dosya: `plugins/Izomap/photos/<foto-uuid>.izm`
+- Başlık: sihirli sayı (`IZMP`), format sürümü, genişlik, yükseklik, grid `cols`/`rows`.
+- Gövde: `Deflater` ile sıkıştırılmış indeks dizisi (satır öncelikli).
+- Yüklerken indeks → ARGB genişletmesi **tablo aramasıdır** (`MapBaseColor.byId` +
+  `Shade`), renk eşleştirme yapılmaz — yani yükleme neredeyse bedavadır.
+- Render tarafında `MapColorConverter#snap`'in indeksi de döndürmesi gerekir
+  (`PALETTE` dizisine paralel bir indeks dizisi yeter).
+
+#### Parametreler de saklanacak (ama ikincil)
+
+Cache birincil kaynaktır; parametreler retake (T20) ve cache kaybı/bozulması için
+saklanır: dünya, konum, `cam-yaw`, `cam-pitch`, `zoom`, `aspect-ratio`, `color-filter`,
+`frame-height`, `frame-shift`, `supersampling`, `max-render-distance` ve ileride
+eklenecek gökyüzü (T32) / gölgelendirme (T33) ayarları.
+
+#### Asenkronluk
+
+- Cache **yazma** ve **okuma** asenkron (proje kuralı; `YamlStorage`'daki desen).
+- Yalnızca `MapView`'a uygulama ana thread'de.
+- Açılışta fotoğraflar sırayla değil, toplu ve asenkron yüklenir; ana thread'e yalnızca
+  hazır olan karo uygulanır. Açılış hızı etkilenmez.
+
+#### Yükleme tamamlanana kadar çerçeve güvenliği
+
+Bugün koruma `photos.findByFrame` üzerinden çalışıyor, yani **fotoğraf bellekte yoksa
+çerçeve korumasızdır**. `maps.yml` asenkron yüklendiği için açılıştan hemen sonra kısa
+bir pencere var; yükleme hata verirse pencere kalıcı hâle gelir. Çözüm:
+
+- Her `ItemFrame`'in **PDC**'sine yazılsın: `izomap:photo_id` (UUID) + `izomap:tile_index`.
+  (`ItemFrame` bir `Entity`'dir, dolayısıyla `PersistentDataHolder`'dır — PDC var.)
+- `PhotoFrameListener` korumayı **önce PDC'ye bakarak** yapsın: bellekte kayıt olmasa
+  bile "bu bir Izomap çerçevesi" bilgisi entity'nin üstünde durur → kırma/eşya çıkarma/
+  döndürme reddedilir.
+- Fotoğraf henüz yüklenmediyse oyuncuya "fotoğraf yükleniyor, birazdan" mesajı gider;
+  boş/yarım görünen çerçeve kırılamaz.
+- Yan fayda: kaydı silinmiş ama dünyada kalmış **yetim çerçeveler** PDC'den tanınır ve
+  `/izocam cleanup` bunları temizleyebilir.
+
+#### Senaryolar
+
 - Fotoğraf asıldıktan sonra kamera çevrilir → duvardaki fotoğraf **değişmez**.
-- Kamera tamamen silinir → fotoğraf yine yeniden render edilebilir (artık kameraya
-  bağımlı değil). Şu an kamera silinince fotoğraf son hâlinde donuyor.
-- Eski `maps.yml` kayıtlarında parametre yok → kamera adından çözmeye çalış, kamera da
-  yoksa fotoğrafı olduğu gibi bırak ve log'a bir kez uyarı yaz.
-- `settings.max-chunks-per-capture` sonradan düşürülürse yeniden render başarısız
-  olabilir → fotoğraf silinmez, log'lanır, haritalar eski hâlinde kalır.
+- Kamera tamamen silinir → fotoğraf cache'ten yüklenmeye devam eder.
+- Cache dosyası silinmiş/bozuk → parametrelerden bir kez yeniden render edilir ve cache
+  yeniden yazılır; parametre de yoksa haritalar son hâlinde bırakılır + log uyarısı.
+- Fotoğraf silinince cache dosyası da silinir (dosya sızıntısı olmasın).
+- Format sürümü ileride değişirse: eski sürüm okunamıyorsa parametrelerden yeniden
+  render (cache kaybı ölümcül değil, çünkü her zaman yeniden üretilebilir).
+- `settings.max-chunks-per-capture` sonradan düşürülse bile açılış etkilenmez — artık
+  açılışta render yok.
 
-**Dokunulacak yerler:** `PlacedPhoto`, `PhotoStorage`, `PhotoManager#reRenderAll`,
-`RenderService#capture` (kameradan değil, parametre nesnesinden çalışacak şekilde bir
+**Dokunulacak yerler:** `PlacedPhoto`, `PhotoStorage`, `PhotoManager#reRenderAll`
+(→ `loadFromCache`), yeni `PhotoCache` sınıfı, `MapColorConverter` (indeks döndürme),
+`MapPlacer` (PDC etiketleme), `PhotoFrameListener` (PDC bazlı koruma),
+`RenderService#capture` (kameradan değil parametre nesnesinden çalışacak bir
 `CaptureSpec` ayrımı).
 
 ---
@@ -227,6 +280,28 @@ verilebilmeli.
 
 ---
 
+### T8 — Interaction entity'nin boyutu model ölçeğine uysun
+
+`[ ]` **P1**
+
+`CameraManager#spawnInteraction` tık kutusunu sabit `0.6 × 0.6` olarak kuruyor. Model
+`camera.model-scale` ile büyütülüp küçültüldüğünde tık alanı aynı kalıyor: büyük modelde
+kameranın görünen gövdesinin dışına tıklayınca tepki alınmıyor, küçük modelde ise
+görünmeyen bir alan tıklanabiliyor.
+
+- Tık kutusu `0.6 × model-scale` olarak hesaplanacak (taban değer de config'e alınabilir:
+  `camera.interaction-size`, varsayılan 0.6).
+- **Alt/üst sınır:** çok küçük ölçekte kamera tıklanamaz hâle gelmemeli (öneri: min 0.25),
+  çok büyük ölçekte de etrafındaki her şeyi yutmamalı (öneri: max 3.0).
+- `/izocam reload` sonrası `refreshTransforms()` bugün yalnızca display entity'ye
+  dokunuyor; interaction entity'nin boyutunu da yeniden uygulamalı.
+- `model-scale` şu an **global** bir config değeri; ileride kamera başına ölçek eklenirse
+  tık kutusu onu takip etmeli.
+- T6'daki hologramın dikey offset'i de ölçekle birlikte kaymalı, yoksa büyük modelde
+  metin modelin içinde kalır — iki madde birlikte ele alınmalı.
+
+---
+
 ## P1 — Önizleme
 
 ### T10 — Çoklu izleyicili preview + tek editör
@@ -341,18 +416,19 @@ Hedef akış:
   **yumuşak** hareket eder.
 - Blok materyali `placement.backing-material`'dan alınır; o ayar kapalı/geçersizse
   varsayılan bir blok kullanılır (öneri: `WHITE_CONCRETE`).
-- **Glow:** açık. Renk scoreboard takımı üzerinden verilir (`Team#color` — Bukkit'te glow
-  rengi takım rengiyle belirlenir). Yerleşim uygunsa **yeşil**, uygun değilse **kırmızı**.
+- **Glow:** açık. Renk doğrudan `Display#setGlowColorOverride(Color)` ile verilir —
+  Paper 26.2 API'sinde mevcut, scoreboard takımı **gerekmiyor**. Yerleşim uygunsa
+  **yeşil**, uygun değilse **kırmızı**.
 - **Uygunluk kontrolü:**
   - `placement.build-backing-wall` **açıksa**: hem çerçeve blokları hem destek blokları
     boş (ya da değiştirilebilir) olmalı.
   - **Kapalıysa**: çerçeve blokları boş olmalı **ve** her çerçevenin arkasında zaten
     katı bir blok bulunmalı.
   - Kontrol her hareket tick'inde yapılır ve glow rengi anında güncellenir.
-- **Onay:** sağ tık. *Teknik not: `BlockDisplay`'in hitbox'ı yoktur, doğrudan
-  tıklanamaz — onay `PlayerInteractEvent` (sağ tık) ile yakalanacak; alternatif olarak
-  hayalete bir `Interaction` entity eşlik ettirilebilir.* Uygun değilken onaylanamaz,
-  action bar'da neden yazar.
+- **Onay:** hayalete sağ tık. `BlockDisplay`'in hitbox'ı olmadığından yanına bir
+  `Interaction` entity eşlik edecek (ızgaranın tamamını kaplayan tek bir tane yeter,
+  karo başına değil) ve tık onun üzerinden yakalanacak — kameradaki desenin aynısı.
+  Uygun değilken onaylanamaz, action bar'da neden yazar.
 - **İptal:** Shift + sağ tık, `/izocam cancel`, oyuncunun ölmesi, dünya değiştirmesi,
   sunucudan çıkması, kameranın silinmesi ya da zaman aşımı (config: ~60 sn).
   Her durumda hayaletler temizlenir.
@@ -373,15 +449,17 @@ Hedef akış:
 `[ ]` **P1** · Bağımlı: T21
 
 - Config: `settings.max-photos-per-camera` (varsayılan öneri: 5).
-- Permission ile geçersiz kılma: **`izomap.photos.<sayı>`**
-  (kullanıcının önerdiği `izocam.max_photo_per_camera.<number>` yerine, eklentinin
-  `izomap.` önekiyle tutarlı ve daha kısa olduğu için).
+- Permission ile geçersiz kılma: **`izomap.max_photos_by_camera.<sayı>`**
 - **Kural:** permission varsa config değeri **tamamen** yok sayılır — permission'daki
   sayı config'tekinden küçük olsa bile geçerlidir (kısıtlamak da mümkün olsun diye).
-- Birden fazla `izomap.photos.<n>` verilmişse **en büyüğü** geçerli olur (izinlerin
-  toplanabilir olması beklenen davranıştır; aksi hâlde grup mirası sürprizli olur).
-- `izomap.photos.0` → hiç fotoğraf çekemez. `izomap.photos.-1` → sınırsız (ya da ayrı
-  bir `izomap.photos.unlimited` izni; uygulama sırasında biri seçilecek).
+- Birden fazla `izomap.max_photos_by_camera.<n>` verilmişse **en büyüğü** geçerli olur
+  (izinlerin toplanabilir olması beklenen davranıştır; aksi hâlde grup mirası sürprizli
+  olur).
+- `izomap.max_photos_by_camera.0` → hiç fotoğraf çekemez.
+  `izomap.max_photos_by_camera.-1` → sınırsız (ya da ayrı bir
+  `izomap.max_photos_by_camera.unlimited` izni; uygulama sırasında biri seçilecek).
+- Wildcard izinler (`izomap.*`) bu deseni yanlışlıkla eşleştirmemeli; okuma
+  `Player#getEffectivePermissions` üzerinden önek eşlemesiyle yapılacak.
 - Limit dolduğunda Dialog'daki "Fotoğraf Çek" butonu pasif görünür ve mesaj verir.
 - `settings.max-cameras-per-player` için de aynı desen uygulanabilir (T3'e ek, opsiyonel).
 

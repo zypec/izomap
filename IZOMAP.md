@@ -349,7 +349,8 @@ kullanılır.
 
 | Konu | Madde |
 |---|---|
-| Yerleştirilmiş fotoğraf, kameranın *güncel* ayarlarıyla yeniden render ediliyor — kamera çevrilince duvardaki fotoğraf da değişiyor | T1 |
+| Her açılışta tüm fotoğraflar kameradan yeniden render ediliyor (maliyetli), üstelik kameranın *güncel* ayarlarıyla — kamera çevrilince duvardaki fotoğraf da değişiyor | T1 |
+| Fotoğraf çerçevesi koruması bellekteki kayda bağlı; `maps.yml` yüklenmeden önce çerçeveler korumasız | T1 |
 | Kamera silindiğinde izleyicilerin önizlemesi kapanmıyor | T12 |
 | `izomap.camera` / `izomap.admin` izinleri `paper-plugin.yml`'de tanımlı değil (pratikte yalnızca OP'ler komutu görüyor) | T3 |
 | `map.invalid-grid` mesajı var olmayan `/izocam grids` komutuna yönlendiriyor | T2 |
