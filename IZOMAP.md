@@ -339,35 +339,22 @@ mantığıyla çalışır — kısmi güncellemeden daha basit ve daha az hataya
 
 ---
 
-## 10. Bilinen açıklar ve sıradaki işler
+## 10. Bilinen açıklar ve yol haritası
 
-Öncelik sırasıyla:
+Planlanan işlerin tamamı ayrı bir dosyada tutulur: **[TODO.md](TODO.md)**. Maddelere
+kalıcı kimliklerle (T1, T2 …) referans verilir; commit mesajlarında da bu kimlikler
+kullanılır.
 
-1. **İzinler `paper-plugin.yml`'de tanımlı değil.** `izomap.camera` ve `izomap.admin`
-   bildirilmediği için tanımsız izin davranışına düşüyor; pratikte yalnızca OP'ler
-   komutu görüyor. `permissions:` bloğu eklenmeli (`izomap.camera` varsayılan `true`,
-   `izomap.admin` varsayılan `op`).
-2. **`map.invalid-grid` mesajı olmayan bir komuta yönlendiriyor:** metinde
-   `/izocam grids <ad>` geçiyor ama böyle bir alt komut yok. Ya komut eklenmeli ya da
-   mesaj düzeltilmeli.
-3. **Yerleştirilmiş fotoğrafta filtre/zoom kaynağa bağlı.** Yeniden render kameranın
-   *güncel* ayarlarını kullanır; kamera sonradan çevrilirse duvardaki fotoğraf da değişir.
-   Beklenen davranış buysa belgelenmeli, değilse çekim anındaki ayarlar `maps.yml`'e
-   yazılmalı.
-4. **Kullanılmayan yüzeyler:** `messages.yml`'de `general.no-permission`,
-   `general.unknown-error`, `photo.captured`, `photo.saved`, `map.grid-header`,
-   `map.grid-entry`; kodda `CameraKeys#readCameraId`, `RenderResult#pixel`/`toImage`,
-   `MapService#createMapItem`'in tekil kullanımı. Ya bir özelliğe bağlanmalı ya temizlenmeli.
-5. **Test yok.** Saf hesap sınıfları (`MapColorConverter`, `ImageSlicer`, `GridOption`,
-   `AspectRatio`, `ColorFilter`, `WorldSnapshot` anahtarlama) sunucusuz test edilebilir;
-   ilk birim testleri buradan başlamalı.
+Şu an kodda bilinen, davranışı doğrudan etkileyen açıklar:
 
-### Düşünülen ama yapılmamış
-
-- PNG dışa aktarma (`RenderResult#toImage` hazır bekliyor).
-- Fotoğrafı duvardan sökmeden yeniden çekme (`/izocam retake <id>`).
-- Kamera paylaşımı / başkasının kamerasını görüntüleme.
-- Gölge/AO gibi ek gölgelendirme — palet 4 tonla sınırlı olduğu için kazancı şüpheli.
+| Konu | Madde |
+|---|---|
+| Yerleştirilmiş fotoğraf, kameranın *güncel* ayarlarıyla yeniden render ediliyor — kamera çevrilince duvardaki fotoğraf da değişiyor | T1 |
+| Kamera silindiğinde izleyicilerin önizlemesi kapanmıyor | T12 |
+| `izomap.camera` / `izomap.admin` izinleri `paper-plugin.yml`'de tanımlı değil (pratikte yalnızca OP'ler komutu görüyor) | T3 |
+| `map.invalid-grid` mesajı var olmayan `/izocam grids` komutuna yönlendiriyor | T2 |
+| Kullanılmayan mesaj anahtarları ve metotlar | T40 |
+| Birim test yok | T41 |
 
 ---
 
@@ -380,3 +367,5 @@ mantığıyla çalışır — kısmi güncellemeden daha basit ve daha az hataya
   kırıksa commit edilmez.
 - **Bu belge:** Davranış, config anahtarı, komut veya mimari değiştiğinde aynı commit
   içinde güncellenir.
+- **[TODO.md](TODO.md):** Yeni istek geldiğinde madde olarak eklenir, iş bitince
+  işaretlenip arşive taşınır. Bakımı yine bu tarafta.
