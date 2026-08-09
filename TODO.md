@@ -518,6 +518,11 @@ Sunucu gerektirmeyen saf hesap sınıfları test edilebilir:
 `ColorFilter#apply` (T31 sonrası filtre zinciri), `WorldSnapshot#key/chunkX/chunkZ`
 (negatif koordinatlar dahil), `Camera` clamp'leri (zoom/pitch sınırları, yaw normalize).
 
+İlk aday hazır: T1'de `MapColorConverter#packedId`/`#argbOf` için yazılan tur testi
+(244 palet renginin tamamı + şeffaflık + palet dışı renk) tek seferlik bir betikti,
+kalıcı teste çevrilmeli — ön bellek formatının sessizce bozulmasını yakalayacak tek şey
+budur. Aynı testin `.izm` başlık/kesik dosya senaryolarını da kapsaması mantıklı.
+
 ### T42 — Kamera paylaşımı / başkasının kamerasını görüntüleme
 
 `[ ]` **P2**
