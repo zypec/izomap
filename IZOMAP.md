@@ -5,7 +5,7 @@
 > güncellenir. Elle düzenlenmesi beklenmez; yeni bir istek varsa sohbette söylenir,
 > belgeye buradan yansıtılır.
 >
-> Son güncelleme: 2026-08-09 · Sürüm: 1.0.0 · Durum: FAZ 1-5 tamamlandı, cilalama aşamasında.
+> Son güncelleme: 2026-08-10 · Sürüm: 1.0.0 · Durum: FAZ 1-5 tamamlandı, cilalama aşamasında.
 
 ---
 
@@ -274,6 +274,9 @@ Dünyada zaten kalmış yetimler için `/izocam cleanup`, oyuncunun bulunduğu d
 | Shift + sol tık | Fotoğraf Dialog'unu aç |
 | Kamera eşyasıyla bloğa sağ tık | O konuma yeni kamera kur (eşya harcanır) |
 
+İlk dört satır **editör koltuğunu** ister; koltuk başkasındaysa etkileşim yalnızca
+izleyici yapar (bkz. [§5](#5-canlı-önizleme)).
+
 Yaw/Pitch `camera.angle-step` kadar değişir. **Zoom çarpımsaldır**: her tık
 `camera.zoom-step` ile çarpar/böler, böylece 0.02x–16x aralığının her yerinde adım
 oransal olarak aynı kalır. Action bar'da çarpanın yanında kadrajın kaç blok kapsadığı da
@@ -302,10 +305,52 @@ harita koyar ve kamera her düzenlendiğinde günceller.
 - Önizleme haritası yere atılamaz (Q → temiz sonlandırma), F ile el değiştiremez,
   envanterde taşınamaz.
 - Oyuncu çıkınca silinir; girişte offhand'de kalmış artık varsa temizlenir (çökme sonrası).
-- Oyuncu başına tek `MapView` yeniden kullanılır — aynı view yeniden çizilince eldeki
-  harita otomatik tazelenir.
-- `inFlight` seti aynı anda tek render'a izin verir; tıklama spam'i yutulur.
-- Bütçe aşımı sessizce donmaz, action bar'da bildirilir.
+- Bütçe aşımı sessizce donmaz, izleyenlerin action bar'ında bildirilir.
+
+### Oturum kamerayadır, oyuncuya değil
+
+Önizleme **kamera başına tek oturumdur** (`PreviewSession`): tek `MapView`, tek render,
+çok izleyici. Bir kamerayı aynı anda kaç kişi izlerse izlesin render bir kez yapılır ve
+herkesin elindeki harita aynı view'a baktığı için hepsi birden tazelenir. Eskiden oturum
+oyuncu başınaydı; beş izleyici beş kat render maliyeti demekti.
+
+Aynı anda **yalnızca bir kişi düzenleyebilir**. Kameraya yapılan her etkileşim (artır,
+azalt, özellik değiştir, Dialog aç) önce **editör koltuğunu** ister; hepsi paylaşılan
+kamera durumunu değiştirdiği için hiçbiri serbest bırakılamaz — biri yaw'ı çevirirken
+başkasının aktif özelliği değiştirmesi düzenleyeni kör eder. Koltuğu alamayan oyuncuya
+kimin düzenlediği söylenir ve **izleyici olarak** eklenir.
+
+Koltuk şu durumlarda boşalır: sahibi önizlemeden çıkarsa, sunucudan düşerse ya da
+`camera.edit-lock-seconds` (varsayılan 30 sn) boyunca kameraya dokunmazsa. Zaman aşımı
+şart: aksi halde bir kez tıklayıp giden biri kamerayı kalıcı olarak kilitlerdi. Koltuk
+boşaldığında sıradaki etkileşen kişi devralır.
+
+Oturum, editörü ve izleyicisi kalmayınca düşer. Editör koltuğu haritadan bağımsızdır:
+offhand'i dolu olan biri önizleme alamaz ama kamerayı yine de ayarlayabilir (eski
+davranış korunur).
+
+### Çıkış yolları
+
+| Durum | Sonuç |
+|---|---|
+| `/izocam preview stop` | Kendi isteğiyle çıkar |
+| Haritayı atmaya çalışmak (Q) | Atma iptal edilir, önizleme kapanır |
+| Ölüm | Harita **drop listesinden çıkarılır**, önizleme kapanır |
+| Sunucudan çıkma | Sessizce temizlenir |
+| Kameranın silinmesi | O kamerayı izleyen **herkesin** önizlemesi kapanır (T12) |
+| Sunucunun kapanması | `onDisable` haritaları toplar |
+
+Her çıkışın `messages.yml`'de ayrı bir `preview.ended-*` anahtarı vardır; oyuncu
+haritasının neden kaybolduğunu öğrenir.
+
+Kapanışta `onDisable`'ın devreye girmesi gerekir çünkü **eklentiler oyuncular
+atılmadan önce devre dışı bırakılır**: kapanışta `PlayerQuitEvent` bizim listener'ımıza
+hiç ulaşmaz. Yine de çökme ihtimaline karşı `PlayerJoinEvent` girişte offhand'de kalmış
+önizleme haritasını temizler (eski sürümün boolean etiketlisi dahil).
+
+İzleyicinin haritası da editörünki gibi kilitlidir. Kilitsiz bırakmak (ilk taslak)
+izleyicinin canlı bir kamera yayınını normal bir harita eşyası olarak envanterinde
+taşıyıp götürmesi demekti.
 
 ### Önizleme kameranın oranında çekilir
 
@@ -426,6 +471,8 @@ yapılmaz, çünkü `maps.yml` yüklenememişse tüm ön belleği silmek olurdu.
 | `item` | Kamera yerleştirme eşyası verir |
 | `ratio <ad> <oran>` | En-boy oranını ayarlar (`1:1`, `16:9`, `4:3`) |
 | `maps <ad> <grid>` | Çeker ve harita eşyalarını envantere verir (duvara asmadan) |
+| `preview <ad>` | Kameranın canlı önizlemesini izleyici olarak açar |
+| `preview stop` | Açık önizlemeyi kapatır (editör de izleyici de) |
 | `open <ad>` | Fotoğraf Dialog'unu açar |
 | `unplace <id>` | Kısa kimlikle (ilk 8 karakter) yerleştirilmiş fotoğrafı kaldırır |
 | `cleanup` | Çerçeveleri kaybolmuş fotoğraf kayıtlarını temizler |
@@ -449,7 +496,7 @@ toplanır ve değerler mantıklı aralıklara clamp'lenir.
 | Bölüm | Anahtarlar |
 |---|---|
 | `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player` |
-| `camera` | `display-type`, `model-material`, `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `default-pitch` (-90..90), `model-rotation.{x,y,z}` |
+| `camera` | `display-type`, `model-material`, `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `default-pitch` (-90..90), `edit-lock-seconds` (1-3600), `model-rotation.{x,y,z}` |
 | `photo` | `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
 | `placement` | `distance`, `invisible-frames`, `build-backing-wall`, `backing-material` |
 
@@ -516,7 +563,7 @@ kullanılır.
 
 | Konu | Madde |
 |---|---|
-| Kamera silindiğinde izleyicilerin önizlemesi kapanmıyor | T12 |
+| Her önizleme oturumu yeni bir harita kimliği (`map_N.dat`) harcıyor | T43 |
 | Kullanılmayan mesaj anahtarları ve metotlar | T40 |
 | Birim test yok | T41 |
 

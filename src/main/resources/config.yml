@@ -52,6 +52,12 @@ camera:
   # için 0'a (yatay bakış) yaklaştıkça kamera arazi YÜZEYİNİ göremez hale gelir:
   # kadrajın üstü gökyüzü, altı toprak kesiti olur. 20-45 arasında kal.
   default-pitch: 30.0
+  # Bir kamerayı aynı anda yalnızca tek oyuncu ayarlayabilir. Bu süre boyunca
+  # kameraya dokunmayan oyuncunun kilidi düşer ve sıradaki tıklayan devralır;
+  # aksi halde bir kez tıklayıp giden biri kamerayı kalıcı olarak kilitlerdi.
+  # Diğerleri bu sırada önizlemeyi izleyebilir, yalnızca ayar yapamaz.
+  # Saniye. Aralık: 1-3600.
+  edit-lock-seconds: 30
   # Model rotasyon düzeltmesi (derece), üç eksende serbest. Farklı bir model
   # kullanılırsa, modelin baktığı yön ile çekim yönü hizalanana kadar elle ayarlanır.
   # Uygulanma sırası Y -> X -> Z olduğundan z, modelin kendi bakış ekseni etrafında

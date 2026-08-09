@@ -27,6 +27,9 @@ import java.util.Locale;
  * Handles camera interactions: right click raises the active property, left click
  * lowers it, sneak switches which property is active or opens the capture dialog,
  * and right clicking a block with the camera item places a new camera.
+ *
+ * <p>Every gesture on a camera first claims its editor seat, since all of them change
+ * shared camera state; a player who cannot get the seat becomes a watcher instead.</p>
  */
 public final class CameraListener implements Listener {
 
@@ -60,6 +63,9 @@ public final class CameraListener implements Listener {
         }
         event.setCancelled(true);
         Player player = event.getPlayer();
+        if (!plugin.preview().claimEditor(player, camera)) {
+            return;
+        }
 
         if (player.isSneaking()) {
             camera.editProperty(camera.editProperty().next());
@@ -84,6 +90,9 @@ public final class CameraListener implements Listener {
             return;
         }
         event.setCancelled(true);
+        if (!plugin.preview().claimEditor(player, camera)) {
+            return;
+        }
 
         // Sneaking opens the capture dialog instead of lowering the property.
         if (player.isSneaking()) {

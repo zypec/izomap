@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
  *   <li>{@code item} – gives the camera placement item.</li>
  *   <li>{@code ratio <name> <ratio>} – sets the aspect ratio.</li>
  *   <li>{@code maps <name> <grid>} – puts the map items in the inventory.</li>
+ *   <li>{@code preview <name> | stop} – watches a camera's live view, or stops.</li>
  *   <li>{@code open <name>} – opens the capture dialog.</li>
  *   <li>{@code unplace <id>} – removes a placed photo.</li>
  *   <li>{@code cleanup} – clears records whose frames are gone.</li>
@@ -114,6 +115,11 @@ public final class CameraCommand {
                                 .then(Commands.argument("grid", StringArgumentType.word())
                                         .suggests(this::suggestGrids)
                                         .executes(this::makeMaps))))
+                .then(Commands.literal("preview")
+                        .then(Commands.literal("stop").executes(this::previewStop))
+                        .then(Commands.argument("name", StringArgumentType.word())
+                                .suggests(this::suggestOwnedNames)
+                                .executes(this::previewStart)))
                 .then(Commands.literal("open")
                         .then(Commands.argument("name", StringArgumentType.word())
                                 .suggests(this::suggestOwnedNames)
@@ -367,6 +373,41 @@ public final class CameraCommand {
             return 0;
         }
         dialogs.openCaptureDialog(player, camera);
+        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+    }
+
+    /** Joins the camera's preview as a watcher; adjusting still needs a click on it. */
+    private int previewStart(CommandContext<CommandSourceStack> ctx) {
+        Player player = requirePlayer(ctx);
+        if (player == null) {
+            return 0;
+        }
+        String name = StringArgumentType.getString(ctx, "name");
+        Camera camera = manager.byOwnerAndName(player.getUniqueId(), name).orElse(null);
+        if (camera == null) {
+            plugin.messages().send(player, "camera.not-found");
+            return 0;
+        }
+        switch (plugin.preview().join(player, camera)) {
+            case JOINED -> {
+                plugin.preview().refresh(camera);
+                plugin.messages().send(player, "preview.started", Placeholder.unparsed("camera", camera.name()));
+            }
+            case ALREADY -> plugin.messages().send(player, "preview.already");
+            case OFFHAND_FULL -> plugin.messages().send(player, "preview.offhand-full");
+        }
+        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+    }
+
+    private int previewStop(CommandContext<CommandSourceStack> ctx) {
+        Player player = requirePlayer(ctx);
+        if (player == null) {
+            return 0;
+        }
+        if (!plugin.preview().leave(player, "preview.ended-self")) {
+            plugin.messages().send(player, "preview.not-active");
+            return 0;
+        }
         return com.mojang.brigadier.Command.SINGLE_SUCCESS;
     }
 

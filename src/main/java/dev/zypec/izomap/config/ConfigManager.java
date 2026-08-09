@@ -151,6 +151,16 @@ public final class ConfigManager {
         return cfg().getDouble("camera.model-rotation.z", 0.0);
     }
 
+    /**
+     * How long a camera stays locked to its editor after their last click.
+     *
+     * <p>Only one player may adjust a camera at a time; without an expiry, someone who
+     * clicked once and walked away would keep it locked for good.</p>
+     */
+    public int editLockSeconds() {
+        return clamp(cfg().getInt("camera.edit-lock-seconds", 30), 1, 3600);
+    }
+
     // --- photo ---
 
     public String defaultAspectRatio() {

@@ -33,6 +33,19 @@ camera:
   item-lore:
     - "<gray>Bir bloğa <white>sağ tık</white> ile kamera yerleştir."
 
+# Canlı önizleme: kamera başına tek harita, birden çok izleyici, tek "editör".
+# Editör kamerayı tık ile ayarlayan kişidir; diğerleri yalnızca izler.
+preview:
+  started: "<green>Önizleme açıldı: <white><camera></white> <gray>(sol elindeki harita canlı görüntüdür; <white>/izocam preview stop</white> ile kapat)"
+  already: "<gray>Bu kameranın önizlemesini zaten izliyorsun."
+  offhand-full: "<red>Önizleme için sol elin (offhand) boş olmalı."
+  not-active: "<gray>Açık bir önizlemen yok."
+  busy: "<yellow>Bu kamerayı şu an <white><editor></white> ayarlıyor; sen izleyici olarak eklendin."
+  ended-self: "<gray>Önizleme kapatıldı."
+  ended-dropped: "<gray>Haritayı bıraktın, önizleme kapatıldı."
+  ended-died: "<gray>Öldüğün için önizleme kapatıldı."
+  ended-camera-removed: "<yellow>Kamera silindiği için önizleme kapatıldı: <white><camera></white>"
+
 photo:
   capturing: "<gray>Fotoğraf çekiliyor, lütfen bekle..."
   captured: "<green>Fotoğraf çekildi (<width>x<height> px)."

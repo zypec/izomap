@@ -5,7 +5,7 @@
 > güncellenir. Maddelere kimlikleriyle (T1, T2 …) referans verilir; kimlikler kalıcıdır,
 > tamamlanan maddeler silinmez, arşiv bölümüne taşınır.
 >
-> Son güncelleme: 2026-08-09
+> Son güncelleme: 2026-08-10
 
 **Öncelik:** `P0` = başkalarını bloke ediyor / bug · `P1` = asıl istenen özellikler ·
 `P2` = iyileştirme, teknik borç
@@ -23,9 +23,8 @@ T20 (retake komutu) — bağımsız (T1 bittiği için serbest)
 
 T6 (hologram) ←→ T8 (interaction/hologram ölçeği) — birlikte ele alınmalı
 
-T10 (çoklu preview altyapısı)
- ├── T11 (preview action bar)
- └── T12 (kamera silinince preview kapanmıyor — bug)
+T10 (çoklu preview altyapısı) ✔
+ └── T11 (preview action bar)
 
 T30 (renk pipeline'ının parametrikleşmesi)
  ├── T31 (kullanıcı tanımlı filtreler)
@@ -38,22 +37,7 @@ T30 (renk pipeline'ının parametrikleşmesi)
 
 ## P0 — Önce bunlar
 
-### T12 — Kamera silinince o kameranın preview'ı kapanmıyor (bug)
-
-`[ ]` **P0**
-
-Kamera silindiğinde (`/izocam remove`, `remove all cameras`, ya da entity kaybı)
-oyuncunun offhand'indeki önizleme haritası duruyor ve donmuş görüntüyle kalıyor.
-
-**Senaryolar:**
-- Kamerayı sahibi siler → o kamerayı izleyen **herkesin** preview'ı kapanır, haritası
-  alınır ve bilgilendirme mesajı gider.
-- `remove all cameras` → aynı şey tüm kameralar için.
-- Preview yapan oyuncu çevrimdışıysa → kayıt temizlenir, tekrar girdiğinde offhand'de
-  artık kalmışsa `PlayerJoinEvent` temizliği zaten yakalıyor.
-
-**Dokunulacak yerler:** `CameraManager#remove` / `removeAllOwned` → `PreviewManager`.
-T10 ile birlikte yapılırsa daha temiz olur.
+*(Şu an açık P0 maddesi yok.)*
 
 ---
 
@@ -170,46 +154,9 @@ görünmeyen bir alan tıklanabiliyor.
 
 ## P1 — Önizleme
 
-### T10 — Çoklu izleyicili preview + tek editör
-
-`[ ]` **P1** · Bloke ettikleri: T11, T12
-
-Bugün preview oyuncu başına tek `MapView` ile çalışıyor ve her oyuncu kendi render'ını
-tetikliyor. Hedef: **kamera başına** tek `MapView`, tek render; bir kamerayı aynı anda
-birden çok kişi izleyebilsin ama **yalnızca biri** düzenleyebilsin.
-
-**Roller:**
-- **Editör:** kamerayı tık ile ayarlayan tek kişi. Haritası kilitlidir — yere atamaz,
-  envanterde taşıyamaz, F ile el değiştiremez (bugünkü davranış).
-- **İzleyici:** offhand'inde aynı haritayı görür, ayar yapamaz. Haritayı atması /
-  envanterde oynatması preview'dan **çıkış** anlamına gelir (kilit yok).
-
-**Senaryolar:**
-- Kameraya ilk etkileşen editör olur; ikinci kişi etkileşmeye çalışırsa "şu an X
-  düzenliyor" mesajı alır ve izleyici olarak eklenir.
-- Editör çıkınca (komut, ölüm, disconnect, offhand'i doldurma) editör koltuğu boşalır;
-  sıradaki etkileşen kişi editör olur.
-- Preview'a katılma: `/izocam preview <ad>` (izleyici olarak).
-- Preview'dan çıkma: `/izocam preview stop` — hem editör hem izleyici için çalışır.
-- Kamera silinirse (T12) tüm izleyiciler + editör resetlenir ve mesaj alır.
-- Oyuncu **ölürse** preview/edit modundan çıkar (ölümde envanter düştüğü için harita da
-  kaybolur; ölmeden önce temizlenmeli — `PlayerDeathEvent`'te drop listesinden çıkar).
-- Oyuncu disconnect olursa çıkar.
-- Herhangi bir sebeple çıkarılan oyuncuya **neden**iyle birlikte mesaj gider:
-  "kamera silindi", "haritayı bıraktın", "öldün", "başka biri düzenliyor" vb. Hepsi
-  `messages.yml`'de ayrı anahtar.
-- Render paylaşımı: bir kamera için aynı anda tek render (`inFlight` kamera bazlı olur),
-  sonuç tek `MapView`'a uygulanır → 5 izleyici 1 render maliyeti.
-- Offhand'i dolu olan biri preview'a katılamaz (bugünkü kural korunur), mesajla bildirilir.
-
-**Dokunulacak yerler:** `PreviewManager` (oyuncu bazlıdan kamera bazlına geçiş),
-`CameraListener`, `CameraCommand`, `CameraManager#remove`, `messages.yml`.
-
----
-
 ### T11 — Preview action bar'ında canlı kamera bilgisi
 
-`[ ]` **P1** · Bağımlı: T10
+`[ ]` **P1** · Bağımlı: T10 (bitti)
 
 Preview modundaki oyuncu, tık atmasa da sürekli kamera bilgilerini action bar'da görsün.
 
@@ -527,13 +474,79 @@ budur. Aynı testin `.izm` başlık/kesik dosya senaryolarını da kapsaması ma
 
 `[ ]` **P2**
 
-T10 çoklu preview'ı getiriyor ama hâlâ tüm sorgular `owner` bazlı. Başkasının kamerasını
-izleyebilmek için sahiplik modeli genişletilmeli (herkese açık / davetli / özel) —
-T10 tamamlandıktan sonra tekrar değerlendirilecek.
+T10 çoklu izleyiciyi getirdi ama `/izocam preview <ad>` hâlâ `byOwnerAndName` ile
+çalışıyor: başkasının kamerasını **adıyla** izleyemezsin, yalnızca dünyada bulup
+tıklayarak izleyici olabilirsin (etkileşim sahiplik sormuyor). Sahiplik modeli
+genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre çözmeli.
+
+### T43 — Her önizleme oturumu bir harita kimliği harcıyor
+
+`[ ]` **P2**
+
+Oturum başlarken `Bukkit.createMap` çağrılıyor; oturum bitince o `MapView` bırakılıyor
+ama dünya klasöründeki `map_<n>.dat` kalıyor ve bir dahaki açılışta yenisi üretiliyor.
+Yani "önizleme aç/kapa" sayısı kadar harita dosyası birikiyor (T10 öncesinde de böyleydi,
+üstelik oyuncu başınaydı; T10 bunu kamera başına indirdi ama kökten çözmedi).
+
+- Seçenek (a): kamera başına `MapView`'ı **kalıcı** tut, `cameras.yml`'e `preview-map-id`
+  olarak yaz ve yeniden kullan. Kamera silinince kimlik de bırakılır (yine dosya kalır
+  ama artık kamera sayısıyla sınırlı, aç/kapa sayısıyla değil).
+- Seçenek (b): dosyaları temizleyen bir bakım komutu — Bukkit API'si harita silmeyi
+  desteklemediği için dosya seviyesinde iş, riskli.
+- (a) tercih ediliyor. Ölçüm: her `map_n.dat` birkaç KB, yani asıl sorun disk değil,
+  sunucunun harita sayacının sürekli büyümesi.
 
 ---
 
 ## Arşiv
+
+### T10 — Çoklu izleyicili preview + tek editör
+
+`[x]` **P1** · 2026-08-10 · Serbest bıraktıkları: T11
+
+Preview oturumu oyuncu başınayken kamera başına alındı: tek `MapView`, tek render, çok
+izleyici. Beş kişi bir kamerayı izlerken artık beş değil **bir** render yapılıyor;
+`inFlight` yerine oturumun kendi `rendering` bayrağı var.
+
+Editör koltuğu kameraya bağlı ve **haritadan bağımsız**: offhand'i dolu olduğu için
+önizleme alamayan biri kamerayı yine de ayarlayabilir (eski davranış korunur).
+Koltuk, sahibi çıkınca/düşünce ya da `camera.edit-lock-seconds` (yeni ayar, varsayılan
+30 sn) boyunca kameraya dokunmayınca boşalır. Zaman aşımı olmadan bir kez tıklayıp giden
+biri kamerayı kalıcı kilitlerdi.
+
+Plandan iki sapma:
+
+1. **Koltuk yalnızca "ayarlama"yı değil, kameraya yapılan her etkileşimi kapsıyor.**
+   Aktif `EditProperty` ve zoom/oran/filtre paylaşılan kamera durumu; ikinci kişinin
+   özellik değiştirmesi ya da Dialog'dan zoom'u değiştirmesi düzenleyeni kör ederdi.
+2. **İzleyicinin haritası da kilitli.** Plan "izleyici kilitsiz, haritayı oynatması
+   çıkış demek" diyordu; kilitsiz bırakmak canlı bir kamera yayınının normal harita
+   eşyası olarak envanterde taşınıp götürülmesi anlamına geliyordu. Q ile atmak her iki
+   rol için de temiz çıkış (bugünkü davranış).
+
+Ayrıca: harita artık render'ı beklemeden **boş olarak** hemen veriliyor (tık geri
+bildirimsiz kalmasın); `PlayerDeathEvent` haritayı drop listesinden çıkarıyor;
+`onDisable` haritaları topluyor — kapanışta eklentiler oyuncular atılmadan önce devre
+dışı bırakıldığı için `PlayerQuitEvent` listener'a hiç ulaşmıyor. PDC etiketi
+`preview_map` (boolean) yerine `preview_camera` (kamera UUID'si) oldu; eski etiket
+yalnızca girişteki temizlikte okunuyor.
+
+Yeni komut: `/izocam preview <ad>` (izleyici olarak katıl) ve `/izocam preview stop`.
+Yeni mesaj ağacı: `preview.*` (her çıkış nedeni ayrı anahtar).
+
+### T12 — Kamera silinince o kameranın preview'ı kapanmıyor (bug)
+
+`[x]` **P0** · 2026-08-10
+
+Kamera silindiğinde offhand'deki önizleme haritası donmuş görüntüyle kalıyordu:
+tazeleyecek kamera yok, elden çıkaracak bir yol da yok (harita kilitli).
+
+`CameraManager#forget` artık entity'lere dokunmadan **önce**
+`PreviewManager#close` çağırıyor; o kamerayı izleyen herkesin haritası alınıyor ve
+`preview.ended-camera-removed` mesajı gidiyor. `forget` tek geçiş noktası olduğu için
+`remove`, `remove all cameras` ve ileride eklenecek her silme yolu otomatik kapsanıyor.
+Çevrimdışı izleyicinin kaydı temizleniyor; offhand'inde kalan harita bir dahaki girişte
+`PlayerJoinEvent` temizliğine takılıyor.
 
 ### T1 — Fotoğraflar dosyada cache'leniyor, açılışta yeniden render edilmiyor
 

@@ -191,8 +191,14 @@ public final class CameraManager {
      * <p>Entities only resolve while their chunk is loaded, so the anchor's chunk is
      * loaded first. Otherwise the record would go but the entities would stay behind
      * as orphans: models belonging to no camera and removable by nothing.</p>
+     *
+     * <p>Anyone previewing it is released first; their map has nothing left to render
+     * and would sit in the offhand frozen on the last image.</p>
      */
     private void forget(Camera camera) {
+        if (plugin.preview() != null) {
+            plugin.preview().close(camera.id(), "preview.ended-camera-removed", camera.name());
+        }
         loadAnchorChunk(camera);
         removeEntity(camera.displayEntityId());
         removeEntity(camera.interactionEntityId());

@@ -66,6 +66,11 @@ public final class Izomap extends JavaPlugin {
 
     @Override
     public void onDisable() {
+        // Plugins are disabled before players are kicked, so the quit handler never
+        // runs on shutdown; the preview maps have to be collected here.
+        if (previewManager != null) {
+            previewManager.closeAll();
+        }
         if (photoManager != null) {
             photoManager.saveSync();
         }
