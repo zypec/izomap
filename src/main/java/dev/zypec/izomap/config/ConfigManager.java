@@ -53,11 +53,30 @@ public final class ConfigManager {
     // --- settings ---
 
     /**
-     * Işınların kameradan itibaren ileri doğru kat ettiği mesafe (blok).
-     * Bu mesafeden uzaktaki bloklar fotoğrafa girmez.
+     * Bir çekimin kapsayabileceği en geniş alanın kenar uzunluğu (blok).
+     *
+     * <p>Tek maliyet ayarıdır: hem kopyalanacak chunk sayısını hem de ışınların
+     * kat edebileceği mesafeyi sınırlar. Aşılırsa çekim yapılmaz ve oyuncuya
+     * yakınlaşması söylenir.</p>
+     *
+     * <p>Eski {@code settings.max-chunks-per-capture} anahtarı geriye dönük
+     * uyumluluk için okunur ve kenar uzunluğuna çevrilir ({@code √chunk × 16}).</p>
      */
-    public int maxRenderDistance() {
-        return clamp(cfg().getInt("settings.max-render-distance", 160), 16, 32768);
+    public int maxCaptureArea() {
+        int legacyChunks = cfg().getInt("settings.max-chunks-per-capture", 1024);
+        int legacyArea = (int) Math.round(Math.sqrt(Math.max(1, legacyChunks)) * 16.0);
+        return clamp(cfg().getInt("settings.max-capture-area", legacyArea), 64, 4096);
+    }
+
+    /**
+     * Işınların, kameranın altındaki zeminden kaç blok daha aşağıya ulaşacağı.
+     *
+     * <p>Işın mesafesi geometriden hesaplanır; bu değer yalnızca "kadrajın uzak
+     * ucundaki arazi, kameranın altındaki zeminden daha alçaksa ne kadarını
+     * görelim" payıdır. Vadi/uçurum çeken biri artırır.</p>
+     */
+    public int renderDepth() {
+        return clamp(cfg().getInt("settings.render-depth", 64), 0, 1024);
     }
 
     /** Render'ın kaç iş parçacığına bölüneceği (görüntü yatay bantlara ayrılır). */
@@ -66,14 +85,12 @@ public final class ConfigManager {
     }
 
     /**
-     * Tek bir çekimde yakalanabilecek maksimum chunk sayısı.
-     *
-     * <p>Geniş kadraj çok sayıda chunk'ın kopyalanmasını gerektirir; bu sınır,
-     * bir oyuncunun aşırı uzaklaştırıp sunucuyu dondurmasını engeller. Aşılırsa
-     * çekim yapılmaz ve oyuncuya yakınlaşması söylenir.</p>
+     * {@link #maxCaptureArea()} alanına karşılık gelen chunk sayısı bütçesi.
+     * Yakalama chunk birimiyle çalıştığı için alan burada çevrilir.
      */
     public int maxChunksPerCapture() {
-        return clamp(cfg().getInt("settings.max-chunks-per-capture", 1024), 64, 8192);
+        int side = (maxCaptureArea() + 15) / 16;
+        return side * side;
     }
 
     /**

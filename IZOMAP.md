@@ -103,13 +103,28 @@ Ortografik (izometrik). Tüm ışınlar kameranın görüntü düzleminden paral
 - **Işınları bakış yönü boyunca kaydırmak görüntüyü değiştirmez**, yalnızca nereden
   başladıklarını değiştirir. Geri çekme (aşağıda) bu özelliğe dayanır.
 
-Üç bağımsız ayar geometriyi kurar:
+Kadrajı iki ayar kurar:
 
 | Ayar | Anlamı |
 |---|---|
 | `photo.frame-height` | Kadrajın dünya-uzayı yüksekliği (blok). Kapsanan alan = `frame-height / zoom` |
 | `photo.frame-shift` | Kadrajın kameraya göre dikey kayması (kadraj yüksekliğinin oranı). `0.0` (varsayılan) = kameranın baktığı nokta kadrajın merkezi |
-| `settings.max-render-distance` | Işınların ileri kat ettiği mesafe. Aşağı eğimli geniş kadrajda kabaca `kadraj_yüksekliği / sin(pitch)` gerekir. Geri çekme mesafesini de sınırlar |
+
+#### Işın mesafesi neden ayar değil?
+
+Gereken mesafe kadrajdan ve eğimden **çıkar**, bağımsız bir tercih değildir:
+
+```
+mesafe = (kadrajın üst kenarının hedef tabana dikey inişi) / sin(pitch)
+hedef taban = min(kamera, kameranın altındaki zemin) - settings.render-depth
+```
+
+Elle ayarlandığında zoom'la birlikte güncellenmesi gerekiyordu; unutulunca kadrajın
+üstü sessizce boş kalıyor, düzeltmek için chunk bütçesini de büyütmek gerekiyordu.
+Üç değeri senkron tutmak yerine mesafe hesaplanır. Ayarlanan tek maliyet değeri
+`settings.max-capture-area`'dır; hem bu mesafeyi hem kopyalanacak chunk sayısını
+sınırlar. `settings.render-depth` yalnızca hedef tabanın zeminden ne kadar aşağıda
+olacağını belirler (vadi/uçurum payı).
 
 #### Geri çekme (backoff)
 
@@ -120,8 +135,8 @@ onları — bakış yönünde tam olarak kameranın yatay düzlemine çıkacak k
 
 - Hiçbir ışın kameranın yüksekliğinin **altından** başlamaz.
 - Kameranın hizasındaki ve üstündeki ışınlar geri çekilmez (arkadan bakış oluşmaz).
-- Geri çekme `max-render-distance` ile sınırlıdır; ileri görüş mesafesi her ışın için
-  kamera düzleminden itibaren aynı kalsın diye çekilen mesafe yürüyüşe eklenir.
+- Geri çekme hesaplanan ışın mesafesiyle sınırlıdır; ileri görüş mesafesi her ışın
+  için kamera düzleminden itibaren aynı kalsın diye çekilen mesafe yürüyüşe eklenir.
 - Chunk yakalama prizması da düzlemin gerisinden başlar, yoksa geri çekilen ışınlar
   kopyası alınmamış (hava sayılan) bir bölgeden geçerdi.
 
@@ -170,8 +185,9 @@ Geniş kadraj yüzlerce chunk kopyası demektir. Korumalar:
 
 - Işın prizması derinlik boyunca **8 dilime** ayrılıp her dilimin kutusu alınır; tek bir
   büyük kutu kullanmak çapraz bakışta gereksiz yere kat kat fazla chunk yakalardı.
-- Gereken chunk sayısı `settings.max-chunks-per-capture` sınırını aşarsa çekim
+- Gereken chunk sayısı `settings.max-capture-area`'dan türeyen bütçeyi aşarsa çekim
   **yapılmaz**: `CaptureTooLargeException` fırlar ve oyuncuya yakınlaşması söylenir.
+  Alan blok cinsindendir ve içeride `(alan/16)²` chunk'a çevrilir (512 blok ≈ 1024 chunk).
 - Yüklü olmayan chunk'lar `settings.load-missing-chunks` açıksa `getChunkAtAsync` ile
   yüklenir.
 - `settings.generate-missing-chunks` varsayılan **kapalıdır**: fotoğraf çekmek dünyayı
@@ -353,14 +369,16 @@ toplanır ve değerler mantıklı aralıklara clamp'lenir.
 
 | Bölüm | Anahtarlar |
 |---|---|
-| `settings` | `max-render-distance` (16-32768), `render-threads` (1-16), `max-chunks-per-capture` (64-8192), `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player` |
+| `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player` |
 | `camera` | `display-type`, `model-material`, `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `default-pitch` (-90..90), `model-rotation.{x,y,z}` |
 | `photo` | `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
 | `placement` | `distance`, `invisible-frames`, `build-backing-wall`, `backing-material` |
 
 **Geriye dönük uyumluluk:** `photo.region-size` → `frame-height`,
 `camera.model-pitch-offset`/`model-yaw-offset` → `model-rotation.x`/`.y`,
+`settings.max-chunks-per-capture` → `max-capture-area` (`√chunk × 16`),
 `cameras.yml` içinde `scale` → `zoom` anahtarları hâlâ okunur.
+`settings.max-render-distance` **kaldırıldı**; artık hesaplanıyor.
 
 **Dikkat — varsayılan değişikliği diske yansımaz.** `saveDefaultConfig()` mevcut
 `config.yml`'i korur, yani varsayılanı değişen bir anahtar eski kurulumlarda eski

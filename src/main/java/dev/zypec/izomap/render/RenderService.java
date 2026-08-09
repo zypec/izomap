@@ -26,15 +26,24 @@ import java.util.concurrent.atomic.AtomicInteger;
  * {@link IsometricRenderer} ile <b>asenkron</b> yürütülür. Bu sayede blok erişimi
  * daima güvenli iş parçacığında kalır, CPU-yoğun kısım ise ana thread'i bloklamaz.</p>
  *
- * <p>Geometri üç bağımsız ayardan türetilir:</p>
+ * <p>Kadrajı iki ayar kurar:</p>
  * <ul>
  *   <li>{@code photo.frame-height} — kadrajın dünya-uzayı yüksekliği, yani zoom.
  *       Ortografik projeksiyonda nesne boyutunu <b>yalnızca</b> bu belirler; kameranın
  *       hedefe uzaklığı boyutu değiştirmez.</li>
  *   <li>{@code photo.frame-shift} — kadrajın kameraya göre dikey kayması. {@code 0}
  *       iken kameranın baktığı nokta fotoğrafın ortasındadır.</li>
- *   <li>{@code settings.max-render-distance} — ışınların ileri gördüğü mesafe.</li>
  * </ul>
+ *
+ * <h2>Işın mesafesi neden ayar değil?</h2>
+ *
+ * <p>Gereken mesafe kadrajdan ve eğimden çıkar: kadrajın üst kenarındaki ışının
+ * hedef tabana inebilmesi için {@code dikey_iniş / sin(pitch)} blok yürümesi gerekir.
+ * Elle ayarlanınca zoom'la birlikte güncellenmesi gerekiyor, unutulunca da kadrajın
+ * üstü sessizce boş kalıyordu. Bu yüzden <b>hesaplanır</b>; ayarlanan tek maliyet
+ * değeri {@code settings.max-capture-area}'dır ve hem bu mesafeyi hem kopyalanacak
+ * chunk sayısını sınırlar. {@code settings.render-depth} yalnızca hedef tabanın
+ * zeminden ne kadar aşağıda olacağını belirler.</p>
  *
  * <p>Kadrajın kameranın altına düşen kısmı için ışınlar bakış yönünde geriye
  * çekilir; gerekçesi ve sınırı {@link RenderGeometry} belgesindedir.</p>
@@ -71,7 +80,7 @@ public final class RenderService {
         double frameShift = plugin.config().frameShift();
         double spanHeight = plugin.config().frameHeight() / camera.zoom();
         double spanWidth = spanHeight * ratio;
-        double maxDistance = plugin.config().maxRenderDistance();
+        int captureArea = plugin.config().maxCaptureArea();
 
         Vector direction = directionFrom(camera.camYaw(), camera.camPitch());
         Vector[] basis = basisFrom(direction);
@@ -85,11 +94,19 @@ public final class RenderService {
         Vector planeCenter = anchor.toVector()
                 .add(up.clone().multiply(spanHeight * frameShift));
 
-        // Kadrajın kameranın altına düşen kısmı, geriye çekilerek kameranın yatay
-        // düzlemine kaldırılır (bkz. RenderGeometry). `right` daima yatay olduğundan
-        // kadrajın en alçak noktası yalnızca `up` bileşeninden gelir.
-        double dropBelowEye = Math.max(0.0, (0.5 - frameShift) * spanHeight * up.getY());
+        // Işın mesafesi ayar değil, sonuçtur: kadrajın üst kenarındaki ışının hedef
+        // tabana inebilmesi için gereken mesafedir. `right` daima yatay olduğundan
+        // kadrajın dikey uçları yalnızca `up` bileşeninden gelir.
         double climb = -direction.getY();
+        double topAboveEye = Math.max(0.0, (0.5 + frameShift) * spanHeight * up.getY());
+        double floorY = Math.min(eyeY, world.getHighestBlockYAt(anchor)) - plugin.config().renderDepth();
+        double maxDistance = climb > 1.0e-6
+                ? Math.min((eyeY + topAboveEye - floorY) / climb, captureArea)
+                : captureArea;
+
+        // Kadrajın kameranın altına düşen kısmı, geriye çekilerek kameranın yatay
+        // düzlemine kaldırılır (bkz. RenderGeometry).
+        double dropBelowEye = Math.max(0.0, (0.5 - frameShift) * spanHeight * up.getY());
         double maxBackoff = climb > 1.0e-6 ? Math.min(dropBelowEye / climb, maxDistance) : 0.0;
 
         List<BoundingBox> beam = beamSlices(

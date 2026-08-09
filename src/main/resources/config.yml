@@ -3,25 +3,23 @@
 # ============================================================
 
 settings:
-  # Işınların kameradan itibaren İLERİ doğru kat ettiği mesafe (blok).
-  # Bu mesafeden uzaktaki bloklar fotoğrafa girmez (gökyüzü gibi şeffaf kalır).
-  # DİKKAT: Bu, kadrajın GENİŞLİĞİNİ değil ışının menzilini belirler. Daha çok
-  # alan görmek için photo.frame-height / kamera zoom'u kullanılır.
-  # Aşağı eğimli geniş kadrajda ışının yere ulaşabilmesi için bu değerin de
-  # kadraj yüksekliği mertebesinde olması gerekir, yoksa kadrajın üst kısmı boş
-  # (şeffaf) çıkar. Kabaca gereken: kadraj_yüksekliği / sin(pitch).
-  # Ayrıca ışınların geriye çekilme mesafesini de sınırlar (bkz. photo.frame-shift):
-  # çok küçük bir değer, kameranın altına düşen kadrajda toprak kesiti bırakabilir.
-  # Maliyeti doğrusaldır: hem render süresi hem chunk sayısı bununla büyür.
-  max-render-distance: 160
+  # TEK MALİYET AYARI: bir fotoğrafın kapsayabileceği en geniş alanın kenar
+  # uzunluğu (blok). Aşırı uzaklaştırmanın sunucuyu dondurmasını engeller;
+  # aşılırsa çekim yapılmaz ve oyuncuya yakınlaşması söylenir.
+  # Hem kopyalanacak chunk sayısını hem de ışınların kat edebileceği mesafeyi
+  # sınırlar. Maliyet bununla KARESEL büyür: 512 -> ~1024 chunk,
+  # 1024 -> ~4096 chunk. Aralık: 64-4096.
+  max-capture-area: 512
+  # Işınların, kameranın altındaki zeminden kaç blok daha AŞAĞIYA ulaşacağı.
+  # Işın mesafesi ayar değil, hesaplanan bir sonuçtur:
+  #   mesafe = (kadrajın üst kenarının hedef tabana dikey inişi) / sin(pitch)
+  # Taban, kameranın altındaki zeminin bu kadar altıdır. Yani kadrajın uzak ucu
+  # bir vadiye/uçuruma denk geliyorsa ne kadar derinini göreceğini belirler.
+  # Yüzey manzarası için varsayılan yeterlidir. Aralık: 0-1024.
+  render-depth: 64
   # Render'ın kaç iş parçacığına bölüneceği. Görüntü yatay bantlara ayrılıp
   # paralel işlenir. Aralık: 1-16.
   render-threads: 4
-  # Tek bir çekimde kopyalanabilecek maksimum chunk sayısı. Geniş kadraj çok
-  # chunk gerektirir; bu sınır aşırı uzaklaştırmanın sunucuyu dondurmasını
-  # engeller. Aşılırsa çekim yapılmaz, oyuncuya yakınlaşması söylenir.
-  # Kabaca: 1024 chunk ~ 512x512 bloklik bir kadraj. Aralık: 64-8192.
-  max-chunks-per-capture: 1024
   # Kadraja giren ama yüklü olmayan chunk'lar diskten yüklensin mi?
   # Kapalıysa sunucunun görüş mesafesi dışındaki her yer boş (şeffaf) çıkar.
   # Yükleme asenkrondur; ana thread donmaz.
@@ -46,8 +44,9 @@ camera:
   # Yaw/Pitch ayar adımı (derece).
   angle-step: 15.0
   # Yeni kurulan kameranın dikey açısı (derece, pozitif = aşağı bakış).
-  # 30 klasik izometrik açıdır. 0 (yatay bakış) kadrajın alt yarısını arazinin
-  # içine sokar; o zaman photo.frame-shift değerini artırmak gerekir.
+  # 30 klasik izometrik açıdır. Ortografik projeksiyonda ışınlar paralel olduğu
+  # için 0'a (yatay bakış) yaklaştıkça kamera arazi YÜZEYİNİ göremez hale gelir:
+  # kadrajın üstü gökyüzü, altı toprak kesiti olur. 20-45 arasında kal.
   default-pitch: 30.0
   # Model rotasyon düzeltmesi (derece), üç eksende serbest. Farklı bir model
   # kullanılırsa, modelin baktığı yön ile çekim yönü hizalanana kadar elle ayarlanır.
@@ -65,9 +64,9 @@ photo:
   # sığacağı. Kameranın zoom'u bunu böler:
   #   kapsanan alan = frame-height / zoom   (0.25x -> 192 blok, 2x -> 24 blok)
   # Ortografik (izometrik) projeksiyonda nesne boyutunu YALNIZCA bu belirler;
-  # kameranın hedefe uzaklığı boyutu DEĞİŞTİRMEZ, max-render-distance de
-  # kadrajı genişletmez. "Daha çok yer görsün" istiyorsan burayı büyüt ya da
-  # kameranın zoom'unu küçült. Aralık: 4-512.
+  # kameranın hedefe uzaklığı boyutu DEĞİŞTİRMEZ. "Daha çok yer görsün"
+  # istiyorsan burayı büyüt ya da kameranın zoom'unu küçült
+  # (settings.max-capture-area izin verdiği kadar). Aralık: 4-512.
   frame-height: 48
   # KADRAJIN DİKEY KAYMASI, kadraj yüksekliğinin oranı olarak.
   #   0.0 = kamera kadrajın tam ortasında -> kameranın baktığı nokta fotoğrafın

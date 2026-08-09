@@ -662,6 +662,39 @@ T10 tamamlandıktan sonra tekrar değerlendirilecek.
 
 ## Arşiv
 
+### T16 — Işın mesafesi ayar olmaktan çıktı, tek maliyet ayarı kaldı
+
+`[x]` **P1** · 2026-08-09
+
+`settings.max-render-distance` ve `settings.max-chunks-per-capture` bağımsız değildi:
+
+```
+chunk ≈ kadraj_genişliği × (kadraj_yüksekliği·sin(pitch) + mesafe·cos(pitch)) / 256
+```
+
+Zoom küçülünce kadraj büyüyor → kadrajın üstünün yere inmesi için mesafeyi artırmak
+gerekiyor → chunk sayısı çarpılıyor → bütçeyi de artırmak gerekiyor. Üç değeri elle
+senkron tutmak gerekiyordu; unutulan her adım sessizce boş kadraj üretiyordu.
+
+Gereken mesafe zaten hesaplanabilir bir değer olduğu için ayar olmaktan çıkarıldı:
+
+```
+mesafe = (kadrajın üst kenarının hedef tabana dikey inişi) / sin(pitch)
+hedef taban = min(kamera, kameranın altındaki zemin) - settings.render-depth
+```
+
+- **Yeni:** `settings.max-capture-area` (blok) — tek maliyet ayarı. Hem hesaplanan
+  mesafeyi hem chunk bütçesini sınırlar; içeride `(alan/16)²` chunk'a çevrilir.
+- **Yeni:** `settings.render-depth` (blok, dikey) — hedef tabanın zeminden ne kadar
+  aşağıda olacağı. Vadi/uçurum payı; pitch'ten bağımsız olduğu için nadiren değişir.
+- **Kalktı:** `max-render-distance`, `max-chunks-per-capture` (ikincisi geriye dönük
+  okunup alana çevriliyor: `√chunk × 16`).
+
+Doğrulama (düz arazi, `frame-height` 48, alan 512, derinlik 64): zoom 1.0-0.25 ve
+pitch 15-90 aralığının tamamında **%0 boş piksel**, ışınların gezdiği her chunk
+yakalama kümesinde. Bütçe yalnızca 384 blokluk kadrajda devreye giriyor ve oyuncuya
+yakınlaşması söyleniyor.
+
 ### T15 — Fotoğrafta chunk boyunda şeffaf delikler
 
 `[x]` **P0** · 2026-08-09

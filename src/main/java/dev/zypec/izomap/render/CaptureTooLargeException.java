@@ -1,7 +1,7 @@
 package dev.zypec.izomap.render;
 
 /**
- * Kadraj, {@code settings.max-chunks-per-capture} sınırından daha fazla chunk
+ * Kadraj, {@code settings.max-capture-area} sınırından daha fazla chunk
  * gerektirdiğinde fırlatılır.
  *
  * <p>Çekimi reddetmek, sunucuyu yüzlerce megabaytlık chunk kopyasıyla dondurmaya

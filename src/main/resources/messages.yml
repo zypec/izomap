@@ -37,7 +37,7 @@ photo:
   capturing: "<gray>Fotoğraf çekiliyor, lütfen bekle..."
   captured: "<green>Fotoğraf çekildi (<width>x<height> px)."
   failed: "<red>Fotoğraf çekimi başarısız oldu."
-  too-large: "<red>Kadraj çok geniş: <white><required></white> chunk gerekiyor, sınır <white><budget></white>. Yakınlaştırmayı (zoom) artır."
+  too-large: "<red>Kadraj çok geniş: <white><required></white> chunk gerekiyor, sınır <white><budget></white> <gray>(settings.max-capture-area)</gray>. Yakınlaştırmayı (zoom) artır."
   saved: "<green>Fotoğraf kaydedildi: <white><file></white> <gray>(<width>x<height>, <ms>ms)"
   ratio-set: "<green>En-boy oranı ayarlandı: <white><ratio></white>"
   invalid-ratio: "<red>Geçersiz en-boy oranı. Seçenekler: 1:1, 16:9, 4:3"
