@@ -13,13 +13,37 @@ public final class ConfigManager {
 
     private final Izomap plugin;
 
+    /**
+     * Bu değerin üstündeki {@code frame-shift}, kadrajın tamamını kameranın üstüne
+     * çıkarmaya yeter; yatay bakan kameralarda fotoğraf tamamen boş çıkar.
+     */
+    private static final double RISKY_FRAME_SHIFT = 0.25;
+
     public ConfigManager(Izomap plugin) {
         this.plugin = plugin;
         plugin.saveDefaultConfig();
+        warnRiskySettings();
     }
 
     public void reload() {
         plugin.reloadConfig();
+        warnRiskySettings();
+    }
+
+    /**
+     * Sessizce boş fotoğraf üretebilecek ayarları açılışta/reload'da bildirir.
+     *
+     * <p>Varsayılanı değişmiş olsa bile diskteki eski {@code config.yml} korunur,
+     * yani eski bir kurulum farkında olmadan riskli değerle çalışmaya devam eder.</p>
+     */
+    private void warnRiskySettings() {
+        double shift = frameShift();
+        if (shift >= RISKY_FRAME_SHIFT) {
+            plugin.getLogger().warning("photo.frame-shift = " + shift
+                    + ": kadraj kameranın üstüne kaydırılmış. Eğimi düşük (yatay ya da yukarı bakan)"
+                    + " kameralarda hiçbir ışın araziye inmez ve fotoğraflar BOŞ çıkar."
+                    + " Önerilen değer 0.0 (kameranın baktığı nokta kadrajın merkezi olur).");
+        }
     }
 
     private FileConfiguration cfg() {
@@ -159,11 +183,18 @@ public final class ConfigManager {
     /**
      * Kadrajın kameraya göre dikey kayması, kadraj yüksekliğinin oranı olarak.
      *
-     * <p>0.0 kamerayı kadrajın tam ortasına koyar (alt yarı kameranın altını, yani
-     * çoğu zaman yer altını görür); 0.5 kamerayı kadrajın alt kenarına alır.</p>
+     * <p>{@code 0.0} (varsayılan) kamerayı kadrajın tam ortasına koyar: kameranın
+     * baktığı nokta fotoğrafın merkezidir. Pozitif değerler kadrajı yukarı kaydırır;
+     * {@code 0.5} kamerayı kadrajın alt kenarına alır ve kadrajın tamamını kameranın
+     * üstüne çıkarır — bu, yatay ya da yukarı bakan bir kamerada <b>tamamen boş</b>
+     * fotoğraf demektir, çünkü ortografik ışınların hiçbiri araziye inmez.</p>
+     *
+     * <p>Kadrajın kameranın altına düşen kısmının toprak kesiti basması,
+     * bu kaydırmayla değil ışınların geriye çekilmesiyle çözülür
+     * ({@link dev.zypec.izomap.render.RenderGeometry}).</p>
      */
     public double frameShift() {
-        return clamp(cfg().getDouble("photo.frame-shift", 0.5), -1.0, 1.0);
+        return clamp(cfg().getDouble("photo.frame-shift", 0.0), -1.0, 1.0);
     }
 
     /** Kenar yumuşatma: piksel başına NxN ışın. 1 = kapalı. Maliyet N² kat artar. */

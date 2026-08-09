@@ -116,7 +116,7 @@ public final class CameraStorage extends YamlStorage {
         camera.camYaw((float) s.getDouble("cam-yaw"));
         camera.camPitch((float) s.getDouble("cam-pitch"));
         // Eski kayıtlarda anahtar "scale" idi; anlamı aynı olduğu için doğrudan okunur.
-            camera.zoom((float) s.getDouble("zoom", s.getDouble("scale", 1.0)));
+        camera.zoom((float) s.getDouble("zoom", s.getDouble("scale", 1.0)));
         camera.aspectRatio(AspectRatio.fromString(s.getString("aspect-ratio"), AspectRatio.RATIO_1_1));
         camera.colorFilter(ColorFilter.fromString(s.getString("color-filter"), ColorFilter.ORIGINAL));
         return camera;

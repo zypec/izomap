@@ -10,6 +10,8 @@ settings:
   # Aşağı eğimli geniş kadrajda ışının yere ulaşabilmesi için bu değerin de
   # kadraj yüksekliği mertebesinde olması gerekir, yoksa kadrajın üst kısmı boş
   # (şeffaf) çıkar. Kabaca gereken: kadraj_yüksekliği / sin(pitch).
+  # Ayrıca ışınların geriye çekilme mesafesini de sınırlar (bkz. photo.frame-shift):
+  # çok küçük bir değer, kameranın altına düşen kadrajda toprak kesiti bırakabilir.
   # Maliyeti doğrusaldır: hem render süresi hem chunk sayısı bununla büyür.
   max-render-distance: 160
   # Render'ın kaç iş parçacığına bölüneceği. Görüntü yatay bantlara ayrılıp
@@ -68,11 +70,16 @@ photo:
   # kameranın zoom'unu küçült. Aralık: 4-512.
   frame-height: 48
   # KADRAJIN DİKEY KAYMASI, kadraj yüksekliğinin oranı olarak.
-  #   0.0 = kamera kadrajın tam ortasında -> alt yarı kameranın altını, yani
-  #         genelde YER ALTINI gösterir (arazi kesiti).
-  #   0.5 = kamera kadrajın alt kenarında -> her şey kameranın üstünde kalır.
-  # Fotoğrafın altında toprak/taş kesiti görüyorsan bu değeri artır.
-  frame-shift: 0.5
+  #   0.0 = kamera kadrajın tam ortasında -> kameranın baktığı nokta fotoğrafın
+  #         merkezidir. Normal kullanım budur.
+  #   0.5 = kamera kadrajın alt kenarında -> kadrajın TAMAMI kameranın üstünde
+  #         kalır. DİKKAT: ortografik projeksiyonda ışınlar paraleldir, yani
+  #         yatay (pitch ~0) ya da yukarı bakan bir kamerada hiçbir ışın araziye
+  #         inmez ve fotoğraf TAMAMEN BOŞ çıkar.
+  # Kadrajın kameranın altına düşen kısmının toprak kesiti basmasını bu ayar
+  # çözmez; o iş, ışınların bakış yönünde geriye çekilmesiyle otomatik yapılır
+  # (kameranın yatay düzleminin altından hiçbir ışın başlamaz).
+  frame-shift: 0.0
   # KENAR YUMUŞATMA: piksel başına NxN ışın gönderilip ortalaması alınır.
   # 1 = kapalı (en hızlı), 2 = önerilen, 3-4 = daha temiz kenar, N² kat maliyet.
   supersampling: 2

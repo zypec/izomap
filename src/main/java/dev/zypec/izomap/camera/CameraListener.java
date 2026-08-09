@@ -31,6 +31,12 @@ import java.util.Locale;
  */
 public final class CameraListener implements Listener {
 
+    /**
+     * Bu eğimin altında ortografik ışınlar arazi yüzeyine inemez: fotoğraf gökyüzü
+     * ile toprak kesitine bölünür. Oyuncuya uyarı gönderilir.
+     */
+    private static final float SHALLOW_PITCH = 10.0f;
+
     private final Izomap plugin;
     private final CameraManager manager;
     private final CameraKeys keys;
@@ -124,7 +130,14 @@ public final class CameraListener implements Listener {
     private void adjust(Camera camera, int direction, Player player) {
         switch (camera.editProperty()) {
             case YAW -> camera.camYaw((float) (camera.camYaw() + direction * plugin.config().angleStep()));
-            case PITCH -> camera.camPitch((float) (camera.camPitch() + direction * plugin.config().angleStep()));
+            case PITCH -> {
+                camera.camPitch((float) (camera.camPitch() + direction * plugin.config().angleStep()));
+                if (camera.camPitch() < SHALLOW_PITCH) {
+                    plugin.messages().send(player, "camera.shallow-pitch",
+                            Placeholder.unparsed("pitch",
+                                    String.format(Locale.ROOT, "%.0f", camera.camPitch())));
+                }
+            }
             // Zoom çarpımsal ilerler: her tık yüzde olarak aynı miktarda yakınlaştırır,
             // böylece 0.05x ile 8x arasında her yerde adım aralığı dengeli kalır.
             case ZOOM -> {

@@ -22,6 +22,7 @@ import org.bukkit.persistence.PersistentDataType;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -76,7 +77,16 @@ public final class PreviewManager implements Listener {
         }
         MapView view = views.computeIfAbsent(id, key -> mapService.createMapView(player.getWorld(), blank()));
 
-        renderService.capture(camera, TILE, TILE).whenComplete((result, error) ->
+        CompletableFuture<RenderResult> capture;
+        try {
+            capture = renderService.capture(camera, TILE, TILE);
+        } catch (RuntimeException ex) {
+            // Senkron hata: kilit burada bırakılmazsa önizleme kalıcı olarak donar.
+            inFlight.remove(id);
+            throw ex;
+        }
+
+        capture.whenComplete((result, error) ->
                 plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> {
                     inFlight.remove(id);
                     if (error == null && result != null) {

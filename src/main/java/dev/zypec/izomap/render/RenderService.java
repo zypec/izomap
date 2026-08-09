@@ -32,9 +32,13 @@ import java.util.concurrent.atomic.AtomicInteger;
  *   <li>{@code photo.frame-height} — kadrajın dünya-uzayı yüksekliği, yani zoom.
  *       Ortografik projeksiyonda nesne boyutunu <b>yalnızca</b> bu belirler; kameranın
  *       hedefe uzaklığı boyutu değiştirmez.</li>
- *   <li>{@code photo.frame-shift} — kadrajın kameraya göre dikey kayması.</li>
+ *   <li>{@code photo.frame-shift} — kadrajın kameraya göre dikey kayması. {@code 0}
+ *       iken kameranın baktığı nokta fotoğrafın ortasındadır.</li>
  *   <li>{@code settings.max-render-distance} — ışınların ileri gördüğü mesafe.</li>
  * </ul>
+ *
+ * <p>Kadrajın kameranın altına düşen kısmı için ışınlar bakış yönünde geriye
+ * çekilir; gerekçesi ve sınırı {@link RenderGeometry} belgesindedir.</p>
  */
 public final class RenderService {
 
@@ -65,6 +69,7 @@ public final class RenderService {
         }
 
         double ratio = (double) widthPx / heightPx;
+        double frameShift = plugin.config().frameShift();
         double spanHeight = plugin.config().frameHeight() / camera.zoom();
         double spanWidth = spanHeight * ratio;
         double maxDistance = plugin.config().maxRenderDistance();
@@ -74,12 +79,22 @@ public final class RenderService {
         Vector right = basis[0];
         Vector up = basis[1];
 
-        // Kadraj kameranın hizasındadır; frame-shift onu kadraj yüksekliğinin bir
+        // Kadraj kameranın hizasındadır: frame-shift 0 iken kameranın baktığı nokta
+        // fotoğrafın tam ortasındadır. Pozitif değer kadrajı kadraj yüksekliğinin bir
         // oranı kadar yukarı kaydırır (0.5 = kamera kadrajın alt kenarında).
+        double eyeY = anchor.getY();
         Vector planeCenter = anchor.toVector()
-                .add(up.clone().multiply(spanHeight * plugin.config().frameShift()));
+                .add(up.clone().multiply(spanHeight * frameShift));
 
-        List<BoundingBox> beam = beamSlices(planeCenter, right, up, direction, spanWidth, spanHeight, maxDistance);
+        // Kadrajın kameranın altına düşen kısmı, geriye çekilerek kameranın yatay
+        // düzlemine kaldırılır (bkz. RenderGeometry). `right` daima yatay olduğundan
+        // kadrajın en alçak noktası yalnızca `up` bileşeninden gelir.
+        double dropBelowEye = Math.max(0.0, (0.5 - frameShift) * spanHeight * up.getY());
+        double climb = -direction.getY();
+        double maxBackoff = climb > 1.0e-6 ? Math.min(dropBelowEye / climb, maxDistance) : 0.0;
+
+        List<BoundingBox> beam = beamSlices(
+                planeCenter, right, up, direction, spanWidth, spanHeight, maxBackoff, maxDistance);
         Set<Long> chunkKeys = chunkKeys(beam);
 
         int budget = plugin.config().maxChunksPerCapture();
@@ -88,7 +103,8 @@ public final class RenderService {
         }
 
         RenderGeometry geometry = new RenderGeometry(
-                planeCenter, right, up, direction, spanWidth, spanHeight, maxDistance, widthPx, heightPx);
+                planeCenter, right, up, direction, spanWidth, spanHeight, maxDistance,
+                eyeY, maxBackoff, widthPx, heightPx);
         ColorFilter filter = camera.colorFilter();
         int supersampling = plugin.config().supersampling();
         int threads = plugin.config().renderThreads();
@@ -226,16 +242,21 @@ public final class RenderService {
      * <p>Tek bir kutu kullanılsaydı, çapraz bakışta prizmanın eğik olması yüzünden
      * kutu gereğinden çok daha geniş olur ve yakalanacak chunk sayısı katlanırdı.
      * Dilimleme, yakalanan bölgeyi prizmanın gerçek şekline yaklaştırır.</p>
+     *
+     * <p>Prizma, geri çekilen ışınları da kapsaması için düzlemin
+     * {@code backoff} blok <b>gerisinden</b> başlar; o bölge yakalanmazsa geri
+     * çekilen ışınlar boş (hava) bir alandan geçer ve fotoğrafın alt kısmı
+     * yanlış çıkardı.</p>
      */
     private static List<BoundingBox> beamSlices(Vector center, Vector right, Vector up, Vector direction,
-                                                double spanW, double spanH, double maxDist) {
+                                                double spanW, double spanH, double backoff, double maxDist) {
         double hw = spanW / 2.0;
         double hh = spanH / 2.0;
-        double sliceDepth = maxDist / BEAM_SLICES;
+        double sliceDepth = (backoff + maxDist) / BEAM_SLICES;
 
         List<BoundingBox> slices = new ArrayList<>(BEAM_SLICES);
         for (int i = 0; i < BEAM_SLICES; i++) {
-            double near = i * sliceDepth;
+            double near = -backoff + i * sliceDepth;
             BoundingBox box = null;
             for (int sw = -1; sw <= 1; sw += 2) {
                 for (int sh = -1; sh <= 1; sh += 2) {

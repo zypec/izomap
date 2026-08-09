@@ -87,6 +87,11 @@ public final class IsometricRenderer {
         final double spanW = geo.spanWidth();
         final double spanH = geo.spanHeight();
         final double maxDist = geo.maxDistance();
+        final double eyeY = geo.eyeY();
+        final double maxBackoff = geo.maxBackoff();
+        // Aşağı bakışın dikey bileşeni; ışını geriye çekmenin onu ne kadar
+        // yükselttiğini verir (yatay ya da yukarı bakışta 0 -> geri çekme yok).
+        final double climbPerBlock = -dy;
         final int total = samples * samples;
         final boolean needsSnap = samples > 1 || filter != ColorFilter.ORIGINAL;
 
@@ -99,12 +104,34 @@ public final class IsometricRenderer {
                     for (int sx = 0; sx < samples; sx++) {
                         double u = ((px + (sx + 0.5) / samples) / w - 0.5) * spanW;
 
-                        // Işın, kameranın kendi düzleminden başlar ve yalnızca ileri gider.
                         double ox = cx + rx * u + ux * v;
                         double oy = cy + ry * u + uy * v;
                         double oz = cz + rz * u + uz * v;
 
-                        int color = marchRay(snapshot, ox, oy, oz, dx, dy, dz, maxDist);
+                        // Kadrajın kameranın altına düşen kısmı toprağın içinde
+                        // başlar ve fotoğrafa toprak kesiti basardı; o ışınlar
+                        // kameranın yatay düzlemine çıkacak kadar geri çekilir.
+                        // Ortografik projeksiyonda bu, görüntüyü değiştirmez.
+                        double backoff = 0.0;
+                        if (maxBackoff > 0.0 && oy < eyeY) {
+                            double needed = (eyeY - oy) / climbPerBlock;
+                            if (needed <= maxBackoff) {
+                                backoff = needed;
+                                // Hedef yükseklik tam olarak eyeY'dir; doğrudan
+                                // atanır, yoksa yuvarlama ışını bir tık aşağıda
+                                // bırakıp taban sırasına toprak bastırabilir.
+                                oy = eyeY;
+                            } else {
+                                backoff = maxBackoff;
+                                oy -= dy * backoff;
+                            }
+                            ox -= dx * backoff;
+                            oz -= dz * backoff;
+                        }
+
+                        // İleri görüş mesafesi kamera düzleminden ölçülür: geri
+                        // çekilen ışın, çekildiği kadarını ek olarak yürür.
+                        int color = marchRay(snapshot, ox, oy, oz, dx, dy, dz, maxDist + backoff);
                         if (color != MISS) {
                             hits++;
                             sumR += (color >> 16) & 0xFF;

@@ -24,6 +24,9 @@ camera:
   list-entry: "<dark_gray>› <white><name></white> <gray>(<ratio>, zoom <scale>x)"
   list-empty: "<gray>Henüz bir kameran yok."
   edit-property: "<gray>Ayarlanan: <white><property></white> <dark_gray>|</dark_gray> <yellow><value></yellow>"
+  # Ortografik projeksiyonda ışınlar paraleldir: yatay bakan bir kamera arazi
+  # yüzeyini göremez, yalnızca gökyüzü ile toprak kesitini görür.
+  shallow-pitch: "<yellow>Kamera neredeyse yatay bakıyor (<pitch>°). İzometrik bir kare için eğimi <white>20-45°</white> arasına al; aksi halde fotoğrafın yarısı gökyüzü, yarısı toprak kesiti olur."
   edit-switched: "<gray>Ayar modu: <white><property></white>"
   item-name: "<gradient:#5e60ce:#48bfe3>Izomap Kamerası</gradient>"
   item-lore:

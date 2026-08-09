@@ -98,16 +98,37 @@ Ortografik (izometrik). Tüm ışınlar kameranın görüntü düzleminden paral
 
 - Nesne boyutunu **yalnızca** kadraj yüksekliği belirler; kameranın hedefe uzaklığı
   boyutu **değiştirmez**.
-- Düzlem tam kameranın hizasındadır, dolayısıyla kameranın arkasındaki veya içinde
-  durduğu arazi fotoğrafa giremez.
+- Düzlem tam kameranın hizasındadır, dolayısıyla kameranın arkasındaki arazi
+  fotoğrafa giremez.
+- **Işınları bakış yönü boyunca kaydırmak görüntüyü değiştirmez**, yalnızca nereden
+  başladıklarını değiştirir. Geri çekme (aşağıda) bu özelliğe dayanır.
 
 Üç bağımsız ayar geometriyi kurar:
 
 | Ayar | Anlamı |
 |---|---|
 | `photo.frame-height` | Kadrajın dünya-uzayı yüksekliği (blok). Kapsanan alan = `frame-height / zoom` |
-| `photo.frame-shift` | Kadrajın kameraya göre dikey kayması (kadraj yüksekliğinin oranı). `0.5` = kamera kadrajın alt kenarında |
-| `settings.max-render-distance` | Işınların ileri kat ettiği mesafe. Aşağı eğimli geniş kadrajda kabaca `kadraj_yüksekliği / sin(pitch)` gerekir |
+| `photo.frame-shift` | Kadrajın kameraya göre dikey kayması (kadraj yüksekliğinin oranı). `0.0` (varsayılan) = kameranın baktığı nokta kadrajın merkezi |
+| `settings.max-render-distance` | Işınların ileri kat ettiği mesafe. Aşağı eğimli geniş kadrajda kabaca `kadraj_yüksekliği / sin(pitch)` gerekir. Geri çekme mesafesini de sınırlar |
+
+#### Geri çekme (backoff)
+
+Kadrajın kameranın **altına** düşen kısmı, kamera yere yakınsa toprağın içinde başlar
+ve fotoğrafın altına düz bir toprak kesiti basar. Çözüm, o ışınları — ve yalnızca
+onları — bakış yönünde tam olarak kameranın yatay düzlemine çıkacak kadar geri
+çekmektir. Ortografik projeksiyonda bu, kadrajı/zoom'u hiç değiştirmez.
+
+- Hiçbir ışın kameranın yüksekliğinin **altından** başlamaz.
+- Kameranın hizasındaki ve üstündeki ışınlar geri çekilmez (arkadan bakış oluşmaz).
+- Geri çekme `max-render-distance` ile sınırlıdır; ileri görüş mesafesi her ışın için
+  kamera düzleminden itibaren aynı kalsın diye çekilen mesafe yürüyüşe eklenir.
+- Chunk yakalama prizması da düzlemin gerisinden başlar, yoksa geri çekilen ışınlar
+  kopyası alınmamış (hava sayılan) bir bölgeden geçerdi.
+
+> **Eğim uyarısı.** Ortografik ışınlar paralel olduğu için **yatay bakan bir kamera
+> arazi yüzeyini göremez**: kadrajın üstü gökyüzü, altı toprak kesiti olur. İzometrik
+> bir kare için eğim 20-45° arasında olmalıdır; `camera.default-pitch` bu yüzden 30'dur
+> ve eğim 10°'nin altına indirilirse oyuncuya uyarı gider.
 
 ### Işın yürüyüşü — `IsometricRenderer`
 
@@ -303,6 +324,12 @@ toplanır ve değerler mantıklı aralıklara clamp'lenir.
 **Geriye dönük uyumluluk:** `photo.region-size` → `frame-height`,
 `camera.model-pitch-offset`/`model-yaw-offset` → `model-rotation.x`/`.y`,
 `cameras.yml` içinde `scale` → `zoom` anahtarları hâlâ okunur.
+
+**Dikkat — varsayılan değişikliği diske yansımaz.** `saveDefaultConfig()` mevcut
+`config.yml`'i korur, yani varsayılanı değişen bir anahtar eski kurulumlarda eski
+değeriyle çalışmaya devam eder. `photo.frame-shift` için bu sessizce boş fotoğraf
+demek olduğundan, `ConfigManager` açılışta ve `/izocam reload` sonrasında değeri
+kontrol edip `0.25`'in üstündeyse log uyarısı verir.
 
 ### Veri dosyaları
 

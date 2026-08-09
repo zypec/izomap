@@ -662,4 +662,27 @@ T10 tamamlandıktan sonra tekrar değerlendirilecek.
 
 ## Arşiv
 
-*(Tamamlanan maddeler buraya taşınır.)*
+### T13 — Fotoğraflar boş çıkıyor (kadraj regresyonu)
+
+`[x]` **P0** · 2026-08-09
+
+`photo.frame-shift` varsayılanı `0.5` idi, yani kadrajın tamamı kameranın üstünde
+kalıyordu. Ortografik projeksiyonda ışınlar paralel olduğu için eğimi düşük bir
+kamerada hiçbir ışın araziye inmiyor ve fotoğraf **tamamen boş** çıkıyordu
+(pitch 0'da %100 boş, pitch 15'te %12,5). Eski kameraların tamamı `cam-pitch: 0`
+ile kayıtlı olduğundan hepsi bu duruma düşüyordu.
+
+`0.5`'in asıl amacı, kadrajın kameranın altına düşen kısmının toprak kesiti
+basmasını engellemekti. Bu artık **geri çekme** ile çözülüyor: yalnızca kameranın
+altında kalan ışınlar, bakış yönünde kameranın yatay düzlemine çıkacak kadar geri
+çekiliyor (ortografik projeksiyonda bu görüntüyü değiştirmez). Böylece
+`frame-shift` varsayılanı `0.0` yapılabildi.
+
+Sonuç (düz arazi, `frame-height` 48, `max-render-distance` 160): pitch 10-90
+arasında %0 boş piksel ve %0 toprak kesiti.
+
+**Dokunulan yerler:** `RenderGeometry` (`eyeY`, `maxBackoff`), `RenderService`
+(geri çekme hesabı + ışın prizması düzlemin gerisinden başlıyor),
+`IsometricRenderer` (ışın başına geri çekme), `ConfigManager`
+(`frame-shift` varsayılanı + riskli değer için açılış uyarısı), `config.yml`,
+`messages.yml` + `CameraListener` (`camera.shallow-pitch` uyarısı).
