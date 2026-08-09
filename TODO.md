@@ -24,7 +24,7 @@ T20 (retake komutu) — bağımsız (T1 bittiği için serbest)
 T6 (hologram) ←→ T8 (interaction/hologram ölçeği) — birlikte ele alınmalı
 
 T10 (çoklu preview altyapısı) ✔
- └── T11 (preview action bar)
+ └── T11 (preview action bar) ✔
 
 T30 (renk pipeline'ının parametrikleşmesi)
  ├── T31 (kullanıcı tanımlı filtreler)
@@ -51,14 +51,16 @@ T30 (renk pipeline'ının parametrikleşmesi)
 Sol/sağ tık kamerayı ilgili eksende ileri/geri (ya da yukarı/aşağı) taşır.
 
 - Action bar etiketi sadece **"Hareket"** yazar; parantezde eksen: `Hareket(x)` yatay,
-  `Hareket(y)` dikey.
+  `Hareket(y)` dikey. T11 satırı `EditProperty.values()` üzerinde döndüğü için yeni
+  modlar kendiliğinden görünür; yapılacak tek şey `messages.yml`'e
+  `preview.property.MOVE_X` / `MOVE_Y` etiketlerini ve değer biçimini eklemek.
 - Yatay hareket kameranın kendi bakış yönünde mi, yoksa dünya eksenlerinde mi olsun?
   → Kameranın bakış yönünün **yatay izdüşümü** boyunca (ileri/geri) daha sezgisel;
   sağa/sola için ayrı bir mod gerekiyorsa üçüncü bir seçenek eklenir. Karar T4
   uygulanırken netleşecek, varsayılan: bakış yönünde ileri/geri.
 - Adım miktarı config'ten (`camera.move-step`, varsayılan 1.0 blok).
 - Hareket, display + interaction entity'yi birlikte taşır (`CameraManager#move` var).
-- Hareket sonrası preview yenilenir (T11 ile action bar da).
+- Hareket sonrası preview yenilenir; durum satırı (T11) zaten tazelenir.
 - Hologram (T6) kamerayla birlikte taşınır.
 
 **Dokunulacak yerler:** `EditProperty`, `CameraListener#adjust`, `CameraManager#move`,
@@ -149,27 +151,6 @@ görünmeyen bir alan tıklanabiliyor.
   tık kutusu onu takip etmeli.
 - T6'daki hologramın dikey offset'i de ölçekle birlikte kaymalı, yoksa büyük modelde
   metin modelin içinde kalır — iki madde birlikte ele alınmalı.
-
----
-
-## P1 — Önizleme
-
-### T11 — Preview action bar'ında canlı kamera bilgisi
-
-`[ ]` **P1** · Bağımlı: T10 (bitti)
-
-Preview modundaki oyuncu, tık atmasa da sürekli kamera bilgilerini action bar'da görsün.
-
-- Gösterilecekler: yaw, pitch, zoom (ve kapsanan blok sayısı), T4 sonrası hareket modu.
-- **Aktif `EditProperty` bold**, diğerleri normal yazılır. (İzleyicilerde aktif özellik
-  editörünkidir; sadece bilgi amaçlı.)
-- Action bar şablonu `messages.yml`'de MiniMessage olarak configli:
-  `preview.actionbar` + her özellik için `preview.property.<AD>` etiketi.
-  Etiketler configli olacak (`YAW` → "Yön", `PITCH` → "Eğim", `ZOOM` → "Zoom",
-  `MOVE_X` → "Hareket(x)", `MOVE_Y` → "Hareket(y)").
-- Action bar tekrar tekrar gönderilmeli (kaybolmasın): ~1 sn'lik tekrarlayan görev,
-  yalnızca preview'daki oyuncular için. Ayar değişince anında da güncellenir.
-- Görev, preview'da kimse yoksa çalışmamalı (boşuna tick yakmasın).
 
 ---
 
@@ -499,6 +480,29 @@ Yani "önizleme aç/kapa" sayısı kadar harita dosyası birikiyor (T10 öncesin
 ---
 
 ## Arşiv
+
+### T11 — Preview action bar'ında canlı kamera bilgisi
+
+`[x]` **P1** · 2026-08-10
+
+Önizlemedeki herkes tık atmadan da kameranın ayarlarını görüyor; ayarlanmakta olan
+özellik kalın/sarı yazılıyor. Görev ilk izleyiciyle başlıyor, son izleyici çıkınca
+kendini durduruyor (client action bar'ı ~3 sn'de solduğu için saniyede bir gönderiliyor).
+
+Satır `CameraStatus` (yeni, `camera/`) tarafından üretiliyor ve **hem tıklamanın anlık
+geri bildirimi hem tekrarlayan yenileme** aynı koddan geçiyor. Bunun yan etkisi olarak
+`camera.edit-property` ve `camera.edit-switched` mesajları kaldırıldı: durum satırı
+zaten "hangi moddayım"ın cevabı, ikisi birden gönderilirse biri diğerini bir saniye
+içinde eziyordu. Aynı sebeple `CameraListener#currentValue` de gitti — değer biçimleri
+artık `messages.yml`'de (`preview.value-angle`, `preview.value-zoom`), yani "blok"
+kelimesi de koddan çıktı (kural 3).
+
+Özellik etiketleri `preview.property.<EDITPROPERTY_ADI>` altından okunuyor ve satır
+`EditProperty.values()` üzerinde dönüyor; T4'ün hareket modları eklendiğinde satır
+kendiliğinden büyür, yalnızca etiket eklemek gerekir.
+
+Plana ek: bütçe aşımı uyarısı durum satırına ezdirilmiyor. Uyarı geldiğinde oturum 5
+saniyeliğine "notice" moduna giriyor; aksi halde uyarı bir saniye sonra kayboluyordu.
 
 ### T10 — Çoklu izleyicili preview + tek editör
 

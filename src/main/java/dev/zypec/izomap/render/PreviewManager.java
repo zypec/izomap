@@ -2,7 +2,9 @@ package dev.zypec.izomap.render;
 
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.camera.Camera;
+import dev.zypec.izomap.camera.CameraStatus;
 import dev.zypec.izomap.map.MapService;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.NamespacedKey;
@@ -66,6 +68,11 @@ public final class PreviewManager implements Listener {
     private static final int GUIDE_LIGHT = 0xFFFFFFFF;
     private static final int GUIDE_DARK = 0xFF303030;
 
+    /** The client fades the action bar out after ~3 s, so it is resent every second. */
+    private static final long STATUS_PERIOD_TICKS = 20L;
+    /** How long a warning keeps the action bar to itself. */
+    private static final long NOTICE_MS = 5_000L;
+
     /** Outcome of trying to join a camera's preview. */
     public enum JoinResult {
         /** The map is now in the player's offhand. */
@@ -86,6 +93,8 @@ public final class PreviewManager implements Listener {
 
     private final Map<UUID, PreviewSession> sessions = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> watchedCamera = new ConcurrentHashMap<>();
+    /** Runs only while somebody is watching; see {@link #startStatusTask()}. */
+    private ScheduledTask statusTask;
 
     public PreviewManager(Izomap plugin, RenderService renderService, MapService mapService) {
         this.plugin = plugin;
@@ -105,6 +114,9 @@ public final class PreviewManager implements Listener {
         private long editorTouchedAt;
         /** One render at a time per camera; swallows click spam from every watcher. */
         private boolean rendering;
+        /** Takes the action bar over from the status line until it expires. */
+        private Component notice;
+        private long noticeUntil;
 
         private PreviewSession(UUID cameraId) {
             this.cameraId = cameraId;
@@ -154,6 +166,7 @@ public final class PreviewManager implements Listener {
         // Handed over blank: the first render lands a moment later, and waiting for it
         // would leave the click with no feedback at all.
         player.getInventory().setItemInOffHand(previewItem(session.view, camera.id()));
+        startStatusTask();
         return JoinResult.JOINED;
     }
 
@@ -188,6 +201,7 @@ public final class PreviewManager implements Listener {
         for (UUID cameraId : new ArrayList<>(sessions.keySet())) {
             end(sessions.remove(cameraId), null);
         }
+        stopStatusTask();
     }
 
     private void end(PreviewSession session, Component message) {
@@ -308,7 +322,7 @@ public final class PreviewManager implements Listener {
                     Throwable cause = error instanceof java.util.concurrent.CompletionException
                             && error.getCause() != null ? error.getCause() : error;
                     if (cause instanceof CaptureTooLargeException tooLarge) {
-                        actionBar(session, plugin.messages().get("photo.too-large",
+                        notice(session, plugin.messages().get("photo.too-large",
                                 Placeholder.unparsed("required", String.valueOf(tooLarge.required())),
                                 Placeholder.unparsed("budget", String.valueOf(tooLarge.budget()))));
                     }
@@ -322,6 +336,74 @@ public final class PreviewManager implements Listener {
                 watcher.sendActionBar(message);
             }
         }
+    }
+
+    // --- status line ---
+
+    /**
+     * Pushes the camera's status line to everyone watching it, plus the player who
+     * caused the change — who may have no preview at all, when their offhand is full.
+     */
+    public void showStatus(Camera camera, Player actor) {
+        Component line = CameraStatus.line(plugin, camera);
+        PreviewSession session = sessions.get(camera.id());
+        if (session != null) {
+            actionBar(session, line);
+        }
+        if (session == null || !session.watchers.contains(actor.getUniqueId())) {
+            actor.sendActionBar(line);
+        }
+    }
+
+    /**
+     * Repeats the status line for every watcher, so it survives the client's fade-out
+     * without anyone having to click.
+     *
+     * <p>Started with the first watcher and stopped as soon as the last one leaves;
+     * an always-running task would burn a tick a second for nothing.</p>
+     */
+    private void startStatusTask() {
+        if (statusTask == null) {
+            statusTask = plugin.getServer().getGlobalRegionScheduler()
+                    .runAtFixedRate(plugin, task -> tickStatus(), STATUS_PERIOD_TICKS, STATUS_PERIOD_TICKS);
+        }
+    }
+
+    private void stopStatusTask() {
+        if (statusTask != null) {
+            statusTask.cancel();
+            statusTask = null;
+        }
+    }
+
+    private void tickStatus() {
+        boolean anyWatcher = false;
+        long now = System.currentTimeMillis();
+        for (PreviewSession session : sessions.values()) {
+            if (session.watchers.isEmpty()) {
+                continue;
+            }
+            anyWatcher = true;
+            if (session.notice != null && now < session.noticeUntil) {
+                actionBar(session, session.notice);
+                continue;
+            }
+            session.notice = null;
+            Camera camera = plugin.cameras().byId(session.cameraId);
+            if (camera != null) {
+                actionBar(session, CameraStatus.line(plugin, camera));
+            }
+        }
+        if (!anyWatcher) {
+            stopStatusTask();
+        }
+    }
+
+    /** Holds the action bar against the status line, which would bury it in a second. */
+    private void notice(PreviewSession session, Component message) {
+        session.notice = message;
+        session.noticeUntil = System.currentTimeMillis() + NOTICE_MS;
+        actionBar(session, message);
     }
 
     // --- tile composition ---

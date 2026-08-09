@@ -53,7 +53,7 @@ dev.zypec.izomap
 ├── Izomap.java              onEnable/onDisable, alt sistemlerin bağlanması
 ├── config/                  ConfigManager (tipli config erişimi), Messages (MiniMessage)
 ├── storage/                 YamlStorage — asenkron YML okuma/yazma temel sınıfı
-├── camera/                  Kamera modeli, entity yaşam döngüsü, etkileşim, komut, kalıcılık
+├── camera/                  Kamera modeli, entity yaşam döngüsü, etkileşim, komut, kalıcılık, durum satırı
 ├── render/                  Geometri, chunk anlık görüntüsü, voxel yürüyüşü, renk sistemi, önizleme
 ├── map/                     Izgara seçenekleri, dilimleme, MapView üretimi, dünyaya yerleştirme
 └── ui/                      CameraDialogs — Paper Dialog API arayüzü
@@ -351,6 +351,33 @@ hiç ulaşmaz. Yine de çökme ihtimaline karşı `PlayerJoinEvent` girişte off
 İzleyicinin haritası da editörünki gibi kilitlidir. Kilitsiz bırakmak (ilk taslak)
 izleyicinin canlı bir kamera yayınını normal bir harita eşyası olarak envanterinde
 taşıyıp götürmesi demekti.
+
+### Durum satırı (action bar)
+
+Önizlemedeki herkes, tık atmasa da kameranın ayarlarını action bar'da görür:
+
+```
+Yön 45°  ·  Eğim 30°  ·  Zoom 1.00x (48 blok)
+```
+
+Ayarlanmakta olan özellik kalın/sarı, diğerleri soluk yazılır — yani "hangi moddayım"
+sorusunun cevabı ayrı bir mesaj değil, satırın kendisidir. İzleyiciler editörün aktif
+özelliğini görür (özellik kameranın durumudur, oyuncunun değil).
+
+Satır `CameraStatus` tarafından üretilir; hem tıklamanın anlık geri bildirimi hem
+saniyede bir tekrarlanan yenileme aynı koddan geçer, ikisi ayrışamaz. Şablonlar
+`messages.yml`'dedir (`preview.actionbar`, `preview.entry`, `preview.entry-active`,
+`preview.value-*`) ve özellik etiketleri `preview.property.<EDITPROPERTY_ADI>`
+altından okunur — yeni bir `EditProperty` eklenince satır kendiliğinden büyür,
+yalnızca etiketi eklemek gerekir.
+
+Görev **ilk izleyiciyle başlar, son izleyici çıkınca durur**; client action bar'ı ~3 sn
+sonra soldurduğu için saniyede bir gönderilir. Kimse izlemiyorken sürekli koşan bir
+görev boşuna tick yakardı.
+
+Bütçe aşımı uyarısı bu satıra ezdirilmez: uyarı geldiğinde oturum 5 saniyeliğine
+"notice" moduna girer ve durum satırı beklemeye alınır. Aksi halde uyarı bir saniye
+sonra kaybolur ve oyuncu neden hiçbir şey olmadığını anlamazdı.
 
 ### Önizleme kameranın oranında çekilir
 

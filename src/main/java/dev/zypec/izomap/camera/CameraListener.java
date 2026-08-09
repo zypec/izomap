@@ -69,8 +69,7 @@ public final class CameraListener implements Listener {
 
         if (player.isSneaking()) {
             camera.editProperty(camera.editProperty().next());
-            player.sendActionBar(plugin.messages().get("camera.edit-switched",
-                    Placeholder.unparsed("property", camera.editProperty().name())));
+            plugin.preview().showStatus(camera, player);
             return;
         }
         adjust(camera, +1, player);
@@ -176,19 +175,7 @@ public final class CameraListener implements Listener {
         }
         manager.applyAndPersist(camera);
         plugin.preview().refresh(player, camera);
-        player.sendActionBar(plugin.messages().get("camera.edit-property",
-                Placeholder.unparsed("property", camera.editProperty().name()),
-                Placeholder.unparsed("value", currentValue(camera))));
-    }
-
-    private String currentValue(Camera camera) {
-        return switch (camera.editProperty()) {
-            case YAW -> String.format(Locale.ROOT, "%.0f°", camera.camYaw());
-            case PITCH -> String.format(Locale.ROOT, "%.0f°", camera.camPitch());
-            // The multiplier alone means little, so show the frame size in blocks too.
-            case ZOOM -> String.format(Locale.ROOT, "%.2fx (%.0f blok)",
-                    camera.zoom(), plugin.config().frameHeight() / camera.zoom());
-        };
+        plugin.preview().showStatus(camera, player);
     }
 
     private String defaultName(Player player) {

@@ -24,11 +24,9 @@ camera:
   list-header: "<gray>Kameralar (<count>):"
   list-entry: "<dark_gray>› <white><name></white> <gray>(<ratio>, zoom <scale>x)"
   list-empty: "<gray>Henüz bir kameran yok."
-  edit-property: "<gray>Ayarlanan: <white><property></white> <dark_gray>|</dark_gray> <yellow><value></yellow>"
   # Ortografik projeksiyonda ışınlar paraleldir: yatay bakan bir kamera arazi
   # yüzeyini göremez, yalnızca gökyüzü ile toprak kesitini görür.
   shallow-pitch: "<yellow>Kamera neredeyse yatay bakıyor (<pitch>°). İzometrik bir kare için eğimi <white>20-45°</white> arasına al; aksi halde fotoğrafın yarısı gökyüzü, yarısı toprak kesiti olur."
-  edit-switched: "<gray>Ayar modu: <white><property></white>"
   item-name: "<gradient:#5e60ce:#48bfe3>Izomap Kamerası</gradient>"
   item-lore:
     - "<gray>Bir bloğa <white>sağ tık</white> ile kamera yerleştir."
@@ -45,6 +43,20 @@ preview:
   ended-dropped: "<gray>Haritayı bıraktın, önizleme kapatıldı."
   ended-died: "<gray>Öldüğün için önizleme kapatıldı."
   ended-camera-removed: "<yellow>Kamera silindiği için önizleme kapatıldı: <white><camera></white>"
+  # Önizleme boyunca saniyede bir yenilenen action bar satırı. <entries>, aşağıdaki
+  # entry/entry-active şablonlarının ayraçla birleştirilmiş hâlidir; ayarlanmakta olan
+  # özellik entry-active ile yazılır.
+  actionbar: "<entries>"
+  actionbar-separator: "<dark_gray>  ·  </dark_gray>"
+  entry: "<gray><label> <white><value></white></gray>"
+  entry-active: "<yellow><bold><label> <value></bold></yellow>"
+  value-angle: "<deg>°"
+  value-zoom: "<zoom>x <gray>(<blocks> blok)</gray>"
+  # Etiketler EditProperty adlarına göre aranır; eksik anahtar action bar'da görünür.
+  property:
+    YAW: "Yön"
+    PITCH: "Eğim"
+    ZOOM: "Zoom"
 
 photo:
   capturing: "<gray>Fotoğraf çekiliyor, lütfen bekle..."
