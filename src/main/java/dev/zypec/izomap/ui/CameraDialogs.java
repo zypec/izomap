@@ -26,6 +26,7 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.Consumer;
 
 /**
  * Fotoğraf çekimi/yerleştirmesi için Paper Dialog API tabanlı arayüz.
@@ -87,10 +88,18 @@ public final class CameraDialogs {
                     Placeholder.unparsed("ratio", ratio.label()));
             buttons.add(ActionButton.builder(label)
                     .action(DialogAction.customClick(
-                            (view, audience) -> onRatioButton(view, audience, camera, ratio),
+                            (view, audience) -> applyAndReopen(view, audience, camera,
+                                    target -> target.aspectRatio(ratio)),
                             ClickCallback.Options.builder().build()))
                     .build());
         }
+        buttons.add(ActionButton.builder(plugin.messages().get(
+                        camera.thirdsGuide() ? "dialog.thirds-button-active" : "dialog.thirds-button"))
+                .action(DialogAction.customClick(
+                        (view, audience) -> applyAndReopen(view, audience, camera,
+                                target -> target.thirdsGuide(!target.thirdsGuide())),
+                        ClickCallback.Options.builder().build()))
+                .build());
         buttons.add(ActionButton.builder(plugin.messages().get("dialog.confirm"))
                 .action(DialogAction.customClick(
                         (view, audience) -> onConfirm(view, audience, camera),
@@ -147,7 +156,14 @@ public final class CameraDialogs {
 
     // --- buton eylemleri (thread garanti değil; ana thread'e alınır) ---
 
-    private void onRatioButton(DialogResponseView view, Audience audience, Camera camera, AspectRatio ratio) {
+    /**
+     * Dialog'u kapatmayan butonların ortak akışı (oran, üçler kuralı): formdaki
+     * ad/ölçek/efekt okunur, verilen değişiklik uygulanır, önizleme tazelenir ve
+     * Dialog yeni duruma göre yeniden açılır. Oran değişince grid seçenekleri de
+     * yenilenmiş olur.
+     */
+    private void applyAndReopen(DialogResponseView view, Audience audience, Camera camera,
+                                Consumer<Camera> change) {
         if (!(audience instanceof Player player)) {
             return;
         }
@@ -157,12 +173,11 @@ public final class CameraDialogs {
         float resolvedZoom = zoom != null ? zoom : camera.zoom();
 
         plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> {
-            camera.aspectRatio(ratio);
+            change.accept(camera);
             camera.zoom(resolvedZoom);
             camera.colorFilter(filter);
             cameraManager.applyAndPersist(camera);
             plugin.preview().refresh(player, camera);
-            // Yeni oranın grid seçenekleriyle yeniden aç; ad/ölçek/efekt korunur.
             openCaptureDialog(player, camera, name, resolvedZoom, filter);
         });
     }

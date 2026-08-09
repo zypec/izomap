@@ -43,7 +43,8 @@ import java.util.concurrent.atomic.AtomicInteger;
  * üstü sessizce boş kalıyordu. Bu yüzden <b>hesaplanır</b>; ayarlanan tek maliyet
  * değeri {@code settings.max-capture-area}'dır ve hem bu mesafeyi hem kopyalanacak
  * chunk sayısını sınırlar. {@code settings.render-depth} yalnızca hedef tabanın
- * zeminden ne kadar aşağıda olacağını belirler.</p>
+ * referans zeminden ne kadar aşağıda olacağını belirler; referansın neden
+ * kameranın kendi sütunu olamadığı {@link #floorReference} belgesindedir.</p>
  *
  * <p>Kadrajın kameranın altına düşen kısmı için ışınlar bakış yönünde geriye
  * çekilir; gerekçesi ve sınırı {@link RenderGeometry} belgesindedir.</p>
@@ -99,7 +100,7 @@ public final class RenderService {
         // kadrajın dikey uçları yalnızca `up` bileşeninden gelir.
         double climb = -direction.getY();
         double topAboveEye = Math.max(0.0, (0.5 + frameShift) * spanHeight * up.getY());
-        double floorY = Math.min(eyeY, world.getHighestBlockYAt(anchor)) - plugin.config().renderDepth();
+        double floorY = floorReference(world, anchor, eyeY) - plugin.config().renderDepth();
         double maxDistance = climb > 1.0e-6
                 ? Math.min((eyeY + topAboveEye - floorY) / climb, captureArea)
                 : captureArea;
@@ -209,6 +210,26 @@ public final class RenderService {
                 + (requested - captured) + " tanesinin kopyası alınamadı (" + world.getName()
                 + "); o bölgeler fotoğrafta şeffaf kalacak. Muhtemel sebep: chunk hiç üretilmemiş"
                 + " (settings.generate-missing-chunks kapalı) ya da settings.load-missing-chunks kapalı.");
+    }
+
+    /**
+     * Işın mesafesinin ölçüleceği taban yüksekliği (henüz {@code render-depth}
+     * düşülmemiş hâli).
+     *
+     * <p>Kameranın <b>kendi sütunundaki</b> en yüksek blok tek başına referans
+     * olamaz: kamera bir kulenin ya da uzun bir ağacın üstündeyse o sütun yüzlerce
+     * blok yüksek okunur, taban da onunla yukarı kayar. O zaman kadrajın gördüğü
+     * uzaktaki deniz/ova ışın menzilinin dışında kalır ve fotoğrafın üstünde
+     * <b>dümdüz yatay</b> bir boşluk şeridi oluşur: en uzun yolu en üst satırdaki
+     * ışınlar gerektirdiği için ilk onlar boşa çıkar.</p>
+     *
+     * <p>Bu yüzden referans, deniz seviyesi ile kameranın sütunundaki zemin
+     * arasından <b>alçak</b> olanıdır; kamera ikisinin de altındaysa (mağara,
+     * vadi) kendi yüksekliği kullanılır. Gereğinden uzun kalan mesafenin bedeli
+     * zaten {@code settings.max-capture-area} ile sınırlıdır.</p>
+     */
+    private static double floorReference(World world, Location anchor, double eyeY) {
+        return Math.min(eyeY, Math.min(world.getSeaLevel(), world.getHighestBlockYAt(anchor)));
     }
 
     /** Işın prizmasının dokunduğu chunk sütunları (yalnızca geometri; blok erişimi yok). */

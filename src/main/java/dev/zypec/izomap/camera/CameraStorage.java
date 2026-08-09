@@ -61,6 +61,7 @@ public final class CameraStorage extends YamlStorage {
             cfg.set(base + ".zoom", c.zoom());
             cfg.set(base + ".aspect-ratio", c.aspectRatio().name());
             cfg.set(base + ".color-filter", c.colorFilter().name());
+            cfg.set(base + ".thirds-guide", c.thirdsGuide());
         }
         return cfg;
     }
@@ -119,6 +120,7 @@ public final class CameraStorage extends YamlStorage {
         camera.zoom((float) s.getDouble("zoom", s.getDouble("scale", 1.0)));
         camera.aspectRatio(AspectRatio.fromString(s.getString("aspect-ratio"), AspectRatio.RATIO_1_1));
         camera.colorFilter(ColorFilter.fromString(s.getString("color-filter"), ColorFilter.ORIGINAL));
+        camera.thirdsGuide(s.getBoolean("thirds-guide", false));
         return camera;
     }
 

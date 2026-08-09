@@ -38,10 +38,26 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <p>Her oyuncu için tek bir {@link MapView} yeniden kullanılır; aynı MapView yeniden
  * render edilince eldeki harita otomatik güncellenir.</p>
+ *
+ * <h2>Önizleme kameranın en-boy oranında çekilir</h2>
+ *
+ * <p>Karo kare (128×128) olsa da render, kameranın oranına göre küçültülüp karonun
+ * ortasına yerleştirilir (letterbox). Önizleme bir zamanlar oran ne olursa olsun 1:1
+ * çekiliyordu ve bu iki şeyi birden yanlış gösteriyordu: gerçek kadrajı ve
+ * <b>maliyeti</b>. Geniş kadrajda ışın prizması oranla birlikte genişlediği için
+ * 16:9 bir fotoğraf 1:1 önizlemenin neredeyse iki katı chunk ister; önizleme
+ * geçtiği hâlde yerleştirme "kadraj çok geniş" ile düşerdi. Aynı oranla çekilince
+ * bütçe aşımı doğru yerde, yerleştirmeden önce görünür.</p>
  */
 public final class PreviewManager implements Listener {
 
     private static final int TILE = 128;
+
+    /** Üçler kuralı çizgisinin kesik uzunluğu (piksel). */
+    private static final int DASH = 3;
+    /** Kesikli çizginin iki tonu: açık ve koyu arazide de seçilebilsin diye. */
+    private static final int GUIDE_LIGHT = 0xFFFFFFFF;
+    private static final int GUIDE_DARK = 0xFF303030;
 
     private final Izomap plugin;
     private final RenderService renderService;
@@ -77,9 +93,12 @@ public final class PreviewManager implements Listener {
         }
         MapView view = views.computeIfAbsent(id, key -> mapService.createMapView(player.getWorld(), blank()));
 
+        int width = previewWidth(camera.aspectRatio());
+        int height = previewHeight(camera.aspectRatio());
+
         CompletableFuture<RenderResult> capture;
         try {
-            capture = renderService.capture(camera, TILE, TILE);
+            capture = renderService.capture(camera, width, height);
         } catch (RuntimeException ex) {
             // Senkron hata: kilit burada bırakılmazsa önizleme kalıcı olarak donar.
             inFlight.remove(id);
@@ -90,7 +109,7 @@ public final class PreviewManager implements Listener {
                 plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> {
                     inFlight.remove(id);
                     if (error == null && result != null) {
-                        mapService.applyTile(view, result.argb());
+                        mapService.applyTile(view, tileFrom(result, camera.thirdsGuide()));
                         placeIfEmpty(player, view);
                         return;
                     }
@@ -103,6 +122,64 @@ public final class PreviewManager implements Listener {
                                 Placeholder.unparsed("budget", String.valueOf(tooLarge.budget()))));
                     }
                 }));
+    }
+
+    // --- karo bileşimi ---
+
+    /** Kameranın oranı 128×128 karoya sığdırıldığında render genişliği. */
+    private static int previewWidth(AspectRatio ratio) {
+        double value = ratio.value();
+        return value >= 1.0 ? TILE : Math.max(1, (int) Math.round(TILE * value));
+    }
+
+    /** Kameranın oranı 128×128 karoya sığdırıldığında render yüksekliği. */
+    private static int previewHeight(AspectRatio ratio) {
+        double value = ratio.value();
+        return value >= 1.0 ? Math.max(1, (int) Math.round(TILE / value)) : TILE;
+    }
+
+    /**
+     * Render sonucunu karonun ortasına yerleştirir; artan yer şeffaf kalır, yani
+     * haritanın kendi parşömen zemini letterbox bandı olarak görünür.
+     */
+    private static int[] tileFrom(RenderResult result, boolean thirdsGuide) {
+        int[] tile = new int[TILE * TILE];
+        int w = Math.min(TILE, result.width());
+        int h = Math.min(TILE, result.height());
+        int offsetX = (TILE - w) / 2;
+        int offsetY = (TILE - h) / 2;
+        for (int y = 0; y < h; y++) {
+            System.arraycopy(result.argb(), y * result.width(), tile, (y + offsetY) * TILE + offsetX, w);
+        }
+        if (thirdsGuide) {
+            drawThirdsGuide(tile, offsetX, offsetY, w, h);
+        }
+        return tile;
+    }
+
+    /**
+     * Üçler kuralı kılavuzu: kadrajı yatayda ve dikeyde üçe bölen çizgiler.
+     * Yalnızca <b>önizlemeye</b> çizilir — çekilen fotoğraf bu koddan hiç geçmez.
+     *
+     * <p>Çizgi tek renk olsaydı kar/kum üstünde beyazı, gölgeli ormanda koyusu
+     * kaybolurdu; bu yüzden iki ton {@link #DASH} piksellik kesiklerle dönüşümlü
+     * basılır ve her zeminde seçilir.</p>
+     */
+    private static void drawThirdsGuide(int[] tile, int offsetX, int offsetY, int w, int h) {
+        for (int third = 1; third <= 2; third++) {
+            int lineX = offsetX + Math.min(w - 1, (int) Math.round(w * third / 3.0));
+            for (int y = 0; y < h; y++) {
+                tile[(offsetY + y) * TILE + lineX] = dashColor(y);
+            }
+            int lineY = offsetY + Math.min(h - 1, (int) Math.round(h * third / 3.0));
+            for (int x = 0; x < w; x++) {
+                tile[lineY * TILE + offsetX + x] = dashColor(x);
+            }
+        }
+    }
+
+    private static int dashColor(int along) {
+        return (along / DASH) % 2 == 0 ? GUIDE_LIGHT : GUIDE_DARK;
     }
 
     /** Offhand boşsa önizleme haritasını koyar (zaten önizlemeyse dokunmaz). */

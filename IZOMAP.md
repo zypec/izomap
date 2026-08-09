@@ -116,15 +116,30 @@ Gereken mesafe kadrajdan ve eğimden **çıkar**, bağımsız bir tercih değild
 
 ```
 mesafe = (kadrajın üst kenarının hedef tabana dikey inişi) / sin(pitch)
-hedef taban = min(kamera, kameranın altındaki zemin) - settings.render-depth
+hedef taban = min(kamera, deniz seviyesi, kameranın altındaki zemin) - settings.render-depth
 ```
 
 Elle ayarlandığında zoom'la birlikte güncellenmesi gerekiyordu; unutulunca kadrajın
 üstü sessizce boş kalıyor, düzeltmek için chunk bütçesini de büyütmek gerekiyordu.
 Üç değeri senkron tutmak yerine mesafe hesaplanır. Ayarlanan tek maliyet değeri
 `settings.max-capture-area`'dır; hem bu mesafeyi hem kopyalanacak chunk sayısını
-sınırlar. `settings.render-depth` yalnızca hedef tabanın zeminden ne kadar aşağıda
-olacağını belirler (vadi/uçurum payı).
+sınırlar. `settings.render-depth` yalnızca hedef tabanın referans zeminden ne kadar
+aşağıda olacağını belirler (vadi/uçurum payı).
+
+##### Referans zemin neden kameranın kendi sütunu değil?
+
+Taban bir zamanlar yalnızca `getHighestBlockYAt(kamera)` ile ölçülüyordu. Kamera bir
+kulenin ya da uzun bir ağacın üstündeyse o sütun yüzlerce blok yüksek okunur, taban da
+onunla yukarı kayar; kadrajın gördüğü uzaktaki deniz ışın menzilinin dışında kalır.
+Sonuç, fotoğrafın üstünde **dümdüz yatay** bir boşluk şerididir — en uzun yolu en üst
+satırdaki ışınlar gerektirdiği için ilk onlar boşa çıkar, kesme sabit bir kadraj
+satırında olduğu için de sınır kusursuz düz görünür (eksik chunk olsaydı chunk boyunda
+tırtıklı olurdu; ayırt edici işaret budur).
+
+Referans bu yüzden **deniz seviyesi ile kameranın sütunundaki zeminden alçak olanıdır**;
+kamera ikisinin de altındaysa (mağara, vadi) kendi yüksekliği kullanılır. Deniz
+seviyesinin tamamen üstünde geçen manzaralarda mesafe gereğinden biraz uzun kalır,
+bedeli `settings.max-capture-area` clamp'iyle sınırlıdır.
 
 #### Geri çekme (backoff)
 
@@ -287,6 +302,28 @@ harita koyar ve kamera her düzenlendiğinde günceller.
 - `inFlight` seti aynı anda tek render'a izin verir; tıklama spam'i yutulur.
 - Bütçe aşımı sessizce donmaz, action bar'da bildirilir.
 
+### Önizleme kameranın oranında çekilir
+
+Karo kare (128×128) olsa da render kameranın en-boy oranına göre küçültülüp karonun
+ortasına yerleştirilir; artan yer şeffaf kalır, yani haritanın parşömen zemini
+letterbox bandı olur.
+
+Önizleme eskiden oran ne olursa olsun 1:1 çekiliyordu ve bu iki şeyi birden yanlış
+gösteriyordu: gerçek kadrajı ve **maliyeti**. Işın prizmasının genişliği `spanWidth =
+spanHeight × oran` olduğundan 16:9 bir fotoğraf 1:1 önizlemenin ~1.8, 4x2 ızgara tam 2
+katı chunk ister. Sonuç, önizlemenin sorunsuz döndüğü ama yerleştirmenin "kadraj çok
+geniş" ile düştüğü kafa karıştırıcı bir durumdu. Aynı oranla çekilince bütçe aşımı
+doğru yerde — yerleştirmeden önce — görünür.
+
+### Üçler kuralı kılavuzu
+
+`camera.thirdsGuide` açıkken kadrajı yatayda ve dikeyde üçe bölen çizgiler önizlemeye
+çizilir. **Yalnızca önizlemeye**: fotoğraf `PhotoManager` üzerinden gider ve bu koddan
+hiç geçmez. Kalıcıdır (`cameras.yml` → `thirds-guide`), varsayılanı kapalıdır ve
+Dialog'daki butonla açılır. Çizgi tek renk olsaydı kar/kum üstünde beyazı, gölgeli
+ormanda koyusu kaybolurdu; bu yüzden açık/koyu iki ton 3 piksellik kesiklerle
+dönüşümlü basılır.
+
 ---
 
 ## 6. Izgara, dilimleme ve yerleştirme
@@ -393,7 +430,7 @@ kontrol edip `0.25`'in üstündeyse log uyarısı verir.
 | `config.yml` | Ayarlar |
 | `messages.yml` | MiniMessage mesajları (`prefix` + anahtar ağacı) |
 | `block-colors.yml` | Blok rengi override'ları (v2) |
-| `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, entity UUID'leri) |
+| `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, üçler kuralı, entity UUID'leri) |
 | `maps.yml` | Yerleştirilmiş fotoğraflar (harita id'leri, çerçeve UUID'leri, çıpa koordinatı) |
 
 `YamlStorage` disk I/O'yu **daima** asenkron yapar; tek istisna `onDisable`'daki

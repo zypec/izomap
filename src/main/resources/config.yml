@@ -10,11 +10,15 @@ settings:
   # sınırlar. Maliyet bununla KARESEL büyür: 512 -> ~1024 chunk,
   # 1024 -> ~4096 chunk. Aralık: 64-4096.
   max-capture-area: 512
-  # Işınların, kameranın altındaki zeminden kaç blok daha AŞAĞIYA ulaşacağı.
+  # Işınların, referans zeminden kaç blok daha AŞAĞIYA ulaşacağı.
   # Işın mesafesi ayar değil, hesaplanan bir sonuçtur:
   #   mesafe = (kadrajın üst kenarının hedef tabana dikey inişi) / sin(pitch)
-  # Taban, kameranın altındaki zeminin bu kadar altıdır. Yani kadrajın uzak ucu
-  # bir vadiye/uçuruma denk geliyorsa ne kadar derinini göreceğini belirler.
+  # Referans zemin, deniz seviyesi ile kameranın altındaki zeminden ALÇAK olanıdır
+  # (kamera ikisinin de altındaysa kendi yüksekliği). Kameranın kendi sütunu tek
+  # başına kullanılamaz: kamera bir kulenin/uzun ağacın üstündeyse taban yüzlerce
+  # blok yukarı kayar ve uzaktaki deniz menzil dışında kalarak fotoğrafın üstünde
+  # dümdüz bir boşluk şeridi bırakır. Bu değer ise kadrajın uzak ucu bir vadiye/
+  # uçuruma denk geldiğinde ne kadar derinini göreceğini belirler.
   # Yüzey manzarası için varsayılan yeterlidir. Aralık: 0-1024.
   render-depth: 64
   # Render'ın kaç iş parçacığına bölüneceği. Görüntü yatay bantlara ayrılıp

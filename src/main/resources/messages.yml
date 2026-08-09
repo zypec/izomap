@@ -69,5 +69,8 @@ dialog:
   grid-option: "<grid> — <count> harita (<wpx>x<hpx>px)"
   ratio-button: "Oran: <ratio>"
   ratio-button-active: "Oran: <ratio> ✔"
+  # Üçler kuralı: yalnızca önizlemeye çizilen 3x3 kadraj kılavuzu, fotoğrafa girmez.
+  thirds-button: "Üçler kuralı: Kapalı"
+  thirds-button-active: "Üçler kuralı: Açık ✔"
   confirm: "Yerleştir"
   cancel: "İptal"

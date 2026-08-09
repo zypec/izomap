@@ -39,6 +39,9 @@ public final class Camera {
     private AspectRatio aspectRatio;
     private ColorFilter colorFilter;
 
+    /** Önizlemede üçler kuralı kılavuzu gösterilsin mi (fotoğrafa girmez). */
+    private boolean thirdsGuide;
+
     /** Kalıcı değildir: hangi özelliğin ayarlandığını tutar. */
     private transient EditProperty editProperty = EditProperty.YAW;
 
@@ -52,6 +55,7 @@ public final class Camera {
         this.zoom = 1.0f;
         this.aspectRatio = AspectRatio.RATIO_1_1;
         this.colorFilter = ColorFilter.ORIGINAL;
+        this.thirdsGuide = false;
     }
 
     public UUID id() {
@@ -140,6 +144,19 @@ public final class Camera {
 
     public void colorFilter(ColorFilter colorFilter) {
         this.colorFilter = colorFilter;
+    }
+
+    /**
+     * Üçler kuralı kılavuzu (fotoğrafçılıktaki 3×3 kadraj çizgileri).
+     * Yalnızca <b>canlı önizlemeye</b> çizilir; çekilen fotoğrafa asla girmez.
+     * Varsayılan kapalıdır, Dialog'daki butonla açılır.
+     */
+    public boolean thirdsGuide() {
+        return thirdsGuide;
+    }
+
+    public void thirdsGuide(boolean thirdsGuide) {
+        this.thirdsGuide = thirdsGuide;
     }
 
     public EditProperty editProperty() {
