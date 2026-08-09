@@ -89,6 +89,11 @@ public final class CameraManager {
         return byInteraction.get(interactionId);
     }
 
+    /** Kamera kimliğine göre kayıt; yoksa {@code null}. */
+    public Camera byId(UUID cameraId) {
+        return cameraId != null ? byId.get(cameraId) : null;
+    }
+
     public Optional<Camera> byOwnerAndName(UUID owner, String name) {
         return byId.values().stream()
                 .filter(c -> c.owner().equals(owner) && c.name().equalsIgnoreCase(name))
@@ -150,12 +155,7 @@ public final class CameraManager {
     }
 
     public void remove(Camera camera) {
-        removeEntity(camera.displayEntityId());
-        removeEntity(camera.interactionEntityId());
-        byId.remove(camera.id());
-        if (camera.interactionEntityId() != null) {
-            byInteraction.remove(camera.interactionEntityId());
-        }
+        forget(camera);
         persistAsync();
     }
 
@@ -178,12 +178,7 @@ public final class CameraManager {
     public int removeAllOwned(UUID owner) {
         List<Camera> owned = ownedBy(owner);
         for (Camera camera : owned) {
-            removeEntity(camera.displayEntityId());
-            removeEntity(camera.interactionEntityId());
-            byId.remove(camera.id());
-            if (camera.interactionEntityId() != null) {
-                byInteraction.remove(camera.interactionEntityId());
-            }
+            forget(camera);
         }
         if (!owned.isEmpty()) {
             persistAsync();
@@ -191,11 +186,66 @@ public final class CameraManager {
         return owned.size();
     }
 
+    /**
+     * Kameranın entity'lerini kaldırır ve kaydını bellekten düşürür.
+     *
+     * <p>Entity'ler yalnızca chunk yüklüyken çözümlenebildiğinden önce çıpanın
+     * chunk'ı yüklenir. Aksi halde kayıt silinir ama display/interaction entity
+     * dünyada <b>yetim</b> olarak kalırdı: artık hiçbir kameraya ait olmayan,
+     * silinemeyen, eski transformuyla donmuş bir model.</p>
+     */
+    private void forget(Camera camera) {
+        loadAnchorChunk(camera);
+        removeEntity(camera.displayEntityId());
+        removeEntity(camera.interactionEntityId());
+        byId.remove(camera.id());
+        if (camera.interactionEntityId() != null) {
+            byInteraction.remove(camera.interactionEntityId());
+        }
+    }
+
+    /**
+     * Dünyada kalmış ama hiçbir kamera kaydına ait olmayan Izomap entity'lerini
+     * siler; silinen sayısını döndürür.
+     *
+     * <p>Yalnızca <b>yüklü chunk'lardaki</b> entity'ler görülebilir
+     * ({@link World#getEntities()}), dolayısıyla oyuncunun çevresini temizler.
+     * Kaydı duran kameralara dokunulmaz.</p>
+     */
+    public int removeOrphanEntities(World world) {
+        int removed = 0;
+        for (Entity entity : world.getEntities()) {
+            if (!(entity instanceof Display) && !(entity instanceof Interaction)) {
+                continue;
+            }
+            UUID cameraId = keys.readCameraId(entity.getPersistentDataContainer());
+            if (cameraId == null || byId.containsKey(cameraId)) {
+                continue;
+            }
+            entity.remove();
+            removed++;
+        }
+        return removed;
+    }
+
+    /** Çıpanın chunk'ını yükler; entity çözümlemesi ancak o zaman mümkündür. */
+    private void loadAnchorChunk(Camera camera) {
+        Location anchor = camera.anchor();
+        World world = anchor.getWorld();
+        if (world != null) {
+            world.getChunkAt(anchor);
+        }
+    }
+
     // --- transform ---
 
     /**
      * Kameranın yaw/pitch değerlerini görsel display entity'ye uygular.
-     * Entity yüklü değilse sessizce atlanır (sonraki yüklemede uygulanır).
+     *
+     * <p>Entity yüklü değilse atlanır; chunk sonradan yüklendiğinde
+     * {@link CameraListener} bunu yakalayıp yeniden uygular. Aksi halde entity,
+     * <b>oluşturulduğu andaki</b> transformla donup kalırdı — model ölçeği eskiden
+     * kameranın zoom'undan geliyordu, yani eski kameralar devasa görünürdü.</p>
      *
      * <p>Modelin boyutu {@code camera.model-scale} config değeridir; kameranın
      * yakınlaştırması (zoom) modelin boyutunu <b>etkilemez</b>.</p>
@@ -204,10 +254,13 @@ public final class CameraManager {
         if (camera.displayEntityId() == null) {
             return;
         }
-        Entity entity = plugin.getServer().getEntity(camera.displayEntityId());
-        if (!(entity instanceof Display display)) {
-            return;
+        if (plugin.getServer().getEntity(camera.displayEntityId()) instanceof Display display) {
+            applyTransform(camera, display);
         }
+    }
+
+    /** Transformu, elde hazır olan display entity'ye uygular. */
+    public void applyTransform(Camera camera, Display display) {
         // Model, camYaw/camPitch yönüne bakacak şekilde döndürülür. Config'teki üç eksenli
         // rotasyon offseti (X=pitch, Y=yaw, Z=roll) farklı bir model kullanıldığında görsel
         // hizalamayı elle düzeltmeye yarar; sıra Y -> X -> Z olduğundan Z, modelin kendi

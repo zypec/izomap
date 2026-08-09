@@ -6,6 +6,8 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Location;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
+import org.bukkit.entity.Display;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -15,6 +17,7 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 
@@ -92,6 +95,28 @@ public final class CameraListener implements Listener {
             return;
         }
         adjust(camera, -1, player);
+    }
+
+    /**
+     * Chunk'ı sonradan yüklenen kameraların transformunu yeniden uygular.
+     *
+     * <p>Açılışta {@code cameras.yml} okunurken kameraların çoğunun chunk'ı yüklü
+     * değildir, dolayısıyla {@code applyTransform} onları atlar. Bu kanca olmadan
+     * entity, <b>oluşturulduğu andaki</b> transformla donup kalır: model ölçeği
+     * eskiden kameranın zoom'undan geldiği için eski kameralar devasa görünür ve
+     * config'teki {@code model-scale} hiçbir zaman devreye girmezdi.</p>
+     */
+    @EventHandler
+    public void onEntitiesLoad(EntitiesLoadEvent event) {
+        for (Entity entity : event.getEntities()) {
+            if (!(entity instanceof Display display)) {
+                continue;
+            }
+            Camera camera = manager.byId(keys.readCameraId(entity.getPersistentDataContainer()));
+            if (camera != null) {
+                manager.applyTransform(camera, display);
+            }
+        }
     }
 
     // Kamera eşyasıyla bloğa sağ tık: yeni kamera.

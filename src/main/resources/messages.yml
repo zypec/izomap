@@ -15,6 +15,7 @@ camera:
   created: "<green>Kamera oluşturuldu: <white><name></white>"
   removed: "<yellow>Kamera silindi: <white><name></white>"
   removed-all: "<yellow><count> kamera silindi."
+  orphans-cleaned: "<yellow><count> sahipsiz kamera modeli temizlendi. <gray>(Kaydı silinmiş ama dünyada kalmış entity'ler; yalnızca yüklü chunk'lar taranır.)"
   moved: "<green>Kamera taşındı: <white><name></white>"
   not-found: "<red>Kamera bulunamadı."
   limit-reached: "<red>Maksimum kamera sayısına ulaştın (<limit>)."

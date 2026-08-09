@@ -191,6 +191,24 @@ Dünyada iki entity ile modellenir:
 entity işleri `CameraManager`'dadır. Bellek modeli tek doğruluk kaynağıdır, her
 değişiklikte tüm koleksiyon asenkron olarak `cameras.yml`'e yazılır.
 
+#### Yüklü olmayan entity kuralı
+
+`getEntity(UUID)` yalnızca **yüklü chunk'lardaki** entity'yi bulur. Bu, kamera
+entity'lerine dokunan her iş için iki kurala yol açar:
+
+- **Silmeden önce chunk yüklenir** (`CameraManager#forget`). Aksi halde kayıt
+  silinir ama model dünyada **yetim** kalır: hiçbir kameraya ait olmayan,
+  komutla silinemeyen, eski transformuyla donmuş bir entity.
+  `PhotoManager#removeFrames` aynı deseni çerçeveler için kullanır.
+- **Transform, entity yüklendiğinde yeniden uygulanır.** Açılışta kameraların
+  çoğunun chunk'ı yüklü değildir; `CameraListener` `EntitiesLoadEvent`'te
+  transformu tazeler. Bu kanca olmadan entity, oluşturulduğu andaki transformla
+  donar — model ölçeği eskiden kameranın zoom'undan geldiği için eski kameralar
+  devasa kalır ve `camera.model-scale` hiç devreye girmezdi.
+
+Dünyada zaten kalmış yetimler için `/izocam cleanup`, oyuncunun bulunduğu dünyadaki
+**yüklü** chunk'ları tarayıp kaydı olmayan Izomap entity'lerini siler.
+
 ### Etkileşim
 
 | Girdi | Sonuç |

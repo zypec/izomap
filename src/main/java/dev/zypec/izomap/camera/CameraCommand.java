@@ -386,6 +386,14 @@ public final class CameraCommand {
         }
         int removed = photoManager.cleanupOwned(player.getUniqueId());
         plugin.messages().send(player, "map.cleaned", Placeholder.unparsed("count", String.valueOf(removed)));
+
+        // Kaydı silinmiş ama dünyada kalmış kamera entity'leri (yetimler). Yalnızca
+        // yüklü chunk'lardakiler görülebilir, yani oyuncunun çevresi temizlenir.
+        int orphans = manager.removeOrphanEntities(player.getWorld());
+        if (orphans > 0) {
+            plugin.messages().send(player, "camera.orphans-cleaned",
+                    Placeholder.unparsed("count", String.valueOf(orphans)));
+        }
         return com.mojang.brigadier.Command.SINGLE_SUCCESS;
     }
 

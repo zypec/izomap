@@ -662,6 +662,28 @@ T10 tamamlandıktan sonra tekrar değerlendirilecek.
 
 ## Arşiv
 
+### T14 — Devasa / silinemeyen kamera modelleri
+
+`[x]` **P0** · 2026-08-09
+
+İki ayrı hata, aynı kök nedenden: `getEntity(UUID)` yalnızca yüklü chunk'lardaki
+entity'yi bulur.
+
+1. **Transform donuyordu.** `applyTransform` entity yüklü değilse sessizce
+   atlıyor, chunk sonradan yüklendiğinde de kimse yeniden uygulamıyordu. Model
+   ölçeği eskiden `camera.scale` (yani zoom) idi; T-öncesi kameralar bu yüzden
+   devasa görünüyor ve `camera.model-scale` hiçbir zaman devreye girmiyordu.
+   → `CameraListener` artık `EntitiesLoadEvent`'te transformu tazeliyor.
+2. **Silme sessizce başarısız oluyordu.** `remove`/`removeAllOwned`, chunk yüklü
+   değilken entity'yi bulamıyor ama kaydı siliyordu → dünyada **yetim** model
+   kalıyordu. → `CameraManager#forget` önce çıpanın chunk'ını yüklüyor
+   (`PhotoManager#removeFrames` deseni).
+
+Zaten kalmış yetimler için `/izocam cleanup` genişletildi: oyuncunun dünyasındaki
+yüklü chunk'larda kaydı olmayan Izomap entity'lerini siler
+(`camera.orphans-cleaned`). `CameraKeys#readCameraId` böylece kullanıma girdi
+(T40'tan düşer).
+
 ### T13 — Fotoğraflar boş çıkıyor (kadraj regresyonu)
 
 `[x]` **P0** · 2026-08-09
