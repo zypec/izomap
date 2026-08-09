@@ -392,8 +392,8 @@ mevcut `MapView`'lara uygulanır. Kamera silinmişse fotoğraf olduğu gibi kal�
 Ad, oran, grid ve fotoğraf kimliği argümanlarının tamamı tab-complete'lidir; grid önerileri
 önceki argümandaki kameranın **oranına göre** filtrelenir.
 
-**İzinler:** `izomap.camera` (tüm komutlar), `izomap.admin` (yalnızca `reload`).
-Şu an `paper-plugin.yml` içinde **tanımlı değiller** — bkz. §10.
+**İzinler:** `paper-plugin.yml` içinde tanımlıdır — `izomap.camera` (tüm komutlar,
+`default: true`), `izomap.admin` (yalnızca `reload`, `default: op`).
 
 ---
 
@@ -476,8 +476,6 @@ kullanılır.
 | Her açılışta tüm fotoğraflar kameradan yeniden render ediliyor (maliyetli), üstelik kameranın *güncel* ayarlarıyla — kamera çevrilince duvardaki fotoğraf da değişiyor | T1 |
 | Fotoğraf çerçevesi koruması bellekteki kayda bağlı; `maps.yml` yüklenmeden önce çerçeveler korumasız | T1 |
 | Kamera silindiğinde izleyicilerin önizlemesi kapanmıyor | T12 |
-| `izomap.camera` / `izomap.admin` izinleri `paper-plugin.yml`'de tanımlı değil (pratikte yalnızca OP'ler komutu görüyor) | T3 |
-| `map.invalid-grid` mesajı var olmayan `/izocam grids` komutuna yönlendiriyor | T2 |
 | Kullanılmayan mesaj anahtarları ve metotlar | T40 |
 | Birim test yok | T41 |
 

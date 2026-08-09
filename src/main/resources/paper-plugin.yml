@@ -6,3 +6,10 @@ description: Izometrik fotoğraf çekimi ve harita panosu eklentisi
 authors:
   - zypec
 website: https://zypec.dev
+permissions:
+  izomap.camera:
+    description: Kamera oluşturma, ayarlama ve fotoğraf çekme
+    default: true
+  izomap.admin:
+    description: Başkalarının kameraları üzerinde yönetim işlemleri
+    default: op

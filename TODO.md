@@ -149,48 +149,6 @@ T10 ile birlikte yapılırsa daha temiz olur.
 
 ---
 
-### T2 — `map.invalid-grid` mesajı olmayan bir komuta yönlendiriyor
-
-`[ ]` **P2** (küçük ama kafa karıştırıcı)
-
-**Açıklama (daha önce sorduğum 2. madde):** `messages.yml` içindeki şu satır:
-
-```yaml
-invalid-grid: "<red>Bu en-boy oranı için geçersiz grid. <gray>/izocam grids <ad> ile bak.</gray>"
-```
-
-Oyuncuya `/izocam grids <ad>` yazmasını söylüyor ama **böyle bir alt komut yok**. Oyuncu
-yazınca "bilinmeyen komut" alır. İki seçenek:
-
-- **(a)** Mesajı düzelt: geçerli grid'leri doğrudan mesajın içinde say (oran biliniyor,
-  `GridLayouts.optionsFor` zaten listeyi veriyor). Ek komut gerekmez, tercihim bu.
-- **(b)** `/izocam grids <ad>` alt komutunu ekle — `messages.yml`'de kullanılmayan
-  `map.grid-header` / `map.grid-entry` anahtarları zaten bunun için yazılmış görünüyor.
-
-**Not:** T21 (Dialog'dan fotoğraf çekme) tamamlanınca grid'i elle yazma ihtiyacı büyük
-ölçüde kalkacak; o zaman (a) yeterli olur.
-
----
-
-### T3 — İzinleri `paper-plugin.yml`'de tanımla
-
-`[ ]` **P2**
-
-`izomap.camera` ve `izomap.admin` hiçbir yerde bildirilmemiş. Tanımsız izinler
-varsayılan olarak yalnızca OP'lerde bulunur; normal oyuncular `/izocam`'i göremez.
-
-```yaml
-permissions:
-  izomap.camera:
-    default: true
-  izomap.admin:
-    default: op
-```
-
-T22'deki `izomap.photos.<n>` ve T23'teki admin izni de buraya eklenecek.
-
----
-
 ## P1 — Kamera ve etkileşim
 
 ### T4 — EditProperty'ye hareket seçenekleri
@@ -635,10 +593,12 @@ manzarayı göstermek).
 `[ ]` **P2**
 
 - `messages.yml`: `general.no-permission`, `general.unknown-error`, `photo.captured`,
-  `photo.saved` (T23 kullanacak), `map.grid-header`, `map.grid-entry` (T2-b kullanabilir).
+  `photo.saved` (T23 kullanacak), `map.grid-header`, `map.grid-entry` (T2 bunları
+kullanmadan çözüldüğü için artık sahipsiz — silinecek ya da bir listeleme komutuna
+bağlanacak).
 - Kod: `CameraKeys#readCameraId`, `RenderResult#pixel`, `RenderResult#toImage`
   (T23 kullanacak), `MapService#createMapItem` tekil kullanımı.
-- Ya bir özelliğe bağlanacak ya silinecek; her biri için karar T23/T2 sonrası netleşir.
+- Ya bir özelliğe bağlanacak ya silinecek; her biri için karar T23 sonrası netleşir.
 
 ### T41 — İlk birim testleri
 
@@ -661,6 +621,28 @@ T10 tamamlandıktan sonra tekrar değerlendirilecek.
 ---
 
 ## Arşiv
+
+### T3 — İzinler `paper-plugin.yml`'de tanımlandı
+
+`[x]` **P2** · 2026-08-09
+
+`izomap.camera` ve `izomap.admin` hiçbir yerde bildirilmemişti. Tanımsız izinler
+varsayılan olarak yalnızca OP'lerde bulunur, yani normal oyuncular `/izocam`'i hiç
+göremiyordu. `paper-plugin.yml`'e eklendi: `izomap.camera` → `default: true`,
+`izomap.admin` → `default: op`. T22'deki `izomap.max_photos_by_camera.<n>` ve T23'teki
+export izni de buraya eklenecek.
+
+### T2 — `map.invalid-grid` artık geçerli grid'leri sayıyor
+
+`[x]` **P2** · 2026-08-09
+
+Mesaj oyuncuya `/izocam grids <ad>` yazmasını söylüyordu ama böyle bir alt komut yok;
+oyuncu "bilinmeyen komut" alıyordu. Seçenek (a) uygulandı: `GridLayouts.optionsFor`
+zaten listeyi verdiği için geçerli grid'ler doğrudan mesajın içinde sayılıyor
+(`<ratio>` ve `<grids>` yer tutucuları). Ek komut yok.
+
+Kullanılmayan `map.grid-header` / `map.grid-entry` anahtarları hâlâ boşta — T40'ta
+silinecek ya da bağlanacak.
 
 ### T16 — Işın mesafesi ayar olmaktan çıktı, tek maliyet ayarı kaldı
 

@@ -28,6 +28,7 @@ import org.bukkit.util.Vector;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 /**
  * Brigadier command tree for {@code /izocam}.
@@ -303,7 +304,12 @@ public final class CameraCommand {
         }
         GridOption grid = GridOption.parse(StringArgumentType.getString(ctx, "grid"));
         if (grid == null || !GridLayouts.isValid(camera.aspectRatio(), grid)) {
-            plugin.messages().send(player, "map.invalid-grid", Placeholder.unparsed("ad", name));
+            String options = GridLayouts.optionsFor(camera.aspectRatio()).stream()
+                    .map(GridOption::label)
+                    .collect(Collectors.joining(", "));
+            plugin.messages().send(player, "map.invalid-grid",
+                    Placeholder.unparsed("ratio", camera.aspectRatio().label()),
+                    Placeholder.unparsed("grids", options));
             return 0;
         }
 

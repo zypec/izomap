@@ -43,7 +43,7 @@ photo:
   invalid-ratio: "<red>Geçersiz en-boy oranı. Seçenekler: 1:1, 16:9, 4:3"
 
 map:
-  invalid-grid: "<red>Bu en-boy oranı için geçersiz grid. <gray>/izocam grids <ad> ile bak.</gray>"
+  invalid-grid: "<red>Bu en-boy oranı için geçersiz grid. <gray><ratio> için seçenekler: <white><grids></white></gray>"
   created: "<green><count> harita oluşturuldu (<grid>) ve envanterine eklendi. <gray>(<ms>ms)</gray>"
   inventory-full: "<yellow>Bazı haritalar envantere sığmadı ve yere düştü."
   grid-header: "<gray><ratio> için grid seçenekleri:"
