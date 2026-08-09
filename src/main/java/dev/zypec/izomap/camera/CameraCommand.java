@@ -12,6 +12,7 @@ import dev.zypec.izomap.map.MapTile;
 import dev.zypec.izomap.map.PhotoManager;
 import dev.zypec.izomap.map.PlacedPhoto;
 import dev.zypec.izomap.render.AspectRatio;
+import dev.zypec.izomap.render.CaptureTooLargeException;
 import dev.zypec.izomap.render.RenderService;
 import dev.zypec.izomap.ui.CameraDialogs;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
@@ -229,7 +230,7 @@ public final class CameraCommand {
             player.sendMessage(plugin.messages().get("camera.list-entry",
                     Placeholder.unparsed("name", c.name()),
                     Placeholder.unparsed("ratio", c.aspectRatio().label()),
-                    Placeholder.unparsed("scale", String.format(Locale.ROOT, "%.2f", c.scale()))));
+                    Placeholder.unparsed("scale", String.format(Locale.ROOT, "%.2f", c.zoom()))));
         }
         return com.mojang.brigadier.Command.SINGLE_SUCCESS;
     }
@@ -311,8 +312,16 @@ public final class CameraCommand {
 
         renderService.capture(camera, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
             if (error != null || result == null || world == null) {
+                Throwable cause = error instanceof java.util.concurrent.CompletionException && error.getCause() != null
+                        ? error.getCause() : error;
+                if (cause instanceof CaptureTooLargeException tooLarge) {
+                    runOnMain(() -> plugin.messages().send(player, "photo.too-large",
+                            Placeholder.unparsed("required", String.valueOf(tooLarge.required())),
+                            Placeholder.unparsed("budget", String.valueOf(tooLarge.budget()))));
+                    return;
+                }
                 plugin.getLogger().warning("Harita render'ı başarısız (" + camera.name() + "): "
-                        + (error != null ? error.getMessage() : "boş sonuç/dünya"));
+                        + (cause != null ? cause.getMessage() : "boş sonuç/dünya"));
                 runOnMain(() -> plugin.messages().send(player, "photo.failed"));
                 return;
             }

@@ -58,7 +58,7 @@ public final class CameraStorage extends YamlStorage {
                     c.interactionEntityId() != null ? c.interactionEntityId().toString() : null);
             cfg.set(base + ".cam-yaw", c.camYaw());
             cfg.set(base + ".cam-pitch", c.camPitch());
-            cfg.set(base + ".scale", c.scale());
+            cfg.set(base + ".zoom", c.zoom());
             cfg.set(base + ".aspect-ratio", c.aspectRatio().name());
             cfg.set(base + ".color-filter", c.colorFilter().name());
         }
@@ -115,7 +115,8 @@ public final class CameraStorage extends YamlStorage {
         camera.interactionEntityId(parseUuid(s.getString("interaction-entity")));
         camera.camYaw((float) s.getDouble("cam-yaw"));
         camera.camPitch((float) s.getDouble("cam-pitch"));
-        camera.scale((float) s.getDouble("scale", 1.0));
+        // Eski kayıtlarda anahtar "scale" idi; anlamı aynı olduğu için doğrudan okunur.
+            camera.zoom((float) s.getDouble("zoom", s.getDouble("scale", 1.0)));
         camera.aspectRatio(AspectRatio.fromString(s.getString("aspect-ratio"), AspectRatio.RATIO_1_1));
         camera.colorFilter(ColorFilter.fromString(s.getString("color-filter"), ColorFilter.ORIGINAL));
         return camera;

@@ -135,7 +135,7 @@ public final class CameraManager {
         // Oyuncunun anlık pitch'i kopyalanmaz; aksi halde yukarı bakarken kurulan kamera
         // "ters açıdan" (aşağıdan yukarı) çekebilir. Pitch etkileşimle ayarlanabilir.
         camera.camYaw(owner.getLocation().getYaw());
-        camera.camPitch(30.0f);
+        camera.camPitch((float) plugin.config().defaultPitch());
         camera.aspectRatio(AspectRatio.fromString(plugin.config().defaultAspectRatio(), AspectRatio.RATIO_1_1));
 
         keys.tagCamera(display.getPersistentDataContainer(), camera.id());
@@ -194,8 +194,11 @@ public final class CameraManager {
     // --- transform ---
 
     /**
-     * Kameranın yaw/pitch/scale değerlerini görsel display entity'ye uygular.
+     * Kameranın yaw/pitch değerlerini görsel display entity'ye uygular.
      * Entity yüklü değilse sessizce atlanır (sonraki yüklemede uygulanır).
+     *
+     * <p>Modelin boyutu {@code camera.model-scale} config değeridir; kameranın
+     * yakınlaştırması (zoom) modelin boyutunu <b>etkilemez</b>.</p>
      */
     public void applyTransform(Camera camera) {
         if (camera.displayEntityId() == null) {
@@ -205,23 +208,38 @@ public final class CameraManager {
         if (!(entity instanceof Display display)) {
             return;
         }
-        // Model, camYaw/camPitch yönüne bakacak şekilde döndürülür. Config'teki offset'ler
-        // farklı bir model kullanıldığında görsel hizalamayı elle düzeltmeye yarar.
-        double yaw = camera.camYaw() + plugin.config().modelYawOffset();
-        double pitch = camera.camPitch() + plugin.config().modelPitchOffset();
+        // Model, camYaw/camPitch yönüne bakacak şekilde döndürülür. Config'teki üç eksenli
+        // rotasyon offseti (X=pitch, Y=yaw, Z=roll) farklı bir model kullanıldığında görsel
+        // hizalamayı elle düzeltmeye yarar; sıra Y -> X -> Z olduğundan Z, modelin kendi
+        // bakış ekseni etrafında yatırma (roll) sağlar.
+        double yaw = camera.camYaw() + plugin.config().modelRotationY();
+        double pitch = camera.camPitch() + plugin.config().modelRotationX();
+        double roll = plugin.config().modelRotationZ();
         Quaternionf rotation = new Quaternionf().rotationYXZ(
                 (float) Math.toRadians(-yaw),
                 (float) Math.toRadians(pitch),
-                0.0f);
+                (float) Math.toRadians(roll));
         Transformation transformation = new Transformation(
                 new Vector3f(),
                 rotation,
-                new Vector3f(camera.scale()),
+                new Vector3f((float) plugin.config().modelScale()),
                 new Quaternionf());
 
         display.setInterpolationDuration(3);
         display.setInterpolationDelay(0);
         display.setTransformation(transformation);
+    }
+
+    /**
+     * Yüklü tüm kameraların transformunu yeniden uygular.
+     *
+     * <p>Config'teki model rotasyon offseti değiştirilip {@code /izomap reload}
+     * çalıştırıldığında sonucun anında görünmesi için kullanılır.</p>
+     */
+    public void refreshTransforms() {
+        for (Camera camera : byId.values()) {
+            applyTransform(camera);
+        }
     }
 
     /** Değişiklik sonrası transform'u uygular ve kalıcılığı tetikler. */

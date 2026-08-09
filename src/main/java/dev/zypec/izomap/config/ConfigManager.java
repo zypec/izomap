@@ -28,12 +28,44 @@ public final class ConfigManager {
 
     // --- settings ---
 
+    /**
+     * Işınların kameradan itibaren ileri doğru kat ettiği mesafe (blok).
+     * Bu mesafeden uzaktaki bloklar fotoğrafa girmez.
+     */
     public int maxRenderDistance() {
-        return cfg().getInt("settings.max-render-distance", 128);
+        return clamp(cfg().getInt("settings.max-render-distance", 160), 16, 32768);
     }
 
+    /** Render'ın kaç iş parçacığına bölüneceği (görüntü yatay bantlara ayrılır). */
     public int renderThreads() {
-        return cfg().getInt("settings.render-threads", 4);
+        return clamp(cfg().getInt("settings.render-threads", 4), 1, 16);
+    }
+
+    /**
+     * Tek bir çekimde yakalanabilecek maksimum chunk sayısı.
+     *
+     * <p>Geniş kadraj çok sayıda chunk'ın kopyalanmasını gerektirir; bu sınır,
+     * bir oyuncunun aşırı uzaklaştırıp sunucuyu dondurmasını engeller. Aşılırsa
+     * çekim yapılmaz ve oyuncuya yakınlaşması söylenir.</p>
+     */
+    public int maxChunksPerCapture() {
+        return clamp(cfg().getInt("settings.max-chunks-per-capture", 1024), 64, 8192);
+    }
+
+    /**
+     * Kadraja giren ama yüklü olmayan chunk'ların diskten yüklenip
+     * yüklenmeyeceği. Yükleme <b>asenkron</b> yapılır, ana thread donmaz.
+     */
+    public boolean loadMissingChunks() {
+        return cfg().getBoolean("settings.load-missing-chunks", true);
+    }
+
+    /**
+     * Hiç üretilmemiş chunk'ların çekim için üretilip üretilmeyeceği.
+     * Varsayılan {@code false}: fotoğraf çekmek dünyayı büyütmemelidir.
+     */
+    public boolean generateMissingChunks() {
+        return cfg().getBoolean("settings.generate-missing-chunks", false);
     }
 
     public int maxCamerasPerPlayer() {
@@ -50,22 +82,57 @@ public final class ConfigManager {
         return cfg().getString("camera.model-material", "SPYGLASS");
     }
 
-    public double scaleStep() {
-        return cfg().getDouble("camera.scale-step", 0.25);
+    /**
+     * Zoom ayar adımı: <b>çarpan</b>dır, toplanan bir miktar değil.
+     * 1.25 = her tık %25 yakınlaştırır/uzaklaştırır.
+     */
+    public double zoomStep() {
+        return clamp(cfg().getDouble("camera.zoom-step", 1.25), 1.01, 4.0);
+    }
+
+    /**
+     * Kamera modelinin görsel boyutu. Fotoğrafın yakınlaştırmasıyla ilgisi yoktur;
+     * yalnızca dünyada duran modelin ne kadar büyük göründüğünü belirler.
+     */
+    public double modelScale() {
+        return clamp(cfg().getDouble("camera.model-scale", 1.0), 0.1, 8.0);
     }
 
     public double angleStep() {
         return cfg().getDouble("camera.angle-step", 15.0);
     }
 
-    /** Model rotasyonuna eklenen yaw düzeltmesi (farklı modeller için kalibrasyon). */
-    public double modelYawOffset() {
-        return cfg().getDouble("camera.model-yaw-offset", 0.0);
+    /**
+     * Yeni kurulan kameranın dikey açısı (derece, pozitif = aşağı bakış).
+     * 30 klasik izometrik açıdır; 0 yatay bakıştır.
+     */
+    public double defaultPitch() {
+        return clamp(cfg().getDouble("camera.default-pitch", 30.0), -90.0, 90.0);
     }
 
-    /** Model rotasyonuna eklenen pitch düzeltmesi. */
-    public double modelPitchOffset() {
-        return cfg().getDouble("camera.model-pitch-offset", 0.0);
+    /**
+     * Model rotasyon düzeltmesi: X ekseni (pitch, öne/arkaya eğme), derece.
+     *
+     * <p>Eski {@code camera.model-pitch-offset} anahtarı geriye dönük uyumluluk
+     * için varsayılan olarak okunur.</p>
+     */
+    public double modelRotationX() {
+        return cfg().getDouble("camera.model-rotation.x", cfg().getDouble("camera.model-pitch-offset", 0.0));
+    }
+
+    /**
+     * Model rotasyon düzeltmesi: Y ekseni (yaw, sağa/sola çevirme), derece.
+     *
+     * <p>Eski {@code camera.model-yaw-offset} anahtarı geriye dönük uyumluluk
+     * için varsayılan olarak okunur.</p>
+     */
+    public double modelRotationY() {
+        return cfg().getDouble("camera.model-rotation.y", cfg().getDouble("camera.model-yaw-offset", 0.0));
+    }
+
+    /** Model rotasyon düzeltmesi: Z ekseni (roll, kendi ekseninde yatırma), derece. */
+    public double modelRotationZ() {
+        return cfg().getDouble("camera.model-rotation.z", 0.0);
     }
 
     // --- photo ---
@@ -74,16 +141,34 @@ public final class ConfigManager {
         return cfg().getString("photo.default-aspect-ratio", "RATIO_1_1");
     }
 
-    public int regionSize() {
-        return cfg().getInt("photo.region-size", 48);
+    /**
+     * Kadrajın kapsadığı dikey alan (blok) — yani zoom.
+     *
+     * <p>Ortografik projeksiyonda nesnelerin boyutunu <b>yalnızca</b> bu belirler;
+     * kameranın hedefe uzaklığı boyutu değiştirmez. Kameranın ölçeği (scale) bunu
+     * böler: 2.0x ölçek yarısı kadar alan, yani iki kat yakın demektir.</p>
+     *
+     * <p>Eski {@code photo.region-size} anahtarı geriye dönük uyumluluk için
+     * varsayılan olarak okunur.</p>
+     */
+    public double frameHeight() {
+        double legacy = cfg().getDouble("photo.region-size", 48.0);
+        return clamp(cfg().getDouble("photo.frame-height", legacy), 4.0, 512.0);
     }
 
-    public int resolution() {
-        return cfg().getInt("photo.resolution", 128);
+    /**
+     * Kadrajın kameraya göre dikey kayması, kadraj yüksekliğinin oranı olarak.
+     *
+     * <p>0.0 kamerayı kadrajın tam ortasına koyar (alt yarı kameranın altını, yani
+     * çoğu zaman yer altını görür); 0.5 kamerayı kadrajın alt kenarına alır.</p>
+     */
+    public double frameShift() {
+        return clamp(cfg().getDouble("photo.frame-shift", 0.5), -1.0, 1.0);
     }
 
-    public double stepSize() {
-        return cfg().getDouble("photo.step-size", 0.25);
+    /** Kenar yumuşatma: piksel başına NxN ışın. 1 = kapalı. Maliyet N² kat artar. */
+    public int supersampling() {
+        return clamp(cfg().getInt("photo.supersampling", 2), 1, 4);
     }
 
     // --- placement ---
@@ -102,5 +187,15 @@ public final class ConfigManager {
 
     public String backingMaterial() {
         return cfg().getString("placement.backing-material", "STONE");
+    }
+
+    // --- yardımcılar ---
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
     }
 }

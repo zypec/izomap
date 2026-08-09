@@ -8,7 +8,7 @@ public enum EditProperty {
 
     YAW,
     PITCH,
-    SCALE;
+    ZOOM;
 
     /** Döngüsel olarak bir sonraki özelliği döndürür. */
     public EditProperty next() {

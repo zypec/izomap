@@ -37,11 +37,13 @@ import java.util.Locale;
 public final class CameraDialogs {
 
     private static final String INPUT_NAME = "photo_name";
-    private static final String INPUT_SCALE = "scale";
+    private static final String INPUT_ZOOM = "zoom";
     private static final String INPUT_FILTER = "filter";
     private static final String INPUT_GRID = "grid";
 
-    private static final float[] SCALE_PRESETS = {0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f};
+    // Geniş manzaradan yakın plana; kadrajın kapsadığı alan = frame-height / zoom.
+    private static final float[] ZOOM_PRESETS =
+            {0.05f, 0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f};
 
     private final Izomap plugin;
     private final CameraManager cameraManager;
@@ -54,18 +56,18 @@ public final class CameraDialogs {
     }
 
     public void openCaptureDialog(Player player, Camera camera) {
-        openCaptureDialog(player, camera, camera.name(), camera.scale(), camera.colorFilter());
+        openCaptureDialog(player, camera, camera.name(), camera.zoom(), camera.colorFilter());
     }
 
     private void openCaptureDialog(Player player, Camera camera,
-                                   String initialName, float initialScale, ColorFilter initialFilter) {
+                                   String initialName, float initialZoom, ColorFilter initialFilter) {
         Dialog dialog = Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(plugin.messages().get("dialog.title"))
                         .body(List.of(DialogBody.plainMessage(infoLine(camera))))
                         .inputs(List.of(
                                 DialogInput.text(INPUT_NAME, plugin.messages().get("dialog.name-label"))
                                         .initial(initialName).width(220).build(),
-                                DialogInput.singleOption(INPUT_SCALE, 220, scaleEntries(initialScale),
+                                DialogInput.singleOption(INPUT_ZOOM, 220, zoomEntries(initialZoom),
                                         plugin.messages().get("dialog.scale-label"), true),
                                 DialogInput.singleOption(INPUT_FILTER, 220, filterEntries(initialFilter),
                                         plugin.messages().get("dialog.filter-label"), true),
@@ -103,13 +105,16 @@ public final class CameraDialogs {
 
     // --- girişler ---
 
-    private List<SingleOptionDialogInput.OptionEntry> scaleEntries(float initial) {
-        float nearest = nearestScale(initial);
+    private List<SingleOptionDialogInput.OptionEntry> zoomEntries(float initial) {
+        float nearest = nearestZoom(initial);
         List<SingleOptionDialogInput.OptionEntry> entries = new ArrayList<>();
-        for (float value : SCALE_PRESETS) {
+        for (float value : ZOOM_PRESETS) {
             String id = String.format(Locale.ROOT, "%.2f", value);
+            // Etikette kapsanan alan da yazar: "0.25x - 192 blok".
+            String label = String.format(Locale.ROOT, "%sx - %.0f blok",
+                    id, plugin.config().frameHeight() / value);
             entries.add(SingleOptionDialogInput.OptionEntry.create(
-                    id, Component.text(id + "x"), value == nearest));
+                    id, Component.text(label), value == nearest));
         }
         return entries;
     }
@@ -147,18 +152,18 @@ public final class CameraDialogs {
             return;
         }
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
-        Float scale = parseFloat(view.getText(INPUT_SCALE));
+        Float zoom = parseFloat(view.getText(INPUT_ZOOM));
         ColorFilter filter = ColorFilter.fromString(view.getText(INPUT_FILTER), camera.colorFilter());
-        float resolvedScale = scale != null ? scale : camera.scale();
+        float resolvedZoom = zoom != null ? zoom : camera.zoom();
 
         plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> {
             camera.aspectRatio(ratio);
-            camera.scale(resolvedScale);
+            camera.zoom(resolvedZoom);
             camera.colorFilter(filter);
             cameraManager.applyAndPersist(camera);
             plugin.preview().refresh(player, camera);
             // Yeni oranın grid seçenekleriyle yeniden aç; ad/ölçek/efekt korunur.
-            openCaptureDialog(player, camera, name, resolvedScale, filter);
+            openCaptureDialog(player, camera, name, resolvedZoom, filter);
         });
     }
 
@@ -167,13 +172,13 @@ public final class CameraDialogs {
             return;
         }
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
-        Float scale = parseFloat(view.getText(INPUT_SCALE));
+        Float zoom = parseFloat(view.getText(INPUT_ZOOM));
         ColorFilter filter = ColorFilter.fromString(view.getText(INPUT_FILTER), camera.colorFilter());
         String gridLabel = view.getText(INPUT_GRID);
 
         plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> {
-            if (scale != null) {
-                camera.scale(scale);
+            if (zoom != null) {
+                camera.zoom(zoom);
             }
             camera.colorFilter(filter);
             cameraManager.applyAndPersist(camera);
@@ -193,17 +198,17 @@ public final class CameraDialogs {
         return plugin.messages().get("dialog.info",
                 Placeholder.unparsed("camera", camera.name()),
                 Placeholder.unparsed("ratio", camera.aspectRatio().label()),
-                Placeholder.unparsed("scale", String.format(Locale.ROOT, "%.2f", camera.scale())));
+                Placeholder.unparsed("scale", String.format(Locale.ROOT, "%.2f", camera.zoom())));
     }
 
     private static String valueOr(String value, String fallback) {
         return (value == null || value.isBlank()) ? fallback : value;
     }
 
-    private static float nearestScale(float scale) {
-        float best = SCALE_PRESETS[0];
-        for (float value : SCALE_PRESETS) {
-            if (Math.abs(value - scale) < Math.abs(best - scale)) {
+    private static float nearestZoom(float zoom) {
+        float best = ZOOM_PRESETS[0];
+        for (float value : ZOOM_PRESETS) {
+            if (Math.abs(value - zoom) < Math.abs(best - zoom)) {
                 best = value;
             }
         }

@@ -69,6 +69,9 @@ public final class Izomap extends JavaPlugin {
         if (cameraManager != null) {
             cameraManager.saveSync();
         }
+        if (renderService != null) {
+            renderService.shutdown();
+        }
         getLogger().info("Izomap devre dışı bırakıldı.");
     }
 
@@ -76,6 +79,10 @@ public final class Izomap extends JavaPlugin {
     public void reloadAll() {
         this.configManager.reload();
         this.messages.reload();
+        // Model rotasyon offseti gibi görsel ayarların anında etkili olması için.
+        if (cameraManager != null) {
+            cameraManager.refreshTransforms();
+        }
     }
 
     public ConfigManager config() {

@@ -21,7 +21,7 @@ camera:
   given-item: "<green>Kamera yerleştirme eşyası envanterine eklendi."
   name-taken: "<red>Bu isimde bir kameran zaten var: <white><name></white>"
   list-header: "<gray>Kameralar (<count>):"
-  list-entry: "<dark_gray>› <white><name></white> <gray>(<ratio>, ölçek <scale>)"
+  list-entry: "<dark_gray>› <white><name></white> <gray>(<ratio>, zoom <scale>x)"
   list-empty: "<gray>Henüz bir kameran yok."
   edit-property: "<gray>Ayarlanan: <white><property></white> <dark_gray>|</dark_gray> <yellow><value></yellow>"
   edit-switched: "<gray>Ayar modu: <white><property></white>"
@@ -33,6 +33,7 @@ photo:
   capturing: "<gray>Fotoğraf çekiliyor, lütfen bekle..."
   captured: "<green>Fotoğraf çekildi (<width>x<height> px)."
   failed: "<red>Fotoğraf çekimi başarısız oldu."
+  too-large: "<red>Kadraj çok geniş: <white><required></white> chunk gerekiyor, sınır <white><budget></white>. Yakınlaştırmayı (zoom) artır."
   saved: "<green>Fotoğraf kaydedildi: <white><file></white> <gray>(<width>x<height>, <ms>ms)"
   ratio-set: "<green>En-boy oranı ayarlandı: <white><ratio></white>"
   invalid-ratio: "<red>Geçersiz en-boy oranı. Seçenekler: 1:1, 16:9, 4:3"
@@ -56,9 +57,9 @@ map:
 
 dialog:
   title: "<gradient:#5e60ce:#48bfe3>Izomap Fotoğraf</gradient>"
-  info: "<gray>Kamera: <white><camera></white>  •  Oran: <white><ratio></white>  •  Ölçek: <white><scale></white>"
+  info: "<gray>Kamera: <white><camera></white>  •  Oran: <white><ratio></white>  •  Zoom: <white><scale></white>x"
   name-label: "Fotoğraf adı"
-  scale-label: "Ölçek (yakınlaştırma)"
+  scale-label: "Yakınlaştırma (kadraj genişliği)"
   filter-label: "Renk efekti"
   grid-label: "Yerleşim (grid)"
   grid-option: "<grid> — <count> harita (<wpx>x<hpx>px)"

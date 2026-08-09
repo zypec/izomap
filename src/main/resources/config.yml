@@ -3,10 +3,30 @@
 # ============================================================
 
 settings:
-  # Raycasting için maksimum menzil (blok cinsinden).
-  max-render-distance: 128
-  # Asenkron render için kullanılacak worker thread sayısı.
+  # Işınların kameradan itibaren İLERİ doğru kat ettiği mesafe (blok).
+  # Bu mesafeden uzaktaki bloklar fotoğrafa girmez (gökyüzü gibi şeffaf kalır).
+  # DİKKAT: Bu, kadrajın GENİŞLİĞİNİ değil ışının menzilini belirler. Daha çok
+  # alan görmek için photo.frame-height / kamera zoom'u kullanılır.
+  # Aşağı eğimli geniş kadrajda ışının yere ulaşabilmesi için bu değerin de
+  # kadraj yüksekliği mertebesinde olması gerekir, yoksa kadrajın üst kısmı boş
+  # (şeffaf) çıkar. Kabaca gereken: kadraj_yüksekliği / sin(pitch).
+  # Maliyeti doğrusaldır: hem render süresi hem chunk sayısı bununla büyür.
+  max-render-distance: 160
+  # Render'ın kaç iş parçacığına bölüneceği. Görüntü yatay bantlara ayrılıp
+  # paralel işlenir. Aralık: 1-16.
   render-threads: 4
+  # Tek bir çekimde kopyalanabilecek maksimum chunk sayısı. Geniş kadraj çok
+  # chunk gerektirir; bu sınır aşırı uzaklaştırmanın sunucuyu dondurmasını
+  # engeller. Aşılırsa çekim yapılmaz, oyuncuya yakınlaşması söylenir.
+  # Kabaca: 1024 chunk ~ 512x512 bloklik bir kadraj. Aralık: 64-8192.
+  max-chunks-per-capture: 1024
+  # Kadraja giren ama yüklü olmayan chunk'lar diskten yüklensin mi?
+  # Kapalıysa sunucunun görüş mesafesi dışındaki her yer boş (şeffaf) çıkar.
+  # Yükleme asenkrondur; ana thread donmaz.
+  load-missing-chunks: true
+  # Hiç üretilmemiş chunk'lar çekim için üretilsin mi? Varsayılan kapalı:
+  # fotoğraf çekmek dünyayı büyütmemelidir.
+  generate-missing-chunks: false
   # Bir oyuncunun aynı anda sahip olabileceği maksimum kamera sayısı.
   max-cameras-per-player: 5
 
@@ -15,24 +35,47 @@ camera:
   display-type: ITEM_DISPLAY
   # ITEM_DISPLAY için kullanılacak model eşyası (Material adı).
   model-material: SPYGLASS
-  # Sol/sağ tık ile ölçek ayar adımı.
-  scale-step: 0.25
+  # Sol/sağ tık ile yakınlaştırma adımı. ÇARPANDIR, eklenen bir miktar değil:
+  # 1.25 = her tık %25 yakınlaştırır/uzaklaştırır. Aralık: 1.01-4.0.
+  zoom-step: 1.25
+  # Dünyada duran kamera modelinin görsel boyutu. Fotoğrafın yakınlaştırmasıyla
+  # ilgisi YOKTUR; sadece modeli büyütüp küçültür. Aralık: 0.1-8.0.
+  model-scale: 1.0
   # Yaw/Pitch ayar adımı (derece).
   angle-step: 15.0
-  # Model rotasyon düzeltmesi (derece). Farklı bir model kullanılırsa, modelin
-  # baktığı yön ile çekim yönü hizalanana kadar bu değerler elle ayarlanır.
-  model-yaw-offset: 0.0
-  model-pitch-offset: 0.0
+  # Yeni kurulan kameranın dikey açısı (derece, pozitif = aşağı bakış).
+  # 30 klasik izometrik açıdır. 0 (yatay bakış) kadrajın alt yarısını arazinin
+  # içine sokar; o zaman photo.frame-shift değerini artırmak gerekir.
+  default-pitch: 30.0
+  # Model rotasyon düzeltmesi (derece), üç eksende serbest. Farklı bir model
+  # kullanılırsa, modelin baktığı yön ile çekim yönü hizalanana kadar elle ayarlanır.
+  # Uygulanma sırası Y -> X -> Z olduğundan z, modelin kendi bakış ekseni etrafında
+  # yatırma (roll) sağlar.
+  model-rotation:
+    x: 0.0   # pitch: öne/arkaya eğme
+    y: 0.0   # yaw:   sağa/sola çevirme
+    z: 0.0   # roll:  kendi ekseninde yatırma
 
 photo:
   # Varsayılan en-boy oranı: RATIO_1_1, RATIO_16_9, RATIO_4_3
   default-aspect-ratio: RATIO_1_1
-  # Kameranın önünde örneklenen küp bölgenin kenar uzunluğu (blok).
-  region-size: 48
-  # Render dikey çözünürlüğü (piksel). Yatay = height * en-boy oranı.
-  resolution: 128
-  # Ray-march adım büyüklüğü (blok). Küçük = daha hassas, daha yavaş.
-  step-size: 0.25
+  # KADRAJ GENİŞLİĞİ: görüntünün üst kenarı ile alt kenarı arasına kaç blok
+  # sığacağı. Kameranın zoom'u bunu böler:
+  #   kapsanan alan = frame-height / zoom   (0.25x -> 192 blok, 2x -> 24 blok)
+  # Ortografik (izometrik) projeksiyonda nesne boyutunu YALNIZCA bu belirler;
+  # kameranın hedefe uzaklığı boyutu DEĞİŞTİRMEZ, max-render-distance de
+  # kadrajı genişletmez. "Daha çok yer görsün" istiyorsan burayı büyüt ya da
+  # kameranın zoom'unu küçült. Aralık: 4-512.
+  frame-height: 48
+  # KADRAJIN DİKEY KAYMASI, kadraj yüksekliğinin oranı olarak.
+  #   0.0 = kamera kadrajın tam ortasında -> alt yarı kameranın altını, yani
+  #         genelde YER ALTINI gösterir (arazi kesiti).
+  #   0.5 = kamera kadrajın alt kenarında -> her şey kameranın üstünde kalır.
+  # Fotoğrafın altında toprak/taş kesiti görüyorsan bu değeri artır.
+  frame-shift: 0.5
+  # KENAR YUMUŞATMA: piksel başına NxN ışın gönderilip ortalaması alınır.
+  # 1 = kapalı (en hızlı), 2 = önerilen, 3-4 = daha temiz kenar, N² kat maliyet.
+  supersampling: 2
 
 placement:
   # Fotoğraf duvarının oyuncunun kaç blok önüne kurulacağı.

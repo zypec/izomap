@@ -16,6 +16,11 @@ import java.util.UUID;
  */
 public final class Camera {
 
+    /** En geniş manzara: kadraj yüksekliğinin 50 katı (48 blok -> 2400 blok). */
+    public static final float MIN_ZOOM = 0.02f;
+    /** En yakın plan: kadraj yüksekliğinin 1/16'sı (48 blok -> 3 blok). */
+    public static final float MAX_ZOOM = 16.0f;
+
     private final UUID id;
     private final UUID owner;
     private String name;
@@ -26,10 +31,10 @@ public final class Camera {
     private UUID displayEntityId;
     private UUID interactionEntityId;
 
-    /** Kameranın bakış açıları ve ölçeği (fotoğraf yönü bunlardan türetilir). */
+    /** Kameranın bakış açıları ve yakınlaştırması (fotoğraf yönü bunlardan türetilir). */
     private float camYaw;
     private float camPitch;
-    private float scale;
+    private float zoom;
 
     private AspectRatio aspectRatio;
     private ColorFilter colorFilter;
@@ -44,7 +49,7 @@ public final class Camera {
         this.anchor = anchor;
         this.camYaw = anchor.getYaw();
         this.camPitch = anchor.getPitch();
-        this.scale = 1.0f;
+        this.zoom = 1.0f;
         this.aspectRatio = AspectRatio.RATIO_1_1;
         this.colorFilter = ColorFilter.ORIGINAL;
     }
@@ -105,12 +110,20 @@ public final class Camera {
         this.camPitch = Math.max(-90.0f, Math.min(90.0f, camPitch));
     }
 
-    public float scale() {
-        return scale;
+    /**
+     * Yakınlaştırma çarpanı. Kadrajın kapsadığı alan
+     * {@code photo.frame-height / zoom} bloktur: 1.0 varsayılan, 0.25 dört kat
+     * geniş manzara, 4.0 dört kat yakın plan.
+     *
+     * <p>Kamera modelinin görsel boyutuyla ilgisi yoktur; model boyutu
+     * {@code camera.model-scale} ile ayarlanır.</p>
+     */
+    public float zoom() {
+        return zoom;
     }
 
-    public void scale(float scale) {
-        this.scale = Math.max(0.1f, scale);
+    public void zoom(float zoom) {
+        this.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
     }
 
     public AspectRatio aspectRatio() {

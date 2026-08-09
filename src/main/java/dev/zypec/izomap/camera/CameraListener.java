@@ -125,7 +125,12 @@ public final class CameraListener implements Listener {
         switch (camera.editProperty()) {
             case YAW -> camera.camYaw((float) (camera.camYaw() + direction * plugin.config().angleStep()));
             case PITCH -> camera.camPitch((float) (camera.camPitch() + direction * plugin.config().angleStep()));
-            case SCALE -> camera.scale((float) (camera.scale() + direction * plugin.config().scaleStep()));
+            // Zoom çarpımsal ilerler: her tık yüzde olarak aynı miktarda yakınlaştırır,
+            // böylece 0.05x ile 8x arasında her yerde adım aralığı dengeli kalır.
+            case ZOOM -> {
+                double step = plugin.config().zoomStep();
+                camera.zoom((float) (direction > 0 ? camera.zoom() * step : camera.zoom() / step));
+            }
         }
         manager.applyAndPersist(camera);
         plugin.preview().refresh(player, camera);
@@ -138,7 +143,10 @@ public final class CameraListener implements Listener {
         return switch (camera.editProperty()) {
             case YAW -> String.format(Locale.ROOT, "%.0f°", camera.camYaw());
             case PITCH -> String.format(Locale.ROOT, "%.0f°", camera.camPitch());
-            case SCALE -> String.format(Locale.ROOT, "%.2fx", camera.scale());
+            // Zoom'un yanında kadrajın kaç blok kapsadığı da gösterilir; asıl merak
+            // edilen budur ve çarpanın tek başına anlamı yoktur.
+            case ZOOM -> String.format(Locale.ROOT, "%.2fx (%.0f blok)",
+                    camera.zoom(), plugin.config().frameHeight() / camera.zoom());
         };
     }
 

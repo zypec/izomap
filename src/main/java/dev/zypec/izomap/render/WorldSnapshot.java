@@ -3,8 +3,8 @@ package dev.zypec.izomap.render;
 import org.bukkit.ChunkSnapshot;
 import org.bukkit.Material;
 import org.bukkit.World;
-import org.bukkit.util.BoundingBox;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -12,9 +12,12 @@ import java.util.Map;
  * Bir dünya bölgesinin iş parçacığı güvenli anlık görüntüsü.
  *
  * <p>Paper'da chunk/blok erişimi yalnızca ana (region) iş parçacığında güvenlidir.
- * Bu sınıf, gerekli chunk'ları <b>ana thread'de</b> {@link ChunkSnapshot} olarak
- * kopyalar; ardından ağır ray-march işlemi bu kopya üzerinde <b>asenkron</b>
- * yürütülebilir.</p>
+ * Bu sınıf, gerekli chunk'ların <b>ana thread'de</b> alınmış {@link ChunkSnapshot}
+ * kopyalarını tutar; ardından ağır voxel yürüyüşü bu kopyalar üzerinde
+ * <b>asenkron</b> yürütülebilir.</p>
+ *
+ * <p>Kopyası bulunmayan chunk'lar hava sayılır (fotoğrafta şeffaf kalır).
+ * Chunk'ların yüklenmesi ve kopyalanması {@link RenderService}'in işidir.</p>
  */
 public final class WorldSnapshot {
 
@@ -28,27 +31,16 @@ public final class WorldSnapshot {
         this.maxY = maxY;
     }
 
-    /**
-     * Verilen bölgeyi kapsayan chunk'ları yakalar.
-     * <b>Ana iş parçacığında</b> çağrılmalıdır.
-     */
-    public static WorldSnapshot capture(World world, BoundingBox region) {
-        int minChunkX = (int) Math.floor(region.getMinX()) >> 4;
-        int maxChunkX = (int) Math.floor(region.getMaxX()) >> 4;
-        int minChunkZ = (int) Math.floor(region.getMinZ()) >> 4;
-        int maxChunkZ = (int) Math.floor(region.getMaxZ()) >> 4;
-
-        Map<Long, ChunkSnapshot> chunks = new HashMap<>();
-        for (int cx = minChunkX; cx <= maxChunkX; cx++) {
-            for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
-                ChunkSnapshot snapshot = world.getChunkAt(cx, cz).getChunkSnapshot(false, false, false);
-                chunks.put(key(cx, cz), snapshot);
-            }
+    /** Hazır chunk kopyalarından anlık görüntü kurar. */
+    public static WorldSnapshot of(World world, Collection<ChunkSnapshot> snapshots) {
+        Map<Long, ChunkSnapshot> chunks = new HashMap<>(snapshots.size() * 2);
+        for (ChunkSnapshot snapshot : snapshots) {
+            chunks.put(key(snapshot.getX(), snapshot.getZ()), snapshot);
         }
         return new WorldSnapshot(chunks, world.getMinHeight(), world.getMaxHeight());
     }
 
-    /** Dünya koordinatındaki bloğun materyali (bölge dışıysa AIR). */
+    /** Dünya koordinatındaki bloğun materyali (kopyası yoksa AIR). */
     public Material materialAt(int x, int y, int z) {
         if (y < minY || y >= maxY) {
             return Material.AIR;
@@ -60,11 +52,30 @@ public final class WorldSnapshot {
         return snapshot.getBlockType(x & 15, y, z & 15);
     }
 
+    /** Dünyanın en alt blok yüksekliği (dahil). */
+    public int minY() {
+        return minY;
+    }
+
+    /** Dünyanın en üst blok yüksekliği (hariç). */
+    public int maxY() {
+        return maxY;
+    }
+
     public int chunkCount() {
         return chunks.size();
     }
 
-    private static long key(int chunkX, int chunkZ) {
+    /** Chunk koordinatlarını tek bir {@code long} anahtara paketler. */
+    public static long key(int chunkX, int chunkZ) {
         return ((long) chunkX << 32) ^ (chunkZ & 0xFFFFFFFFL);
+    }
+
+    public static int chunkX(long key) {
+        return (int) (key >> 32);
+    }
+
+    public static int chunkZ(long key) {
+        return (int) key;
     }
 }

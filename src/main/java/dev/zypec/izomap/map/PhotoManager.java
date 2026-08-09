@@ -3,6 +3,7 @@ package dev.zypec.izomap.map;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.camera.Camera;
 import dev.zypec.izomap.camera.CameraManager;
+import dev.zypec.izomap.render.CaptureTooLargeException;
 import dev.zypec.izomap.render.RenderService;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
@@ -85,6 +86,21 @@ public final class PhotoManager {
         }
     }
 
+    /** Çekim hatasını oyuncuya bildirir; bütçe aşımı için özel mesaj gönderir. */
+    private void reportCaptureError(Player player, Camera camera, Throwable error) {
+        Throwable cause = error instanceof java.util.concurrent.CompletionException && error.getCause() != null
+                ? error.getCause() : error;
+        if (cause instanceof CaptureTooLargeException tooLarge) {
+            runOnMain(() -> plugin.messages().send(player, "photo.too-large",
+                    Placeholder.unparsed("required", String.valueOf(tooLarge.required())),
+                    Placeholder.unparsed("budget", String.valueOf(tooLarge.budget()))));
+            return;
+        }
+        plugin.getLogger().warning("Fotoğraf render'ı başarısız (" + camera.name() + "): "
+                + (cause != null ? cause.getMessage() : "boş sonuç"));
+        runOnMain(() -> plugin.messages().send(player, "photo.failed"));
+    }
+
     public void saveSync() {
         storage.saveAllSync(photos.values());
     }
@@ -109,9 +125,7 @@ public final class PhotoManager {
 
         renderService.capture(camera, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
             if (error != null || result == null) {
-                plugin.getLogger().warning("Fotoğraf render'ı başarısız (" + camera.name() + "): "
-                        + (error != null ? error.getMessage() : "boş sonuç"));
-                runOnMain(() -> plugin.messages().send(player, "photo.failed"));
+                reportCaptureError(player, camera, error);
                 return;
             }
             runOnMain(() -> {

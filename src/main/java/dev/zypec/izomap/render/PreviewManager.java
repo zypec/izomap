@@ -3,6 +3,7 @@ package dev.zypec.izomap.render;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.camera.Camera;
 import dev.zypec.izomap.map.MapService;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -81,6 +82,15 @@ public final class PreviewManager implements Listener {
                     if (error == null && result != null) {
                         mapService.applyTile(view, result.argb());
                         placeIfEmpty(player, view);
+                        return;
+                    }
+                    // Önizleme sessizce donmasın: bütçe aşımının nedeni action bar'da yazar.
+                    Throwable cause = error instanceof java.util.concurrent.CompletionException
+                            && error.getCause() != null ? error.getCause() : error;
+                    if (cause instanceof CaptureTooLargeException tooLarge) {
+                        player.sendActionBar(plugin.messages().get("photo.too-large",
+                                Placeholder.unparsed("required", String.valueOf(tooLarge.required())),
+                                Placeholder.unparsed("budget", String.valueOf(tooLarge.budget()))));
                     }
                 }));
     }
