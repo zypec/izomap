@@ -73,7 +73,7 @@ public final class PhotoExporter {
 
         var file = folder.resolve(safe + EXTENSION).normalize();
         if (!file.startsWith(folder.normalize()))
-            throw new IllegalArgumentException("Dosya adı export klasörünün dışına çıkıyor: " + requested);
+            throw new IllegalArgumentException("File name escapes the export folder: " + requested);
         return file;
     }
 

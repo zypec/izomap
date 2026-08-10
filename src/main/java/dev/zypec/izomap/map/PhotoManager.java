@@ -6,6 +6,7 @@ import dev.zypec.izomap.camera.CameraManager;
 import dev.zypec.izomap.render.CaptureTooLargeException;
 import dev.zypec.izomap.render.RenderResult;
 import dev.zypec.izomap.render.RenderService;
+import dev.zypec.izomap.util.Failures;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -59,7 +60,7 @@ public final class PhotoManager {
     // --- lifecycle ---
 
     public void load() {
-        storage.load().thenRun(() -> runOnMain(() -> {
+        storage.load().thenRun(() -> plugin.runOnMain(() -> {
             ingest(storage.readAll());
             loaded = true;
             restoreAll();
@@ -78,7 +79,8 @@ public final class PhotoManager {
         for (var photo : loaded) {
             photos.put(photo.id(), photo);
         }
-        plugin.getLogger().info(loaded.size() + " yerleştirilmiş fotoğraf yüklendi.");
+        plugin.messages().info("log.photos-loaded",
+                Placeholder.unparsed("count", String.valueOf(loaded.size())));
     }
 
     /**
@@ -94,9 +96,9 @@ public final class PhotoManager {
 
             cache.read(photo.id(), photo.grid()).whenComplete((result, error) -> {
                 if (error == null && result != null) {
-                    runOnMain(() -> applyToMaps(photo, ImageSlicer.slice(result, photo.grid())));
+                    plugin.runOnMain(() -> applyToMaps(photo, ImageSlicer.slice(result, photo.grid())));
                 } else {
-                    runOnMain(() -> reRenderFromSpec(photo));
+                    plugin.runOnMain(() -> reRenderFromSpec(photo));
                 }
             });
         }
@@ -115,9 +117,9 @@ public final class PhotoManager {
             // its current settings may no longer match what is on the wall.
             var camera = cameraManager.byOwnerAndName(photo.owner(), photo.cameraName()).orElse(null);
             if (camera == null) {
-                plugin.getLogger().warning("Fotoğraf '" + photo.name() + "' (" + photo.shortId()
-                                           + ") ne ön bellekte var ne de çekim parametreleri kayıtlı; haritalar son"
-                                           + " hâlinde bırakıldı.");
+                plugin.messages().warn("log.photo-unrestorable",
+                        Placeholder.unparsed("name", photo.name()),
+                        Placeholder.unparsed("id", photo.shortId()));
                 return;
             }
             spec = renderService.specFor(camera);
@@ -127,12 +129,13 @@ public final class PhotoManager {
         var used = spec;
         renderService.capture(used, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
             if (error != null || result == null) {
-                plugin.getLogger().warning("Fotoğraf '" + photo.name() + "' yeniden çekilemedi: "
-                                           + (error != null ? error.getMessage() : "boş sonuç"));
+                plugin.messages().warn("log.photo-recapture-failed",
+                        Placeholder.unparsed("name", photo.name()),
+                        Placeholder.unparsed("reason", plugin.messages().reason(error)));
                 return;
             }
             cache.write(photo.id(), grid, result);
-            runOnMain(() -> {
+            plugin.runOnMain(() -> {
                 applyToMaps(photo, ImageSlicer.slice(result, grid));
                 if (recovered) {
                     // Pin the parameters now, so the image stops following the camera
@@ -158,17 +161,16 @@ public final class PhotoManager {
      * Reports a capture failure to the player, with a dedicated budget message.
      */
     private void reportCaptureError(Player player, Camera camera, Throwable error) {
-        var cause = error instanceof java.util.concurrent.CompletionException && error.getCause() != null
-                ? error.getCause() : error;
-        if (cause instanceof CaptureTooLargeException tooLarge) {
-            runOnMain(() -> plugin.messages().send(player, "photo.too-large",
+        if (Failures.unwrap(error) instanceof CaptureTooLargeException tooLarge) {
+            plugin.runOnMain(() -> plugin.messages().send(player, "photo.too-large",
                     Placeholder.unparsed("required", String.valueOf(tooLarge.required())),
                     Placeholder.unparsed("budget", String.valueOf(tooLarge.budget()))));
             return;
         }
-        plugin.getLogger().warning("Fotoğraf render'ı başarısız (" + camera.name() + "): "
-                                   + (cause != null ? cause.getMessage() : "boş sonuç"));
-        runOnMain(() -> plugin.messages().send(player, "photo.failed"));
+        plugin.messages().warn("log.photo-render-failed",
+                Placeholder.unparsed("camera", camera.name()),
+                Placeholder.unparsed("reason", plugin.messages().reason(error)));
+        plugin.runOnMain(() -> plugin.messages().send(player, "photo.failed"));
     }
 
     public void saveSync() {
@@ -201,7 +203,7 @@ public final class PhotoManager {
                 reportCaptureError(player, camera, error);
                 return;
             }
-            runOnMain(() -> {
+            plugin.runOnMain(() -> {
                 var tiles = ImageSlicer.slice(result, grid);
                 var photo = placer.place(player, camera, spec, name, grid, tiles);
                 if (photo == null) {
@@ -246,10 +248,10 @@ public final class PhotoManager {
         var spec = photo.spec();
         if (spec == null)
             return CompletableFuture.failedFuture(new IllegalStateException(
-                    "Fotoğrafın ne ön belleği ne çekim parametreleri var: " + photo.shortId()));
+                    "Photo has neither a cached image nor capture parameters: " + photo.shortId()));
 
         CompletableFuture<RenderResult> out = new CompletableFuture<>();
-        runOnMain(() -> renderService.capture(spec, photo.grid().widthPx(), photo.grid().heightPx())
+        plugin.runOnMain(() -> renderService.capture(spec, photo.grid().widthPx(), photo.grid().heightPx())
                 .whenComplete((result, error) -> {
                     if (error != null) {
                         out.completeExceptionally(error);
@@ -270,16 +272,15 @@ public final class PhotoManager {
                         .thenApply(file -> Map.entry(result, file)))
                 .whenComplete((written, error) -> {
                     if (error != null || written == null) {
-                        var cause = error instanceof java.util.concurrent.CompletionException
-                                    && error.getCause() != null ? error.getCause() : error;
-                        plugin.getLogger().warning("Fotoğraf dışa aktarılamadı ("
-                                                   + photo.shortId() + "): " + (cause != null ? cause.getMessage() : "boş sonuç"));
-                        runOnMain(() -> plugin.messages().send(player, "photo.export-failed"));
+                        plugin.messages().warn("log.photo-export-failed",
+                                Placeholder.unparsed("id", photo.shortId()),
+                                Placeholder.unparsed("reason", plugin.messages().reason(error)));
+                        plugin.runOnMain(() -> plugin.messages().send(player, "photo.export-failed"));
                         return;
                     }
                     var result = written.getKey();
                     var file = written.getValue();
-                    runOnMain(() -> plugin.messages().send(player, "photo.saved",
+                    plugin.runOnMain(() -> plugin.messages().send(player, "photo.saved",
                             Placeholder.unparsed("file", relativePath(file)),
                             Placeholder.unparsed("width", String.valueOf(result.width())),
                             Placeholder.unparsed("height", String.valueOf(result.height())),
@@ -429,9 +430,5 @@ public final class PhotoManager {
 
     public Collection<PlacedPhoto> all() {
         return photos.values();
-    }
-
-    private void runOnMain(Runnable runnable) {
-        plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> runnable.run());
     }
 }

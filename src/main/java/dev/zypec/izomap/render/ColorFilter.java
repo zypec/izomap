@@ -3,23 +3,16 @@ package dev.zypec.izomap.render;
 /**
  * Color effects applied to a capture. The effect runs on the shaded RGB before it
  * snaps to the map palette, so the result stays consistent with map colors.
+ *
+ * <p>Display names live under {@code filter.<NAME>} in {@code messages.yml}; only the
+ * constant name is ever written to disk.</p>
  */
 public enum ColorFilter {
 
-    ORIGINAL("Orijinal"),
-    WARM("Sıcak"),
-    COOL("Soğuk"),
-    GRAYSCALE("Siyah-Beyaz");
-
-    private final String label;
-
-    ColorFilter(String label) {
-        this.label = label;
-    }
-
-    public String label() {
-        return label;
-    }
+    ORIGINAL,
+    WARM,
+    COOL,
+    GRAYSCALE;
 
     /**
      * Applies the effect to a 0xRRGGBB color (no alpha).
@@ -57,7 +50,7 @@ public enum ColorFilter {
 
         var trimmed = raw.trim();
         for (var filter : values()) {
-            if (filter.name().equalsIgnoreCase(trimmed) || filter.label.equalsIgnoreCase(trimmed)) {
+            if (filter.name().equalsIgnoreCase(trimmed)) {
                 return filter;
             }
         }

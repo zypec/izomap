@@ -1,6 +1,7 @@
 package dev.zypec.izomap.config;
 
 import dev.zypec.izomap.Izomap;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.configuration.file.FileConfiguration;
 
 /**
@@ -33,12 +34,10 @@ public final class ConfigManager {
      * risky values unless it is told.
      */
     private void warnRiskySettings() {
-        double shift = frameShift();
+        var shift = frameShift();
         if (shift >= RISKY_FRAME_SHIFT) {
-            plugin.getLogger().warning("photo.frame-shift = " + shift
-                    + ": kadraj kameranın üstüne kaydırılmış. Eğimi düşük (yatay ya da yukarı bakan)"
-                    + " kameralarda hiçbir ışın araziye inmez ve fotoğraflar BOŞ çıkar."
-                    + " Önerilen değer 0.0 (kameranın baktığı nokta kadrajın merkezi olur).");
+            plugin.messages().warn("log.risky-frame-shift",
+                    Placeholder.unparsed("value", String.valueOf(shift)));
         }
     }
 

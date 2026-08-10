@@ -11,7 +11,7 @@ public final class CaptureTooLargeException extends RuntimeException {
     private final int budget;
 
     public CaptureTooLargeException(int required, int budget) {
-        super("Çekim " + required + " chunk gerektiriyor, sınır " + budget + ".");
+        super("Capture needs " + required + " chunks, the limit is " + budget + ".");
         this.required = required;
         this.budget = budget;
     }

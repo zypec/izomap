@@ -3,6 +3,8 @@ package dev.zypec.izomap.map;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.render.MapColorConverter;
 import dev.zypec.izomap.render.RenderResult;
+import dev.zypec.izomap.util.Ids;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
@@ -64,8 +66,7 @@ public final class PhotoCache {
     public PhotoCache(Izomap plugin) {
         this.plugin = plugin;
         this.folder = plugin.getDataFolder().toPath().resolve("photos");
-        this.asyncExecutor = task ->
-                plugin.getServer().getAsyncScheduler().runNow(plugin, scheduled -> task.run());
+        this.asyncExecutor = plugin.asyncExecutor();
     }
 
     /**
@@ -78,7 +79,9 @@ public final class PhotoCache {
                 Files.createDirectories(folder);
                 writeFile(fileOf(photoId), grid, result);
             } catch (IOException e) {
-                plugin.getLogger().warning("Fotoğraf ön belleği yazılamadı (" + photoId + "): " + e.getMessage());
+                plugin.messages().warn("log.photo-cache-write-failed",
+                        Placeholder.unparsed("photo", photoId.toString()),
+                        Placeholder.unparsed("reason", plugin.messages().reason(e)));
             }
         }, asyncExecutor);
     }
@@ -96,8 +99,9 @@ public final class PhotoCache {
             try {
                 return readFile(file, grid);
             } catch (IOException e) {
-                plugin.getLogger().warning("Fotoğraf ön belleği okunamadı (" + photoId
-                                           + "): " + e.getMessage() + " — parametrelerden yeniden çekilecek.");
+                plugin.messages().warn("log.photo-cache-read-failed",
+                        Placeholder.unparsed("photo", photoId.toString()),
+                        Placeholder.unparsed("reason", plugin.messages().reason(e)));
                 return null;
             }
         }, asyncExecutor);
@@ -127,11 +131,13 @@ public final class PhotoCache {
                     }
                 }
             } catch (IOException e) {
-                plugin.getLogger().warning("Fotoğraf ön belleği taranamadı: " + e.getMessage());
+                plugin.messages().warn("log.photo-cache-scan-failed",
+                        Placeholder.unparsed("reason", plugin.messages().reason(e)));
                 return;
             }
             if (removed > 0) {
-                plugin.getLogger().info("Sahipsiz " + removed + " fotoğraf ön bellek dosyası silindi.");
+                plugin.messages().info("log.photo-cache-swept",
+                        Placeholder.unparsed("count", String.valueOf(removed)));
             }
         }, asyncExecutor);
     }
@@ -144,7 +150,9 @@ public final class PhotoCache {
             try {
                 Files.deleteIfExists(fileOf(photoId));
             } catch (IOException e) {
-                plugin.getLogger().warning("Fotoğraf ön belleği silinemedi (" + photoId + "): " + e.getMessage());
+                plugin.messages().warn("log.photo-cache-delete-failed",
+                        Placeholder.unparsed("photo", photoId.toString()),
+                        Placeholder.unparsed("reason", plugin.messages().reason(e)));
             }
         }, asyncExecutor);
     }
@@ -216,10 +224,6 @@ public final class PhotoCache {
         var name = file.getFileName().toString();
         if (!name.endsWith(".izm")) return null;
 
-        try {
-            return UUID.fromString(name.substring(0, name.length() - 4));
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
+        return Ids.parse(name.substring(0, name.length() - 4));
     }
 }

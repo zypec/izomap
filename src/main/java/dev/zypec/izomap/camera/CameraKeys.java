@@ -1,5 +1,6 @@
 package dev.zypec.izomap.camera;
 
+import dev.zypec.izomap.util.Ids;
 import org.bukkit.NamespacedKey;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
@@ -32,16 +33,7 @@ public final class CameraKeys {
     }
 
     public UUID readCameraId(PersistentDataContainer pdc) {
-        if (!pdc.has(cameraId, PersistentDataType.STRING)) return null;
-
-        var raw = pdc.get(cameraId, PersistentDataType.STRING);
-        if (raw == null) return null;
-
-        try {
-            return UUID.fromString(raw);
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
+        return Ids.parse(pdc.get(cameraId, PersistentDataType.STRING));
     }
 
     public void markItem(PersistentDataContainer pdc) {

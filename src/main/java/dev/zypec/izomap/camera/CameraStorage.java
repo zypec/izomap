@@ -4,6 +4,8 @@ import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.render.AspectRatio;
 import dev.zypec.izomap.render.ColorFilter;
 import dev.zypec.izomap.storage.YamlStorage;
+import dev.zypec.izomap.util.Ids;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.configuration.ConfigurationSection;
@@ -13,7 +15,6 @@ import org.bukkit.configuration.file.YamlConfiguration;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.UUID;
 
 /**
  * Asynchronous persistence of cameras to {@code cameras.yml}.
@@ -93,16 +94,17 @@ public final class CameraStorage extends YamlStorage {
     }
 
     private Camera readOne(String key, ConfigurationSection s) {
-        var id = parseUUID(key);
-        var owner = parseUUID(s.getString("owner"));
-        var worldRaw = s.getString("world");
-        if (id == null || owner == null || worldRaw == null)
+        var id = Ids.parse(key);
+        var owner = Ids.parse(s.getString("owner"));
+        var worldId = Ids.parse(s.getString("world"));
+        if (id == null || owner == null || worldId == null)
             return null;
 
-        var world = Bukkit.getWorld(UUID.fromString(worldRaw));
+        var world = Bukkit.getWorld(worldId);
         if (world == null) {
-            plugin.getLogger().warning(
-                    "Kamera '" + key + "' atlandı: dünya yüklü değil (" + worldRaw + ").");
+            plugin.messages().warn("log.camera-world-missing",
+                    Placeholder.unparsed("camera", key),
+                    Placeholder.unparsed("world", worldId.toString()));
             return null;
         }
 
@@ -112,8 +114,8 @@ public final class CameraStorage extends YamlStorage {
                 (float) s.getDouble("cam-yaw"), (float) s.getDouble("cam-pitch"));
 
         var camera = new Camera(id, owner, s.getString("name", "camera"), anchor);
-        camera.displayEntityId(parseUUID(s.getString("display-entity")));
-        camera.interactionEntityId(parseUUID(s.getString("interaction-entity")));
+        camera.displayEntityId(Ids.parse(s.getString("display-entity")));
+        camera.interactionEntityId(Ids.parse(s.getString("interaction-entity")));
         camera.camYaw((float) s.getDouble("cam-yaw"));
         camera.camPitch((float) s.getDouble("cam-pitch"));
         // Older records used the key "scale" with the same meaning.
@@ -123,14 +125,5 @@ public final class CameraStorage extends YamlStorage {
         camera.thirdsGuide(s.getBoolean("thirds-guide", false));
         camera.previewMapId(s.getInt("preview-map-id", Camera.NO_PREVIEW_MAP));
         return camera;
-    }
-
-    private static UUID parseUUID(String raw) {
-        if (raw == null) return null;
-        try {
-            return UUID.fromString(raw);
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
     }
 }

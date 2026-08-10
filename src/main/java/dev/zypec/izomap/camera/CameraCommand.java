@@ -19,6 +19,7 @@ import dev.zypec.izomap.render.AspectRatio;
 import dev.zypec.izomap.render.CaptureTooLargeException;
 import dev.zypec.izomap.render.RenderService;
 import dev.zypec.izomap.ui.CameraDialogs;
+import dev.zypec.izomap.util.Failures;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
@@ -29,7 +30,6 @@ import org.bukkit.entity.Player;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 
 /**
@@ -81,7 +81,7 @@ public final class CameraCommand {
         plugin.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event ->
                 event.registrar().register(
                         command.build(),
-                        "Izomap kamera komutları",
+                        plugin.messages().plain("general.command-description"),
                         List.of("izocamera")));
     }
 
@@ -300,20 +300,19 @@ public final class CameraCommand {
 
         renderService.capture(camera, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
             if (error != null || result == null || world == null) {
-                Throwable cause = error instanceof CompletionException && error.getCause() != null
-                        ? error.getCause() : error;
-                if (cause instanceof CaptureTooLargeException tooLarge) {
-                    runOnMain(() -> plugin.messages().send(player, "photo.too-large",
+                if (Failures.unwrap(error) instanceof CaptureTooLargeException tooLarge) {
+                    plugin.runOnMain(() -> plugin.messages().send(player, "photo.too-large",
                             Placeholder.unparsed("required", String.valueOf(tooLarge.required())),
                             Placeholder.unparsed("budget", String.valueOf(tooLarge.budget()))));
                     return;
                 }
-                plugin.getLogger().warning("Harita render'ı başarısız (" + camera.name() + "): "
-                                           + (cause != null ? cause.getMessage() : "boş sonuç/dünya"));
-                runOnMain(() -> plugin.messages().send(player, "photo.failed"));
+                plugin.messages().warn("log.map-render-failed",
+                        Placeholder.unparsed("camera", camera.name()),
+                        Placeholder.unparsed("reason", plugin.messages().reason(error)));
+                plugin.runOnMain(() -> plugin.messages().send(player, "photo.failed"));
                 return;
             }
-            runOnMain(() -> {
+            plugin.runOnMain(() -> {
                 var tiles = ImageSlicer.slice(result, grid);
                 var maps = mapService.createMapItems(world, tiles);
                 boolean overflow = false;
@@ -422,10 +421,6 @@ public final class CameraCommand {
         plugin.reloadAll();
         plugin.messages().send(ctx.getSource().getSender(), "general.reloaded");
         return Command.SINGLE_SUCCESS;
-    }
-
-    private void runOnMain(Runnable runnable) {
-        plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> runnable.run());
     }
 
     // --- suggestions ---

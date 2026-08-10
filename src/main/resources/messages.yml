@@ -8,6 +8,8 @@ prefix: "<gradient:#5e60ce:#48bfe3><bold>Izomap</bold></gradient> <dark_gray>»<
 general:
   player-only: "<red>Bu komut yalnızca oyuncular tarafından kullanılabilir."
   reloaded: "<green>Yapılandırma yeniden yüklendi."
+  # /help listesinde komutun yanında görünür; renk etiketi kullanma, düz metne çevrilir.
+  command-description: "Izomap kamera komutları"
 
 camera:
   created: "<green>Kamera oluşturuldu: <white><name></white>"
@@ -60,6 +62,14 @@ preview:
     MOVE_X: "Hareket(x)"
     MOVE_Y: "Hareket(y)"
 
+# Renk efekti adları; anahtar ColorFilter sabitinin adıdır. Diske yalnızca sabit adı
+# yazılır, dolayısıyla buradaki metni değiştirmek kayıtlı kameraları etkilemez.
+filter:
+  ORIGINAL: "Orijinal"
+  WARM: "Sıcak"
+  COOL: "Soğuk"
+  GRAYSCALE: "Siyah-Beyaz"
+
 photo:
   capturing: "<gray>Fotoğraf çekiliyor, lütfen bekle..."
   failed: "<red>Fotoğraf çekimi başarısız oldu."
@@ -102,3 +112,49 @@ dialog:
   thirds-button-active: "Üçler kuralı: Açık ✔"
   confirm: "Yerleştir"
   cancel: "İptal"
+
+# ============================================================
+#  Konsol
+#  Sunucu log'una yazılan satırlar. MiniMessage burada da geçerlidir; konsol renk
+#  desteklemiyorsa etiketler görmezden gelinir. <reason>, bir işlem başarısız olduğunda
+#  Java'nın kendi hata metnini taşır ve çevrilemez.
+# ============================================================
+log:
+  enabled: "Izomap etkinleştirildi."
+  disabled: "Izomap devre dışı bırakıldı."
+  no-reason: "sebep bildirilmedi"
+
+  # --- yükleme ---
+  cameras-loaded: "<count> kamera yüklendi."
+  photos-loaded: "<count> yerleştirilmiş fotoğraf yüklendi."
+  block-colors-ready: "<count> blok için harita temel rengi hazır."
+  block-colors-overridden: "<count> blok rengi override edildi."
+  camera-world-missing: "Kamera '<camera>' atlandı: dünya yüklü değil (<world>)."
+
+  # --- yapılandırma ---
+  risky-frame-shift: "<yellow>photo.frame-shift = <value>: kadraj kameranın üstüne kaydırılmış. Eğimi düşük (yatay ya da yukarı bakan) kameralarda hiçbir ışın araziye inmez ve fotoğraflar BOŞ çıkar. Önerilen değer 0.0 (kameranın baktığı nokta kadrajın merkezi olur)."
+  invalid-item-display-transform: "camera.item-display-transform = '<value>' geçersiz; FIXED kullanılıyor. Geçerli değerler: <options>"
+  unknown-base-colors: "<count> blok, bilinmeyen bir harita temel rengi bildirdi; en yakın renge eşlendi. (MapBaseColor tablosu güncellenmeli.)"
+  override-unknown-block: "<file>: bilinmeyen blok '<block>' atlandı."
+  override-invalid-color: "<file>: '<block>' için geçersiz renk '<color>' atlandı."
+  block-colors-backup-failed: "<file> eski sürümde ve yedeklenemedi; override'lar yok sayıldı."
+  block-colors-upgraded: "<file> eski sürümdeydi; <backup> olarak yedeklendi ve yeni varsayılan yazıldı."
+
+  # --- render ---
+  # Eksik chunk kopyası, fotoğrafta chunk boyunda şeffaf bir delik bırakır.
+  chunks-incomplete: "Kadraja giren <requested> chunk'ın <missing> tanesinin kopyası alınamadı (<world>); o bölgeler fotoğrafta şeffaf kalacak. Muhtemel sebep: chunk hiç üretilmemiş (settings.generate-missing-chunks kapalı) ya da settings.load-missing-chunks kapalı."
+  map-render-failed: "Harita render'ı başarısız (<camera>): <reason>"
+  photo-render-failed: "Fotoğraf render'ı başarısız (<camera>): <reason>"
+  photo-recapture-failed: "Fotoğraf '<name>' yeniden çekilemedi: <reason>"
+  photo-unrestorable: "Fotoğraf '<name>' (<id>) ne ön bellekte var ne de çekim parametreleri kayıtlı; haritalar son hâlinde bırakıldı."
+  photo-export-failed: "Fotoğraf dışa aktarılamadı (<id>): <reason>"
+
+  # --- disk ---
+  data-file-create-failed: "Veri dosyası oluşturulamadı: <file> (<reason>)"
+  data-file-save-failed: "Veri dosyası kaydedilemedi: <file> (<reason>)"
+  data-file-save-failed-sync: "Veri dosyası (sync) kaydedilemedi: <file> (<reason>)"
+  photo-cache-write-failed: "Fotoğraf ön belleği yazılamadı (<photo>): <reason>"
+  photo-cache-read-failed: "Fotoğraf ön belleği okunamadı (<photo>): <reason> — parametrelerden yeniden çekilecek."
+  photo-cache-delete-failed: "Fotoğraf ön belleği silinemedi (<photo>): <reason>"
+  photo-cache-scan-failed: "Fotoğraf ön belleği taranamadı: <reason>"
+  photo-cache-swept: "Sahipsiz <count> fotoğraf ön bellek dosyası silindi."

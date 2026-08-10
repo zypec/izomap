@@ -1,5 +1,6 @@
 package dev.zypec.izomap.map;
 
+import dev.zypec.izomap.util.Ids;
 import org.bukkit.NamespacedKey;
 import org.bukkit.persistence.PersistentDataContainer;
 import org.bukkit.persistence.PersistentDataType;
@@ -42,13 +43,7 @@ public final class PhotoKeys {
      * Photo the frame belongs to, or {@code null} when untagged or malformed.
      */
     public UUID readPhotoId(PersistentDataContainer pdc) {
-        var raw = pdc.get(photoId, PersistentDataType.STRING);
-        if (raw == null) return null;
-        try {
-            return UUID.fromString(raw);
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
+        return Ids.parse(pdc.get(photoId, PersistentDataType.STRING));
     }
 
     /**

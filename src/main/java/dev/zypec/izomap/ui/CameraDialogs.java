@@ -132,7 +132,7 @@ public final class CameraDialogs {
         List<SingleOptionDialogInput.OptionEntry> entries = new ArrayList<>();
         for (ColorFilter filter : ColorFilter.values()) {
             entries.add(SingleOptionDialogInput.OptionEntry.create(
-                    filter.name(), Component.text(filter.label()), filter == initial));
+                    filter.name(), plugin.messages().get("filter." + filter.name()), filter == initial));
         }
         return entries;
     }
@@ -171,7 +171,7 @@ public final class CameraDialogs {
         ColorFilter filter = ColorFilter.fromString(view.getText(INPUT_FILTER), camera.colorFilter());
         float resolvedZoom = zoom != null ? zoom : camera.zoom();
 
-        plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> {
+        plugin.runOnMain(() -> {
             change.accept(camera);
             camera.zoom(resolvedZoom);
             camera.colorFilter(filter);
@@ -190,7 +190,7 @@ public final class CameraDialogs {
         ColorFilter filter = ColorFilter.fromString(view.getText(INPUT_FILTER), camera.colorFilter());
         String gridLabel = view.getText(INPUT_GRID);
 
-        plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> {
+        plugin.runOnMain(() -> {
             if (zoom != null) {
                 camera.zoom(zoom);
             }

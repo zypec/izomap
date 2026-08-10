@@ -2,6 +2,7 @@ package dev.zypec.izomap.render;
 
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.camera.Camera;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.ChunkSnapshot;
 import org.bukkit.Location;
 import org.bukkit.World;
@@ -95,7 +96,7 @@ public final class RenderService {
     public CompletableFuture<RenderResult> capture(CaptureSpec spec, int widthPx, int heightPx) {
         var world = spec.worldId() != null ? plugin.getServer().getWorld(spec.worldId()) : null;
         if (world == null)
-            return CompletableFuture.failedFuture(new IllegalStateException("Kamera dünyası yüklü değil."));
+            return CompletableFuture.failedFuture(new IllegalStateException("Camera world is not loaded."));
 
         var anchor = new Location(world, spec.x(), spec.y(), spec.z());
 
@@ -221,10 +222,10 @@ public final class RenderService {
     private void warnIfIncomplete(World world, int requested, int captured) {
         if (captured >= requested) return;
 
-        plugin.getLogger().warning("Kadraja giren " + requested + " chunk'ın "
-                                   + (requested - captured) + " tanesinin kopyası alınamadı (" + world.getName()
-                                   + "); o bölgeler fotoğrafta şeffaf kalacak. Muhtemel sebep: chunk hiç üretilmemiş"
-                                   + " (settings.generate-missing-chunks kapalı) ya da settings.load-missing-chunks kapalı.");
+        plugin.messages().warn("log.chunks-incomplete",
+                Placeholder.unparsed("requested", String.valueOf(requested)),
+                Placeholder.unparsed("missing", String.valueOf(requested - captured)),
+                Placeholder.unparsed("world", world.getName()));
     }
 
     /**

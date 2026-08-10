@@ -1,6 +1,7 @@
 package dev.zypec.izomap.storage;
 
 import dev.zypec.izomap.Izomap;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -31,8 +32,7 @@ public abstract class YamlStorage {
     protected YamlStorage(Izomap plugin, String fileName) {
         this.plugin = plugin;
         this.path = plugin.getDataFolder().toPath().resolve(fileName);
-        this.asyncExecutor = task ->
-                plugin.getServer().getAsyncScheduler().runNow(plugin, scheduled -> task.run());
+        this.asyncExecutor = plugin.asyncExecutor();
     }
 
     /**
@@ -46,7 +46,9 @@ public abstract class YamlStorage {
                     Files.createFile(path);
                 }
             } catch (IOException e) {
-                plugin.getLogger().severe("Veri dosyası oluşturulamadı: " + path.getFileName());
+                plugin.messages().error("log.data-file-create-failed",
+                        Placeholder.unparsed("file", path.getFileName().toString()),
+                        Placeholder.unparsed("reason", plugin.messages().reason(e)));
             }
             var loaded = YamlConfiguration.loadConfiguration(path.toFile());
             synchronized (this) {
@@ -69,7 +71,9 @@ public abstract class YamlStorage {
                 Files.createDirectories(path.getParent());
                 Files.writeString(path, dump, StandardCharsets.UTF_8);
             } catch (IOException e) {
-                plugin.getLogger().severe("Veri dosyası kaydedilemedi: " + path.getFileName());
+                plugin.messages().error("log.data-file-save-failed",
+                        Placeholder.unparsed("file", path.getFileName().toString()),
+                        Placeholder.unparsed("reason", plugin.messages().reason(e)));
             }
         }, asyncExecutor);
     }
@@ -109,7 +113,9 @@ public abstract class YamlStorage {
             Files.createDirectories(path.getParent());
             Files.writeString(path, dump, StandardCharsets.UTF_8);
         } catch (IOException e) {
-            plugin.getLogger().severe("Veri dosyası (sync) kaydedilemedi: " + path.getFileName());
+            plugin.messages().error("log.data-file-save-failed-sync",
+                    Placeholder.unparsed("file", path.getFileName().toString()),
+                    Placeholder.unparsed("reason", plugin.messages().reason(e)));
         }
     }
 }

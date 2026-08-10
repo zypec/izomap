@@ -1,6 +1,7 @@
 package dev.zypec.izomap.render;
 
 import dev.zypec.izomap.Izomap;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.YamlConfiguration;
 
@@ -41,7 +42,8 @@ public final class BlockColorTable {
         var table = new BlockColorTable();
         table.readFromServer(plugin);
         table.applyOverrides(plugin, loadFile(plugin));
-        plugin.getLogger().info(table.colors.size() + " blok için harita temel rengi hazır.");
+        plugin.messages().info("log.block-colors-ready",
+                Placeholder.unparsed("count", String.valueOf(table.colors.size())));
         return table;
     }
 
@@ -80,8 +82,8 @@ public final class BlockColorTable {
             colors.put(material, base);
         }
         if (unknown > 0) {
-            plugin.getLogger().warning(unknown + " blok, bilinmeyen bir harita temel rengi bildirdi; "
-                                       + "en yakın renge eşlendi. (MapBaseColor tablosu güncellenmeli.)");
+            plugin.messages().warn("log.unknown-base-colors",
+                    Placeholder.unparsed("count", String.valueOf(unknown)));
         }
     }
 
@@ -92,24 +94,30 @@ public final class BlockColorTable {
         var section = cfg.getConfigurationSection("overrides");
         if (section == null) return;
 
-        int applied = 0;
+        var applied = 0;
         for (var key : section.getKeys(false)) {
             var material = Material.matchMaterial(key);
             if (material == null || !material.isBlock()) {
-                plugin.getLogger().warning(FILE_NAME + ": bilinmeyen blok '" + key + "' atlandı.");
+                plugin.messages().warn("log.override-unknown-block",
+                        Placeholder.unparsed("file", FILE_NAME),
+                        Placeholder.unparsed("block", key));
                 continue;
             }
             var raw = section.getString(key);
             var base = parseBaseColor(raw);
             if (base == null) {
-                plugin.getLogger().warning(FILE_NAME + ": '" + key + "' için geçersiz renk '" + raw + "' atlandı.");
+                plugin.messages().warn("log.override-invalid-color",
+                        Placeholder.unparsed("file", FILE_NAME),
+                        Placeholder.unparsed("block", key),
+                        Placeholder.unparsed("color", String.valueOf(raw)));
                 continue;
             }
             colors.put(material, base);
             applied++;
         }
         if (applied > 0) {
-            plugin.getLogger().info(applied + " blok rengi override edildi.");
+            plugin.messages().info("log.block-colors-overridden",
+                    Placeholder.unparsed("count", String.valueOf(applied)));
         }
     }
 
@@ -126,15 +134,18 @@ public final class BlockColorTable {
             }
             var backup = new File(plugin.getDataFolder(), FILE_NAME + ".v1.bak");
             if (backup.exists() && !backup.delete()) {
-                plugin.getLogger().warning(FILE_NAME + " eski sürümde ve yedeklenemedi; override'lar yok sayıldı.");
+                plugin.messages().warn("log.block-colors-backup-failed",
+                        Placeholder.unparsed("file", FILE_NAME));
                 return new YamlConfiguration();
             }
             if (!file.renameTo(backup)) {
-                plugin.getLogger().warning(FILE_NAME + " eski sürümde ve yedeklenemedi; override'lar yok sayıldı.");
+                plugin.messages().warn("log.block-colors-backup-failed",
+                        Placeholder.unparsed("file", FILE_NAME));
                 return new YamlConfiguration();
             }
-            plugin.getLogger().info(FILE_NAME + " eski sürümdeydi; " + backup.getName()
-                                    + " olarak yedeklendi ve yeni varsayılan yazıldı.");
+            plugin.messages().info("log.block-colors-upgraded",
+                    Placeholder.unparsed("file", FILE_NAME),
+                    Placeholder.unparsed("backup", backup.getName()));
         }
         plugin.saveResource(FILE_NAME, false);
         return YamlConfiguration.loadConfiguration(file);

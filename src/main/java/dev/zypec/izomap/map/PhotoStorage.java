@@ -4,6 +4,7 @@ import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.render.CaptureSpec;
 import dev.zypec.izomap.render.ColorFilter;
 import dev.zypec.izomap.storage.YamlStorage;
+import dev.zypec.izomap.util.Ids;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -76,7 +77,7 @@ public final class PhotoStorage extends YamlStorage {
     private static CaptureSpec readSpec(ConfigurationSection s) {
         if (s == null) return null;
 
-        var world = parseUUID(s.getString("world"));
+        var world = Ids.parse(s.getString("world"));
         if (world == null) return null;
 
         return new CaptureSpec(world,
@@ -112,9 +113,9 @@ public final class PhotoStorage extends YamlStorage {
     }
 
     private PlacedPhoto readOne(String key, ConfigurationSection s) {
-        var id = parseUUID(key);
-        var owner = parseUUID(s.getString("owner"));
-        var world = parseUUID(s.getString("world"));
+        var id = Ids.parse(key);
+        var owner = Ids.parse(s.getString("owner"));
+        var world = Ids.parse(s.getString("world"));
         var grid = GridOption.parse(s.getString("grid"));
         if (id == null || owner == null || world == null || grid == null)
             return null;
@@ -122,7 +123,7 @@ public final class PhotoStorage extends YamlStorage {
         var mapIds = s.getIntegerList("map-ids");
         List<UUID> frameIds = new ArrayList<>();
         for (var raw : s.getStringList("frame-ids")) {
-            var frameId = parseUUID(raw);
+            var frameId = Ids.parse(raw);
             if (frameId != null) {
                 frameIds.add(frameId);
             }
@@ -131,14 +132,5 @@ public final class PhotoStorage extends YamlStorage {
                 s.getString("camera", ""), readSpec(s.getConfigurationSection("capture")),
                 world, grid, mapIds, frameIds,
                 s.getInt("base-x"), s.getInt("base-y"), s.getInt("base-z"));
-    }
-
-    private static UUID parseUUID(String raw) {
-        if (raw == null) return null;
-        try {
-            return UUID.fromString(raw);
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
     }
 }

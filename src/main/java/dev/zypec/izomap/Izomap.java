@@ -16,6 +16,8 @@ import dev.zypec.izomap.render.RenderService;
 import dev.zypec.izomap.ui.CameraDialogs;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.util.concurrent.Executor;
+
 /**
  * Plugin entry point.
  *
@@ -25,6 +27,13 @@ import org.bukkit.plugin.java.JavaPlugin;
 public final class Izomap extends JavaPlugin {
 
     public static final String PLUGIN_ID = "izomap";
+
+    /**
+     * Runs work on Paper's async scheduler, for {@link java.util.concurrent.CompletableFuture}
+     * chains that must stay off the main thread.
+     */
+    private final Executor asyncExecutor = task ->
+            getServer().getAsyncScheduler().runNow(this, scheduled -> task.run());
 
     private ConfigManager configManager;
     private Messages messages;
@@ -36,9 +45,10 @@ public final class Izomap extends JavaPlugin {
 
     @Override
     public void onEnable() {
-        this.configManager = new ConfigManager(this);
+        // Messages first: every subsystem below, ConfigManager included, reports through it.
         this.messages = new Messages(this);
         this.messages.reload();
+        this.configManager = new ConfigManager(this);
 
         var cameraKeys = new CameraKeys(this);
         this.cameraManager = new CameraManager(this, cameraKeys);
@@ -63,7 +73,7 @@ public final class Izomap extends JavaPlugin {
         getServer().getPluginManager().registerEvents(previewManager, this);
         CameraCommand.register(this, cameraManager, renderService, mapService, photoManager, cameraDialogs);
 
-        getLogger().info("Izomap enabled.");
+        messages.info("log.enabled");
     }
 
     @Override
@@ -82,18 +92,30 @@ public final class Izomap extends JavaPlugin {
         if (renderService != null)
             renderService.shutdown();
 
-        getLogger().info("Izomap disabled.");
+        messages.info("log.disabled");
     }
 
     /**
      * Reloads the configuration of every subsystem.
      */
     public void reloadAll() {
-        this.configManager.reload();
         this.messages.reload();
+        this.configManager.reload();
         // Visual settings such as the model rotation offset take effect immediately.
         if (cameraManager != null)
             cameraManager.refreshTransforms();
+    }
+
+    /**
+     * Hops back to the main thread, where block, entity, and {@code MapView} access is
+     * the only safe option.
+     */
+    public void runOnMain(Runnable runnable) {
+        getServer().getGlobalRegionScheduler().run(this, task -> runnable.run());
+    }
+
+    public Executor asyncExecutor() {
+        return asyncExecutor;
     }
 
     public ConfigManager config() {

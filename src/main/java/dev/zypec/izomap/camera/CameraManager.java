@@ -3,6 +3,7 @@ package dev.zypec.izomap.camera;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.render.AspectRatio;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
@@ -18,6 +19,7 @@ import org.joml.Quaternionf;
 import org.joml.Vector3f;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -67,7 +69,7 @@ public final class CameraManager {
     public CompletableFuture<Void> load() {
         return storage.load().thenCompose(v -> {
             CompletableFuture<Void> done = new CompletableFuture<>();
-            plugin.getServer().getGlobalRegionScheduler().run(plugin, _ -> {
+            plugin.runOnMain(() -> {
                 ingest(storage.readAll());
                 done.complete(null);
             });
@@ -83,7 +85,8 @@ public final class CameraManager {
             }
             applyTransform(c);
         }
-        plugin.getLogger().info(cameras.size() + " kamera yüklendi.");
+        plugin.messages().info("log.cameras-loaded",
+                Placeholder.unparsed("count", String.valueOf(cameras.size())));
     }
 
     public void saveSync() {
@@ -348,9 +351,9 @@ public final class CameraManager {
         try {
             return ItemDisplayTransform.valueOf(name.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
-            plugin.getLogger().warning("camera.item-display-transform = '" + name
-                                       + "' geçersiz; FIXED kullanılıyor. Geçerli değerler: "
-                                       + java.util.Arrays.toString(ItemDisplayTransform.values()));
+            plugin.messages().warn("log.invalid-item-display-transform",
+                    Placeholder.unparsed("value", name),
+                    Placeholder.unparsed("options", Arrays.toString(ItemDisplayTransform.values())));
             return ItemDisplayTransform.FIXED;
         }
     }

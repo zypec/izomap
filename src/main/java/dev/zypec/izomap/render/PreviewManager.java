@@ -4,6 +4,7 @@ import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.camera.Camera;
 import dev.zypec.izomap.camera.CameraStatus;
 import dev.zypec.izomap.map.MapService;
+import dev.zypec.izomap.util.Failures;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -348,16 +349,14 @@ public final class PreviewManager implements Listener {
         }
 
         capture.whenComplete((result, error) ->
-                plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> {
+                plugin.runOnMain(() -> {
                     session.rendering = false;
                     if (error == null && result != null) {
                         mapService.applyTile(session.view, tileFrom(result, camera.thirdsGuide()));
                         return;
                     }
                     // Report a budget overrun on the action bar instead of stalling silently.
-                    var cause = error instanceof java.util.concurrent.CompletionException
-                                && error.getCause() != null ? error.getCause() : error;
-                    if (cause instanceof CaptureTooLargeException tooLarge) {
+                    if (Failures.unwrap(error) instanceof CaptureTooLargeException tooLarge) {
                         notice(session, plugin.messages().get("photo.too-large",
                                 Placeholder.unparsed("required", String.valueOf(tooLarge.required())),
                                 Placeholder.unparsed("budget", String.valueOf(tooLarge.budget()))));
