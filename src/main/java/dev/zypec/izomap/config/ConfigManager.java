@@ -267,6 +267,15 @@ public final class ConfigManager {
         return cfg().getInt("placement.distance", 3);
     }
 
+    /**
+     * How long a ghost preview waits for the player to commit before giving up. A
+     * session that outlives the player's attention would keep a wall of entities alive
+     * for nothing.
+     */
+    public int placementTimeoutSeconds() {
+        return clamp(cfg().getInt("placement.timeout-seconds", 60), 5, 600);
+    }
+
     public boolean invisibleFrames() {
         return cfg().getBoolean("placement.invisible-frames", true);
     }

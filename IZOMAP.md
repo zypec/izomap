@@ -55,7 +55,8 @@ dev.zypec.izomap
 ├── storage/                 YamlStorage — asenkron YML okuma/yazma temel sınıfı
 ├── camera/                  Kamera modeli, entity yaşam döngüsü, etkileşim, komut, kalıcılık, durum satırı
 ├── render/                  Geometri, chunk anlık görüntüsü, voxel yürüyüşü, renk sistemi, önizleme
-├── map/                     Izgara seçenekleri, dilimleme, MapView üretimi, dünyaya yerleştirme
+├── map/                     Fotoğraf modeli, ızgara, dilimleme, MapView üretimi, duvara asma
+├── place/                   PlacementManager — asmadan önceki hayalet önizleme
 ├── ui/                      CameraDialogs — Paper Dialog API arayüzü
 └── util/                    Paket sınırlarını aşan küçük yardımcılar (Ids, Failures)
 ```
@@ -84,9 +85,11 @@ BlockColorTable → RenderService ──┐
 MapService ──────────────────────┼→ PreviewManager
 PhotoKeys ───────────────────────┴→ PhotoManager → MapPlacer, PhotoStorage, PhotoCache
                                           ↓
+                                   PlacementManager
+                                          ↓
                                     CameraDialogs
                                           ↓
-        CameraListener, PhotoFrameListener, PreviewManager (Listener), CameraCommand
+  CameraListener, PhotoFrameListener, PreviewManager, PlacementManager (Listener), CameraCommand
 ```
 
 Yükleme sırası iki yerde önemlidir:
@@ -576,21 +579,81 @@ Render doğrudan ızgaranın piksel boyutunda yapılır (`cols*128 × rows*128`)
 çalışmaz. `MapCanvas#setPixelColor` palet eşlemesini kendi yaptığından ek dönüşüm
 gerekmez; şeffaf pikseller atlanır.
 
-### Duvara asma (`MapPlacer`)
+### Çekmek ve asmak ayrı işlerdir
 
-Oyuncunun baktığı yönde, `placement.distance` blok ötede, oyuncuya bakan bir ızgara
-kurar. Görselin yönü korunur (sol üst karo sol üstte). Yerleştirme **non-destructive**'dir:
-önce tüm hedef bloklar boş mu diye doğrulanır, değilse hiçbir şey değiştirilmeden `null`
-dönülür ve oyuncuya "yeterli boş alan yok" denir. `placement.build-backing-wall` açıksa
-çerçevelerin arkasına destek bloğu örülür (yeniden başlatmada kalıcılık).
+Bir fotoğraf **asılı olmasa da vardır**. Dialog'daki onay butonu yalnızca çeker; çekilen
+fotoğraf kameranın listesine girer ve oyuncu istediği zaman asar, indirir, yeniden
+adlandırır, yeniden çeker ya da siler.
+
+Eskiden tek buton "Yerleştir"di ve fotoğraf o an oyuncunun baktığı yere asılıyordu:
+sonucu görmek, beğenmeyip tekrar çekmek veya yeri seçmek mümkün değildi. Üç adım
+birbirinden ayrıldı:
+
+| Adım | Nerede |
+|---|---|
+| **Çek** | Dialog → "Fotoğraf Çek" (`PhotoManager#capture`) |
+| **Seç ve as** | Fotoğraf listesi → "As" → hayalet önizleme (`place/PlacementManager`) |
+| **Yönet** | Fotoğraf listesi: yeniden adlandır · as/indir · sil · yeniden çek |
+
+Çekim ismi çakışırsa reddedilmez, **numaralanır** (`manzara`, `manzara-2` …). Dialog
+varsayılan olarak kameranın adını önerdiği için art arda çekim yapmak aksi halde her
+seferinde "bu isim alınmış" derdi.
+
+Bir fotoğrafı **indirmek onu silmez**: çerçeveler kalkar, kayıt ve görüntü listede
+kalır. Silme yalnızca Dialog'daki ✖ ile (onay ister) ya da `remove all photos` ile olur.
+
+### Hayalet önizleme (`place/PlacementManager`)
+
+"As"a basınca fotoğraf hemen asılmaz; oyuncu **yerleştirme moduna** girer. Izgara
+boyunda `BlockDisplay` entity'leri oyuncunun bakışını takip eder ve yerleşim uygunsa
+**yeşil**, değilse **kırmızı** parlar (`Display#setGlowColorOverride`; scoreboard takımı
+gerekmez).
+
+- **Yalnızca o oyuncuya görünür.** Paper'da gerçek clientside entity API'si yok;
+  `setVisibleByDefault(false)` + `Player#showEntity` pratikte aynı sonucu verir.
+  Hayaletler **kalıcı değildir** (`setPersistent(false)`): çöken bir sunucu duvar dolusu
+  havada asılı blok bırakmamalı.
+- **Hareket iki tick'te bir güncellenir** ve ızgara zaten tam bloklara oturduğu için
+  çoğu tick hiçbir şey değiştirmez; yalnızca alan gerçekten değiştiğinde teleport atılır
+  (16×9 ızgara 144 entity demek, her tick hepsini oynatmak boşuna paket olurdu).
+  `setTeleportDuration` sıçramayı yumuşatır.
+- **Uygunluk** `PlacementArea#fits`: çerçeve blokları her hâlükârda boş olmalı;
+  `build-backing-wall` **kapalıysa** ayrıca her çerçevenin arkasında katı bir blok
+  bulunmalı. Bu kontrol eskiden hiç yoktu — destek duvarı kapalıyken fotoğraf asılıp
+  sessizce düşebiliyordu.
+- **Onay sağ tık, iptal shift + sağ tık.** Ayrıca `/izocam cancel`, ölüm, dünya
+  değişimi, çıkış, fotoğrafın silinmesi ve `placement.timeout-seconds` zaman aşımı
+  iptal eder; sunucu kapanışında `cancelAll` hayaletleri toplar. Oyuncu başına tek
+  oturum.
+- **Yerleştirme başlarken canlı önizleme kapatılır**: offhand haritası da action bar da
+  artık yerleştirmenindir, ikisi aynı satır için yarışırsa hiçbiri okunmaz.
+
+> **Plandan sapma — tık kutusu yok.** Taslak, ızgarayı kaplayan tek bir `Interaction`
+> entity öngörüyordu. `Interaction` kutusu X ve Z'de **kare** olduğundan 16 blok geniş
+> bir fotoğrafta kutu oyuncuya doğru 8 blok uzanır ve çevresindeki her şeyi yutardı.
+> Oturum açıkken sağ tıkın kendisi onay sayıldı; nereye denk geldiği önemsiz.
+
+### Duvara asma (`MapPlacer`, `PlacementArea`)
+
+Nereye asılacağını `PlacementArea` belirler: oyuncunun baktığı yönde `placement.distance`
+blok ötede, oyuncuya bakan bir ızgara; görselin yönü korunur (sol üst karo sol üstte).
+Hayalet önizleme ile gerçek yerleştirme **aynı** hesabı kullanır, yani oyuncunun
+hizaladığı yer birebir asıldığı yerdir.
+
+Yerleştirme **non-destructive**'dir: `fits` bir kez daha bakılır, uymuyorsa hiçbir şey
+değiştirilmeden `null` dönülür. `placement.build-backing-wall` açıksa çerçevelerin
+arkasındaki **boş** bloklara destek bloğu örülür; zaten dolu olan blok yerinde bırakılıp
+destek olarak kullanılır.
 
 ### Çerçeve davranışı (`PhotoFrameListener`)
 
-Bir çerçeve kırıldığında (oyuncu/patlama/fizik) **tüm fotoğraf** kalkar ve hiçbir eşya
-düşmez. Çerçeveye saldırı ve sağ tıkla döndürme engellenir.
+Bir çerçeve kırıldığında (oyuncu/patlama/fizik) **tüm fotoğraf duvardan iner** ve hiçbir
+eşya düşmez. Fotoğraf silinmez, kameranın listesinde kalır: yanlışlıkla atılan bir vuruş
+resmi değil, yalnızca asılışını götürür. Çerçeveye saldırı ve sağ tıkla döndürme
+engellenir.
 
 Çerçeve, bellekteki kayıttan değil **kendi PDC etiketinden** tanınır
-(`PhotoKeys`: `izomap:photo_id` + `izomap:tile_index`). Böylece koruma `maps.yml`
+(`PhotoKeys`: `izomap:photo_id` + `izomap:tile_index`). Böylece koruma `photos.yml`
 yüklenmeden önce de geçerlidir — kayıt henüz yoksa oyuncuya "yükleniyor" denir ve
 çerçeveye dokundurulmaz. Kayıtlar yüklendiği hâlde eşleşen kayıt yoksa çerçeve
 **yetim** demektir: eşya düşürmeden kaldırılır, yoksa duvarda kırılamayan bir kalıntı
@@ -683,9 +746,10 @@ yazar. Görüntü `PhotoManager#image` üzerinden gelir: **önce ön bellek, olm
 | `preview <ad>` | Kameranın canlı önizlemesini izleyici olarak açar |
 | `preview stop` | Açık önizlemeyi kapatır (editör de izleyici de) |
 | `open <ad>` | Fotoğraf Dialog'unu açar |
-| `unplace <id>` | Kısa kimlikle (ilk 8 karakter) yerleştirilmiş fotoğrafı kaldırır |
-| `retake <id> [kamera]` | Asılı fotoğrafı yerinde yeniden çeker; kamera verilmezse fotoğrafın kendi kaynağı kullanılır |
-| `cleanup` | Çerçeveleri kaybolmuş fotoğraf kayıtlarını temizler |
+| `unplace <id>` | Kısa kimlikle (ilk 8 karakter) fotoğrafı duvardan **indirir**; fotoğraf listede kalır |
+| `retake <id> [kamera]` | Fotoğrafı yeniden çeker; kamera verilmezse fotoğrafın kendi kaynağı kullanılır |
+| `cancel` | Açık hayalet yerleştirmeyi iptal eder |
+| `cleanup` | Çerçeveleri kaybolmuş fotoğrafları "asılı değil"e çeker |
 | `export <id> [dosya]` | Fotoğrafı PNG olarak `exports/` altına yazar (`izomap.admin`) |
 | `reload` | Yapılandırmayı yeniden yükler (`izomap.admin`) |
 
@@ -709,7 +773,7 @@ toplanır ve değerler mantıklı aralıklara clamp'lenir.
 | `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `render-timing`, `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player` |
 | `camera` | `display-type`, `model-material`, `item-display-transform`, `interaction-size` (0.1-3.0), `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `move-step` (0.05-16.0), `default-pitch` (-90..90), `edit-lock-seconds` (1-3600), `model-rotation.{x,y,z}`, `hologram.{enabled, offset-y (-4..8), view-range (0.1-10), billboard, background}` |
 | `photo` | `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
-| `placement` | `distance`, `invisible-frames`, `build-backing-wall`, `backing-material` |
+| `placement` | `distance`, `invisible-frames`, `build-backing-wall`, `backing-material`, `timeout-seconds` (5-600) |
 
 **Geriye dönük uyumluluk:** `photo.region-size` → `frame-height`,
 `camera.model-pitch-offset`/`model-yaw-offset` → `model-rotation.x`/`.y`,
@@ -731,7 +795,8 @@ kontrol edip `0.25`'in üstündeyse log uyarısı verir.
 | `messages.yml` | MiniMessage mesajları (`prefix` + anahtar ağacı; oyuncuya gidenler **ve** konsol) |
 | `block-colors.yml` | Blok rengi override'ları (v2) |
 | `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, üçler kuralı, model/interaction/hologram entity UUID'leri, önizleme harita kimliği) |
-| `maps.yml` | Yerleştirilmiş fotoğraflar (harita id'leri, çerçeve UUID'leri, çıpa koordinatı, `capture` bloğunda çekim parametreleri) |
+| `photos.yml` | Fotoğraflar (ad, kamera, ızgara, `capture` bloğunda çekim parametreleri; asılıysa `placement` bloğunda harita id'leri, çerçeve UUID'leri ve çıpa koordinatı) |
+| `maps.yml` | **Eski** yerleşim kaydı; yalnızca açılışta, `photos.yml`'in tanımadığı fotoğraflar için okunur |
 | `photos/<uuid>.izm` | Fotoğrafın çekilmiş görüntüsü (palet indeksi + Deflate); YML değil, ikili |
 | `exports/<ad>.png` | `/izocam export` çıktısı; eklenti hiç okumaz, yalnızca yazar |
 

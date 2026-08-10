@@ -1,6 +1,7 @@
 package dev.zypec.izomap.map;
 
 import dev.zypec.izomap.Izomap;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
@@ -78,7 +79,12 @@ public final class PhotoFrameListener implements Listener {
 
         var photo = resolve(frame);
         if (photo != null) {
-            photos.remove(photo);
+            // Breaking a frame takes the photo off the wall; it stays in the camera's
+            // list, so a misplaced swing costs a re-hang rather than the picture.
+            photos.unplace(photo);
+            if (source instanceof Player player)
+                plugin.messages().send(player, "map.photo-taken-down",
+                        Placeholder.unparsed("name", photo.name()));
             return true;
         }
 
@@ -105,7 +111,7 @@ public final class PhotoFrameListener implements Listener {
     /**
      * The photo a frame belongs to: by tag first, then by the frame's own id.
      */
-    private PlacedPhoto resolve(ItemFrame frame) {
+    private Photo resolve(ItemFrame frame) {
         var taggedId = keys.readPhotoId(frame.getPersistentDataContainer());
         if (taggedId != null) {
             var tagged = photos.byId(taggedId).orElse(null);

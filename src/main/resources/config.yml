@@ -134,11 +134,18 @@ photo:
   supersampling: 2
 
 placement:
-  # Fotoğraf duvarının oyuncunun kaç blok önüne kurulacağı.
+  # Fotoğraf duvarının oyuncunun kaç blok önüne kurulacağı. Hayalet önizleme de bu
+  # mesafede durur; oyuncu bakışını çevirdikçe onu takip eder.
   distance: 3
   # Harita çerçevelerini görünmez yap (kenarlıksız, kesintisiz görsel).
   invisible-frames: true
   # Çerçevelerin arkasına destek bloğu inşa et (yeniden başlatmada kalıcılık).
+  # KAPALIYSA: fotoğraf yalnızca her çerçevenin arkasında zaten katı bir blok varsa
+  # asılabilir; hayalet önizleme uygun olmayan yerde kırmızı yanar.
   build-backing-wall: true
   # Destek bloğu materyali (çerçeve arkasında, oyuncuya görünmez).
+  # Hayalet önizlemenin blokları da bundan alınır; blok değilse WHITE_CONCRETE kullanılır.
   backing-material: STONE
+  # Hayalet önizleme, oyuncu onaylamazsa kaç saniye sonra kendiliğinden iptal olur.
+  # Aralık: 5-600.
+  timeout-seconds: 60

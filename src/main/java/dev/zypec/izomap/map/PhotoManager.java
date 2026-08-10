@@ -23,8 +23,13 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Runtime management of placed photos: capture, slicing, placement, persistence and
- * restoring the images after a restart.
+ * Runtime management of photos: capture, slicing, hanging, persistence and restoring
+ * the images after a restart.
+ *
+ * <p>Shooting and hanging are separate. A capture only produces a photo; putting it on
+ * a wall is a second, undoable step that goes through the ghost preview in
+ * {@code dev.zypec.izomap.place}. Taking a photo down leaves the photo itself alone —
+ * only {@link #delete} throws it away.</p>
  */
 public final class PhotoManager {
 
@@ -37,10 +42,10 @@ public final class PhotoManager {
     private final PhotoCache cache;
     private final PhotoExporter exporter;
 
-    private final Map<UUID, PlacedPhoto> photos = new ConcurrentHashMap<>();
+    private final Map<UUID, Photo> photos = new ConcurrentHashMap<>();
 
     /**
-     * Whether {@code maps.yml} has been read. Until then an unknown frame is not an
+     * Whether {@code photos.yml} has been read. Until then an unknown frame is not an
      * orphan, only one whose record has not arrived yet.
      */
     private volatile boolean loaded;
@@ -70,21 +75,13 @@ public final class PhotoManager {
     }
 
     /**
-     * Tells the cameras their photo counts moved. Cameras load before photos do, so
-     * without this their holograms would sit on the count they saw at startup: zero.
-     */
-    private void photosChanged() {
-        cameraManager.refreshHolograms();
-    }
-
-    /**
      * Whether the records have been read from disk.
      */
     public boolean isLoaded() {
         return loaded;
     }
 
-    private void ingest(List<PlacedPhoto> loaded) {
+    private void ingest(List<Photo> loaded) {
         for (var photo : loaded) {
             photos.put(photo.id(), photo);
         }
@@ -93,15 +90,27 @@ public final class PhotoManager {
     }
 
     /**
-     * Restores every photo's image from the cache, falling back to a re-render only
-     * where the cache cannot serve it.
+     * Tells the cameras their photo counts moved. Cameras load before photos do, so
+     * without this their holograms would sit on the count they saw at startup: zero.
+     */
+    private void photosChanged() {
+        cameraManager.refreshHolograms();
+    }
+
+    /**
+     * Restores the image of every photo that hangs somewhere, from the cache, falling
+     * back to a re-render only where the cache cannot serve it.
+     *
+     * <p>Photos that were shot but never put up are left alone: nothing on a wall
+     * depends on them, and rendering every one of them at startup is exactly the cost
+     * the cache exists to avoid. Their image is produced the moment it is asked for.</p>
      *
      * <p>Reading is asynchronous and per photo, so startup does not wait on it; each
      * tile is applied on the main thread as it becomes ready.</p>
      */
     private void restoreAll() {
         for (var photo : photos.values()) {
-            if (Bukkit.getWorld(photo.worldId()) == null) continue;
+            if (!photo.isPlaced() || Bukkit.getWorld(photo.placement().worldId()) == null) continue;
 
             cache.read(photo.id(), photo.grid()).whenComplete((result, error) -> {
                 if (error == null && result != null) {
@@ -118,7 +127,7 @@ public final class PhotoManager {
      * when the cache file is missing or unreadable; the maps are left as they are when
      * there is nothing left to render from. Main thread only.
      */
-    private void reRenderFromSpec(PlacedPhoto photo) {
+    private void reRenderFromSpec(Photo photo) {
         var spec = photo.spec();
         var recovered = spec == null;
         if (recovered) {
@@ -149,15 +158,16 @@ public final class PhotoManager {
                 if (recovered) {
                     // Pin the parameters now, so the image stops following the camera
                     // from here on even if the cache is lost again.
-                    photos.put(photo.id(), photo.withCapture(photo.cameraName(), used));
-                    storage.saveAll(photos.values());
+                    replace(photo.withCapture(photo.cameraName(), used));
                 }
             });
         });
     }
 
-    private void applyToMaps(PlacedPhoto photo, List<MapTile> tiles) {
-        var mapIds = photo.mapIds();
+    private void applyToMaps(Photo photo, List<MapTile> tiles) {
+        if (!photo.isPlaced()) return;
+
+        var mapIds = photo.placement().mapIds();
         var count = Math.min(mapIds.size(), tiles.size());
         for (var i = 0; i < count; i++) {
             var view = Bukkit.getMap(mapIds.get(i));
@@ -186,55 +196,42 @@ public final class PhotoManager {
         storage.saveAllSync(photos.values());
     }
 
-    // --- capture and placement ---
+    // --- capture ---
 
     /**
-     * Captures the camera, slices it into tiles and places it in the world. Must be
-     * started on the main thread.
+     * Shoots the camera and files the result under the player's photos. Nothing is put
+     * up in the world; that is {@link #place}'s job. Must be started on the main thread.
      */
-    public void captureAndPlace(Player player, Camera camera, String name, GridOption grid) {
-        // Names are unique per owner.
-        var nameTaken = photos.values().stream()
-                .anyMatch(p -> p.owner().equals(player.getUniqueId()) && p.name().equalsIgnoreCase(name));
-        if (nameTaken) {
-            plugin.messages().send(player, "map.name-taken", Placeholder.unparsed("name", name));
-            return;
-        }
-
+    public void capture(Player player, Camera camera, String name, GridOption grid) {
         plugin.messages().send(player, "photo.capturing");
         var start = System.currentTimeMillis();
 
         // Frozen once, so the cache, the record and the image all describe the same shot.
         var spec = renderService.specFor(camera);
+        var photo = new Photo(UUID.randomUUID(), player.getUniqueId(),
+                uniqueName(player.getUniqueId(), name), camera.name(), spec, grid, null);
 
         renderService.capture(spec, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
             if (error != null || result == null) {
                 reportCaptureError(player, camera.name(), error);
                 return;
             }
+            cache.write(photo.id(), grid, result);
             plugin.runOnMain(() -> {
-                var tiles = ImageSlicer.slice(result, grid);
-                var photo = placer.place(player, camera, spec, name, grid, tiles);
-                if (photo == null) {
-                    plugin.messages().send(player, "map.place-blocked");
-                    return;
-                }
                 photos.put(photo.id(), photo);
                 storage.saveAll(photos.values());
-                cache.write(photo.id(), grid, result);
                 photosChanged();
-
-                long ms = System.currentTimeMillis() - start;
-                plugin.messages().send(player, "map.placed",
+                plugin.messages().send(player, "photo.captured",
                         Placeholder.unparsed("name", photo.name()),
-                        Placeholder.unparsed("count", String.valueOf(photo.mapIds().size())),
-                        Placeholder.unparsed("ms", String.valueOf(ms)));
+                        Placeholder.unparsed("id", photo.shortId()),
+                        Placeholder.unparsed("ms", String.valueOf(System.currentTimeMillis() - start)));
             });
         });
     }
 
     /**
-     * Shoots a placed photo again and rewrites the maps it already hangs on.
+     * Shoots a photo again, keeping everything else about it. A photo that hangs
+     * somewhere is rewritten in place, on the same maps.
      *
      * <p>The parameters come from the source camera's <b>current</b> settings, which is
      * the whole point of a retake. When that camera is gone the photo's own stored
@@ -243,7 +240,7 @@ public final class PhotoManager {
      *
      * @param source camera to shoot from, or {@code null} for the photo's own
      */
-    public void retake(Player player, PlacedPhoto photo, Camera source) {
+    public void retake(Player player, Photo photo, Camera source) {
         var camera = source != null
                 ? source
                 : cameraManager.byOwnerAndName(photo.owner(), photo.cameraName()).orElse(null);
@@ -267,15 +264,201 @@ public final class PhotoManager {
             }
             cache.write(photo.id(), grid, result);
             plugin.runOnMain(() -> {
-                applyToMaps(photo, ImageSlicer.slice(result, grid));
-                photos.put(photo.id(), photo.withCapture(cameraName, spec));
-                storage.saveAll(photos.values());
+                var current = photos.get(photo.id());
+                if (current == null) return; // deleted while the render was running
+
+                applyToMaps(current, ImageSlicer.slice(result, grid));
+                replace(current.withCapture(cameraName, spec));
                 plugin.messages().send(player, "map.photo-retaken",
                         Placeholder.unparsed("name", photo.name()),
                         Placeholder.unparsed("camera", cameraName),
                         Placeholder.unparsed("ms", String.valueOf(System.currentTimeMillis() - start)));
             });
         });
+    }
+
+    // --- hanging and taking down ---
+
+    /**
+     * Hangs the photo in the area the player lined up with the ghost preview. Must be
+     * started on the main thread.
+     */
+    public void place(Player player, Photo photo, PlacementArea area) {
+        image(photo).whenComplete((result, error) -> {
+            if (error != null || result == null) {
+                plugin.messages().warn("log.photo-unplaceable",
+                        Placeholder.unparsed("name", photo.name()),
+                        Placeholder.unparsed("reason", plugin.messages().reason(error)));
+                plugin.runOnMain(() -> plugin.messages().send(player, "photo.failed"));
+                return;
+            }
+            plugin.runOnMain(() -> {
+                var current = photos.get(photo.id());
+                if (current == null) return; // deleted while the image was being fetched
+
+                // Placing an already hanging photo moves it; the old frames have to go
+                // first or they stay behind with nothing pointing at them.
+                if (current.isPlaced())
+                    removeFrames(current);
+
+                var placement = placer.place(area, current.id(), current.grid(),
+                        ImageSlicer.slice(result, current.grid()));
+                if (placement == null) {
+                    plugin.messages().send(player, "map.place-blocked");
+                    return;
+                }
+                replace(current.withPlacement(placement));
+                plugin.messages().send(player, "map.placed",
+                        Placeholder.unparsed("name", current.name()),
+                        Placeholder.unparsed("count", String.valueOf(placement.mapIds().size())));
+            });
+        });
+    }
+
+    /**
+     * Takes the photo off the wall but keeps it: the image and its parameters are still
+     * there, so it can go back up somewhere else.
+     */
+    public void unplace(Photo photo) {
+        if (!photo.isPlaced()) return;
+
+        removeFrames(photo);
+        replace(photo.withPlacement(null));
+    }
+
+    /**
+     * Throws the photo away for good, frames, record and cached image alike.
+     */
+    public void delete(Photo photo) {
+        plugin.placement().cancelFor(photo.id(), "placement.ended-photo-removed");
+        if (photo.isPlaced())
+            removeFrames(photo);
+
+        photos.remove(photo.id());
+        cache.delete(photo.id());
+        storage.saveAll(photos.values());
+        photosChanged();
+    }
+
+    /**
+     * Renames the photo, or reports that the owner already has one by that name.
+     */
+    public boolean rename(Photo photo, String name) {
+        if (nameTaken(photo.owner(), name, photo.id()))
+            return false;
+
+        replace(photo.withName(name));
+        return true;
+    }
+
+    /**
+     * Removes every photo of a player and returns how many were removed.
+     */
+    public int removeAllOwned(UUID owner) {
+        var owned = ownedBy(owner);
+        for (var photo : owned) {
+            plugin.placement().cancelFor(photo.id(), "placement.ended-photo-removed");
+            if (photo.isPlaced())
+                removeFrames(photo);
+
+            photos.remove(photo.id());
+            cache.delete(photo.id());
+        }
+        if (!owned.isEmpty()) {
+            storage.saveAll(photos.values());
+            photosChanged();
+        }
+        return owned.size();
+    }
+
+    /**
+     * Takes down the record of every photo of the owner whose frames are gone from the
+     * world, and returns how many. The photos themselves survive as unplaced ones: the
+     * wall is what went missing, not the picture. Main thread only.
+     */
+    public int cleanupOwned(UUID owner) {
+        var removed = 0;
+        for (var photo : ownedBy(owner)) {
+            if (!photo.isPlaced() || Bukkit.getWorld(photo.placement().worldId()) == null)
+                continue;
+
+            loadChunks(photo);
+            var anyAlive = photo.placement().frameIds().stream()
+                    .anyMatch(id -> plugin.getServer().getEntity(id) != null);
+            if (!anyAlive) {
+                photos.put(photo.id(), photo.withPlacement(null));
+                removed++;
+            }
+        }
+        if (removed > 0) {
+            storage.saveAll(photos.values());
+            photosChanged();
+        }
+        return removed;
+    }
+
+    /**
+     * Removes the frame entities and their maps without dropping items. The chunks
+     * are loaded first because {@code getEntity} returns null for unloaded ones,
+     * which would leave the frames behind in the world.
+     */
+    private void removeFrames(Photo photo) {
+        loadChunks(photo);
+        for (var frameId : photo.placement().frameIds()) {
+            var entity = plugin.getServer().getEntity(frameId);
+            if (entity != null)
+                entity.remove();
+        }
+    }
+
+    /**
+     * Loads the chunks the photo spans, so its frames can be resolved.
+     */
+    private void loadChunks(Photo photo) {
+        var placement = photo.placement();
+        var world = Bukkit.getWorld(placement.worldId());
+        if (world == null) return;
+
+        var span = Math.max(photo.grid().cols(), photo.grid().rows()) + 2;
+        var minChunkX = (placement.baseX() - span) >> 4;
+        var maxChunkX = (placement.baseX() + span) >> 4;
+        var minChunkZ = (placement.baseZ() - span) >> 4;
+        var maxChunkZ = (placement.baseZ() + span) >> 4;
+        for (var cx = minChunkX; cx <= maxChunkX; cx++)
+            for (var cz = minChunkZ; cz <= maxChunkZ; cz++)
+                world.getChunkAt(cx, cz);
+    }
+
+    /**
+     * Stores an updated copy of a photo and writes the collection out.
+     */
+    private void replace(Photo photo) {
+        photos.put(photo.id(), photo);
+        storage.saveAll(photos.values());
+    }
+
+    /**
+     * The name with a number appended until it is free.
+     *
+     * <p>The capture dialog offers the camera's name by default, so shooting twice in a
+     * row would otherwise be refused for a name clash. Now that shooting is cheap and
+     * meant to be repeated, numbering the shot beats turning it away.</p>
+     */
+    private String uniqueName(UUID owner, String name) {
+        if (!nameTaken(owner, name, null))
+            return name;
+
+        for (var suffix = 2; ; suffix++) {
+            var candidate = name + "-" + suffix;
+            if (!nameTaken(owner, candidate, null))
+                return candidate;
+        }
+    }
+
+    private boolean nameTaken(UUID owner, String name, UUID exceptId) {
+        return photos.values().stream().anyMatch(p -> p.owner().equals(owner)
+                                                     && !p.id().equals(exceptId)
+                                                     && p.name().equalsIgnoreCase(name));
     }
 
     // --- image access ---
@@ -287,7 +470,7 @@ public final class PhotoManager {
      * <p>Fails only when neither is available, which is a photo placed before specs
      * were recorded whose cache file is also gone.</p>
      */
-    public CompletableFuture<RenderResult> image(PlacedPhoto photo) {
+    public CompletableFuture<RenderResult> image(Photo photo) {
         return cache.read(photo.id(), photo.grid())
                 // A cache miss is expected, not exceptional; it decides the next step.
                 .handle((result, error) -> result)
@@ -299,7 +482,7 @@ public final class PhotoManager {
     /**
      * Re-renders from the stored spec. The capture itself has to start on the main thread.
      */
-    private CompletableFuture<RenderResult> renderFromSpec(PlacedPhoto photo) {
+    private CompletableFuture<RenderResult> renderFromSpec(Photo photo) {
         var spec = photo.spec();
         if (spec == null)
             return CompletableFuture.failedFuture(new IllegalStateException(
@@ -320,7 +503,7 @@ public final class PhotoManager {
     /**
      * Writes the photo to a PNG under {@code exports/} and reports the result.
      */
-    public void export(Player player, PlacedPhoto photo, String fileName) {
+    public void export(Player player, Photo photo, String fileName) {
         var start = System.currentTimeMillis();
         image(photo)
                 .thenCompose(result -> exporter.write(result, photo.name(), fileName)
@@ -360,10 +543,10 @@ public final class PhotoManager {
         }
     }
 
-    // --- management ---
+    // --- queries ---
 
-    public List<PlacedPhoto> ownedBy(UUID owner) {
-        List<PlacedPhoto> out = new ArrayList<>();
+    public List<Photo> ownedBy(UUID owner) {
+        List<Photo> out = new ArrayList<>();
         for (var photo : photos.values())
             if (photo.owner().equals(owner))
                 out.add(photo);
@@ -371,7 +554,17 @@ public final class PhotoManager {
     }
 
     /**
-     * How many placed photos were shot with a given camera.
+     * The owner's photos taken with a given camera, oldest name order, for the list UI.
+     */
+    public List<Photo> takenWith(UUID owner, String cameraName) {
+        return photos.values().stream()
+                .filter(p -> p.owner().equals(owner) && p.cameraName().equalsIgnoreCase(cameraName))
+                .sorted(java.util.Comparator.comparing(Photo::name, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
+    /**
+     * How many photos were shot with a given camera.
      */
     public int countFor(UUID owner, String cameraName) {
         var count = 0;
@@ -384,14 +577,14 @@ public final class PhotoManager {
     /**
      * Finds a photo by its full id, however it was reached.
      */
-    public Optional<PlacedPhoto> byId(UUID id) {
+    public Optional<Photo> byId(UUID id) {
         return Optional.ofNullable(photos.get(id));
     }
 
     /**
      * Finds an owner's photo by its short id.
      */
-    public Optional<PlacedPhoto> findByShortId(UUID owner, String shortId) {
+    public Optional<Photo> findByShortId(UUID owner, String shortId) {
         return photos.values().stream()
                 .filter(p -> p.owner().equals(owner) && p.shortId().equalsIgnoreCase(shortId))
                 .findFirst();
@@ -400,7 +593,7 @@ public final class PhotoManager {
     /**
      * Finds any photo by its short id, whoever owns it; for admin commands.
      */
-    public Optional<PlacedPhoto> findByShortId(String shortId) {
+    public Optional<Photo> findByShortId(String shortId) {
         return photos.values().stream()
                 .filter(p -> p.shortId().equalsIgnoreCase(shortId))
                 .findFirst();
@@ -409,97 +602,13 @@ public final class PhotoManager {
     /**
      * Finds the photo an item frame belongs to.
      */
-    public Optional<PlacedPhoto> findByFrame(UUID frameId) {
+    public Optional<Photo> findByFrame(UUID frameId) {
         return photos.values().stream()
-                .filter(p -> p.frameIds().contains(frameId))
+                .filter(p -> p.isPlaced() && p.placement().frameIds().contains(frameId))
                 .findFirst();
     }
 
-    /**
-     * Removes every photo placed by a player and returns how many were removed.
-     */
-    public int removeAllOwned(UUID owner) {
-        var owned = ownedBy(owner);
-        for (var photo : owned) {
-            removeFrames(photo);
-            photos.remove(photo.id());
-            cache.delete(photo.id());
-        }
-        if (!owned.isEmpty()) {
-            storage.saveAll(photos.values());
-            photosChanged();
-        }
-        return owned.size();
-    }
-
-    /**
-     * Clears records of the owner's photos whose frames are gone from the world. The
-     * relevant chunks are loaded first so the check is accurate. Main thread only.
-     */
-    public int cleanupOwned(UUID owner) {
-        var removed = 0;
-        for (var photo : ownedBy(owner)) {
-            if (Bukkit.getWorld(photo.worldId()) == null)
-                continue;
-            loadChunks(photo);
-            var anyAlive = photo.frameIds().stream()
-                    .anyMatch(id -> plugin.getServer().getEntity(id) != null);
-            if (!anyAlive) {
-                photos.remove(photo.id());
-                cache.delete(photo.id());
-                removed++;
-            }
-        }
-        if (removed > 0) {
-            storage.saveAll(photos.values());
-            photosChanged();
-        }
-        return removed;
-    }
-
-    /**
-     * Removes the photo's frames without dropping items and deletes its record.
-     */
-    public void remove(PlacedPhoto photo) {
-        removeFrames(photo);
-        photos.remove(photo.id());
-        cache.delete(photo.id());
-        storage.saveAll(photos.values());
-        photosChanged();
-    }
-
-    /**
-     * Removes the frame entities and their maps without dropping items. The chunks
-     * are loaded first because {@code getEntity} returns null for unloaded ones,
-     * which would leave the frames behind in the world.
-     */
-    private void removeFrames(PlacedPhoto photo) {
-        loadChunks(photo);
-        for (var frameId : photo.frameIds()) {
-            var entity = plugin.getServer().getEntity(frameId);
-            if (entity != null)
-                entity.remove();
-        }
-    }
-
-    /**
-     * Loads the chunks the photo spans, so its frames can be resolved.
-     */
-    private void loadChunks(PlacedPhoto photo) {
-        var world = Bukkit.getWorld(photo.worldId());
-        if (world == null) return;
-
-        var span = Math.max(photo.grid().cols(), photo.grid().rows()) + 2;
-        var minChunkX = (photo.baseX() - span) >> 4;
-        var maxChunkX = (photo.baseX() + span) >> 4;
-        var minChunkZ = (photo.baseZ() - span) >> 4;
-        var maxChunkZ = (photo.baseZ() + span) >> 4;
-        for (var cx = minChunkX; cx <= maxChunkX; cx++)
-            for (var cz = minChunkZ; cz <= maxChunkZ; cz++)
-                world.getChunkAt(cx, cz);
-    }
-
-    public Collection<PlacedPhoto> all() {
+    public Collection<Photo> all() {
         return photos.values();
     }
 }

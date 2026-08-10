@@ -16,7 +16,7 @@
 ## Bağımlılık haritası
 
 ```
-T21 (fotoğraf listesi + hayalet yerleştirme UI'ı)
+T21 (fotoğraf listesi + hayalet yerleştirme UI'ı) ✔
  └── T22 (kamera başına fotoğraf limiti + permission)
 
 T20 (retake komutu) ✔
@@ -65,73 +65,9 @@ verilebilmeli.
 
 ## P1 — Fotoğraf yönetimi ve yerleştirme
 
-### T21 — Fotoğraf çekme/listeleme/yerleştirme akışının yeniden tasarımı
-
-`[ ]` **P1** · Bloke ettikleri: T22
-
-Şu an Dialog'daki tek buton "Yerleştir" ve fotoğraf anında duvara asılıyor — oyuncunun
-sonucu görme, beğenmezse tekrar çekme veya nereye asılacağını seçme şansı yok.
-Hedef akış:
-
-**1) Çekim**
-
-- Dialog'daki onay butonu **"Fotoğraf Çek"** olur; çekim yapılır ama duvara asılmaz.
-- Çekilen fotoğraf kameraya ait "çekilmiş fotoğraflar" listesine girer (isim, oran,
-  grid, çekim parametreleri — T1).
-- Fotoğrafın önizlemesi oyuncuya gösterilebilir (offhand önizleme haritası zaten var).
-
-**2) Liste**
-
-- Dialog'da kameranın fotoğrafları listelenir. Her satır:
-  `[ Foto İsmi ] [ ⬛ Yerleştir ] [ ✖ Sil ] [ ⟳ Retake ]`
-  Butonlar kısa kalsın diye unicode simge kullanılacak; metin `messages.yml`'de configli.
-- İsim butonu → yeniden adlandırma Dialog'u.
-- Sil → onay ister (yerleştirilmişse çerçeveler de kalkar).
-- Retake → `PhotoManager#retake` (T20) doğrudan çağrılır, kameranın güncel ayarlarıyla.
-
-**3) Yerleştirme — hayalet önizleme**
-
-"Yerleştir"e basınca fotoğraf hemen asılmaz; oyuncu **yerleştirme moduna** girer:
-
-- Izgara boyutunda (`cols × rows`) `BlockDisplay` entity'leri oluşturulur ve **yalnızca
-  o oyuncuya** gösterilir (`setVisibleByDefault(false)` + `Player#showEntity`).
-  *Not: Paper'da gerçek "clientside entity" API'si yok; per-player görünürlük bu şekilde
-  sağlanır ve pratikte aynı sonucu verir.*
-- Hayalet, oyuncunun baktığı yere `setInterpolationDuration` + `setTeleportDuration` ile
-  **yumuşak** hareket eder.
-- Blok materyali `placement.backing-material`'dan alınır; o ayar kapalı/geçersizse
-  varsayılan bir blok kullanılır (öneri: `WHITE_CONCRETE`).
-- **Glow:** açık. Renk doğrudan `Display#setGlowColorOverride(Color)` ile verilir —
-  Paper 26.2 API'sinde mevcut, scoreboard takımı **gerekmiyor**. Yerleşim uygunsa
-  **yeşil**, uygun değilse **kırmızı**.
-- **Uygunluk kontrolü:**
-  - `placement.build-backing-wall` **açıksa**: hem çerçeve blokları hem destek blokları
-    boş (ya da değiştirilebilir) olmalı.
-  - **Kapalıysa**: çerçeve blokları boş olmalı **ve** her çerçevenin arkasında zaten
-    katı bir blok bulunmalı.
-  - Kontrol her hareket tick'inde yapılır ve glow rengi anında güncellenir.
-- **Onay:** hayalete sağ tık. `BlockDisplay`'in hitbox'ı olmadığından yanına bir
-  `Interaction` entity eşlik edecek (ızgaranın tamamını kaplayan tek bir tane yeter,
-  karo başına değil) ve tık onun üzerinden yakalanacak — kameradaki desenin aynısı.
-  Uygun değilken onaylanamaz, action bar'da neden yazar.
-- **İptal:** Shift + sağ tık, `/izocam cancel`, oyuncunun ölmesi, dünya değiştirmesi,
-  sunucudan çıkması, kameranın silinmesi ya da zaman aşımı (config: ~60 sn).
-  Her durumda hayaletler temizlenir.
-- Oyuncu başına aynı anda **tek** yerleştirme oturumu.
-- Sunucu kapanırken açık oturumların hayaletleri temizlenir (entity sızıntısı olmasın).
-
-**4) Kalıcılık**
-
-- Çekilmiş ama yerleştirilmemiş fotoğraflar da kaydedilmeli — `maps.yml` yerine
-  ayrı `photos.yml` daha temiz olur (`maps.yml` yerleşim kaydı olarak kalır).
-- Yeniden başlatmada yerleştirilmemiş fotoğraflar render edilmez, yalnızca listede
-  görünür; önizleme istenirse o an render edilir.
-
----
-
 ### T22 — Kamera başına fotoğraf limiti + permission ile bypass
 
-`[ ]` **P1** · Bağımlı: T21
+`[ ]` **P1** · Bağımlı: T21 ✔
 
 - Config: `settings.max-photos-per-camera` (varsayılan öneri: 5).
 - Permission ile geçersiz kılma: **`izomap.max_photos_by_camera.<sayı>`**
@@ -319,6 +255,59 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T21 — Çekmek, listelemek ve asmak ayrıldı
+
+`[x]` **P1** · 2026-08-10 · Serbest bıraktıkları: T22
+
+Dialog'daki onay butonu artık yalnızca **çekiyor**. Çekilen fotoğraf kameranın
+listesine giriyor; asmak, indirmek, yeniden adlandırmak, yeniden çekmek ve silmek o
+listenin işi. Eskiden tek buton "Yerleştir"di ve fotoğraf o an bakılan yere asılıyordu.
+
+**Model ikiye ayrıldı.** `PlacedPhoto` → `Photo` + opsiyonel `Placement`. Bir fotoğraf
+artık asılı olmasa da var; `placement == null` "çekildi ama asılmadı" demek.
+
+**Tek dosya, iki değil.** Plan `photos.yml` + `maps.yml` (yerleşim kaydı olarak) diyordu.
+İki dosya her okuma/yazmada bir join ve her hatada yarım kalma riski demek olduğundan
+yerleşim, fotoğrafın **içinde** bir blok oldu. `maps.yml` yalnızca açılışta, yalnızca
+`photos.yml`'in tanımadığı kimlikler için okunuyor; kimliğe göre birleştirme yeniden
+okumayı zararsız kılıyor ve eski dosya silinmiyor.
+
+**Hayalet önizleme** (`place/` — yeni paket). Izgara boyunda `BlockDisplay`'ler bakışı
+takip ediyor, uygunsa yeşil değilse kırmızı parlıyor. Yalnızca o oyuncuya görünür
+(`setVisibleByDefault(false)` + `showEntity`) ve **kalıcı değil**: çöken sunucu havada
+duvar bırakmamalı.
+
+Plandan üç sapma:
+
+1. **Tık kutusu yok.** Izgarayı kaplayan tek `Interaction` öngörülmüştü, ama kutusu X ve
+   Z'de kare: 16 blok geniş fotoğrafta oyuncuya doğru 8 blok uzanıp çevresindeki her şeyi
+   yutardı. Oturum açıkken sağ tıkın kendisi onay, shift + sağ tık iptal.
+2. **Destek duvarı açıkken arkadaki dolu blok engel sayılmıyor.** Plan "destek blokları da
+   boş olmalı" diyordu; mevcut davranış dolu bloğu destek olarak kullanıyor ve bunu
+   bozmak, var olan bir duvara fotoğraf asmayı imkânsız kılardı. Kural yalnızca duvar
+   **kapalıyken** sıkı: her çerçevenin arkasında katı blok aranıyor — bu kontrol eskiden
+   hiç yoktu, fotoğraf asılıp sessizce düşebiliyordu.
+3. **Çekilen fotoğrafın ayrı bir önizlemesi yapılmadı.** "Gösterilebilir" diye opsiyonel
+   geçiyordu; canlı önizleme zaten tam olarak çekilecek kareyi gösterdiği için ayrı bir
+   harita kimliği ve ikinci bir kilit kümesi yeni bilgi vermezdi. Eksik olan "sonucu
+   görmek" değil, "yerini seçmek"ti.
+
+**Yan kararlar:**
+
+- **İndirmek silmek değil.** `unplace` ve çerçeve kırma fotoğrafı duvardan alıyor, kayıt
+  ve görüntü listede kalıyor. Silme yalnızca Dialog'daki ✖ (onay ister) ve
+  `remove all photos`. `cleanup` de artık kaydı silmiyor, "asılı değil"e çekiyor.
+- **Çekim ismi numaralanıyor** (`manzara-2`). Dialog varsayılan olarak kamera adını
+  önerdiği için art arda çekim aksi halde her seferinde "bu isim alınmış" derdi.
+- **Yerleştirme başlarken canlı önizleme kapanıyor**: offhand haritası ve action bar
+  artık yerleştirmenin, ikisi aynı satır için yarışsa hiçbiri okunmazdı.
+- Açılışta **yalnızca asılı** fotoğraflar restore ediliyor; asılmamışların görüntüsü
+  istendiği an üretiliyor.
+
+**Sunucuda denenmedi.** Özellikle Dialog ekranlarının 4 sütunluk düzeni, 16×9 ızgarada
+144 hayalet entity'nin maliyeti ve `PlayerInteractEvent` ile onayın her durumda
+yakalanıp yakalanmadığı gözlenmeli.
 
 ### T6 — Kameranın üstünde bilgi hologramı
 

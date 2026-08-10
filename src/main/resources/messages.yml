@@ -80,8 +80,22 @@ filter:
   COOL: "Soğuk"
   GRAYSCALE: "Siyah-Beyaz"
 
+# Hayalet yerleştirme modu: fotoğraf asılmadan önce nereye asılacağı seçilir.
+placement:
+  started: "<green>Yerleştirme modu: <white><name></white> <gray>— hayaleti istediğin yere getir, <white>sağ tık</white> ile onayla, <white>shift + sağ tık</white> ile vazgeç."
+  actionbar: "<green>Sağ tık: yerleştir</green> <dark_gray>·</dark_gray> <gray>Shift + sağ tık: iptal"
+  actionbar-blocked: "<red>Buraya sığmıyor</red> <dark_gray>·</dark_gray> <gray>Çerçevelerin yeri boş, arkası dolu olmalı"
+  blocked: "<red>Buraya yerleştirilemez; hayalet yeşile dönene kadar başka bir yere bak."
+  not-active: "<gray>Açık bir yerleştirmen yok."
+  ended-self: "<gray>Yerleştirme iptal edildi."
+  ended-timeout: "<gray>Yerleştirme zaman aşımına uğradı."
+  ended-died: "<gray>Öldüğün için yerleştirme iptal edildi."
+  ended-world-change: "<gray>Dünya değiştirdiğin için yerleştirme iptal edildi."
+  ended-photo-removed: "<yellow>Fotoğraf silindiği için yerleştirme iptal edildi."
+
 photo:
   capturing: "<gray>Fotoğraf çekiliyor, lütfen bekle..."
+  captured: "<green>Fotoğraf çekildi: <white><name></white> <gray>[<id>] (<ms>ms) — kameranın Fotoğraflar listesinden yerleştirebilirsin."
   failed: "<red>Fotoğraf çekimi başarısız oldu."
   too-large: "<red>Kadraj çok geniş: <white><required></white> chunk gerekiyor, sınır <white><budget></white> <gray>(settings.max-capture-area)</gray>. Yakınlaştırmayı (zoom) artır."
   exporting: "<gray>Fotoğraf dosyaya yazılıyor: <white><name></white>..."
@@ -94,18 +108,21 @@ map:
   invalid-grid: "<red>Bu en-boy oranı için geçersiz grid. <gray><ratio> için seçenekler: <white><grids></white></gray>"
   created: "<green><count> harita oluşturuldu (<grid>) ve envanterine eklendi. <gray>(<ms>ms)</gray>"
   inventory-full: "<yellow>Bazı haritalar envantere sığmadı ve yere düştü."
-  placed: "<green>Fotoğraf yerleştirildi: <white><name></white> <gray>(<count> harita, <ms>ms)"
-  place-blocked: "<red>Yerleştirme başarısız: önünde yeterli boş alan yok. Açık bir alana bakarak dene."
+  placed: "<green>Fotoğraf yerleştirildi: <white><name></white> <gray>(<count> harita)"
+  place-blocked: "<red>Yerleştirme başarısız: hedef alan artık boş değil. Başka bir yere bakarak tekrar dene."
   still-loading: "<yellow>Bu fotoğraf hâlâ yükleniyor; birazdan tekrar dene."
   orphan-frame: "<gray>Kaydı bulunmayan bir Izomap çerçevesi kaldırıldı."
-  name-taken: "<red>Bu isimde yerleştirilmiş bir fotoğrafın zaten var: <white><name></white>"
-  photos-header: "<gray>Yerleştirilmiş fotoğraflar (<count>):"
-  photos-entry: "<dark_gray>› <white><name></white> <gray>[<id>] (<grid>)"
-  photos-empty: "<gray>Henüz yerleştirilmiş fotoğrafın yok."
-  photo-removed: "<yellow>Fotoğraf kaldırıldı: <white><name></white>"
-  photos-removed-all: "<yellow><count> fotoğraf kaldırıldı."
+  name-taken: "<red>Bu isimde bir fotoğrafın zaten var: <white><name></white>"
+  photos-header: "<gray>Fotoğraflar (<count>):"
+  photos-entry: "<dark_gray>› <white><name></white> <gray>[<id>] <camera>, <grid> <dark_gray>— asılı değil"
+  photos-entry-placed: "<dark_gray>› <white><name></white> <gray>[<id>] <camera>, <grid> <green>— asılı"
+  photos-empty: "<gray>Henüz fotoğrafın yok."
+  photo-taken-down: "<yellow>Fotoğraf duvardan indirildi: <white><name></white> <gray>(listede duruyor, yeniden asabilirsin)"
+  photo-not-placed: "<gray>Bu fotoğraf zaten asılı değil: <white><name></white>"
+  photo-deleted: "<yellow>Fotoğraf silindi: <white><name></white>"
+  photos-removed-all: "<yellow><count> fotoğraf silindi."
   photo-not-found: "<red>Fotoğraf bulunamadı."
-  cleaned: "<green><count> kayıp/kırık fotoğraf kaydı temizlendi."
+  cleaned: "<green><count> fotoğrafın çerçeveleri kayıp; asılı olmayanlara alındı."
   photo-retaken: "<green>Fotoğraf yeniden çekildi: <white><name></white> <gray>(kamera: <camera>, <ms>ms)"
   photo-no-source: "<red>Bu fotoğraf yeniden çekilemez: <white><camera></white> kamerası yok ve fotoğrafın kayıtlı çekim parametreleri de bulunmuyor. <gray>Bir kamera adı vererek dene: <white>/izocam retake [id] [kamera]</white>"
 
@@ -122,8 +139,32 @@ dialog:
   # Üçler kuralı: yalnızca önizlemeye çizilen 3x3 kadraj kılavuzu, fotoğrafa girmez.
   thirds-button: "Üçler kuralı: Kapalı"
   thirds-button-active: "Üçler kuralı: Açık ✔"
-  confirm: "Yerleştir"
+  # Çekim yapar ama duvara asmaz; asma işi Fotoğraflar listesinden yapılır.
+  capture: "Fotoğraf Çek"
+  photos-button: "Fotoğraflar (<count>)"
   cancel: "İptal"
+
+  # --- fotoğraf listesi ---
+  photos-title: "<gradient:#5e60ce:#48bfe3>Fotoğraflar</gradient>"
+  photos-body: "<gray><camera> kamerasıyla çekilen <white><count></white> fotoğraf. Satırdaki butonlar sırayla: yeniden adlandır, as/indir, sil, yeniden çek."
+  photos-empty: "<gray><camera> ile henüz fotoğraf çekmedin."
+  photos-back: "← Çekim ekranı"
+  photos-truncated: "<dark_gray><count> fotoğraf daha var; onlara <white>/izocam list photos</white> ile ulaşabilirsin."
+  # Butonlar dar olduğu için simge kullanılıyor; istediğin metni yazabilirsin.
+  photo-name: "<name>"
+  photo-place: "⬛ As"
+  photo-unplace: "⇩ İndir"
+  photo-delete: "✖ Sil"
+  photo-retake: "⟳ Yeniden çek"
+
+  rename-title: "Fotoğrafı yeniden adlandır"
+  rename-body: "<gray>Şu anki ad: <white><name></white>"
+  rename-confirm: "Kaydet"
+
+  delete-title: "Fotoğrafı sil"
+  delete-body: "<gray><white><name></white> kalıcı olarak silinecek: görüntüsü, çekim parametreleri ve asılıysa çerçeveleri. Geri alınamaz."
+  delete-confirm: "✖ Sil"
+  delete-cancel: "Vazgeç"
 
 # ============================================================
 #  Konsol
@@ -138,7 +179,8 @@ log:
 
   # --- yükleme ---
   cameras-loaded: "<count> kamera yüklendi."
-  photos-loaded: "<count> yerleştirilmiş fotoğraf yüklendi."
+  photos-loaded: "<count> fotoğraf yüklendi."
+  photos-migrated: "<count> fotoğraf <file> dosyasından alındı ve photos.yml'e taşındı. Eski dosya silinmedi; bir sorun çıkarsa oradan geri dönülebilir."
   block-colors-ready: "<count> blok için harita temel rengi hazır."
   block-colors-overridden: "<count> blok rengi override edildi."
   camera-world-missing: "Kamera '<camera>' atlandı: dünya yüklü değil (<world>)."
@@ -163,6 +205,7 @@ log:
   photo-render-failed: "Fotoğraf render'ı başarısız (<camera>): <reason>"
   photo-recapture-failed: "Fotoğraf '<name>' yeniden çekilemedi: <reason>"
   photo-unrestorable: "Fotoğraf '<name>' (<id>) ne ön bellekte var ne de çekim parametreleri kayıtlı; haritalar son hâlinde bırakıldı."
+  photo-unplaceable: "Fotoğraf '<name>' asılamadı, görüntüsü elde edilemedi: <reason>"
   photo-export-failed: "Fotoğraf dışa aktarılamadı (<id>): <reason>"
 
   # --- disk ---

@@ -10,6 +10,7 @@ import dev.zypec.izomap.map.MapService;
 import dev.zypec.izomap.map.PhotoFrameListener;
 import dev.zypec.izomap.map.PhotoKeys;
 import dev.zypec.izomap.map.PhotoManager;
+import dev.zypec.izomap.place.PlacementManager;
 import dev.zypec.izomap.render.BlockColorTable;
 import dev.zypec.izomap.render.PreviewManager;
 import dev.zypec.izomap.render.RenderService;
@@ -42,6 +43,7 @@ public final class Izomap extends JavaPlugin {
     private MapService mapService;
     private PhotoManager photoManager;
     private PreviewManager previewManager;
+    private PlacementManager placementManager;
 
     @Override
     public void onEnable() {
@@ -60,6 +62,8 @@ public final class Izomap extends JavaPlugin {
         var photoKeys = new PhotoKeys(this);
         this.photoManager = new PhotoManager(this, cameraManager, renderService, mapService, photoKeys);
 
+        this.placementManager = new PlacementManager(this);
+
         var cameraDialogs = new CameraDialogs(this, cameraManager, photoManager);
 
         // Photos load from their own cache, but a lost cache falls back to the source
@@ -71,6 +75,7 @@ public final class Izomap extends JavaPlugin {
         getServer().getPluginManager().registerEvents(
                 new PhotoFrameListener(this, photoManager, photoKeys), this);
         getServer().getPluginManager().registerEvents(previewManager, this);
+        getServer().getPluginManager().registerEvents(placementManager, this);
         CameraCommand.register(this, cameraManager, renderService, mapService, photoManager, cameraDialogs);
 
         messages.info("log.enabled");
@@ -80,6 +85,9 @@ public final class Izomap extends JavaPlugin {
     public void onDisable() {
         // Plugins are disabled before players are kicked, so the quit handler never
         // runs on shutdown; the preview maps have to be collected here.
+        if (placementManager != null)
+            placementManager.cancelAll();
+
         if (previewManager != null)
             previewManager.closeAll();
 
@@ -144,5 +152,9 @@ public final class Izomap extends JavaPlugin {
 
     public PreviewManager preview() {
         return previewManager;
+    }
+
+    public PlacementManager placement() {
+        return placementManager;
     }
 }

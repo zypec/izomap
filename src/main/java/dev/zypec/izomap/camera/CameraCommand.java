@@ -13,8 +13,8 @@ import dev.zypec.izomap.map.GridLayouts;
 import dev.zypec.izomap.map.GridOption;
 import dev.zypec.izomap.map.ImageSlicer;
 import dev.zypec.izomap.map.MapService;
+import dev.zypec.izomap.map.Photo;
 import dev.zypec.izomap.map.PhotoManager;
-import dev.zypec.izomap.map.PlacedPhoto;
 import dev.zypec.izomap.render.AspectRatio;
 import dev.zypec.izomap.render.CaptureTooLargeException;
 import dev.zypec.izomap.render.RenderService;
@@ -45,8 +45,9 @@ import java.util.stream.Collectors;
  *   <li>{@code maps <name> <grid>} – puts the map items in the inventory.</li>
  *   <li>{@code preview <name> | stop} – watches a camera's live view, or stops.</li>
  *   <li>{@code open <name>} – opens the capture dialog.</li>
- *   <li>{@code unplace <id>} – removes a placed photo.</li>
+ *   <li>{@code unplace <id>} – takes a photo off the wall, keeping it in the list.</li>
  *   <li>{@code retake <id> [camera]} – shoots a placed photo again in place.</li>
+ *   <li>{@code cancel} – leaves placement mode.</li>
  *   <li>{@code cleanup} – clears records whose frames are gone.</li>
  *   <li>{@code reload} – reloads the configuration (admin).</li>
  * </ul>
@@ -141,6 +142,8 @@ public final class CameraCommand {
                                         .suggests(this::suggestOwnedNames)
                                         .executes(ctx -> retake(ctx,
                                                 StringArgumentType.getString(ctx, "camera"))))))
+                .then(Commands.literal("cancel")
+                        .executes(this::cancelPlacement))
                 .then(Commands.literal("cleanup")
                         .executes(this::cleanup))
                 .then(Commands.literal("export")
@@ -255,9 +258,11 @@ public final class CameraCommand {
         player.sendMessage(plugin.messages().get("map.photos-header",
                 Placeholder.unparsed("count", String.valueOf(owned.size()))));
         for (var photo : owned) {
-            player.sendMessage(plugin.messages().get("map.photos-entry",
+            player.sendMessage(plugin.messages().get(
+                    photo.isPlaced() ? "map.photos-entry-placed" : "map.photos-entry",
                     Placeholder.unparsed("name", photo.name()),
                     Placeholder.unparsed("id", photo.shortId()),
+                    Placeholder.unparsed("camera", photo.cameraName()),
                     Placeholder.unparsed("grid", photo.grid().label())));
         }
         return Command.SINGLE_SUCCESS;
@@ -380,6 +385,10 @@ public final class CameraCommand {
         return Command.SINGLE_SUCCESS;
     }
 
+    /**
+     * Takes a photo off the wall. The photo itself stays in its camera's list, so it
+     * can go back up somewhere else; deleting it for good is the dialog's job.
+     */
     private int unplace(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         var player = requirePlayer(ctx);
 
@@ -389,8 +398,23 @@ public final class CameraCommand {
             plugin.messages().send(player, "map.photo-not-found");
             return 0;
         }
-        photoManager.remove(photo);
-        plugin.messages().send(player, "map.photo-removed", Placeholder.unparsed("name", photo.name()));
+        if (!photo.isPlaced()) {
+            plugin.messages().send(player, "map.photo-not-placed",
+                    Placeholder.unparsed("name", photo.name()));
+            return 0;
+        }
+        photoManager.unplace(photo);
+        plugin.messages().send(player, "map.photo-taken-down", Placeholder.unparsed("name", photo.name()));
+        return Command.SINGLE_SUCCESS;
+    }
+
+    private int cancelPlacement(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+
+        if (!plugin.placement().cancel(player, "placement.ended-self")) {
+            plugin.messages().send(player, "placement.not-active");
+            return 0;
+        }
         return Command.SINGLE_SUCCESS;
     }
 
@@ -509,7 +533,7 @@ public final class CameraCommand {
     private CompletableFuture<Suggestions> suggestAllPhotoIds(
             CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
         String prefix = builder.getRemaining();
-        for (PlacedPhoto photo : photoManager.all()) {
+        for (Photo photo : photoManager.all()) {
             if (photo.shortId().startsWith(prefix)) {
                 builder.suggest(photo.shortId());
             }
@@ -522,7 +546,7 @@ public final class CameraCommand {
         var sender = ctx.getSource().getSender();
         if (sender instanceof Player player) {
             String prefix = builder.getRemaining();
-            for (PlacedPhoto photo : photoManager.ownedBy(player.getUniqueId())) {
+            for (Photo photo : photoManager.ownedBy(player.getUniqueId())) {
                 if (photo.shortId().startsWith(prefix)) {
                     builder.suggest(photo.shortId());
                 }

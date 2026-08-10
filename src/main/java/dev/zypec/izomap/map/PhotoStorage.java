@@ -5,51 +5,108 @@ import dev.zypec.izomap.render.CaptureSpec;
 import dev.zypec.izomap.render.ColorFilter;
 import dev.zypec.izomap.storage.YamlStorage;
 import dev.zypec.izomap.util.Ids;
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
- * Asynchronous persistence of placed photos to {@code maps.yml}.
+ * Asynchronous persistence of photos to {@code photos.yml}.
+ *
+ * <h2>Why one file and not two</h2>
+ *
+ * <p>A photo and the wall it hangs on used to be the same record in {@code maps.yml}.
+ * Splitting them across two files would mean every read and write had to join them and
+ * every failure could leave one half behind, so the placement became an optional block
+ * <i>inside</i> the photo instead. A photo with no {@code placement} section has been
+ * shot but not put up.</p>
+ *
+ * <p>{@code maps.yml} is still read at startup for photos this file does not know yet,
+ * so an existing install keeps its walls. The old file is left on disk untouched;
+ * merging by id makes rereading it harmless.</p>
  */
 public final class PhotoStorage extends YamlStorage {
 
+    private static final String LEGACY_FILE = "maps.yml";
+
+    /**
+     * Old {@code maps.yml} contents, read alongside the load and merged in
+     * {@link #readAll()}.
+     */
+    private volatile FileConfiguration legacy;
+
     public PhotoStorage(Izomap plugin) {
-        super(plugin, "maps.yml");
+        super(plugin, "photos.yml");
     }
 
-    public void saveAll(Collection<PlacedPhoto> photos) {
+    public void saveAll(Collection<Photo> photos) {
         setData(serialize(photos));
         save();
     }
 
-    public void saveAllSync(Collection<PlacedPhoto> photos) {
+    public void saveAllSync(Collection<Photo> photos) {
         setData(serialize(photos));
         saveNow();
     }
 
-    private FileConfiguration serialize(Collection<PlacedPhoto> photos) {
+    /**
+     * Runs on the load's own thread, which is where the legacy file may be read.
+     */
+    @Override
+    protected void onLoaded(FileConfiguration loaded) {
+        var file = new File(plugin.getDataFolder(), LEGACY_FILE);
+        this.legacy = file.isFile() ? YamlConfiguration.loadConfiguration(file) : null;
+    }
+
+    private FileConfiguration serialize(Collection<Photo> photos) {
         var cfg = new YamlConfiguration();
         for (var p : photos) {
-            String base = "photos." + p.id();
+            var base = "photos." + p.id();
             cfg.set(base + ".owner", p.owner().toString());
             cfg.set(base + ".name", p.name());
             cfg.set(base + ".camera", p.cameraName());
-            cfg.set(base + ".world", p.worldId().toString());
             cfg.set(base + ".grid", p.grid().label());
-            cfg.set(base + ".map-ids", new ArrayList<>(p.mapIds()));
-            cfg.set(base + ".frame-ids", p.frameIds().stream().map(UUID::toString).toList());
-            cfg.set(base + ".base-x", p.baseX());
-            cfg.set(base + ".base-y", p.baseY());
-            cfg.set(base + ".base-z", p.baseZ());
             writeSpec(cfg, base + ".capture", p.spec());
+            writePlacement(cfg, base + ".placement", p.placement());
         }
         return cfg;
+    }
+
+    private static void writePlacement(FileConfiguration cfg, String base, Placement placement) {
+        if (placement == null)
+            return;
+
+        cfg.set(base + ".world", placement.worldId().toString());
+        cfg.set(base + ".map-ids", new ArrayList<>(placement.mapIds()));
+        cfg.set(base + ".frame-ids", placement.frameIds().stream().map(UUID::toString).toList());
+        cfg.set(base + ".base-x", placement.baseX());
+        cfg.set(base + ".base-y", placement.baseY());
+        cfg.set(base + ".base-z", placement.baseZ());
+    }
+
+    private static Placement readPlacement(ConfigurationSection s) {
+        if (s == null) return null;
+
+        var world = Ids.parse(s.getString("world"));
+        if (world == null) return null;
+
+        List<UUID> frameIds = new ArrayList<>();
+        for (var raw : s.getStringList("frame-ids")) {
+            var frameId = Ids.parse(raw);
+            if (frameId != null) {
+                frameIds.add(frameId);
+            }
+        }
+        return new Placement(world, s.getIntegerList("map-ids"), frameIds,
+                s.getInt("base-x"), s.getInt("base-y"), s.getInt("base-z"));
     }
 
     private static void writeSpec(FileConfiguration cfg, String base, CaptureSpec spec) {
@@ -91,46 +148,59 @@ public final class PhotoStorage extends YamlStorage {
     }
 
     /**
-     * Turns loaded data into {@link PlacedPhoto} objects.
+     * Every known photo, with anything only {@code maps.yml} still knows merged in.
      */
-    public List<PlacedPhoto> readAll() {
-        List<PlacedPhoto> result = new ArrayList<>();
-        var cfg = data();
-        if (cfg == null) return result;
+    public List<Photo> readAll() {
+        Map<UUID, Photo> byId = new LinkedHashMap<>();
+        collect(data(), false, byId);
+
+        var before = byId.size();
+        collect(legacy, true, byId);
+        var migrated = byId.size() - before;
+        if (migrated > 0) {
+            plugin.messages().info("log.photos-migrated",
+                    Placeholder.unparsed("count", String.valueOf(migrated)),
+                    Placeholder.unparsed("file", LEGACY_FILE));
+        }
+        return new ArrayList<>(byId.values());
+    }
+
+    /**
+     * Reads one file into the map, keeping whatever is already there. Photos read from
+     * the legacy layout always carry a placement: back then a photo only existed
+     * because it hung somewhere.
+     */
+    private void collect(FileConfiguration cfg, boolean legacyLayout, Map<UUID, Photo> into) {
+        if (cfg == null) return;
 
         var root = cfg.getConfigurationSection("photos");
-        if (root == null) return result;
+        if (root == null) return;
 
         for (var key : root.getKeys(false)) {
             var s = root.getConfigurationSection(key);
             if (s == null) continue;
 
-            var photo = readOne(key, s);
-            if (photo != null)
-                result.add(photo);
-        }
-        return result;
-    }
+            var id = Ids.parse(key);
+            if (id == null || into.containsKey(id)) continue;
 
-    private PlacedPhoto readOne(String key, ConfigurationSection s) {
-        var id = Ids.parse(key);
-        var owner = Ids.parse(s.getString("owner"));
-        var world = Ids.parse(s.getString("world"));
-        var grid = GridOption.parse(s.getString("grid"));
-        if (id == null || owner == null || world == null || grid == null)
-            return null;
-
-        var mapIds = s.getIntegerList("map-ids");
-        List<UUID> frameIds = new ArrayList<>();
-        for (var raw : s.getStringList("frame-ids")) {
-            var frameId = Ids.parse(raw);
-            if (frameId != null) {
-                frameIds.add(frameId);
+            var photo = readOne(id, s, legacyLayout);
+            if (photo != null) {
+                into.put(id, photo);
             }
         }
-        return new PlacedPhoto(id, owner, s.getString("name", "photo"),
-                s.getString("camera", ""), readSpec(s.getConfigurationSection("capture")),
-                world, grid, mapIds, frameIds,
-                s.getInt("base-x"), s.getInt("base-y"), s.getInt("base-z"));
+    }
+
+    private Photo readOne(UUID id, ConfigurationSection s, boolean legacyLayout) {
+        var owner = Ids.parse(s.getString("owner"));
+        var grid = GridOption.parse(s.getString("grid"));
+        if (owner == null || grid == null)
+            return null;
+
+        var placement = legacyLayout ? readPlacement(s) : readPlacement(s.getConfigurationSection("placement"));
+        if (legacyLayout && placement == null)
+            return null; // a legacy record without a wall is a broken one
+
+        return new Photo(id, owner, s.getString("name", "photo"), s.getString("camera", ""),
+                readSpec(s.getConfigurationSection("capture")), grid, placement);
     }
 }
