@@ -56,13 +56,28 @@ dev.zypec.izomap
 ├── camera/                  Kamera modeli, entity yaşam döngüsü, etkileşim, komut, kalıcılık, durum satırı
 ├── render/                  Geometri, chunk anlık görüntüsü, voxel yürüyüşü, renk sistemi, önizleme
 ├── map/                     Izgara seçenekleri, dilimleme, MapView üretimi, dünyaya yerleştirme
-└── ui/                      CameraDialogs — Paper Dialog API arayüzü
+├── ui/                      CameraDialogs — Paper Dialog API arayüzü
+└── util/                    Paket sınırlarını aşan küçük yardımcılar (Ids, Failures)
 ```
+
+### Ortak yardımcılar
+
+Aynı mantığın birden çok pakette kopyalanması yerine tek bir yerden gelir:
+
+| Yardımcı | İş |
+|---|---|
+| `util.Ids#parse` | `String` → `UUID`; bozuk/eksik değerde `null`. YML kaydı, PDC etiketi ve `.izm` dosya adı aynı yoldan geçer |
+| `util.Failures#unwrap` | Future zincirinin sardığı `CompletionException`'ı açar; hem `instanceof` kontrolleri hem log metni içindekine bakmak zorunda |
+| `Izomap#runOnMain` | Ana thread'e dönüş (`getGlobalRegionScheduler`) |
+| `Izomap#asyncExecutor` | `CompletableFuture` zincirlerinin kullandığı asenkron `Executor` |
+
+Kimlikler bize daima metin olarak ulaştığı için (YML, PDC, dosya adı) bozuk bir değer
+hata değil **olağan sonuçtur**: çağıran yalnızca o kaydı atlar, yüklemeye devam eder.
 
 ### Bağımlılık akışı (`Izomap#onEnable`)
 
 ```
-ConfigManager, Messages
+Messages → ConfigManager
       ↓
 CameraKeys → CameraManager ──┐
 BlockColorTable → RenderService ──┐
@@ -74,9 +89,14 @@ PhotoKeys ───────────────────────�
         CameraListener, PhotoFrameListener, PreviewManager (Listener), CameraCommand
 ```
 
-Yükleme sırası önemlidir: `cameraManager.load()` tamamlanmadan `photoManager.load()`
-çağrılmaz. Fotoğraflar artık kendi ön belleğinden yüklense de, ön bellek kaybolduğunda
-yedek yol kaynak kameraya düşebiliyor.
+Yükleme sırası iki yerde önemlidir:
+
+- **`Messages` en başta kurulur.** Konsola yazılan her satır ondan geçtiği için
+  `ConfigManager` bile ona bağlıdır; `ConfigManager` riskli ayar uyarısını kendi
+  yapıcısından verdiğinden ters sırada `messages()` henüz `null` olurdu.
+- **`cameraManager.load()` tamamlanmadan `photoManager.load()` çağrılmaz.** Fotoğraflar
+  artık kendi ön belleğinden yüklense de, ön bellek kaybolduğunda yedek yol kaynak
+  kameraya düşebiliyor.
 
 ---
 
@@ -593,7 +613,7 @@ kontrol edip `0.25`'in üstündeyse log uyarısı verir.
 | Dosya | İçerik |
 |---|---|
 | `config.yml` | Ayarlar |
-| `messages.yml` | MiniMessage mesajları (`prefix` + anahtar ağacı) |
+| `messages.yml` | MiniMessage mesajları (`prefix` + anahtar ağacı; oyuncuya gidenler **ve** konsol) |
 | `block-colors.yml` | Blok rengi override'ları (v2) |
 | `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, üçler kuralı, entity UUID'leri, önizleme harita kimliği) |
 | `maps.yml` | Yerleştirilmiş fotoğraflar (harita id'leri, çerçeve UUID'leri, çıpa koordinatı, `capture` bloğunda çekim parametreleri) |
@@ -604,28 +624,68 @@ kontrol edip `0.25`'in üstündeyse log uyarısı verir.
 `saveNow()`'dır (asenkron zamanlayıcı artık çalışmadığı için). Kayıt toplu serialize
 mantığıyla çalışır — kısmi güncellemeden daha basit ve daha az hataya açık.
 
+### Metin nereye yazılır
+
+Görünür her metin `messages.yml`'dedir; **konsola yazılanlar dahil**. Sunucu sahibinin
+oyuncuya giden mesajı çevirip log'u çeviremediği bir durum yoktur.
+
+| Yüzey | Yol |
+|---|---|
+| Oyuncuya mesaj | `Messages#send` / `#get` |
+| Konsol | `Messages#info` / `#warn` / `#error` → `log.*` anahtarları |
+| Düz `String` isteyen API | `Messages#plain` (Brigadier komut açıklaması gibi) |
+| Kodda kalan metin | **İngilizce** — exception mesajları |
+
+Konsol satırları `getComponentLogger()` üzerinden gider, yani `log.*` değerlerinde de
+MiniMessage geçerlidir (riskli ayar uyarısı bu yüzden sarı yazılır); renk desteklemeyen
+bir konsolda etiketler görmezden gelinir.
+
+**Kodda kalan metin İngilizcedir.** Ayrım kim okuyor sorusuna dayanır: `messages.yml`
+sunucuyu işleten kişinindir ve çevrilir; exception mesajını okuyan, hatayı ayıklayan
+geliştiricidir ve stack trace'in yanında Türkçe bir cümle yardımcı olmaz.
+
+Bir işlem başarısız olduğunda `<reason>` yer tutucusunu `Messages#reason` doldurur:
+`Failures#unwrap` ile gerçek sebebi açar, sebebin kendi metni yoksa `log.no-reason`'a
+düşer — böylece log satırı iki nokta üst üsteden sonra boş kalmaz.
+
+Enum'ların görünen adları da anahtar ağacındadır (`filter.<AD>`,
+`preview.property.<AD>`); enum yalnızca sabit adını taşır, diske de yalnızca o yazılır.
+Yeni bir sabit eklemek yalnızca yeni bir anahtar eklemeyi gerektirir.
+
 ---
 
 ## 9. Geliştirme kuralları
 
 1. **Ana thread'de ağır iş yok.** Raycasting, görsel dilimleme ve YML I/O asenkron
-   çalışır. Blok/entity/MapView erişimi ise ana thread'e döner
-   (`getGlobalRegionScheduler().run`).
+   çalışır (`Izomap#asyncExecutor`). Blok/entity/MapView erişimi ise ana thread'e
+   döner (`Izomap#runOnMain`); scheduler doğrudan çağrılmaz.
 2. **Paper API, NMS değil.** Mojang-mapped derleme var ama API yeterli olduğu sürece
    NMS'e inilmez.
-3. **Tüm görünür metin `Component`.** MiniMessage üzerinden `messages.yml`'den gelir;
-   legacy `&` renk kodu hiçbir yerde kullanılmaz. Kod içine sabit metin gömülmez.
-4. **Komutlar Brigadier ile.** Argümanlar için anlamlı `suggests` sağlanır.
-5. **Config erişimi `ConfigManager` üzerinden.** Doğrudan `getConfig().getX("...")` yazılmaz.
-6. **Özellik bazlı paketleme** korunur; yeni bir alan gerekiyorsa yeni paket açılır.
-7. **İngilizce javadoc.** Koddaki tüm javadoc ve yorumlar İngilizce yazılır.
-8. **Minimum yorum.** Yorum yalnızca koddan okunamayan bir *neden* varsa yazılır;
-   kodun ne yaptığını tekrar eden açıklama eklenmez. Uzun anlatım kodda değil, bu
-   belgede durur.
-9. **Kodda planlama izi olmaz.** Konuşmalarımıza, TODO madde kimliklerine (T1, T2 …),
-   yol haritasına veya geçmiş kararların gerekçesine kod içinden atıf yapılmaz;
-   yorumlar yalnızca kodun kendisini anlatır.
-10. **Geriye dönük uyumluluk.** Bir config/veri anahtarı yeniden adlandırılırsa eskisi
+3. **Tüm görünür metin `messages.yml`'den gelir.** Oyuncuya giden mesajlar da,
+   **konsola yazılanlar da** (`log.*`). MiniMessage kullanılır; legacy `&` renk kodu
+   hiçbir yerde geçmez. `getLogger()` doğrudan çağrılmaz, `Messages#info/warn/error`
+   kullanılır.
+4. **Kodda kalan metin İngilizcedir.** Yalnızca exception mesajları koda gömülür ve
+   İngilizce yazılır; okuyucusu sunucu sahibi değil, hatayı ayıklayan geliştiricidir.
+   Oyuncuya ya da konsola gidecek bir metin koda gömülmez.
+5. **Komutlar Brigadier ile.** Argümanlar için anlamlı `suggests` sağlanır. Hata yolu
+   `CommandSyntaxException` fırlatır; elle mesaj gönderip `0` dönmek yerine.
+6. **Config erişimi `ConfigManager` üzerinden.** Doğrudan `getConfig().getX("...")` yazılmaz.
+7. **Özellik bazlı paketleme** korunur; yeni bir alan gerekiyorsa yeni paket açılır.
+   Paket sınırlarını aşan küçük yardımcılar `util/` altına girer.
+8. **Aynı mantık iki yerde durmaz.** Bir yardımcı ikinci kez kopyalanacaksa ortak bir
+   yere taşınır: paketler arası ise `util/`'e, tüm alt sistemlerin elindeki nesne
+   yeterliyse `Izomap`'e (`runOnMain`, `asyncExecutor` orada).
+9. **`var` tercih edilir.** Yerel değişkenlerde tip, sağ taraftan okunabiliyorsa `var`
+   yazılır. Alan, parametre ve dönüş tipleri açıkça yazılmaya devam eder.
+10. **İngilizce javadoc.** Koddaki tüm javadoc ve yorumlar İngilizce yazılır.
+11. **Minimum yorum.** Yorum yalnızca koddan okunamayan bir *neden* varsa yazılır;
+    kodun ne yaptığını tekrar eden açıklama eklenmez. Uzun anlatım kodda değil, bu
+    belgede durur.
+12. **Kodda planlama izi olmaz.** Konuşmalarımıza, TODO madde kimliklerine (T1, T2 …),
+    yol haritasına veya geçmiş kararların gerekçesine kod içinden atıf yapılmaz;
+    yorumlar yalnızca kodun kendisini anlatır.
+13. **Geriye dönük uyumluluk.** Bir config/veri anahtarı yeniden adlandırılırsa eskisi
     fallback olarak okunmaya devam eder.
 
 ---

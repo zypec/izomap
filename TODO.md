@@ -233,6 +233,9 @@ döngü okunamaz hâle gelir ve performans kaybı ölçülemez. Önce:
 - Mevcut 4 filtre **varsayılan `filters.yml` içeriği** olarak taşınır; enum kaldırılır,
   `ColorFilter` bir kayıt/registry sınıfına dönüşür. `cameras.yml`'deki mevcut
   `color-filter: WARM` gibi değerler çalışmaya devam etmeli (geriye dönük uyumluluk).
+  Görünen adlar T44'te zaten `messages.yml` → `filter.<AD>` altına taşındı; `filters.yml`
+  gelince adın oradan mı yoksa `messages.yml`'den mi okunacağına karar verilecek
+  (öneri: filtre tanımı `filters.yml`'de, adı `messages.yml`'de kalsın — çeviri tek dosyada).
 - Bilinmeyen filtre kimliği → `ORIGINAL`'a düş + log uyarısı.
 - Dialog'daki filtre listesi `filters.yml`'den dinamik dolar.
 - `/izocam reload` filtreleri de yeniler.
@@ -376,6 +379,45 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T44 — Kopyalanmış yardımcılar tek yere alındı, konsol çevrilebilir oldu
+
+`[x]` **P2** · 2026-08-10
+
+Üç ayrı temizlik, tek geçişte.
+
+**Kopyalanmış yardımcılar.** Aynı `parseUUID` beş yerde duruyordu (`CameraStorage`,
+`PhotoStorage`, `CameraKeys`, `PhotoKeys`, `PhotoCache#idOf`) → `util.Ids#parse`.
+Aramada iki tane daha çıktı: future zincirinin sardığı `CompletionException`'ı açan
+üçlü ifade dört yerdeydi (`CameraCommand`, `PreviewManager`, `PhotoManager` ×2) →
+`util.Failures#unwrap`; `runOnMain` iki sınıfta birebir aynıydı ve üç yerde de satır
+içi yazılmıştı → `Izomap#runOnMain`. Asenkron `Executor` lambda'sı `YamlStorage` ile
+`PhotoCache`'te birebir aynıydı → `Izomap#asyncExecutor`.
+
+Yeni `util/` paketi yalnızca paket sınırlarını aşan yardımcılar için; alt sistemlerin
+zaten elinde olan `Izomap` yeterliyse oraya konuyor.
+
+**Konsol `messages.yml`'e taşındı.** 27 log satırı koda gömülü Türkçe metindi; artık
+`log.*` anahtarlarından geliyor ve `Messages#info/warn/error` üzerinden
+`getComponentLogger()`'a gidiyor (yani log'da da MiniMessage geçerli). Başarısızlık
+sebebi için `Messages#reason`: `Failures#unwrap` ile gerçek sebebi açıyor, sebebin
+metni yoksa `log.no-reason`'a düşüyor — eskiden dört yerde "boş sonuç" diye gömülüydü.
+
+Sıra değişikliği gerekti: `Messages`, `ConfigManager`'dan **önce** kuruluyor. Riskli
+`frame-shift` uyarısı `ConfigManager`'ın yapıcısından çıktığı için ters sırada
+`messages()` henüz `null`du. `reloadAll()` de aynı sıraya çekildi.
+
+**Gömülü metin İngilizce.** Kodda kalan tek metin türü exception mesajı
+(`CaptureTooLargeException`, `RenderService`, `PhotoManager`, `PhotoExporter`);
+hepsi İngilizceye çevrildi. Gerekçe kural olarak yazıldı: `messages.yml` sunucuyu
+işletenin, exception mesajı hatayı ayıklayanındır.
+
+Yan etki: `ColorFilter`'ın görünen adları (`"Sıcak"`, `"Soğuk"`…) enum'dan çıkıp
+`filter.<AD>` anahtarlarına taşındı — `preview.property.<AD>` deseninin aynısı. Enum
+artık yalnızca sabit adını taşıyor; diske zaten hep `name()` yazıldığı için
+`fromString`'in etiket eşleştirmesi ölü koddu ve kaldırıldı.
+
+Doğrulama: kodda aranan 86 anahtarın tamamı `messages.yml`'de mevcut, eksik yok.
 
 ### T4 — EditProperty'ye hareket seçenekleri
 
