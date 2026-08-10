@@ -143,6 +143,8 @@ log:
   # --- render ---
   # Eksik chunk kopyası, fotoğrafta chunk boyunda şeffaf bir delik bırakır.
   chunks-incomplete: "Kadraja giren <requested> chunk'ın <missing> tanesinin kopyası alınamadı (<world>); o bölgeler fotoğrafta şeffaf kalacak. Muhtemel sebep: chunk hiç üretilmemiş (settings.generate-missing-chunks kapalı) ya da settings.load-missing-chunks kapalı."
+  # settings.render-timing açıkken her çekimde yazılır.
+  render-timing: "Render <width>x<height>, <samples>x örnekleme, <chunks> chunk — kopyalama <copy> ms, ışın yürüyüşü <render> ms."
   map-render-failed: "Harita render'ı başarısız (<camera>): <reason>"
   photo-render-failed: "Fotoğraf render'ı başarısız (<camera>): <reason>"
   photo-recapture-failed: "Fotoğraf '<name>' yeniden çekilemedi: <reason>"

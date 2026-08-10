@@ -27,7 +27,7 @@ T6 (hologram) — bağımsız (T8 bitti; hologramın dikey offset'i de model öl
 T10 (çoklu preview altyapısı) ✔
  └── T11 (preview action bar) ✔
 
-T30 (renk pipeline'ının parametrikleşmesi)
+T30 (renk pipeline'ının parametrikleşmesi) ✔
  ├── T31 (kullanıcı tanımlı filtreler)
  ├── T32 (gökyüzü)
  ├── T33 (gelişmiş gölgelendirme)
@@ -197,26 +197,9 @@ Hedef akış:
 
 ## P1 — Render ve görsel
 
-### T30 — Renk pipeline'ını parametrik hâle getir
-
-`[ ]` **P1** · Bloke ettikleri: T31, T32, T33, T34
-
-T31-T34'ün hepsi `IsometricRenderer`'ın sıcak döngüsüne dokunuyor. Tek tek eklenirse
-döngü okunamaz hâle gelir ve performans kaybı ölçülemez. Önce:
-
-- Işın sonucunu `(materyal, yüz, mesafe, biome, isabet var mı)` şeklinde taşıyan bir ara
-  temsil ayrıştırılsın; renklendirme bundan sonra ayrı bir aşama olsun.
-- Renklendirme aşaması bir "pipeline" olarak kurgulansın: temel renk → gölgelendirme →
-  biome tint → filtre → palete snap. Her adım kapatılabilir olsun.
-- Kapalı adımların **hiç maliyeti olmasın** (bugünkü `needsSnap` optimizasyonu gibi).
-- Performans referansı alınsın (aynı sahne, aynı ayarlar, ms cinsinden), sonraki
-  maddelerde regresyon buna göre ölçülsün.
-
----
-
 ### T31 — Kullanıcı tanımlı renk filtreleri
 
-`[ ]` **P1** · Bağımlı: T30
+`[ ]` **P1** · Bağımlı: T30 ✔
 
 Şu an `ColorFilter` enum'ı 4 filtreyi hardcoded tutuyor (`ORIGINAL`, `WARM`, `COOL`,
 `GRAYSCALE`). Sunucu sahibi kendi filtresini ekleyebilmeli.
@@ -239,17 +222,19 @@ döngü okunamaz hâle gelir ve performans kaybı ölçülemez. Önce:
 - Bilinmeyen filtre kimliği → `ORIGINAL`'a düş + log uyarısı.
 - Dialog'daki filtre listesi `filters.yml`'den dinamik dolar.
 - `/izocam reload` filtreleri de yeniler.
-- **Performans:** filtre zinciri her piksel için yorumlanmamalı; yükleme sırasında
-  256³ değil ama en azından adımların önceden derlenmiş bir dizisi hâline getirilmeli.
-  Alternatif: palet zaten 244 renk olduğundan filtre sonucu **önceden hesaplanıp**
-  256 girişli bir tabloya (veya doğrudan palet→palet eşlemesine) çevrilebilir — bu,
-  filtreyi neredeyse bedava yapar. Tercih edilen yol budur.
+- **Performans: yol zaten hazır.** T30 filtreyi `ColorPipeline` kurulurken 256 girişli
+  bir `packedId → nihai ARGB` tablosuna katlıyor, yani filtrenin sıcak yoldaki maliyeti
+  şimdiden sıfır. Kullanıcı tanımlı zincirin de tek yapması gereken bu tabloyu
+  doldurmak; zincirin kendisi render başına 244 kez yorumlanır, piksel başına hiç.
+  Dikkat edilecek tek yer `ColorPipeline#blend`: ortalaması alınan kenar pikselleri
+  zinciri gerçekten koşuyor, dolayısıyla zincir orada da ucuz kalmalı (ya da o piksel
+  için de bir arama tablosu düşünülmeli).
 
 ---
 
 ### T32 — Gökyüzü
 
-`[ ]` **P1** · Bağımlı: T30
+`[ ]` **P1** · Bağımlı: T30 ✔
 
 Şu an hiçbir bloğa çarpmayan ışın şeffaf piksel üretiyor; fotoğrafın üstü boş kalıyor.
 Gökyüzü eklenebilmeli.
@@ -274,7 +259,7 @@ Gökyüzü eklenebilmeli.
 
 ### T33 — Gelişmiş gölgelendirme (detaylandırılmış)
 
-`[ ]` **P2** · Bağımlı: T30
+`[ ]` **P2** · Bağımlı: T30 ✔
 
 `IZOMAP.md`'de "gölge/AO — palet 4 tonla sınırlı olduğu için kazancı şüpheli" diye
 geçmişti. Detay:
@@ -317,7 +302,7 @@ her biri için performans farkı ölçülüp `IZOMAP.md`'ye yazılmalı.
 
 ### T34 — Biome tint
 
-`[ ]` **P2** · Bağımlı: T30
+`[ ]` **P2** · Bağımlı: T30 ✔
 
 Çim, yaprak ve su, oyunda biome'a göre farklı renkte görünür (bataklık koyu yeşil, çöl
 sarımsı, kar beyazımsı vb.).
@@ -379,6 +364,55 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T30 — Renk pipeline'ı ayrıldı ve kuyruğu tabloya katlandı
+
+`[x]` **P1** · 2026-08-10 · Serbest bıraktıkları: T31, T32, T33, T34
+
+Işın yürüyüşü artık **ne bulunduğuna** karar veriyor, renge çevirmiyor. Yeni `RayHit`
+(isabet var mı, materyal, temel renk, girilen yüz) yürüyüşten `ColorPipeline`'a geçen
+ara temsil; `IsometricRenderer` yalnızca DDA ve örnek çözümlemesi yapıyor. Yürüyüşün
+kendi başına cevapladığı tek renk sorusu saydamlık, çünkü `MapBaseColor.NONE` bloğun
+arkası görünür ve ışının devam etmesi gerekiyor — temel renk zaten o kontrol için
+okunduğundan `RayHit` ile taşınıyor, renk aşaması aramayı tekrarlamıyor.
+
+`RayHit` mutable ve bant başına bir tane: 2048×1152 + ss2 = 9,4 milyon örnek, örnek
+başına nesne üretmek bu yolu çöp toplayıcıya bağlardı.
+
+**Yüz artık işaretli.** `AXIS_X/Y/Z` yerine `TOP / BOTTOM / SIDE_X / SIDE_Z`. Y ekseni
+geçilirken hangi yüzden girildiği `stepY`'nin işaretinden belli ve `stepY` döngü
+değişmezi, yani yüz bir kez hesaplanıp kullanılıyor. Yan etkisi: gölgelendirme
+bağlamsız bir tabloya (`yüz → ton`) indi, bakış vektörüne artık ihtiyacı yok.
+
+**Kuyruk tabloda.** Palet 244 renk olduğundan temel rengin arkasındaki aşamalar pipeline
+kurulurken her girdi için önceden hesaplanıyor (`packedId → nihai ARGB`). Örnekleri aynı
+çıkan piksel — görüntünün neredeyse tamamı — tek dizi okuması; filtreli render filtresizle
+**aynı kodu** koşuyor. Eskiden filtre, piksel başına 244 girdilik bir palet aramasına mal
+oluyordu. T31'in "filtre sonucu önceden hesaplanıp palet→palet eşlemesine çevrilsin,
+tercih edilen yol budur" notu böylece zaten uygulanmış oldu.
+
+**Bir sapma denendi ve geri alındı.** Filtreyi örnek başına uygulamak (kenar yumuşatmayı
+son adım yapmak) daha temiz duruyordu ve tek bir tablo yetiyordu, ama her örneği erkenden
+palete çiviliyor: ölçümde kenar piksellerinin %1,5-2,9'u kayıyor, WARM/COOL'da kanal
+farkı 89-94'e çıkıyordu. Ortalama bu yüzden **filtresiz** palet renkleri üzerinden
+alınıyor, filtre ortalamanın üstüne uygulanıyor — yani eski davranışın aynısı. Pipeline
+iki tablo tutuyor: ham palet rengi (toplama için) ve nihai ARGB (tek renkli piksel için).
+
+**"Her adım kapatılabilir" bugün ne demek.** Kapatılabilir tek aşama filtre ve maliyeti
+sıfıra indi; gölgelendirme kapatılabilir bir şey değil (kapalısı düz renk fotoğraf
+demek), gökyüzü/tint/AO ise henüz yok. Boş kanca eklenmedi — T32/T33/T34 kendi
+anahtarlarını getirecek. Kapalı aşamanın maliyetsiz olması kuralı tablo deseninde zaten
+karşılanıyor.
+
+**Ölçüm.** Kalıcı iki yol var: canlı sunucuda `settings.render-timing` (yeni ayar,
+varsayılan kapalı) her çekimin kopyalama ve ışın yürüyüşü sürelerini ayrı ayrı log'luyor;
+çevrimdışı ise sentetik arazi üzerinde iki renderer yan yana koşturuldu. Referans
+tablosu `IZOMAP.md` → "Performans referansı" bölümünde. Özet: **%3,3-6,9 hızlanma**,
+ölçülen yedi senaryonun tamamında **0 farklı piksel**.
+
+Not: çevrimdışı harness'ta `Material#isAir()` sunucu registry'si istediği için iki
+renderer da referans karşılaştırması kullandı. Mutlak süreler bu yüzden gerçek sunucudan
+biraz sapar; iki taraf da aynı sapmayı taşıdığından **fark** sütunu geçerli.
 
 ### T44 — Kopyalanmış yardımcılar tek yere alındı, konsol çevrilebilir oldu
 

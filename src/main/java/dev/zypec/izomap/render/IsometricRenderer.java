@@ -11,27 +11,17 @@ import java.util.concurrent.Executor;
  * jumps exactly to the next block boundary, so thin blocks are never missed, no
  * sample is wasted, and the face the ray entered through is known for free.</p>
  *
- * <p>Colors come from the map palette itself: the block gives the
- * {@link MapBaseColor} and the entered face selects the {@link MapBaseColor.Shade}.
- * Without a filter or supersampling every pixel is already a valid map color.</p>
+ * <p>The walk decides only <i>what</i> a ray found and describes it as a
+ * {@link RayHit}; turning that into a color is {@link ColorPipeline}'s job. The one
+ * color question the walk answers itself is transparency, because a block with no map
+ * color is see-through and the ray has to carry on past it.</p>
  */
 public final class IsometricRenderer {
 
-    /**
-     * The ray hit nothing (transparent pixel).
-     */
-    private static final int MISS = 0;
-
-    private static final int AXIS_X = 0;
-    private static final int AXIS_Y = 1;
-    private static final int AXIS_Z = 2;
-
     private final BlockColorTable colorTable;
-    private final MapColorConverter converter;
 
-    public IsometricRenderer(BlockColorTable colorTable, MapColorConverter converter) {
+    public IsometricRenderer(BlockColorTable colorTable) {
         this.colorTable = colorTable;
-        this.converter = converter;
     }
 
     /**
@@ -41,7 +31,7 @@ public final class IsometricRenderer {
      * @param executor      pool the row bands are dispatched to
      * @param threads       how many bands, and therefore threads, to use
      */
-    public RenderResult render(WorldSnapshot snapshot, RenderGeometry geo, ColorFilter filter,
+    public RenderResult render(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
                                int supersampling, Executor executor, int threads) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
@@ -50,7 +40,7 @@ public final class IsometricRenderer {
 
         var bands = Math.max(1, Math.min(threads, h));
         if (bands == 1) {
-            renderBand(snapshot, geo, filter, samples, argb, 0, h);
+            renderBand(snapshot, geo, pipeline, samples, argb, 0, h);
             return new RenderResult(w, h, argb);
         }
 
@@ -61,9 +51,9 @@ public final class IsometricRenderer {
             final int from = band * rowsPerBand;
             final int to = Math.min(h, from + rowsPerBand);
             pending[band] = CompletableFuture.runAsync(
-                    () -> renderBand(snapshot, geo, filter, samples, argb, from, to), executor);
+                    () -> renderBand(snapshot, geo, pipeline, samples, argb, from, to), executor);
         }
-        renderBand(snapshot, geo, filter, samples, argb, (bands - 1) * rowsPerBand, h);
+        renderBand(snapshot, geo, pipeline, samples, argb, (bands - 1) * rowsPerBand, h);
         CompletableFuture.allOf(pending).join();
 
         return new RenderResult(w, h, argb);
@@ -72,7 +62,7 @@ public final class IsometricRenderer {
     /**
      * Renders the row range {@code [yFrom, yTo)}.
      */
-    private void renderBand(WorldSnapshot snapshot, RenderGeometry geo, ColorFilter filter,
+    private void renderBand(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
                             int samples, int[] argb, int yFrom, int yTo) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
@@ -91,11 +81,13 @@ public final class IsometricRenderer {
         // How much pulling a ray back raises it; 0 when not looking down, so no backoff.
         final var climbPerBlock = -dy;
         final var total = samples * samples;
-        final var needsSnap = samples > 1 || filter != ColorFilter.ORIGINAL;
+        final var hit = new RayHit();
 
         for (var py = yFrom; py < yTo; py++) {
             for (var px = 0; px < w; px++) {
                 int hits = 0, sumR = 0, sumG = 0, sumB = 0;
+                var firstId = 0;
+                var uniform = true;
 
                 for (var sy = 0; sy < samples; sy++) {
                     var v = (0.5 - (py + (sy + 0.5) / samples) / h) * spanH;
@@ -126,13 +118,21 @@ public final class IsometricRenderer {
 
                         // View distance is measured from the camera plane, so a
                         // pulled-back ray walks the extra distance too.
-                        var color = marchRay(snapshot, ox, oy, oz, dx, dy, dz, maxDist + backoff);
-                        if (color != MISS) {
-                            hits++;
-                            sumR += (color >> 16) & 0xFF;
-                            sumG += (color >> 8) & 0xFF;
-                            sumB += color & 0xFF;
+                        marchRay(snapshot, ox, oy, oz, dx, dy, dz, maxDist + backoff, hit);
+                        if (!hit.hit)
+                            continue;
+
+                        var id = pipeline.packedIdOf(hit);
+                        if (hits == 0) {
+                            firstId = id;
+                        } else if (id != firstId) {
+                            uniform = false;
                         }
+                        hits++;
+                        var rgb = pipeline.paletteRgbOf(id);
+                        sumR += (rgb >> 16) & 0xFF;
+                        sumG += (rgb >> 8) & 0xFF;
+                        sumB += rgb & 0xFF;
                     }
                 }
 
@@ -141,28 +141,29 @@ public final class IsometricRenderer {
                     argb[py * w + px] = 0;
                     continue;
                 }
-                var rgb = ((sumR / hits) << 16) | ((sumG / hits) << 8) | (sumB / hits);
-                if (filter != ColorFilter.ORIGINAL) {
-                    rgb = filter.apply(rgb);
-                }
-                // Averaging and filtering can leave the palette; snap back onto it.
-                argb[py * w + px] = (needsSnap ? converter.snap(rgb) : rgb) | 0xFF000000;
+                // Samples that all agreed left the color on the palette, so the finished
+                // value was precomputed; only an averaged pixel runs the stages for real.
+                argb[py * w + px] = uniform
+                        ? pipeline.argbOf(firstId)
+                        : pipeline.blend(sumR / hits, sumG / hits, sumB / hits);
             }
         }
     }
 
     /**
-     * Walks the ray block by block and returns the map color of the first hit, or
-     * {@link #MISS}.
+     * Walks the ray block by block and describes the first hit in {@code out}, leaving
+     * {@link RayHit#hit} false when the ray reached nothing.
      *
      * <p>Amanatides-Woo: keep the parametric distance to the next boundary on each
      * axis ({@code tMax}), step along the smallest one. That axis is also the face
      * the ray entered through.</p>
      */
-    private int marchRay(WorldSnapshot snapshot,
-                         double ox, double oy, double oz,
-                         double dx, double dy, double dz,
-                         double maxDist) {
+    private void marchRay(WorldSnapshot snapshot,
+                          double ox, double oy, double oz,
+                          double dx, double dy, double dz,
+                          double maxDist, RayHit out) {
+        out.hit = false;
+
         var x = fastFloor(ox);
         var y = fastFloor(oy);
         var z = fastFloor(oz);
@@ -171,7 +172,7 @@ public final class IsometricRenderer {
         var stepY = Double.compare(dy, 0.0);
         var stepZ = Double.compare(dz, 0.0);
         if (stepX == 0 && stepY == 0 && stepZ == 0)
-            return MISS;
+            return;
 
         double invX = stepX == 0 ? Double.POSITIVE_INFINITY : Math.abs(1.0 / dx);
         double invY = stepY == 0 ? Double.POSITIVE_INFINITY : Math.abs(1.0 / dy);
@@ -181,9 +182,13 @@ public final class IsometricRenderer {
         double tMaxY = stepY == 0 ? Double.POSITIVE_INFINITY : (stepY > 0 ? (y + 1 - oy) : (oy - y)) * invY;
         double tMaxZ = stepZ == 0 ? Double.POSITIVE_INFINITY : (stepZ > 0 ? (z + 1 - oz) : (oz - z)) * invZ;
 
+        // A ray climbing into a block enters through its bottom, and vice versa; the
+        // direction never changes, so the horizontal face is decided once.
+        final var yFace = stepY > 0 ? RayHit.Face.BOTTOM : RayHit.Face.TOP;
+
         // The first cell has no entry face since the ray starts inside it; assume the
         // face most perpendicular to the view so a camera inside a block still shades.
-        var face = dominantAxis(dx, dy, dz);
+        var face = initialFace(dx, dy, dz);
         var t = 0.0;
 
         while (true) {
@@ -192,58 +197,51 @@ public final class IsometricRenderer {
                 if (!material.isAir()) {
                     var base = colorTable.baseColorOf(material);
                     // Colorless on maps (glass, torches, saplings): continue like vanilla.
-                    if (base != MapBaseColor.NONE)
-                        return base.rgb(shadeOf(face, dy)) | 0xFF000000;
+                    if (base != MapBaseColor.NONE) {
+                        out.hit = true;
+                        out.material = material;
+                        out.base = base;
+                        out.face = face;
+                        return;
+                    }
                 }
             } else if ((y >= snapshot.maxY() && stepY >= 0) || (y < snapshot.minY() && stepY <= 0)) {
                 // Left the world and will not come back.
-                return MISS;
+                return;
             }
 
             if (tMaxX <= tMaxY && tMaxX <= tMaxZ) {
                 t = tMaxX;
                 tMaxX += invX;
                 x += stepX;
-                face = AXIS_X;
+                face = RayHit.Face.SIDE_X;
             } else if (tMaxY <= tMaxZ) {
                 t = tMaxY;
                 tMaxY += invY;
                 y += stepY;
-                face = AXIS_Y;
+                face = yFace;
             } else {
                 t = tMaxZ;
                 tMaxZ += invZ;
                 z += stepZ;
-                face = AXIS_Z;
+                face = RayHit.Face.SIDE_Z;
             }
             if (t > maxDist) {
-                return MISS;
+                return;
             }
         }
     }
 
     /**
-     * Picks the brightness for the face the ray entered through.
-     *
-     * <p>Vanilla derives brightness from height differences; the isometric equivalent
-     * is face orientation: top brightest (255), the two sides at 220 and 180, bottom
-     * darkest (135).</p>
+     * Face assumed for a ray that starts inside a block: the one most perpendicular to
+     * the view direction.
      */
-    private static MapBaseColor.Shade shadeOf(int face, double dy) {
-        if (face == AXIS_Y)
-            return dy < 0.0 ? MapBaseColor.Shade.HIGH : MapBaseColor.Shade.LOWEST;
-
-        return face == AXIS_X ? MapBaseColor.Shade.NORMAL : MapBaseColor.Shade.LOW;
-    }
-
-    /**
-     * Axis of the direction vector's largest component.
-     */
-    private static int dominantAxis(double dx, double dy, double dz) {
+    private static RayHit.Face initialFace(double dx, double dy, double dz) {
         double ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
-        if (ay >= ax && ay >= az) return AXIS_Y;
+        if (ay >= ax && ay >= az)
+            return dy < 0.0 ? RayHit.Face.TOP : RayHit.Face.BOTTOM;
 
-        return ax >= az ? AXIS_X : AXIS_Z;
+        return ax >= az ? RayHit.Face.SIDE_X : RayHit.Face.SIDE_Z;
     }
 
     private static int fastFloor(double value) {

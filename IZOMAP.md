@@ -190,21 +190,33 @@ bloğa hangi yüzden girdiği ek hesap olmadan bilinir (gölgelendirme bunu kull
 Görüntü yatay bantlara bölünüp `settings.render-threads` kadar iş parçacığına dağıtılır;
 son bant çağıran thread'de koşar.
 
+Yürüyüş **ne bulunduğuna** karar verir ve sonucu bir `RayHit`'e yazar: isabet var mı,
+hangi materyal, temel rengi ne, hangi yüzden girildi. Onu renge çevirmek
+`ColorPipeline`'ın işidir. Yürüyüşün kendi başına cevapladığı tek renk sorusu
+**saydamlıktır**, çünkü harita renginde olmayan blok şeffaftır ve ışının devam etmesi
+gerekir; temel renk zaten o kontrol için okunduğundan `RayHit` ile birlikte taşınır,
+renk aşaması aynı aramayı tekrarlamaz.
+
+`RayHit` bilerek **mutable ve yeniden kullanılır**: bant başına bir tane üretilip her
+örnek için doldurulur ve onu üreten thread'den hiç çıkmaz. 2048×1152 bir çekim, 2×
+süpersamplingle 9,4 milyon örnek demektir; örnek başına nesne üretmek bu yolu çöp
+toplayıcıya bağlardı.
+
 ### Renk sistemi
 
-Renkler tahmin edilmez, **vanilla harita paletinin kendisidir**:
+Renkler tahmin edilmez, **vanilla harita paletinin kendisidir**. `ColorPipeline`
+aşamaları sırayla uygular:
 
-1. `BlockColorTable` her blok için sunucudan `BlockData#getMapColor()` okur — bu,
-   Minecraft'ın harita "temel rengi"nin (base color) ta kendisidir. Stairs/slab/wall
-   varyantları ve yeni bloklar dahil her şey otomatik doğru olur.
-2. `IsometricRenderer`, ışının çarptığı yüze göre parlaklık varyantını seçer:
-   üst yüz `HIGH` (255), yan yüzler `NORMAL`/`LOW` (220/180), alt yüz `LOWEST` (135).
-   Vanilla'da bu fark yükseklikten gelir; izometrik görünümde karşılığı yüz yönelimidir.
-3. Haritada renksiz bloklar (cam, meşale, fidan…) `MapBaseColor.NONE` verir ve ışın
-   vanilla'daki gibi arkalarını görerek devam eder.
-4. Filtre veya kenar yumuşatma devredeyse ortalama palet dışına çıkabilir;
-   `MapColorConverter#snap` Bukkit `MapPalette` ile **aynı ağırlıklı (redmean)** mesafeyi
-   kullanarak en yakın gerçek harita rengine geri çeker (61 temel renk × 4 ton = 244 renk).
+| # | Aşama | Nereden |
+|---|---|---|
+| 1 | Temel renk | `BlockColorTable` → sunucunun `BlockData#getMapColor()` değeri. Stairs/slab/wall varyantları ve yeni bloklar dahil her şey otomatik doğru olur |
+| 2 | Gölgelendirme | Girilen yüz → parlaklık varyantı: üst `HIGH` (255), yan yüzler `NORMAL`/`LOW` (220/180), alt `LOWEST` (135). Vanilla'da bu fark yükseklikten gelir; izometrikte karşılığı yüz yönelimidir |
+| 3 | Filtre | `ColorFilter` (`ORIGINAL` dışındakiler) |
+| 4 | Palete snap | `MapColorConverter#snap`, Bukkit `MapPalette` ile **aynı ağırlıklı (redmean)** mesafeyi kullanır (61 temel renk × 4 ton = 244 renk) |
+
+Haritada renksiz bloklar (cam, meşale, fidan…) `MapBaseColor.NONE` verir ve ışın
+vanilla'daki gibi arkalarını görerek devam eder — bu, 1. aşamadan önce yürüyüşte
+elenir.
 
 Sonuç olarak **her çıktı pikseli gerçek bir harita rengidir**. Ön bellek bunun üstüne
 kurulur: `MapColorConverter#packedId` piksel → harita baytı dönüşümünü tam eşleşmeyle
@@ -212,6 +224,60 @@ kurulur: `MapColorConverter#packedId` piksel → harita baytı dönüşümünü 
 
 `block-colors.yml` yalnızca **override** dosyasıdır; varsayılan tablo içermez. `version: 2`
 taşır, eski v1 dosyaları `.v1.bak` olarak yedeklenip yenilenir.
+
+#### Pipeline'ın kuyruğu bir tablodur
+
+Bir ışın her zaman bir palet girdisine düşer ve palet yalnızca 244 renktir. Bu yüzden
+temel rengin arkasındaki aşamalar pipeline **kurulurken** her girdi için önceden
+hesaplanır: `packedId → nihai ARGB` tablosu filtreyi de arkasındaki snap'i de taşır.
+
+Sonuç: örnekleri birbiriyle **aynı çıkan** bir piksel — ki görüntünün neredeyse tamamı
+öyledir — tek dizi okumasıdır, ve **filtreli render ile filtresiz render birebir aynı
+kodu koşar**. Filtrenin bu yolda çalışma zamanı maliyeti sıfırdır.
+
+Paletten yalnızca örnekleri farklı çıkan piksel çıkar; aşamaları gerçekten yürüten de
+yalnızca odur (`ColorPipeline#blend`). Bunlar kenar yumuşatmanın gerçekten devreye
+girdiği pikseller, görüntünün yüzde birkaçı.
+
+> **Ortalama filtresiz renkler üzerinden alınır.** Örnekler paletin ham renkleriyle
+> toplanır; filtre ortalamanın üstüne uygulanır. Filtreyi örnek başına uygulayıp
+> ortalamak daha basit dururdu ama her örneği erkenden palete çivilerdi: ölçümde
+> kenar piksellerinin %1,5-2,9'u kayıyor, WARM/COOL'da kanal farkı 89-94'e kadar
+> çıkıyordu. Bu sıra sayesinde çıktı, pipeline öncesi renderer'ınkiyle **bit birebir
+> aynıdır**; hızlanma tamamen tekrarlanan işin kaldırılmasından gelir.
+
+### Performans referansı
+
+Render'a yeni bir aşama eklemek (gökyüzü, güneş gölgesi, AO, biome tint) sıcak döngüye
+dokunmak demektir. Maliyeti ölçülmeden eklenirse fark edilmez; bu yüzden ölçüm iki
+yerden yapılır:
+
+- **Canlı sunucuda:** `settings.render-timing` açıkken her çekim, chunk kopyalama ve
+  ışın yürüyüşü sürelerini ayrı ayrı log'lar. Varsayılan kapalıdır (önizleme sürekli
+  render eder).
+- **Çevrimdışı:** aynı sahne, aynı ayarlar, iki renderer yan yana. Sentetik arazi
+  üzerinde, sunucu olmadan koşar.
+
+Pipeline'a geçişin ölçümü (Apple Silicon, JDK 25, 729 chunk kopyası, kamera y=100,
+yaw 45 / pitch 30, `frame-height` 48, zoom 1.0; 5 koşunun medyanı, 2 ısınma):
+
+| Senaryo | Önce | Sonra | Fark |
+|---|---:|---:|---:|
+| 1024×576, ss1, filtresiz | 849 ms | 821 ms | −3,3% |
+| 1024×576, ss1, `GRAYSCALE` | 865 ms | 805 ms | −6,9% |
+| 1024×576, ss2, filtresiz | 3397 ms | 3243 ms | −4,5% |
+| 1024×576, ss2, `GRAYSCALE` | 3369 ms | 3148 ms | −6,6% |
+| 128×128, ss2, filtresiz (önizleme) | 97 ms | 92 ms | −5,0% |
+| 128×128, ss2, `WARM` (önizleme) | 100 ms | 94 ms | −5,6% |
+| 512×288, ss2, filtresiz, tek thread | 2565 ms | 2451 ms | −4,4% |
+
+Her senaryoda çıktı **bit birebir aynı** (0 farklı piksel). Filtreli render artık
+filtresizle aynı süreye oturuyor; eski hâlinde filtre, piksel başına 244 girdilik bir
+palet aramasına mal oluyordu.
+
+Sayılar makineye özgüdür; anlamlı olan sütun **fark**tır. Sentetik arazi bloğu bir
+`ChunkSnapshot` kopyası olmadığından mutlak süreler gerçek sunucudakiyle birebir
+karşılaştırılmamalı.
 
 ### Kenar yumuşatma
 
@@ -591,7 +657,7 @@ toplanır ve değerler mantıklı aralıklara clamp'lenir.
 
 | Bölüm | Anahtarlar |
 |---|---|
-| `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player` |
+| `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `render-timing`, `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player` |
 | `camera` | `display-type`, `model-material`, `item-display-transform`, `interaction-size` (0.1-3.0), `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `move-step` (0.05-16.0), `default-pitch` (-90..90), `edit-lock-seconds` (1-3600), `model-rotation.{x,y,z}` |
 | `photo` | `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
 | `placement` | `distance`, `invisible-frames`, `build-backing-wall`, `backing-material` |

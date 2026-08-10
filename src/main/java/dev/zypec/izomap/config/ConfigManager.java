@@ -76,6 +76,15 @@ public final class ConfigManager {
     }
 
     /**
+     * Whether every capture logs how long it took, split into copying the chunks and
+     * walking the rays. The measurement new render stages are compared against; off by
+     * default because a live preview renders continuously.
+     */
+    public boolean renderTiming() {
+        return cfg().getBoolean("settings.render-timing", false);
+    }
+
+    /**
      * Whether unloaded chunks inside the frame are loaded from disk. Loading is
      * asynchronous and never stalls the main thread.
      */

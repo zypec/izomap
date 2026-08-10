@@ -12,6 +12,7 @@ import org.bukkit.util.Vector;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -55,6 +56,7 @@ public final class RenderService {
 
     private final Izomap plugin;
     private final IsometricRenderer renderer;
+    private final MapColorConverter converter = new MapColorConverter();
     private final AtomicInteger threadCounter = new AtomicInteger();
 
     private ExecutorService workers;
@@ -62,7 +64,7 @@ public final class RenderService {
 
     public RenderService(Izomap plugin, BlockColorTable colorTable) {
         this.plugin = plugin;
-        this.renderer = new IsometricRenderer(colorTable, new MapColorConverter());
+        this.renderer = new IsometricRenderer(colorTable);
     }
 
     /**
@@ -143,27 +145,57 @@ public final class RenderService {
         var geometry = new RenderGeometry(
                 planeCenter, right, up, direction, spanWidth, spanHeight, maxDistance,
                 eyeY, maxBackoff, widthPx, heightPx);
-        var filter = spec.colorFilter();
+        var pipeline = ColorPipeline.of(spec.colorFilter(), converter);
         var supersampling = spec.supersampling();
         var threads = plugin.config().renderThreads();
         var executor = workers(threads);
+        var timing = plugin.config().renderTiming();
 
         // Read the height limits here and pass them by value, so the snapshot never
         // touches the world off the main thread.
         var minY = world.getMinHeight();
         var maxY = world.getMaxHeight();
 
+        var requestedAt = System.nanoTime();
         return snapshotChunks(world, chunkKeys, minY, maxY).thenCompose(snapshot -> {
+            var capturedAt = System.nanoTime();
             CompletableFuture<RenderResult> future = new CompletableFuture<>();
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                 try {
-                    future.complete(renderer.render(snapshot, geometry, filter, supersampling, executor, threads));
+                    var result = renderer.render(snapshot, geometry, pipeline, supersampling, executor, threads);
+                    if (timing) {
+                        logTiming(geometry, snapshot, supersampling, requestedAt, capturedAt, System.nanoTime());
+                    }
+                    future.complete(result);
                 } catch (Throwable throwable) {
                     future.completeExceptionally(throwable);
                 }
             });
             return future;
         });
+    }
+
+    /**
+     * Reports what a capture cost, split into copying the chunks and walking the rays.
+     *
+     * <p>This is the reference point new render stages are measured against, so the two
+     * halves stay apart: copying is main-thread work bounded by disk, the walk is pure
+     * CPU spread over the render pool. Off by default, because a live preview renders
+     * over and over and would flood the console.</p>
+     */
+    private void logTiming(RenderGeometry geometry, WorldSnapshot snapshot, int supersampling,
+                           long requestedAt, long capturedAt, long finishedAt) {
+        plugin.messages().info("log.render-timing",
+                Placeholder.unparsed("width", String.valueOf(geometry.widthPx())),
+                Placeholder.unparsed("height", String.valueOf(geometry.heightPx())),
+                Placeholder.unparsed("samples", String.valueOf(supersampling)),
+                Placeholder.unparsed("chunks", String.valueOf(snapshot.chunkCount())),
+                Placeholder.unparsed("copy", millis(capturedAt - requestedAt)),
+                Placeholder.unparsed("render", millis(finishedAt - capturedAt)));
+    }
+
+    private static String millis(long nanos) {
+        return String.format(Locale.ROOT, "%.1f", nanos / 1_000_000.0);
     }
 
     /**
