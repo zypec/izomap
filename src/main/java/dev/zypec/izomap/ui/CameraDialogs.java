@@ -42,7 +42,7 @@ public final class CameraDialogs {
     private static final String INPUT_FILTER = "filter";
     private static final String INPUT_GRID = "grid";
 
-    // Wide shot to close-up; the frame covers frame-height / zoom blocks.
+    // Widely shot to close up; the frame covers frame-height / zoom blocks.
     private static final float[] ZOOM_PRESETS =
             {0.05f, 0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f};
 
@@ -220,7 +220,7 @@ public final class CameraDialogs {
     }
 
     private static float nearestZoom(float zoom) {
-        float best = ZOOM_PRESETS[0];
+        var best = ZOOM_PRESETS[0];
         for (float value : ZOOM_PRESETS) {
             if (Math.abs(value - zoom) < Math.abs(best - zoom)) {
                 best = value;
@@ -230,9 +230,7 @@ public final class CameraDialogs {
     }
 
     private static Float parseFloat(String raw) {
-        if (raw == null) {
-            return null;
-        }
+        if (raw == null) return null;
         try {
             return Float.parseFloat(raw.trim());
         } catch (NumberFormatException ex) {

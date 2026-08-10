@@ -12,8 +12,8 @@ import java.util.UUID;
  *
  * <p>Frame protection used to depend on the in-memory record, which leaves the frames
  * unprotected until {@code maps.yml} has loaded, and permanently so if that load ever
- * fails. The tag travels with the entity, so a frame is recognisable as ours before
- * any record exists — and an orphaned frame stays recognisable after its record is
+ * fails. The tag travels with the entity, so a frame is recognizable as ours before
+ * any record exists — and an orphaned frame stays recognizable after its record is
  * gone.</p>
  */
 public final class PhotoKeys {
@@ -31,17 +31,19 @@ public final class PhotoKeys {
         pdc.set(this.tileIndex, PersistentDataType.INTEGER, tileIndex);
     }
 
-    /** Whether the entity belongs to a photo, whatever its record says. */
+    /**
+     * Whether the entity belongs to a photo, whatever its record says.
+     */
     public boolean isPhotoFrame(PersistentDataContainer pdc) {
         return pdc.has(photoId, PersistentDataType.STRING);
     }
 
-    /** Photo the frame belongs to, or {@code null} when untagged or malformed. */
+    /**
+     * Photo the frame belongs to, or {@code null} when untagged or malformed.
+     */
     public UUID readPhotoId(PersistentDataContainer pdc) {
-        String raw = pdc.get(photoId, PersistentDataType.STRING);
-        if (raw == null) {
-            return null;
-        }
+        var raw = pdc.get(photoId, PersistentDataType.STRING);
+        if (raw == null) return null;
         try {
             return UUID.fromString(raw);
         } catch (IllegalArgumentException ex) {
@@ -49,9 +51,11 @@ public final class PhotoKeys {
         }
     }
 
-    /** Tile position of the frame within the grid, or {@code -1}. */
+    /**
+     * Tile position of the frame within the grid, or {@code -1}.
+     */
     public int readTileIndex(PersistentDataContainer pdc) {
-        Integer value = pdc.get(tileIndex, PersistentDataType.INTEGER);
+        var value = pdc.get(tileIndex, PersistentDataType.INTEGER);
         return value != null ? value : -1;
     }
 }

@@ -3,17 +3,15 @@ package dev.zypec.izomap.map;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.camera.Camera;
 import dev.zypec.izomap.camera.CameraManager;
-import dev.zypec.izomap.render.CaptureSpec;
 import dev.zypec.izomap.render.CaptureTooLargeException;
 import dev.zypec.izomap.render.RenderResult;
 import dev.zypec.izomap.render.RenderService;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
-import org.bukkit.World;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
-import org.bukkit.map.MapView;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
@@ -69,13 +67,15 @@ public final class PhotoManager {
         }));
     }
 
-    /** Whether the records have been read from disk. */
+    /**
+     * Whether the records have been read from disk.
+     */
     public boolean isLoaded() {
         return loaded;
     }
 
     private void ingest(List<PlacedPhoto> loaded) {
-        for (PlacedPhoto photo : loaded) {
+        for (var photo : loaded) {
             photos.put(photo.id(), photo);
         }
         plugin.getLogger().info(loaded.size() + " yerleştirilmiş fotoğraf yüklendi.");
@@ -89,10 +89,9 @@ public final class PhotoManager {
      * tile is applied on the main thread as it becomes ready.</p>
      */
     private void restoreAll() {
-        for (PlacedPhoto photo : photos.values()) {
-            if (Bukkit.getWorld(photo.worldId()) == null) {
-                continue;
-            }
+        for (var photo : photos.values()) {
+            if (Bukkit.getWorld(photo.worldId()) == null) continue;
+
             cache.read(photo.id(), photo.grid()).whenComplete((result, error) -> {
                 if (error == null && result != null) {
                     runOnMain(() -> applyToMaps(photo, ImageSlicer.slice(result, photo.grid())));
@@ -109,27 +108,27 @@ public final class PhotoManager {
      * there is nothing left to render from. Main thread only.
      */
     private void reRenderFromSpec(PlacedPhoto photo) {
-        CaptureSpec spec = photo.spec();
-        boolean recovered = spec == null;
+        var spec = photo.spec();
+        var recovered = spec == null;
         if (recovered) {
             // Placed before specs were recorded: the source camera is all we have, and
             // its current settings may no longer match what is on the wall.
-            Camera camera = cameraManager.byOwnerAndName(photo.owner(), photo.cameraName()).orElse(null);
+            var camera = cameraManager.byOwnerAndName(photo.owner(), photo.cameraName()).orElse(null);
             if (camera == null) {
                 plugin.getLogger().warning("Fotoğraf '" + photo.name() + "' (" + photo.shortId()
-                        + ") ne ön bellekte var ne de çekim parametreleri kayıtlı; haritalar son"
-                        + " hâlinde bırakıldı.");
+                                           + ") ne ön bellekte var ne de çekim parametreleri kayıtlı; haritalar son"
+                                           + " hâlinde bırakıldı.");
                 return;
             }
             spec = renderService.specFor(camera);
         }
 
-        GridOption grid = photo.grid();
-        CaptureSpec used = spec;
+        var grid = photo.grid();
+        var used = spec;
         renderService.capture(used, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
             if (error != null || result == null) {
                 plugin.getLogger().warning("Fotoğraf '" + photo.name() + "' yeniden çekilemedi: "
-                        + (error != null ? error.getMessage() : "boş sonuç"));
+                                           + (error != null ? error.getMessage() : "boş sonuç"));
                 return;
             }
             cache.write(photo.id(), grid, result);
@@ -145,21 +144,21 @@ public final class PhotoManager {
         });
     }
 
-    @SuppressWarnings("deprecation")
     private void applyToMaps(PlacedPhoto photo, List<MapTile> tiles) {
-        List<Integer> mapIds = photo.mapIds();
-        int count = Math.min(mapIds.size(), tiles.size());
-        for (int i = 0; i < count; i++) {
-            MapView view = Bukkit.getMap(mapIds.get(i));
-            if (view != null) {
+        var mapIds = photo.mapIds();
+        var count = Math.min(mapIds.size(), tiles.size());
+        for (var i = 0; i < count; i++) {
+            var view = Bukkit.getMap(mapIds.get(i));
+            if (view != null)
                 mapService.applyTile(view, tiles.get(i).argb());
-            }
         }
     }
 
-    /** Reports a capture failure to the player, with a dedicated budget message. */
+    /**
+     * Reports a capture failure to the player, with a dedicated budget message.
+     */
     private void reportCaptureError(Player player, Camera camera, Throwable error) {
-        Throwable cause = error instanceof java.util.concurrent.CompletionException && error.getCause() != null
+        var cause = error instanceof java.util.concurrent.CompletionException && error.getCause() != null
                 ? error.getCause() : error;
         if (cause instanceof CaptureTooLargeException tooLarge) {
             runOnMain(() -> plugin.messages().send(player, "photo.too-large",
@@ -168,7 +167,7 @@ public final class PhotoManager {
             return;
         }
         plugin.getLogger().warning("Fotoğraf render'ı başarısız (" + camera.name() + "): "
-                + (cause != null ? cause.getMessage() : "boş sonuç"));
+                                   + (cause != null ? cause.getMessage() : "boş sonuç"));
         runOnMain(() -> plugin.messages().send(player, "photo.failed"));
     }
 
@@ -184,7 +183,7 @@ public final class PhotoManager {
      */
     public void captureAndPlace(Player player, Camera camera, String name, GridOption grid) {
         // Names are unique per owner.
-        boolean nameTaken = photos.values().stream()
+        var nameTaken = photos.values().stream()
                 .anyMatch(p -> p.owner().equals(player.getUniqueId()) && p.name().equalsIgnoreCase(name));
         if (nameTaken) {
             plugin.messages().send(player, "map.name-taken", Placeholder.unparsed("name", name));
@@ -192,10 +191,10 @@ public final class PhotoManager {
         }
 
         plugin.messages().send(player, "photo.capturing");
-        long start = System.currentTimeMillis();
+        var start = System.currentTimeMillis();
 
         // Frozen once, so the cache, the record and the image all describe the same shot.
-        CaptureSpec spec = renderService.specFor(camera);
+        var spec = renderService.specFor(camera);
 
         renderService.capture(spec, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
             if (error != null || result == null) {
@@ -203,8 +202,8 @@ public final class PhotoManager {
                 return;
             }
             runOnMain(() -> {
-                List<MapTile> tiles = ImageSlicer.slice(result, grid);
-                PlacedPhoto photo = placer.place(player, camera, spec, name, grid, tiles);
+                var tiles = ImageSlicer.slice(result, grid);
+                var photo = placer.place(player, camera, spec, name, grid, tiles);
                 if (photo == null) {
                     plugin.messages().send(player, "map.place-blocked");
                     return;
@@ -240,13 +239,15 @@ public final class PhotoManager {
                         : renderFromSpec(photo));
     }
 
-    /** Re-renders from the stored spec. The capture itself has to start on the main thread. */
+    /**
+     * Re-renders from the stored spec. The capture itself has to start on the main thread.
+     */
     private CompletableFuture<RenderResult> renderFromSpec(PlacedPhoto photo) {
-        CaptureSpec spec = photo.spec();
-        if (spec == null) {
+        var spec = photo.spec();
+        if (spec == null)
             return CompletableFuture.failedFuture(new IllegalStateException(
                     "Fotoğrafın ne ön belleği ne çekim parametreleri var: " + photo.shortId()));
-        }
+
         CompletableFuture<RenderResult> out = new CompletableFuture<>();
         runOnMain(() -> renderService.capture(spec, photo.grid().widthPx(), photo.grid().heightPx())
                 .whenComplete((result, error) -> {
@@ -259,23 +260,25 @@ public final class PhotoManager {
         return out;
     }
 
-    /** Writes the photo to a PNG under {@code exports/} and reports the result. */
+    /**
+     * Writes the photo to a PNG under {@code exports/} and reports the result.
+     */
     public void export(Player player, PlacedPhoto photo, String fileName) {
-        long start = System.currentTimeMillis();
+        var start = System.currentTimeMillis();
         image(photo)
                 .thenCompose(result -> exporter.write(result, photo.name(), fileName)
                         .thenApply(file -> Map.entry(result, file)))
                 .whenComplete((written, error) -> {
                     if (error != null || written == null) {
-                        Throwable cause = error instanceof java.util.concurrent.CompletionException
-                                && error.getCause() != null ? error.getCause() : error;
+                        var cause = error instanceof java.util.concurrent.CompletionException
+                                    && error.getCause() != null ? error.getCause() : error;
                         plugin.getLogger().warning("Fotoğraf dışa aktarılamadı ("
-                                + photo.shortId() + "): " + (cause != null ? cause.getMessage() : "boş sonuç"));
+                                                   + photo.shortId() + "): " + (cause != null ? cause.getMessage() : "boş sonuç"));
                         runOnMain(() -> plugin.messages().send(player, "photo.export-failed"));
                         return;
                     }
-                    RenderResult result = written.getKey();
-                    java.nio.file.Path file = written.getValue();
+                    var result = written.getKey();
+                    var file = written.getValue();
                     runOnMain(() -> plugin.messages().send(player, "photo.saved",
                             Placeholder.unparsed("file", relativePath(file)),
                             Placeholder.unparsed("width", String.valueOf(result.width())),
@@ -285,15 +288,17 @@ public final class PhotoManager {
                 });
     }
 
-    /** Shown to the player relative to the data folder; the absolute path is noise. */
-    private String relativePath(java.nio.file.Path file) {
-        java.nio.file.Path base = plugin.getDataFolder().toPath();
+    /**
+     * Shown to the player relative to the data folder; the absolute path is noise.
+     */
+    private String relativePath(Path file) {
+        var base = plugin.getDataFolder().toPath();
         return file.startsWith(base) ? base.relativize(file).toString() : file.toString();
     }
 
-    private static long kilobytes(java.nio.file.Path file) {
+    private static long kilobytes(Path file) {
         try {
-            return Math.max(1L, java.nio.file.Files.size(file) / 1024L);
+            return Math.max(1L, Files.size(file) / 1024L);
         } catch (java.io.IOException ex) {
             return 0L;
         }
@@ -303,51 +308,58 @@ public final class PhotoManager {
 
     public List<PlacedPhoto> ownedBy(UUID owner) {
         List<PlacedPhoto> out = new ArrayList<>();
-        for (PlacedPhoto photo : photos.values()) {
-            if (photo.owner().equals(owner)) {
+        for (var photo : photos.values())
+            if (photo.owner().equals(owner))
                 out.add(photo);
-            }
-        }
         return out;
     }
 
-    /** Finds a photo by its full id, however it was reached. */
+    /**
+     * Finds a photo by its full id, however it was reached.
+     */
     public Optional<PlacedPhoto> byId(UUID id) {
         return Optional.ofNullable(photos.get(id));
     }
 
-    /** Finds an owner's photo by its short id. */
+    /**
+     * Finds an owner's photo by its short id.
+     */
     public Optional<PlacedPhoto> findByShortId(UUID owner, String shortId) {
         return photos.values().stream()
                 .filter(p -> p.owner().equals(owner) && p.shortId().equalsIgnoreCase(shortId))
                 .findFirst();
     }
 
-    /** Finds any photo by its short id, whoever owns it; for admin commands. */
+    /**
+     * Finds any photo by its short id, whoever owns it; for admin commands.
+     */
     public Optional<PlacedPhoto> findByShortId(String shortId) {
         return photos.values().stream()
                 .filter(p -> p.shortId().equalsIgnoreCase(shortId))
                 .findFirst();
     }
 
-    /** Finds the photo an item frame belongs to. */
+    /**
+     * Finds the photo an item frame belongs to.
+     */
     public Optional<PlacedPhoto> findByFrame(UUID frameId) {
         return photos.values().stream()
                 .filter(p -> p.frameIds().contains(frameId))
                 .findFirst();
     }
 
-    /** Removes every photo placed by a player and returns how many were removed. */
+    /**
+     * Removes every photo placed by a player and returns how many were removed.
+     */
     public int removeAllOwned(UUID owner) {
-        List<PlacedPhoto> owned = ownedBy(owner);
-        for (PlacedPhoto photo : owned) {
+        var owned = ownedBy(owner);
+        for (var photo : owned) {
             removeFrames(photo);
             photos.remove(photo.id());
             cache.delete(photo.id());
         }
-        if (!owned.isEmpty()) {
+        if (!owned.isEmpty())
             storage.saveAll(photos.values());
-        }
         return owned.size();
     }
 
@@ -356,13 +368,12 @@ public final class PhotoManager {
      * relevant chunks are loaded first so the check is accurate. Main thread only.
      */
     public int cleanupOwned(UUID owner) {
-        int removed = 0;
-        for (PlacedPhoto photo : ownedBy(owner)) {
-            if (Bukkit.getWorld(photo.worldId()) == null) {
+        var removed = 0;
+        for (var photo : ownedBy(owner)) {
+            if (Bukkit.getWorld(photo.worldId()) == null)
                 continue;
-            }
             loadChunks(photo);
-            boolean anyAlive = photo.frameIds().stream()
+            var anyAlive = photo.frameIds().stream()
                     .anyMatch(id -> plugin.getServer().getEntity(id) != null);
             if (!anyAlive) {
                 photos.remove(photo.id());
@@ -370,13 +381,14 @@ public final class PhotoManager {
                 removed++;
             }
         }
-        if (removed > 0) {
+        if (removed > 0)
             storage.saveAll(photos.values());
-        }
         return removed;
     }
 
-    /** Removes the photo's frames without dropping items and deletes its record. */
+    /**
+     * Removes the photo's frames without dropping items and deletes its record.
+     */
     public void remove(PlacedPhoto photo) {
         removeFrames(photo);
         photos.remove(photo.id());
@@ -391,30 +403,28 @@ public final class PhotoManager {
      */
     private void removeFrames(PlacedPhoto photo) {
         loadChunks(photo);
-        for (UUID frameId : photo.frameIds()) {
-            Entity entity = plugin.getServer().getEntity(frameId);
-            if (entity != null) {
+        for (var frameId : photo.frameIds()) {
+            var entity = plugin.getServer().getEntity(frameId);
+            if (entity != null)
                 entity.remove();
-            }
         }
     }
 
-    /** Loads the chunks the photo spans, so its frames can be resolved. */
+    /**
+     * Loads the chunks the photo spans, so its frames can be resolved.
+     */
     private void loadChunks(PlacedPhoto photo) {
-        World world = Bukkit.getWorld(photo.worldId());
-        if (world == null) {
-            return;
-        }
-        int span = Math.max(photo.grid().cols(), photo.grid().rows()) + 2;
-        int minChunkX = (photo.baseX() - span) >> 4;
-        int maxChunkX = (photo.baseX() + span) >> 4;
-        int minChunkZ = (photo.baseZ() - span) >> 4;
-        int maxChunkZ = (photo.baseZ() + span) >> 4;
-        for (int cx = minChunkX; cx <= maxChunkX; cx++) {
-            for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
+        var world = Bukkit.getWorld(photo.worldId());
+        if (world == null) return;
+
+        var span = Math.max(photo.grid().cols(), photo.grid().rows()) + 2;
+        var minChunkX = (photo.baseX() - span) >> 4;
+        var maxChunkX = (photo.baseX() + span) >> 4;
+        var minChunkZ = (photo.baseZ() - span) >> 4;
+        var maxChunkZ = (photo.baseZ() + span) >> 4;
+        for (var cx = minChunkX; cx <= maxChunkX; cx++)
+            for (var cz = minChunkZ; cz <= maxChunkZ; cz++)
                 world.getChunkAt(cx, cz);
-            }
-        }
     }
 
     public Collection<PlacedPhoto> all() {

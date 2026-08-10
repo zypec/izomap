@@ -10,7 +10,7 @@ import java.util.Locale;
  * Renders a camera's adjustable properties as the one-line status shown while it is
  * being edited or previewed.
  *
- * <p>Kept apart from both the listener and the preview so the line a click produces
+ * <p>Kept apart from both the listener and the preview, so the line a click produces
  * and the line the preview repeats stay identical.</p>
  */
 public final class CameraStatus {
@@ -18,12 +18,14 @@ public final class CameraStatus {
     private CameraStatus() {
     }
 
-    /** Every property with its value, the active one highlighted. */
+    /**
+     * Every property with its value, the active one highlighted.
+     */
     public static Component line(Izomap plugin, Camera camera) {
-        Component separator = plugin.messages().get("preview.actionbar-separator");
-        Component entries = Component.empty();
+        var separator = plugin.messages().get("preview.actionbar-separator");
+        var entries = Component.empty();
         boolean first = true;
-        for (EditProperty property : EditProperty.values()) {
+        for (var property : EditProperty.values()) {
             if (!first) {
                 entries = entries.append(separator);
             }
@@ -34,7 +36,7 @@ public final class CameraStatus {
     }
 
     private static Component entry(Izomap plugin, Camera camera, EditProperty property) {
-        boolean active = property == camera.editProperty();
+        var active = property == camera.editProperty();
         return plugin.messages().get(active ? "preview.entry-active" : "preview.entry",
                 Placeholder.component("label", plugin.messages().get("preview.property." + property.name())),
                 Placeholder.component("value", value(plugin, camera, property)));

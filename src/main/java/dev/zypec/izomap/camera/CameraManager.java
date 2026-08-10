@@ -8,9 +8,9 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Display;
-import org.bukkit.entity.Entity;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.ItemDisplay;
+import org.bukkit.entity.ItemDisplay.ItemDisplayTransform;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Transformation;
@@ -24,10 +24,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Runtime registry of cameras: entity lifecycle, transforms and persistence through
+ * Runtime registry of cameras: entity lifecycle, transforms, and persistence through
  * {@link CameraStorage}.
  *
  * <p>The in-memory model is the source of truth; every change writes the whole
@@ -35,9 +36,13 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class CameraManager {
 
-    /** Smallest click box, so a shrunk camera can still be hit. */
+    /**
+     * Smallest click box, so a shrunk camera can still be hit.
+     */
     private static final double MIN_INTERACTION = 0.25;
-    /** Largest click box, so a grown one does not swallow its surroundings. */
+    /**
+     * Largest click box, so a grown one does not swallow its surroundings.
+     */
     private static final double MAX_INTERACTION = 3.0;
 
     private final Izomap plugin;
@@ -59,10 +64,10 @@ public final class CameraManager {
      * Loads {@code cameras.yml} asynchronously, then ingests it on the main thread.
      * The returned future completes once ingestion is done.
      */
-    public java.util.concurrent.CompletableFuture<Void> load() {
+    public CompletableFuture<Void> load() {
         return storage.load().thenCompose(v -> {
-            java.util.concurrent.CompletableFuture<Void> done = new java.util.concurrent.CompletableFuture<>();
-            plugin.getServer().getGlobalRegionScheduler().run(plugin, task -> {
+            CompletableFuture<Void> done = new CompletableFuture<>();
+            plugin.getServer().getGlobalRegionScheduler().run(plugin, _ -> {
                 ingest(storage.readAll());
                 done.complete(null);
             });
@@ -71,7 +76,7 @@ public final class CameraManager {
     }
 
     private void ingest(List<Camera> cameras) {
-        for (Camera c : cameras) {
+        for (var c : cameras) {
             byId.put(c.id(), c);
             if (c.interactionEntityId() != null) {
                 byInteraction.put(c.interactionEntityId(), c);
@@ -89,7 +94,9 @@ public final class CameraManager {
         storage.saveAll(new ArrayList<>(byId.values()));
     }
 
-    /** Writes the collection out after a change made outside this class. */
+    /**
+     * Writes the collection out after a change made outside this class.
+     */
     public void persist() {
         persistAsync();
     }
@@ -100,7 +107,9 @@ public final class CameraManager {
         return byInteraction.get(interactionId);
     }
 
-    /** Camera by id, or {@code null}. */
+    /**
+     * Camera by id, or {@code null}.
+     */
     public Camera byId(UUID cameraId) {
         return cameraId != null ? byId.get(cameraId) : null;
     }
@@ -140,11 +149,11 @@ public final class CameraManager {
             return null;
         }
 
-        World world = anchor.getWorld();
-        Display display = spawnDisplay(world, anchor);
-        Interaction interaction = spawnInteraction(world, anchor);
+        var world = anchor.getWorld();
+        var display = spawnDisplay(world, anchor);
+        var interaction = spawnInteraction(world, anchor);
 
-        Camera camera = new Camera(UUID.randomUUID(), owner.getUniqueId(), name, anchor);
+        var camera = new Camera(UUID.randomUUID(), owner.getUniqueId(), name, anchor);
         camera.displayEntityId(display.getUniqueId());
         camera.interactionEntityId(interaction.getUniqueId());
         // Face the player's yaw at the configured downward pitch. Copying the player's
@@ -169,7 +178,9 @@ public final class CameraManager {
         persistAsync();
     }
 
-    /** Moves the camera and both of its entities to a new location. */
+    /**
+     * Moves the camera and both of its entities to a new location.
+     */
     public void move(Camera camera, Location newAnchor) {
         reposition(camera, newAnchor);
         persistAsync();
@@ -181,11 +192,11 @@ public final class CameraManager {
      * per click is pure waste.
      */
     public void reposition(Camera camera, Location newAnchor) {
-        Entity display = plugin.getServer().getEntity(camera.displayEntityId());
+        var display = plugin.getServer().getEntity(camera.displayEntityId());
         if (display != null) {
             display.teleport(newAnchor);
         }
-        Entity interaction = plugin.getServer().getEntity(camera.interactionEntityId());
+        var interaction = plugin.getServer().getEntity(camera.interactionEntityId());
         if (interaction != null) {
             interaction.teleport(newAnchor);
         }
@@ -193,15 +204,17 @@ public final class CameraManager {
         applyTransform(camera);
     }
 
-    /** Removes every camera owned by a player and returns how many were removed. */
+    /**
+     * Removes every camera owned by a player and returns how many were removed.
+     */
     public int removeAllOwned(UUID owner) {
-        List<Camera> owned = ownedBy(owner);
-        for (Camera camera : owned) {
+        var owned = ownedBy(owner);
+        for (var camera : owned)
             forget(camera);
-        }
-        if (!owned.isEmpty()) {
+
+        if (!owned.isEmpty())
             persistAsync();
-        }
+
         return owned.size();
     }
 
@@ -209,7 +222,7 @@ public final class CameraManager {
      * Removes the camera's entities and drops its record.
      *
      * <p>Entities only resolve while their chunk is loaded, so the anchor's chunk is
-     * loaded first. Otherwise the record would go but the entities would stay behind
+     * loaded first. Otherwise, the record would go but the entities would stay behind
      * as orphans: models belonging to no camera and removable by nothing.</p>
      *
      * <p>Anyone previewing it is released first; their map has nothing left to render
@@ -237,24 +250,26 @@ public final class CameraManager {
      */
     public int removeOrphanEntities(World world) {
         int removed = 0;
-        for (Entity entity : world.getEntities()) {
-            if (!(entity instanceof Display) && !(entity instanceof Interaction)) {
+        for (var entity : world.getEntities()) {
+            if (!(entity instanceof Display) && !(entity instanceof Interaction))
                 continue;
-            }
-            UUID cameraId = keys.readCameraId(entity.getPersistentDataContainer());
-            if (cameraId == null || byId.containsKey(cameraId)) {
+
+            var cameraId = keys.readCameraId(entity.getPersistentDataContainer());
+            if (cameraId == null || byId.containsKey(cameraId))
                 continue;
-            }
+
             entity.remove();
             removed++;
         }
         return removed;
     }
 
-    /** Loads the anchor's chunk, without which entities cannot be resolved. */
+    /**
+     * Loads the anchor's chunk, without which entities cannot be resolved.
+     */
     private void loadAnchorChunk(Camera camera) {
-        Location anchor = camera.anchor();
-        World world = anchor.getWorld();
+        var anchor = camera.anchor();
+        var world = anchor.getWorld();
         if (world != null) {
             world.getChunkAt(anchor);
         }
@@ -273,27 +288,29 @@ public final class CameraManager {
      */
     public void applyTransform(Camera camera) {
         if (camera.displayEntityId() != null
-                && plugin.getServer().getEntity(camera.displayEntityId()) instanceof Display display) {
+            && plugin.getServer().getEntity(camera.displayEntityId()) instanceof Display display) {
             applyTransform(camera, display);
         }
         if (camera.interactionEntityId() != null
-                && plugin.getServer().getEntity(camera.interactionEntityId()) instanceof Interaction interaction) {
+            && plugin.getServer().getEntity(camera.interactionEntityId()) instanceof Interaction interaction) {
             applyInteractionSize(interaction);
         }
     }
 
-    /** Applies the transform to a display entity already at hand. */
+    /**
+     * Applies the transform to a display entity already at hand.
+     */
     public void applyTransform(Camera camera, Display display) {
         // The configured offsets (X=pitch, Y=yaw, Z=roll) correct visual alignment for
         // custom models; the Y -> X -> Z order makes Z a roll around the view axis.
         double yaw = camera.camYaw() + plugin.config().modelRotationY();
         double pitch = camera.camPitch() + plugin.config().modelRotationX();
         double roll = plugin.config().modelRotationZ();
-        Quaternionf rotation = new Quaternionf().rotationYXZ(
+        var rotation = new Quaternionf().rotationYXZ(
                 (float) Math.toRadians(-yaw),
                 (float) Math.toRadians(pitch),
                 (float) Math.toRadians(roll));
-        Transformation transformation = new Transformation(
+        var transformation = new Transformation(
                 new Vector3f(),
                 rotation,
                 new Vector3f((float) plugin.config().modelScale()),
@@ -317,22 +334,24 @@ public final class CameraManager {
      * a huge one from swallowing everything around it.</p>
      */
     public void applyInteractionSize(Interaction interaction) {
-        float size = (float) Math.max(MIN_INTERACTION, Math.min(MAX_INTERACTION,
-                plugin.config().interactionSize() * plugin.config().modelScale()));
+        var size = (float) Math.clamp(
+                plugin.config().interactionSize() * plugin.config().modelScale(), MIN_INTERACTION, MAX_INTERACTION);
         interaction.setInteractionWidth(size);
         interaction.setInteractionHeight(size);
     }
 
-    /** Falls back to the default pose rather than dropping the model's look entirely. */
-    private ItemDisplay.ItemDisplayTransform resolveDisplayTransform() {
-        String name = plugin.config().itemDisplayTransform();
+    /**
+     * Falls back to the default pose rather than dropping the model's look entirely.
+     */
+    private ItemDisplayTransform resolveDisplayTransform() {
+        var name = plugin.config().itemDisplayTransform();
         try {
-            return ItemDisplay.ItemDisplayTransform.valueOf(name.toUpperCase(Locale.ROOT));
+            return ItemDisplayTransform.valueOf(name.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
             plugin.getLogger().warning("camera.item-display-transform = '" + name
-                    + "' geçersiz; FIXED kullanılıyor. Geçerli değerler: "
-                    + java.util.Arrays.toString(ItemDisplay.ItemDisplayTransform.values()));
-            return ItemDisplay.ItemDisplayTransform.FIXED;
+                                       + "' geçersiz; FIXED kullanılıyor. Geçerli değerler: "
+                                       + java.util.Arrays.toString(ItemDisplayTransform.values()));
+            return ItemDisplayTransform.FIXED;
         }
     }
 
@@ -341,12 +360,13 @@ public final class CameraManager {
      * offset takes effect right after {@code /izomap reload}.
      */
     public void refreshTransforms() {
-        for (Camera camera : byId.values()) {
+        for (var camera : byId.values())
             applyTransform(camera);
-        }
     }
 
-    /** Applies the transform after a change and triggers persistence. */
+    /**
+     * Applies the transform after a change and triggers persistence.
+     */
     public void applyAndPersist(Camera camera) {
         applyTransform(camera);
         persistAsync();
@@ -355,8 +375,8 @@ public final class CameraManager {
     // --- camera item ---
 
     public ItemStack createCameraItem() {
-        Material material = resolveMaterial(plugin.config().modelMaterial(), Material.SPYGLASS);
-        ItemStack item = ItemStack.of(material.isItem() ? material : Material.SPYGLASS);
+        var material = resolveMaterial(plugin.config().modelMaterial(), Material.SPYGLASS);
+        var item = ItemStack.of(material.isItem() ? material : Material.SPYGLASS);
         item.editMeta(meta -> {
             meta.displayName(plugin.messages().get("camera.item-name")
                     .decoration(TextDecoration.ITALIC, false));
@@ -371,8 +391,8 @@ public final class CameraManager {
     // --- internals ---
 
     private Display spawnDisplay(World world, Location anchor) {
-        String type = plugin.config().displayType();
-        Material material = resolveMaterial(plugin.config().modelMaterial(), Material.SPYGLASS);
+        var type = plugin.config().displayType();
+        var material = resolveMaterial(plugin.config().modelMaterial(), Material.SPYGLASS);
 
         if ("BLOCK_DISPLAY".equalsIgnoreCase(type) && material.isBlock()) {
             return world.spawn(anchor, BlockDisplay.class, e -> {
@@ -401,20 +421,17 @@ public final class CameraManager {
     }
 
     private void removeEntity(UUID id) {
-        if (id == null) {
-            return;
-        }
-        Entity entity = plugin.getServer().getEntity(id);
-        if (entity != null) {
+        if (id == null) return;
+
+        var entity = plugin.getServer().getEntity(id);
+        if (entity != null)
             entity.remove();
-        }
     }
 
     private static Material resolveMaterial(String name, Material fallback) {
-        if (name == null) {
-            return fallback;
-        }
-        Material matched = Material.matchMaterial(name);
+        if (name == null) return fallback;
+
+        var matched = Material.matchMaterial(name);
         return matched != null ? matched : fallback;
     }
 }

@@ -47,7 +47,9 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class RenderService {
 
-    /** Number of slices the ray prism is cut into when capturing the region. */
+    /**
+     * Number of slices the ray prism is cut into when capturing the region.
+     */
     private static final int BEAM_SLICES = 8;
 
     private final Izomap plugin;
@@ -67,8 +69,8 @@ public final class RenderService {
      * the config values the image depends on.
      */
     public CaptureSpec specFor(Camera camera) {
-        Location anchor = camera.anchor();
-        World world = anchor.getWorld();
+        var anchor = camera.anchor();
+        var world = anchor.getWorld();
         return new CaptureSpec(
                 world != null ? world.getUID() : null,
                 anchor.getX(), anchor.getY(), anchor.getZ(),
@@ -91,65 +93,64 @@ public final class RenderService {
      * those dimensions. Must be called on the main thread.
      */
     public CompletableFuture<RenderResult> capture(CaptureSpec spec, int widthPx, int heightPx) {
-        World world = spec.worldId() != null ? plugin.getServer().getWorld(spec.worldId()) : null;
-        if (world == null) {
+        var world = spec.worldId() != null ? plugin.getServer().getWorld(spec.worldId()) : null;
+        if (world == null)
             return CompletableFuture.failedFuture(new IllegalStateException("Kamera dünyası yüklü değil."));
-        }
-        Location anchor = new Location(world, spec.x(), spec.y(), spec.z());
 
-        double ratio = (double) widthPx / heightPx;
-        double frameShift = spec.frameShift();
-        double spanHeight = spec.frameHeight() / spec.zoom();
-        double spanWidth = spanHeight * ratio;
-        int captureArea = spec.maxCaptureArea();
+        var anchor = new Location(world, spec.x(), spec.y(), spec.z());
 
-        Vector direction = directionFrom(spec.yaw(), spec.pitch());
-        Vector[] basis = basisFrom(direction);
-        Vector right = basis[0];
-        Vector up = basis[1];
+        var ratio = (double) widthPx / heightPx;
+        var frameShift = spec.frameShift();
+        var spanHeight = spec.frameHeight() / spec.zoom();
+        var spanWidth = spanHeight * ratio;
+        var captureArea = spec.maxCaptureArea();
+
+        var direction = directionFrom(spec.yaw(), spec.pitch());
+        var basis = basisFrom(direction);
+        var right = basis[0];
+        var up = basis[1];
 
         // At frame-shift 0 the camera's target is the center of the photo; positive
         // values move the frame up by a ratio of its height.
-        double eyeY = anchor.getY();
-        Vector planeCenter = anchor.toVector()
+        var eyeY = anchor.getY();
+        var planeCenter = anchor.toVector()
                 .add(up.clone().multiply(spanHeight * frameShift));
 
         // Ray distance is derived, not configured: it is what the top-edge ray needs
         // to reach the target floor. `right` is always horizontal, so the frame's
         // vertical extent comes from `up` alone.
-        double climb = -direction.getY();
-        double topAboveEye = Math.max(0.0, (0.5 + frameShift) * spanHeight * up.getY());
-        double floorY = floorReference(world, anchor, eyeY) - spec.renderDepth();
-        double maxDistance = climb > 1.0e-6
+        var climb = -direction.getY();
+        var topAboveEye = Math.max(0.0, (0.5 + frameShift) * spanHeight * up.getY());
+        var floorY = floorReference(world, anchor, eyeY) - spec.renderDepth();
+        var maxDistance = climb > 1.0e-6
                 ? Math.min((eyeY + topAboveEye - floorY) / climb, captureArea)
                 : captureArea;
 
         // The part of the frame below the camera is lifted to its horizontal plane by
         // backoff, see RenderGeometry.
-        double dropBelowEye = Math.max(0.0, (0.5 - frameShift) * spanHeight * up.getY());
-        double maxBackoff = climb > 1.0e-6 ? Math.min(dropBelowEye / climb, maxDistance) : 0.0;
+        var dropBelowEye = Math.max(0.0, (0.5 - frameShift) * spanHeight * up.getY());
+        var maxBackoff = climb > 1.0e-6 ? Math.min(dropBelowEye / climb, maxDistance) : 0.0;
 
-        List<BoundingBox> beam = beamSlices(
+        var beam = beamSlices(
                 planeCenter, right, up, direction, spanWidth, spanHeight, maxBackoff, maxDistance);
-        Set<Long> chunkKeys = chunkKeys(beam);
+        var chunkKeys = chunkKeys(beam);
 
-        int budget = spec.chunkBudget();
-        if (chunkKeys.size() > budget) {
+        var budget = spec.chunkBudget();
+        if (chunkKeys.size() > budget)
             return CompletableFuture.failedFuture(new CaptureTooLargeException(chunkKeys.size(), budget));
-        }
 
-        RenderGeometry geometry = new RenderGeometry(
+        var geometry = new RenderGeometry(
                 planeCenter, right, up, direction, spanWidth, spanHeight, maxDistance,
                 eyeY, maxBackoff, widthPx, heightPx);
-        ColorFilter filter = spec.colorFilter();
-        int supersampling = spec.supersampling();
-        int threads = plugin.config().renderThreads();
-        Executor executor = workers(threads);
+        var filter = spec.colorFilter();
+        var supersampling = spec.supersampling();
+        var threads = plugin.config().renderThreads();
+        var executor = workers(threads);
 
         // Read the height limits here and pass them by value, so the snapshot never
         // touches the world off the main thread.
-        int minY = world.getMinHeight();
-        int maxY = world.getMaxHeight();
+        var minY = world.getMinHeight();
+        var maxY = world.getMaxHeight();
 
         return snapshotChunks(world, chunkKeys, minY, maxY).thenCompose(snapshot -> {
             CompletableFuture<RenderResult> future = new CompletableFuture<>();
@@ -178,32 +179,32 @@ public final class RenderService {
      * with chunk-sized holes.</p>
      */
     private CompletableFuture<WorldSnapshot> snapshotChunks(World world, Set<Long> keys, int minY, int maxY) {
-        boolean load = plugin.config().loadMissingChunks();
-        boolean generate = plugin.config().generateMissingChunks();
+        var load = plugin.config().loadMissingChunks();
+        var generate = plugin.config().generateMissingChunks();
 
         List<ChunkSnapshot> ready = new ArrayList<>(keys.size());
         List<CompletableFuture<ChunkSnapshot>> loading = new ArrayList<>();
-        for (long key : keys) {
-            int cx = WorldSnapshot.chunkX(key);
-            int cz = WorldSnapshot.chunkZ(key);
+        for (var key : keys) {
+            var cx = WorldSnapshot.chunkX(key);
+            var cz = WorldSnapshot.chunkZ(key);
             if (world.isChunkLoaded(cx, cz)) {
                 ready.add(world.getChunkAt(cx, cz).getChunkSnapshot(false, false, false));
             } else if (load) {
-                // With generate=false an ungenerated chunk completes the future as null.
+                // With generate=false, an ungenerated chunk completes the future as null.
                 loading.add(world.getChunkAtAsync(cx, cz, generate).thenApply(
                         chunk -> chunk == null ? null : chunk.getChunkSnapshot(false, false, false)));
             }
         }
 
-        int requested = keys.size();
+        var requested = keys.size();
         if (loading.isEmpty()) {
             warnIfIncomplete(world, requested, ready.size());
             return CompletableFuture.completedFuture(WorldSnapshot.of(ready, minY, maxY));
         }
 
         return CompletableFuture.allOf(loading.toArray(new CompletableFuture<?>[0])).thenApply(ignored -> {
-            for (CompletableFuture<ChunkSnapshot> future : loading) {
-                ChunkSnapshot snapshot = future.getNow(null);
+            for (var future : loading) {
+                var snapshot = future.getNow(null);
                 if (snapshot != null) {
                     ready.add(snapshot);
                 }
@@ -218,13 +219,12 @@ public final class RenderService {
      * hole in the photo, which otherwise looks like a bug in the ray walk.
      */
     private void warnIfIncomplete(World world, int requested, int captured) {
-        if (captured >= requested) {
-            return;
-        }
+        if (captured >= requested) return;
+
         plugin.getLogger().warning("Kadraja giren " + requested + " chunk'ın "
-                + (requested - captured) + " tanesinin kopyası alınamadı (" + world.getName()
-                + "); o bölgeler fotoğrafta şeffaf kalacak. Muhtemel sebep: chunk hiç üretilmemiş"
-                + " (settings.generate-missing-chunks kapalı) ya da settings.load-missing-chunks kapalı.");
+                                   + (requested - captured) + " tanesinin kopyası alınamadı (" + world.getName()
+                                   + "); o bölgeler fotoğrafta şeffaf kalacak. Muhtemel sebep: chunk hiç üretilmemiş"
+                                   + " (settings.generate-missing-chunks kapalı) ya da settings.load-missing-chunks kapalı.");
     }
 
     /**
@@ -245,16 +245,18 @@ public final class RenderService {
         return Math.min(eyeY, Math.min(world.getSeaLevel(), world.getHighestBlockYAt(anchor)));
     }
 
-    /** Chunk columns the ray prism touches; geometry only, no block access. */
+    /**
+     * Chunk columns the ray prism touches; geometry only, no block access.
+     */
     private static Set<Long> chunkKeys(List<BoundingBox> beam) {
         Set<Long> keys = new HashSet<>();
-        for (BoundingBox box : beam) {
-            int minChunkX = (int) Math.floor(box.getMinX()) >> 4;
-            int maxChunkX = (int) Math.floor(box.getMaxX()) >> 4;
-            int minChunkZ = (int) Math.floor(box.getMinZ()) >> 4;
-            int maxChunkZ = (int) Math.floor(box.getMaxZ()) >> 4;
-            for (int cx = minChunkX; cx <= maxChunkX; cx++) {
-                for (int cz = minChunkZ; cz <= maxChunkZ; cz++) {
+        for (var box : beam) {
+            var minChunkX = (int) Math.floor(box.getMinX()) >> 4;
+            var maxChunkX = (int) Math.floor(box.getMaxX()) >> 4;
+            var minChunkZ = (int) Math.floor(box.getMinZ()) >> 4;
+            var maxChunkZ = (int) Math.floor(box.getMaxZ()) >> 4;
+            for (var cx = minChunkX; cx <= maxChunkX; cx++) {
+                for (var cz = minChunkZ; cz <= maxChunkZ; cz++) {
                     keys.add(WorldSnapshot.key(cx, cz));
                 }
             }
@@ -262,7 +264,9 @@ public final class RenderService {
         return keys;
     }
 
-    /** Releases the render pool when the plugin shuts down. */
+    /**
+     * Releases the render pool when the plugin shuts down.
+     */
     public synchronized void shutdown() {
         if (workers != null) {
             workers.shutdownNow();
@@ -292,25 +296,29 @@ public final class RenderService {
         return workers;
     }
 
-    /** Unit direction vector from Bukkit's yaw/pitch formula. */
+    /**
+     * Unit direction vector from Bukkit's yaw/pitch formula.
+     */
     private static Vector directionFrom(float yaw, float pitch) {
-        double yawRad = Math.toRadians(yaw);
-        double pitchRad = Math.toRadians(pitch);
-        double cosPitch = Math.cos(pitchRad);
+        var yawRad = Math.toRadians(yaw);
+        var pitchRad = Math.toRadians(pitch);
+        var cosPitch = Math.cos(pitchRad);
         return new Vector(-cosPitch * Math.sin(yawRad), -Math.sin(pitchRad), cosPitch * Math.cos(yawRad));
     }
 
-    /** Derives the right/up axes from the direction, handling the vertical case. */
+    /**
+     * Derives the right/up axes from the direction, handling the vertical case.
+     */
     private static Vector[] basisFrom(Vector direction) {
-        Vector worldUp = new Vector(0, 1, 0);
-        Vector right = direction.clone().crossProduct(worldUp);
+        var worldUp = new Vector(0, 1, 0);
+        var right = direction.clone().crossProduct(worldUp);
         if (right.lengthSquared() < 1.0e-6) {
             // Straight up or down: use world +Z as the reference instead.
             right = direction.clone().crossProduct(new Vector(0, 0, 1));
         }
         right.normalize();
-        Vector up = right.clone().crossProduct(direction).normalize();
-        return new Vector[] {right, up};
+        var up = right.clone().crossProduct(direction).normalize();
+        return new Vector[]{right, up};
     }
 
     /**
@@ -326,9 +334,9 @@ public final class RenderService {
      */
     private static List<BoundingBox> beamSlices(Vector center, Vector right, Vector up, Vector direction,
                                                 double spanW, double spanH, double backoff, double maxDist) {
-        double hw = spanW / 2.0;
-        double hh = spanH / 2.0;
-        double sliceDepth = (backoff + maxDist) / BEAM_SLICES;
+        var hw = spanW / 2.0;
+        var hh = spanH / 2.0;
+        var sliceDepth = (backoff + maxDist) / BEAM_SLICES;
 
         List<BoundingBox> slices = new ArrayList<>(BEAM_SLICES);
         for (int i = 0; i < BEAM_SLICES; i++) {
@@ -337,7 +345,7 @@ public final class RenderService {
             for (int sw = -1; sw <= 1; sw += 2) {
                 for (int sh = -1; sh <= 1; sh += 2) {
                     for (int sd = 0; sd <= 1; sd++) {
-                        Vector corner = center.clone()
+                        var corner = center.clone()
                                 .add(right.clone().multiply(sw * hw))
                                 .add(up.clone().multiply(sh * hh))
                                 .add(direction.clone().multiply(near + sd * sliceDepth));

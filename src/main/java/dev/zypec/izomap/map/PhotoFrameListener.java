@@ -12,20 +12,18 @@ import org.bukkit.event.hanging.HangingBreakByEntityEvent;
 import org.bukkit.event.hanging.HangingBreakEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 
-import java.util.UUID;
-
 /**
  * Manages the item frames of placed photos: breaking or attacking any frame takes
  * the whole photo down without dropping items, and rotating is blocked so the image
  * stays intact.
  *
- * <p>A frame is recognised by its {@link PhotoKeys} tag, not by the in-memory record,
+ * <p>A frame is recognized by its {@link PhotoKeys} tag, not by the in-memory record,
  * so protection holds during the window before {@code maps.yml} finishes loading and
  * survives a failed load. Three cases follow from the tag:</p>
  *
  * <ul>
  *   <li><b>Record known</b> – the whole photo comes down, as before.</li>
- *   <li><b>Records not loaded yet</b> – the frame is protected and the player is told
+ *   <li><b>Records aren't loaded yet</b> – the frame is protected and the player is told
  *       to wait, so a half-drawn photo cannot be knocked apart.</li>
  *   <li><b>Records loaded, no match</b> – an orphan left over from a lost record; it is
  *       quietly removed without dropping its map.</li>
@@ -49,69 +47,68 @@ public final class PhotoFrameListener implements Listener {
         if (!(event.getEntity() instanceof ItemFrame frame)) {
             return;
         }
-        Entity remover = event instanceof HangingBreakByEntityEvent byEntity ? byEntity.getRemover() : null;
-        if (handleDamage(frame, remover)) {
+        var remover = event instanceof HangingBreakByEntityEvent byEntity ? byEntity.getRemover() : null;
+        if (handleDamage(frame, remover))
             event.setCancelled(true); // suppress the default drop; removal is ours
-        }
     }
 
     // Attacking a filled frame would pop the item out; block it and remove the photo.
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onAttack(EntityDamageByEntityEvent event) {
-        if (!(event.getEntity() instanceof ItemFrame frame)) {
+        if (!(event.getEntity() instanceof ItemFrame frame))
             return;
-        }
-        if (handleDamage(frame, event.getDamager())) {
+
+        if (handleDamage(frame, event.getDamager()))
             event.setCancelled(true);
-        }
     }
 
     // Right click would rotate the map; block it on photo frames.
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onRotate(PlayerInteractEntityEvent event) {
-        if (event.getRightClicked() instanceof ItemFrame frame && isPhotoFrame(frame)) {
+        if (event.getRightClicked() instanceof ItemFrame frame && isPhotoFrame(frame))
             event.setCancelled(true);
-        }
     }
 
     /**
      * Reacts to a frame being broken or hit. Returns whether the event should be
-     * cancelled, i.e. whether the frame was ours.
+     * canceled, i.e., whether the frame was ours.
      */
     private boolean handleDamage(ItemFrame frame, Entity source) {
-        if (!isPhotoFrame(frame)) {
-            return false;
-        }
-        PlacedPhoto photo = resolve(frame);
+        if (!isPhotoFrame(frame)) return false;
+
+        var photo = resolve(frame);
         if (photo != null) {
             photos.remove(photo);
             return true;
         }
+
         if (!photos.isLoaded()) {
             if (source instanceof Player player) {
                 plugin.messages().send(player, "map.still-loading");
             }
             return true;
         }
+
         // No record can ever claim this frame again; take it down instead of leaving
         // an indestructible leftover on the wall.
         frame.remove();
-        if (source instanceof Player player) {
+        if (source instanceof Player player)
             plugin.messages().send(player, "map.orphan-frame");
-        }
         return true;
     }
 
     private boolean isPhotoFrame(ItemFrame frame) {
         return keys.isPhotoFrame(frame.getPersistentDataContainer())
-                || photos.findByFrame(frame.getUniqueId()).isPresent();
+               || photos.findByFrame(frame.getUniqueId()).isPresent();
     }
 
-    /** The photo a frame belongs to: by tag first, then by the frame's own id. */
+    /**
+     * The photo a frame belongs to: by tag first, then by the frame's own id.
+     */
     private PlacedPhoto resolve(ItemFrame frame) {
-        UUID taggedId = keys.readPhotoId(frame.getPersistentDataContainer());
+        var taggedId = keys.readPhotoId(frame.getPersistentDataContainer());
         if (taggedId != null) {
-            PlacedPhoto tagged = photos.byId(taggedId).orElse(null);
+            var tagged = photos.byId(taggedId).orElse(null);
             if (tagged != null) {
                 return tagged;
             }

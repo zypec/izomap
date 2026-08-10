@@ -6,7 +6,9 @@ package dev.zypec.izomap.map;
  */
 public record GridOption(int cols, int rows) {
 
-    /** Side length of one map tile, in pixels. */
+    /**
+     * Side length of one map tile, in pixels.
+     */
     public static final int TILE = 128;
 
     public int widthPx() {
@@ -29,7 +31,9 @@ public record GridOption(int cols, int rows) {
         return cols + "x" + rows;
     }
 
-    /** Parses a label such as "4x2"; {@code null} when invalid. */
+    /**
+     * Parses a label such as "4x2"; {@code null} when invalid.
+     */
     public static GridOption parse(String raw) {
         if (raw == null) {
             return null;

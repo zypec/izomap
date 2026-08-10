@@ -1,5 +1,7 @@
 package dev.zypec.izomap.render;
 
+import dev.zypec.izomap.render.MapBaseColor.Shade;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -22,27 +24,33 @@ import java.util.Map;
  */
 public final class MapColorConverter {
 
-    /** Every valid (non-transparent) map color, 0xRRGGBB. */
+    /**
+     * Every valid (non-transparent) map color, 0xRRGGBB.
+     */
     private static final int[] PALETTE;
 
-    /** 0xRRGGBB of a palette entry to its map byte. */
+    /**
+     * 0xRRGGBB of a palette entry to its map byte.
+     */
     private static final Map<Integer, Byte> ID_BY_RGB = new HashMap<>();
 
-    /** Map byte to 0xAARRGGBB; entries with no color stay transparent. */
+    /**
+     * Map byte to 0xAARRGGBB; entries with no color stay transparent.
+     */
     private static final int[] ARGB_BY_ID = new int[256];
 
     static {
-        MapBaseColor[] bases = MapBaseColor.values();
-        MapBaseColor.Shade[] shades = MapBaseColor.Shade.values();
-        int[] palette = new int[(bases.length - 1) * shades.length];
-        int index = 0;
-        for (MapBaseColor base : bases) {
-            if (base == MapBaseColor.NONE) {
+        var bases = MapBaseColor.values();
+        var shades = Shade.values();
+        var palette = new int[(bases.length - 1) * shades.length];
+        var index = 0;
+        for (var base : bases) {
+            if (base == MapBaseColor.NONE)
                 continue; // transparent
-            }
-            for (MapBaseColor.Shade shade : shades) {
-                int rgb = base.rgb(shade);
-                byte id = base.packedId(shade);
+
+            for (var shade : shades) {
+                var rgb = base.rgb(shade);
+                var id = base.packedId(shade);
                 palette[index++] = rgb;
                 // Distinct bases can scale down to the same color; either byte paints
                 // the same pixel, so the first one wins.
@@ -59,32 +67,36 @@ public final class MapColorConverter {
      * first; a render never produces one, but a corrupted buffer should not throw.
      */
     public byte packedId(int argb) {
-        if ((argb >>> 24) == 0) {
+        if ((argb >>> 24) == 0)
             return 0;
-        }
-        int rgb = argb & 0xFFFFFF;
-        Byte exact = ID_BY_RGB.get(rgb);
-        if (exact != null) {
+
+        var rgb = argb & 0xFFFFFF;
+        var exact = ID_BY_RGB.get(rgb);
+        if (exact != null)
             return exact;
-        }
+
         return ID_BY_RGB.getOrDefault(snap(rgb), (byte) 0);
     }
 
-    /** ARGB color of a map format byte; transparent for {@code 0} and unused ids. */
+    /**
+     * ARGB color of a map format byte; transparent for {@code 0} and unused ids.
+     */
     public static int argbOf(byte packedId) {
         return ARGB_BY_ID[packedId & 0xFF];
     }
 
-    /** Maps a 0xRRGGBB color to the closest palette entry. */
+    /**
+     * Maps a 0xRRGGBB color to the closest palette entry.
+     */
     public int snap(int rgb) {
-        int r = (rgb >> 16) & 0xFF;
-        int g = (rgb >> 8) & 0xFF;
-        int b = rgb & 0xFF;
+        var r = (rgb >> 16) & 0xFF;
+        var g = (rgb >> 8) & 0xFF;
+        var b = rgb & 0xFF;
 
-        int best = PALETTE[0];
-        long bestDistance = Long.MAX_VALUE;
-        for (int candidate : PALETTE) {
-            long distance = distance(r, g, b, candidate);
+        var best = PALETTE[0];
+        var bestDistance = Long.MAX_VALUE;
+        for (var candidate : PALETTE) {
+            var distance = distance(r, g, b, candidate);
             if (distance < bestDistance) {
                 bestDistance = distance;
                 best = candidate;
@@ -96,20 +108,22 @@ public final class MapColorConverter {
         return best;
     }
 
-    /** Same weighted squared distance as Bukkit {@code MapPalette}. */
+    /**
+     * Same weighted squared distance as Bukkit {@code MapPalette}.
+     */
     private static long distance(int r1, int g1, int b1, int rgb2) {
-        int r2 = (rgb2 >> 16) & 0xFF;
-        int g2 = (rgb2 >> 8) & 0xFF;
-        int b2 = rgb2 & 0xFF;
+        var r2 = (rgb2 >> 16) & 0xFF;
+        var g2 = (rgb2 >> 8) & 0xFF;
+        var b2 = rgb2 & 0xFF;
 
-        int rsum = r1 + r2;
-        int dr = r1 - r2;
-        int dg = g1 - g2;
-        int db = b1 - b2;
+        int sum = r1 + r2;
+        var dr = r1 - r2;
+        var dg = g1 - g2;
+        var db = b1 - b2;
 
-        long weightR = 1024L + rsum;
-        long weightG = 2048L;
-        long weightB = 1024L + (255 * 2 - rsum);
+        var weightR = 1024L + sum;
+        var weightG = 2048L;
+        var weightB = 1024L + (255 * 2 - sum);
 
         return weightR * dr * dr + weightG * dg * dg + weightB * db * db;
     }

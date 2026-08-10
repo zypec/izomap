@@ -5,7 +5,9 @@ import dev.zypec.izomap.render.RenderResult;
 import java.util.ArrayList;
 import java.util.List;
 
-/** Cuts a render into 128x128 tiles according to the grid. */
+/**
+ * Cuts a render into 128x128 tiles according to the grid.
+ */
 public final class ImageSlicer {
 
     private ImageSlicer() {

@@ -28,14 +28,18 @@ public final class RenderResult {
         return height;
     }
 
-    /** Palette-snapped ARGB colors (row-major, length = w*h). */
+    /**
+     * Palette-snapped ARGB colors (row-major, length = w*h).
+     */
     public int[] argb() {
         return argb;
     }
 
-    /** Builds a {@link BufferedImage} from the ARGB buffer. */
+    /**
+     * Builds a {@link BufferedImage} from the ARGB buffer.
+     */
     public BufferedImage toImage() {
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        var image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
         image.setRGB(0, 0, width, height, argb, 0, width);
         return image;
     }

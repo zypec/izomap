@@ -4,9 +4,6 @@ import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.ui.CameraDialogs;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Location;
-import org.bukkit.World;
-import org.bukkit.block.Block;
-import org.bukkit.block.BlockFace;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Interaction;
@@ -20,14 +17,13 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.inventory.EquipmentSlot;
-import org.bukkit.inventory.ItemStack;
 
 import java.util.Locale;
 
 /**
- * Handles camera interactions: right click raises the active property, left click
+ * Handles camera interactions: right-click raises the active property, left click
  * lowers it, sneak switches which property is active or opens the capture dialog,
- * and right clicking a block with the camera item places a new camera.
+ * and right-clicking a block with the camera item places a new camera.
  *
  * <p>Every gesture on a camera first claims its editor seat, since all of them change
  * shared camera state; a player who cannot get the seat becomes a watcher instead.</p>
@@ -52,21 +48,18 @@ public final class CameraListener implements Listener {
         this.dialogs = dialogs;
     }
 
-    // Right click: raise, or switch property while sneaking.
+    // Right-click: raise or switch property while sneaking.
     @EventHandler(ignoreCancelled = true)
     public void onRightClick(PlayerInteractEntityEvent event) {
-        if (!(event.getRightClicked() instanceof Interaction interaction)) {
+        if (!(event.getRightClicked() instanceof Interaction interaction))
             return;
-        }
-        Camera camera = manager.byInteractionEntity(interaction.getUniqueId());
-        if (camera == null) {
-            return;
-        }
+
+        var camera = manager.byInteractionEntity(interaction.getUniqueId());
+        if (camera == null) return;
+
         event.setCancelled(true);
-        Player player = event.getPlayer();
-        if (!plugin.preview().claimEditor(player, camera)) {
-            return;
-        }
+        var player = event.getPlayer();
+        if (!plugin.preview().claimEditor(player, camera)) return;
 
         if (player.isSneaking()) {
             camera.editProperty(camera.editProperty().next());
@@ -76,23 +69,18 @@ public final class CameraListener implements Listener {
         adjust(camera, +1, player);
     }
 
-    // Left click: lower.
+    // Left-click: lower.
     @EventHandler(ignoreCancelled = true)
     public void onLeftClick(EntityDamageByEntityEvent event) {
-        if (!(event.getEntity() instanceof Interaction interaction)) {
-            return;
-        }
-        if (!(event.getDamager() instanceof Player player)) {
-            return;
-        }
-        Camera camera = manager.byInteractionEntity(interaction.getUniqueId());
-        if (camera == null) {
-            return;
-        }
+        if (!(event.getEntity() instanceof Interaction interaction)) return;
+
+        if (!(event.getDamager() instanceof Player player)) return;
+
+        var camera = manager.byInteractionEntity(interaction.getUniqueId());
+        if (camera == null) return;
+
         event.setCancelled(true);
-        if (!plugin.preview().claimEditor(player, camera)) {
-            return;
-        }
+        if (!plugin.preview().claimEditor(player, camera)) return;
 
         // Sneaking opens the capture dialog instead of lowering the property.
         if (player.isSneaking()) {
@@ -112,10 +100,9 @@ public final class CameraListener implements Listener {
     @EventHandler
     public void onEntitiesLoad(EntitiesLoadEvent event) {
         for (Entity entity : event.getEntities()) {
-            Camera camera = manager.byId(keys.readCameraId(entity.getPersistentDataContainer()));
-            if (camera == null) {
-                continue;
-            }
+            var camera = manager.byId(keys.readCameraId(entity.getPersistentDataContainer()));
+            if (camera == null) continue;
+
             if (entity instanceof Display display) {
                 manager.applyTransform(camera, display);
             } else if (entity instanceof Interaction interaction) {
@@ -124,34 +111,34 @@ public final class CameraListener implements Listener {
         }
     }
 
-    // Right clicking a block with the camera item places a new camera.
+    // Right-clicking a block with the camera item places a new camera.
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onPlaceItem(PlayerInteractEvent event) {
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getHand() != EquipmentSlot.HAND) {
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK || event.getHand() != EquipmentSlot.HAND)
             return;
-        }
-        Block clicked = event.getClickedBlock();
-        BlockFace face = event.getBlockFace();
-        if (clicked == null) {
-            return;
-        }
-        ItemStack held = event.getItem();
-        if (held == null || !keys.isCameraItem(held.getItemMeta().getPersistentDataContainer())) {
-            return;
-        }
-        event.setCancelled(true);
-        Player player = event.getPlayer();
 
-        Location anchor = clicked.getRelative(face).getLocation().add(0.5, 0.0, 0.5);
+        var clicked = event.getClickedBlock();
+        var face = event.getBlockFace();
+        if (clicked == null) return;
+
+        var held = event.getItem();
+        if (held == null || !keys.isCameraItem(held.getItemMeta().getPersistentDataContainer()))
+            return;
+
+        event.setCancelled(true);
+        var player = event.getPlayer();
+
+        var anchor = clicked.getRelative(face).getLocation().add(0.5, 0.0, 0.5);
         anchor.setYaw(player.getLocation().getYaw());
         anchor.setPitch(0.0f);
 
-        Camera camera = manager.create(player, defaultName(player), anchor);
+        var camera = manager.create(player, defaultName(player), anchor);
         if (camera == null) {
             plugin.messages().send(player, "camera.limit-reached",
                     Placeholder.unparsed("limit", String.valueOf(plugin.config().maxCamerasPerPlayer())));
             return;
         }
+
         held.subtract();
         plugin.messages().send(player, "camera.created",
                 Placeholder.unparsed("name", camera.name()));
@@ -187,12 +174,14 @@ public final class CameraListener implements Listener {
         plugin.preview().showStatus(camera, player);
     }
 
-    /** Keeps vertical movement inside the world; entities outside it behave oddly. */
+    /**
+     * Keeps vertical movement inside the world; entities outside it behave oddly.
+     */
     private static Location clampToWorld(Location location) {
-        World world = location.getWorld();
-        if (world != null) {
+        var world = location.getWorld();
+        if (world != null)
             location.setY(Math.max(world.getMinHeight(), Math.min(world.getMaxHeight() - 1, location.getY())));
-        }
+
         return location;
     }
 

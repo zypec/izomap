@@ -1,6 +1,8 @@
 package dev.zypec.izomap.render;
 
-/** Supported photo aspect ratios. */
+/**
+ * Supported photo aspect ratios.
+ */
 public enum AspectRatio {
 
     RATIO_1_1(1, 1),
@@ -23,20 +25,23 @@ public enum AspectRatio {
         return height;
     }
 
-    /** The ratio as a number (width / height). */
+    /**
+     * The ratio as a number (width / height).
+     */
     public double value() {
         return (double) width / height;
     }
 
-    /** Human readable label, e.g. "16:9". */
+    /**
+     * Human-readable label, e.g. "16:9".
+     */
     public String label() {
         return width + ":" + height;
     }
 
     public static AspectRatio fromString(String raw, AspectRatio fallback) {
-        if (raw == null) {
-            return fallback;
-        }
+        if (raw == null) return fallback;
+
         try {
             return valueOf(raw.trim().toUpperCase());
         } catch (IllegalArgumentException ex) {
@@ -44,13 +49,14 @@ public enum AspectRatio {
         }
     }
 
-    /** Resolves a label ("16:9") or enum name ("RATIO_16_9"); null when unknown. */
+    /**
+     * Resolves a label ("16:9") or enum name ("RATIO_16_9"); null when unknown.
+     */
     public static AspectRatio fromLabel(String raw) {
-        if (raw == null) {
-            return null;
-        }
-        String trimmed = raw.trim();
-        for (AspectRatio ratio : values()) {
+        if (raw == null) return null;
+
+        var trimmed = raw.trim();
+        for (var ratio : values()) {
             if (ratio.label().equalsIgnoreCase(trimmed) || ratio.name().equalsIgnoreCase(trimmed)) {
                 return ratio;
             }

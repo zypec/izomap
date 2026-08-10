@@ -2,7 +2,6 @@ package dev.zypec.izomap.render;
 
 import dev.zypec.izomap.Izomap;
 import org.bukkit.Material;
-import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
@@ -25,7 +24,9 @@ import java.util.Map;
 public final class BlockColorTable {
 
     private static final String FILE_NAME = "block-colors.yml";
-    /** File format version; older files are backed up and replaced. */
+    /**
+     * File format version; older files are backed up and replaced.
+     */
     private static final int FILE_VERSION = 2;
 
     private final Map<Material, MapBaseColor> colors = new EnumMap<>(Material.class);
@@ -33,9 +34,11 @@ public final class BlockColorTable {
     private BlockColorTable() {
     }
 
-    /** Reads real map colors from the server, then applies user overrides. */
+    /**
+     * Reads real map colors from the server, then applies user overrides.
+     */
     public static BlockColorTable load(Izomap plugin) {
-        BlockColorTable table = new BlockColorTable();
+        var table = new BlockColorTable();
         table.readFromServer(plugin);
         table.applyOverrides(plugin, loadFile(plugin));
         plugin.getLogger().info(table.colors.size() + " blok için harita temel rengi hazır.");
@@ -48,17 +51,18 @@ public final class BlockColorTable {
      * them as transparent and continue the ray, as vanilla maps do.
      */
     public MapBaseColor baseColorOf(Material material) {
-        MapBaseColor color = colors.get(material);
+        var color = colors.get(material);
         return color != null ? color : MapBaseColor.NONE;
     }
 
-    /** Reads the map color of each material's default block state. */
+    /**
+     * Reads the map color of each material's default block state.
+     */
     private void readFromServer(Izomap plugin) {
-        int unknown = 0;
-        for (Material material : Material.values()) {
-            if (material.isLegacy() || !material.isBlock()) {
-                continue;
-            }
+        var unknown = 0;
+        for (var material : Material.values()) {
+            if (material.isLegacy() || !material.isBlock()) continue;
+
             int rgb;
             try {
                 rgb = material.createBlockData().getMapColor().asRGB();
@@ -66,7 +70,8 @@ public final class BlockColorTable {
                 // Materials without a usable block state do not show on maps either.
                 continue;
             }
-            MapBaseColor base = MapBaseColor.byBaseRgb(rgb);
+
+            var base = MapBaseColor.byBaseRgb(rgb);
             if (base == null) {
                 // A base color this build's table does not know: fall back to the nearest.
                 base = nearestBase(rgb);
@@ -76,25 +81,26 @@ public final class BlockColorTable {
         }
         if (unknown > 0) {
             plugin.getLogger().warning(unknown + " blok, bilinmeyen bir harita temel rengi bildirdi; "
-                    + "en yakın renge eşlendi. (MapBaseColor tablosu güncellenmeli.)");
+                                       + "en yakın renge eşlendi. (MapBaseColor tablosu güncellenmeli.)");
         }
     }
 
-    /** Applies the overrides from {@code block-colors.yml}. */
+    /**
+     * Applies the overrides from {@code block-colors.yml}.
+     */
     private void applyOverrides(Izomap plugin, YamlConfiguration cfg) {
-        ConfigurationSection section = cfg.getConfigurationSection("overrides");
-        if (section == null) {
-            return;
-        }
+        var section = cfg.getConfigurationSection("overrides");
+        if (section == null) return;
+
         int applied = 0;
-        for (String key : section.getKeys(false)) {
-            Material material = Material.matchMaterial(key);
+        for (var key : section.getKeys(false)) {
+            var material = Material.matchMaterial(key);
             if (material == null || !material.isBlock()) {
                 plugin.getLogger().warning(FILE_NAME + ": bilinmeyen blok '" + key + "' atlandı.");
                 continue;
             }
-            String raw = section.getString(key);
-            MapBaseColor base = parseBaseColor(raw);
+            var raw = section.getString(key);
+            var base = parseBaseColor(raw);
             if (base == null) {
                 plugin.getLogger().warning(FILE_NAME + ": '" + key + "' için geçersiz renk '" + raw + "' atlandı.");
                 continue;
@@ -112,13 +118,13 @@ public final class BlockColorTable {
      * colors from v1 cannot overwrite the correct vanilla ones.
      */
     private static YamlConfiguration loadFile(Izomap plugin) {
-        File file = new File(plugin.getDataFolder(), FILE_NAME);
+        var file = new File(plugin.getDataFolder(), FILE_NAME);
         if (file.exists()) {
-            YamlConfiguration existing = YamlConfiguration.loadConfiguration(file);
+            var existing = YamlConfiguration.loadConfiguration(file);
             if (existing.getInt("version", 1) >= FILE_VERSION) {
                 return existing;
             }
-            File backup = new File(plugin.getDataFolder(), FILE_NAME + ".v1.bak");
+            var backup = new File(plugin.getDataFolder(), FILE_NAME + ".v1.bak");
             if (backup.exists() && !backup.delete()) {
                 plugin.getLogger().warning(FILE_NAME + " eski sürümde ve yedeklenemedi; override'lar yok sayıldı.");
                 return new YamlConfiguration();
@@ -128,51 +134,53 @@ public final class BlockColorTable {
                 return new YamlConfiguration();
             }
             plugin.getLogger().info(FILE_NAME + " eski sürümdeydi; " + backup.getName()
-                    + " olarak yedeklendi ve yeni varsayılan yazıldı.");
+                                    + " olarak yedeklendi ve yeni varsayılan yazıldı.");
         }
         plugin.saveResource(FILE_NAME, false);
         return YamlConfiguration.loadConfiguration(file);
     }
 
-    /** Accepts a base color name ("GRASS") or hex ("#7FB238"). */
+    /**
+     * Accepts a base color name ("GRASS") or hex ("#7FB238").
+     */
     private static MapBaseColor parseBaseColor(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;
         }
-        String value = raw.trim();
-        MapBaseColor named = MapBaseColor.byName(value);
-        if (named != null) {
-            return named;
-        }
-        String hex = value.startsWith("#") ? value.substring(1) : value;
+        var value = raw.trim();
+        var named = MapBaseColor.byName(value);
+        if (named != null) return named;
+
+        var hex = value.startsWith("#") ? value.substring(1) : value;
         try {
-            int rgb = Integer.parseInt(hex, 16) & 0xFFFFFF;
-            MapBaseColor exact = MapBaseColor.byBaseRgb(rgb);
+            var rgb = Integer.parseInt(hex, 16) & 0xFFFFFF;
+            var exact = MapBaseColor.byBaseRgb(rgb);
             return exact != null ? exact : nearestBase(rgb);
         } catch (NumberFormatException ex) {
             return null;
         }
     }
 
-    /** Nearest base color to an arbitrary RGB, excluding transparent NONE. */
+    /**
+     * Nearest base color to an arbitrary RGB, excluding transparent NONE.
+     */
     private static MapBaseColor nearestBase(int rgb) {
         int r = (rgb >> 16) & 0xFF;
         int g = (rgb >> 8) & 0xFF;
         int b = rgb & 0xFF;
 
-        MapBaseColor best = MapBaseColor.STONE;
-        long bestDistance = Long.MAX_VALUE;
-        for (MapBaseColor candidate : MapBaseColor.values()) {
-            if (candidate == MapBaseColor.NONE) {
-                continue;
-            }
-            int cr = (candidate.baseRgb() >> 16) & 0xFF;
-            int cg = (candidate.baseRgb() >> 8) & 0xFF;
-            int cb = candidate.baseRgb() & 0xFF;
-            long dr = r - cr;
-            long dg = g - cg;
-            long db = b - cb;
-            long distance = dr * dr + dg * dg + db * db;
+        var best = MapBaseColor.STONE;
+        var bestDistance = Long.MAX_VALUE;
+        for (var candidate : MapBaseColor.values()) {
+            if (candidate == MapBaseColor.NONE) continue;
+
+            var cr = (candidate.baseRgb() >> 16) & 0xFF;
+            var cg = (candidate.baseRgb() >> 8) & 0xFF;
+            var cb = candidate.baseRgb() & 0xFF;
+            var dr = r - cr;
+            var dg = g - cg;
+            var db = b - cb;
+            var distance = dr * dr + dg * dg + db * db;
             if (distance < bestDistance) {
                 bestDistance = distance;
                 best = candidate;

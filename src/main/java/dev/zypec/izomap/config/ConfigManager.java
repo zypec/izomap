@@ -11,8 +11,8 @@ public final class ConfigManager {
     private final Izomap plugin;
 
     /**
-     * A {@code frame-shift} at or above this lifts the whole frame above the camera,
-     * which yields fully empty photos on cameras that look horizontally.
+     * A {@code frame-shift} at or above these lifts the whole frame above the camera,
+     * which yields fully empty photos on cameras that look horizontal.
      */
     private static final double RISKY_FRAME_SHIFT = 0.25;
 

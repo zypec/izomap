@@ -24,6 +24,8 @@ import org.bukkit.plugin.java.JavaPlugin;
  */
 public final class Izomap extends JavaPlugin {
 
+    public static final String PLUGIN_ID = "izomap";
+
     private ConfigManager configManager;
     private Messages messages;
     private CameraManager cameraManager;
@@ -38,17 +40,17 @@ public final class Izomap extends JavaPlugin {
         this.messages = new Messages(this);
         this.messages.reload();
 
-        CameraKeys cameraKeys = new CameraKeys(this);
+        var cameraKeys = new CameraKeys(this);
         this.cameraManager = new CameraManager(this, cameraKeys);
 
-        BlockColorTable colorTable = BlockColorTable.load(this);
+        var colorTable = BlockColorTable.load(this);
         this.renderService = new RenderService(this, colorTable);
         this.mapService = new MapService(this);
         this.previewManager = new PreviewManager(this, renderService, mapService);
-        PhotoKeys photoKeys = new PhotoKeys(this);
+        var photoKeys = new PhotoKeys(this);
         this.photoManager = new PhotoManager(this, cameraManager, renderService, mapService, photoKeys);
 
-        CameraDialogs cameraDialogs = new CameraDialogs(this, cameraManager, photoManager);
+        var cameraDialogs = new CameraDialogs(this, cameraManager, photoManager);
 
         // Photos load from their own cache, but a lost cache falls back to the source
         // camera, so cameras still have to be there first.
@@ -61,36 +63,37 @@ public final class Izomap extends JavaPlugin {
         getServer().getPluginManager().registerEvents(previewManager, this);
         CameraCommand.register(this, cameraManager, renderService, mapService, photoManager, cameraDialogs);
 
-        getLogger().info("Izomap etkinleştirildi (Paper API 26.2, Java 25).");
+        getLogger().info("Izomap enabled.");
     }
 
     @Override
     public void onDisable() {
         // Plugins are disabled before players are kicked, so the quit handler never
         // runs on shutdown; the preview maps have to be collected here.
-        if (previewManager != null) {
+        if (previewManager != null)
             previewManager.closeAll();
-        }
-        if (photoManager != null) {
+
+        if (photoManager != null)
             photoManager.saveSync();
-        }
-        if (cameraManager != null) {
+
+        if (cameraManager != null)
             cameraManager.saveSync();
-        }
-        if (renderService != null) {
+
+        if (renderService != null)
             renderService.shutdown();
-        }
-        getLogger().info("Izomap devre dışı bırakıldı.");
+
+        getLogger().info("Izomap disabled.");
     }
 
-    /** Reloads the configuration of every subsystem. */
+    /**
+     * Reloads the configuration of every subsystem.
+     */
     public void reloadAll() {
         this.configManager.reload();
         this.messages.reload();
         // Visual settings such as the model rotation offset take effect immediately.
-        if (cameraManager != null) {
+        if (cameraManager != null)
             cameraManager.refreshTransforms();
-        }
     }
 
     public ConfigManager config() {

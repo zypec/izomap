@@ -4,13 +4,10 @@ import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.camera.Camera;
 import dev.zypec.izomap.render.CaptureSpec;
 import org.bukkit.Material;
-import org.bukkit.World;
 import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.map.MapView;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -35,52 +32,50 @@ public final class MapPlacer {
     }
 
     /**
-     * Places the tiles, or returns {@code null} without changing anything when there
+     * Places the tiles or returns {@code null} without changing anything when there
      * is not enough free space.
      */
     public PlacedPhoto place(Player player, Camera camera, CaptureSpec spec, String name,
                              GridOption grid, List<MapTile> tiles) {
-        World world = player.getWorld();
-        BlockFace forward = horizontalFacing(player);
-        BlockFace right = clockwise(forward);
-        BlockFace frameFacing = forward.getOppositeFace(); // faces the player
+        var world = player.getWorld();
+        var forward = horizontalFacing(player);
+        var right = clockwise(forward);
+        var frameFacing = forward.getOppositeFace(); // faces the player
 
-        int distance = plugin.config().placementDistance();
-        Block base = player.getEyeLocation().getBlock().getRelative(forward, distance);
-        int colOffset = (grid.cols() - 1) / 2;
+        var distance = plugin.config().placementDistance();
+        var base = player.getEyeLocation().getBlock().getRelative(forward, distance);
+        var colOffset = (grid.cols() - 1) / 2;
 
         // Verify every target block is free first, so placement stays non-destructive.
-        for (MapTile tile : tiles) {
-            if (!frameBlock(base, right, forward, colOffset, grid, tile).isEmpty()) {
+        for (var tile : tiles)
+            if (!frameBlock(base, right, forward, colOffset, grid, tile).isEmpty())
                 return null;
-            }
-        }
 
-        boolean invisible = plugin.config().invisibleFrames();
-        boolean backing = plugin.config().buildBackingWall();
-        Material backingMaterial = resolveMaterial(plugin.config().backingMaterial());
+        var invisible = plugin.config().invisibleFrames();
+        var backing = plugin.config().buildBackingWall();
+        var backingMaterial = resolveMaterial(plugin.config().backingMaterial());
 
         // Known before the frames exist so each one can carry the id in its PDC.
-        UUID photoId = UUID.randomUUID();
+        var photoId = UUID.randomUUID();
         List<Integer> mapIds = new ArrayList<>(tiles.size());
         List<UUID> frameIds = new ArrayList<>(tiles.size());
 
         for (int index = 0; index < tiles.size(); index++) {
-            MapTile tile = tiles.get(index);
-            Block frameBlock = frameBlock(base, right, forward, colOffset, grid, tile);
+            var tile = tiles.get(index);
+            var frameBlock = frameBlock(base, right, forward, colOffset, grid, tile);
 
             if (backing) {
-                Block backBlock = frameBlock.getRelative(forward);
+                var backBlock = frameBlock.getRelative(forward);
                 if (backBlock.isEmpty()) {
                     backBlock.setType(backingMaterial, false);
                 }
             }
 
-            MapView view = mapService.createMapView(world, tile.argb());
-            ItemStack mapItem = mapService.itemFor(view);
+            var view = mapService.createMapView(world, tile.argb());
+            var mapItem = mapService.itemFor(view);
 
             final int tileIndex = index;
-            ItemFrame frame = world.spawn(frameBlock.getLocation(), ItemFrame.class, f -> {
+            var frame = world.spawn(frameBlock.getLocation(), ItemFrame.class, f -> {
                 f.setFacingDirection(frameFacing, true);
                 f.setItem(mapItem, false);
                 f.setVisible(!invisible);
@@ -108,14 +103,16 @@ public final class MapPlacer {
     }
 
     private static BlockFace horizontalFacing(Player player) {
-        BlockFace facing = player.getFacing();
+        var facing = player.getFacing();
         return switch (facing) {
             case NORTH, SOUTH, EAST, WEST -> facing;
             default -> BlockFace.NORTH;
         };
     }
 
-    /** 90° clockwise seen from above: the image's +X axis. */
+    /**
+     * 90° clockwise seen from above: the image's +X axis.
+     */
     private static BlockFace clockwise(BlockFace forward) {
         return switch (forward) {
             case NORTH -> BlockFace.EAST;
@@ -127,7 +124,7 @@ public final class MapPlacer {
     }
 
     private static Material resolveMaterial(String name) {
-        Material material = Material.matchMaterial(name);
+        var material = Material.matchMaterial(name);
         return (material != null && material.isBlock()) ? material : Material.STONE;
     }
 }

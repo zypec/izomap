@@ -6,7 +6,6 @@ import dev.zypec.izomap.render.ColorFilter;
 import dev.zypec.izomap.storage.YamlStorage;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
-import org.bukkit.World;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
@@ -28,23 +27,27 @@ public final class CameraStorage extends YamlStorage {
         super(plugin, "cameras.yml");
     }
 
-    /** Serializes the whole collection and saves it asynchronously. */
+    /**
+     * Serializes the whole collection and saves it asynchronously.
+     */
     public void saveAll(Collection<Camera> cameras) {
         setData(serialize(cameras));
         save();
     }
 
-    /** Saves synchronously, for shutdown. */
+    /**
+     * Saves synchronously, for shutdown.
+     */
     public void saveAllSync(Collection<Camera> cameras) {
         setData(serialize(cameras));
         saveNow();
     }
 
     private FileConfiguration serialize(Collection<Camera> cameras) {
-        FileConfiguration cfg = new YamlConfiguration();
-        for (Camera c : cameras) {
-            String base = "cameras." + c.id();
-            Location a = c.anchor();
+        var cfg = new YamlConfiguration();
+        for (var c : cameras) {
+            var base = "cameras." + c.id();
+            var a = c.anchor();
             cfg.set(base + ".owner", c.owner().toString());
             cfg.set(base + ".name", c.name());
             cfg.set(base + ".world", a.getWorld() != null ? a.getWorld().getUID().toString() : null);
@@ -72,48 +75,45 @@ public final class CameraStorage extends YamlStorage {
      */
     public List<Camera> readAll() {
         List<Camera> result = new ArrayList<>();
-        FileConfiguration cfg = data();
-        if (cfg == null) {
-            return result;
-        }
-        ConfigurationSection root = cfg.getConfigurationSection("cameras");
-        if (root == null) {
-            return result;
-        }
-        for (String key : root.getKeys(false)) {
-            ConfigurationSection s = root.getConfigurationSection(key);
-            if (s == null) {
-                continue;
-            }
-            Camera camera = readOne(key, s);
-            if (camera != null) {
+        var cfg = data();
+        if (cfg == null) return result;
+
+        var root = cfg.getConfigurationSection("cameras");
+        if (root == null) return result;
+
+        for (var key : root.getKeys(false)) {
+            var s = root.getConfigurationSection(key);
+            if (s == null) continue;
+
+            var camera = readOne(key, s);
+            if (camera != null)
                 result.add(camera);
-            }
         }
         return result;
     }
 
     private Camera readOne(String key, ConfigurationSection s) {
-        UUID id = parseUuid(key);
-        UUID owner = parseUuid(s.getString("owner"));
-        String worldRaw = s.getString("world");
-        if (id == null || owner == null || worldRaw == null) {
+        var id = parseUUID(key);
+        var owner = parseUUID(s.getString("owner"));
+        var worldRaw = s.getString("world");
+        if (id == null || owner == null || worldRaw == null)
             return null;
-        }
-        World world = Bukkit.getWorld(UUID.fromString(worldRaw));
+
+        var world = Bukkit.getWorld(UUID.fromString(worldRaw));
         if (world == null) {
             plugin.getLogger().warning(
                     "Kamera '" + key + "' atlandı: dünya yüklü değil (" + worldRaw + ").");
             return null;
         }
-        Location anchor = new Location(
+
+        var anchor = new Location(
                 world,
                 s.getDouble("x"), s.getDouble("y"), s.getDouble("z"),
                 (float) s.getDouble("cam-yaw"), (float) s.getDouble("cam-pitch"));
 
-        Camera camera = new Camera(id, owner, s.getString("name", "camera"), anchor);
-        camera.displayEntityId(parseUuid(s.getString("display-entity")));
-        camera.interactionEntityId(parseUuid(s.getString("interaction-entity")));
+        var camera = new Camera(id, owner, s.getString("name", "camera"), anchor);
+        camera.displayEntityId(parseUUID(s.getString("display-entity")));
+        camera.interactionEntityId(parseUUID(s.getString("interaction-entity")));
         camera.camYaw((float) s.getDouble("cam-yaw"));
         camera.camPitch((float) s.getDouble("cam-pitch"));
         // Older records used the key "scale" with the same meaning.
@@ -125,10 +125,8 @@ public final class CameraStorage extends YamlStorage {
         return camera;
     }
 
-    private static UUID parseUuid(String raw) {
-        if (raw == null) {
-            return null;
-        }
+    private static UUID parseUUID(String raw) {
+        if (raw == null) return null;
         try {
             return UUID.fromString(raw);
         } catch (IllegalArgumentException ex) {

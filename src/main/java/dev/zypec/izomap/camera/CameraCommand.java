@@ -1,14 +1,18 @@
 package dev.zypec.izomap.camera;
 
+import com.mojang.brigadier.Command;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
+import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.map.GridLayouts;
 import dev.zypec.izomap.map.GridOption;
 import dev.zypec.izomap.map.ImageSlicer;
 import dev.zypec.izomap.map.MapService;
-import dev.zypec.izomap.map.MapTile;
 import dev.zypec.izomap.map.PhotoManager;
 import dev.zypec.izomap.map.PlacedPhoto;
 import dev.zypec.izomap.render.AspectRatio;
@@ -19,15 +23,13 @@ import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.Location;
-import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.bukkit.inventory.ItemStack;
-import org.bukkit.util.Vector;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.stream.Collectors;
 
 /**
@@ -50,8 +52,8 @@ import java.util.stream.Collectors;
  */
 public final class CameraCommand {
 
-    private static final String PERM = "izomap.camera";
-    private static final String PERM_ADMIN = "izomap.admin";
+    private static final String PERM = Izomap.PLUGIN_ID + ".camera";
+    private static final String PERM_ADMIN = Izomap.PLUGIN_ID + ".admin";
 
     private final Izomap plugin;
     private final CameraManager manager;
@@ -70,7 +72,9 @@ public final class CameraCommand {
         this.dialogs = dialogs;
     }
 
-    /** Registers the command on the plugin lifecycle. */
+    /**
+     * Registers the command on the plugin lifecycle.
+     */
     public static void register(Izomap plugin, CameraManager manager, RenderService renderService,
                                 MapService mapService, PhotoManager photoManager, CameraDialogs dialogs) {
         CameraCommand command = new CameraCommand(plugin, manager, renderService, mapService, photoManager, dialogs);
@@ -144,181 +148,144 @@ public final class CameraCommand {
                 .build();
     }
 
-    private int create(CommandContext<CommandSourceStack> ctx) {
-        Player player = requirePlayer(ctx);
-        if (player == null) {
-            return 0;
-        }
-        String name = StringArgumentType.getString(ctx, "name");
+    private int create(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+
+        var name = StringArgumentType.getString(ctx, "name");
         if (manager.byOwnerAndName(player.getUniqueId(), name).isPresent()) {
             plugin.messages().send(player, "camera.name-taken", Placeholder.unparsed("name", name));
             return 0;
         }
 
-        Location eye = player.getEyeLocation();
-        Vector direction = eye.getDirection();
-        Location anchor = eye.add(direction.multiply(2.0));
+        var eye = player.getEyeLocation();
+        var direction = eye.getDirection();
+        var anchor = eye.add(direction.multiply(2.0));
         anchor.setYaw(player.getLocation().getYaw());
         anchor.setPitch(0.0f);
 
-        Camera camera = manager.create(player, name, anchor);
+        var camera = manager.create(player, name, anchor);
         if (camera == null) {
             plugin.messages().send(player, "camera.limit-reached",
                     Placeholder.unparsed("limit", String.valueOf(plugin.config().maxCamerasPerPlayer())));
             return 0;
         }
         plugin.messages().send(player, "camera.created", Placeholder.unparsed("name", name));
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        return Command.SINGLE_SUCCESS;
     }
 
-    private int remove(CommandContext<CommandSourceStack> ctx) {
-        Player player = requirePlayer(ctx);
-        if (player == null) {
-            return 0;
-        }
-        String name = StringArgumentType.getString(ctx, "name");
-        Camera camera = manager.byOwnerAndName(player.getUniqueId(), name).orElse(null);
-        if (camera == null) {
-            plugin.messages().send(player, "camera.not-found");
-            return 0;
-        }
+    private int remove(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+        var camera = camera(ctx, player);
+
         manager.remove(camera);
-        plugin.messages().send(player, "camera.removed", Placeholder.unparsed("name", name));
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        plugin.messages().send(player, "camera.removed", Placeholder.unparsed("name", camera.name()));
+        return Command.SINGLE_SUCCESS;
     }
 
-    private int move(CommandContext<CommandSourceStack> ctx) {
-        Player player = requirePlayer(ctx);
-        if (player == null) {
-            return 0;
-        }
-        String name = StringArgumentType.getString(ctx, "name");
-        Camera camera = manager.byOwnerAndName(player.getUniqueId(), name).orElse(null);
-        if (camera == null) {
-            plugin.messages().send(player, "camera.not-found");
-            return 0;
-        }
-        Location eye = player.getEyeLocation();
-        Vector direction = eye.getDirection();
-        Location anchor = eye.add(direction.multiply(2.0));
+    private int move(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+        var camera = camera(ctx, player);
+
+        var eye = player.getEyeLocation();
+        var direction = eye.getDirection();
+        var anchor = eye.add(direction.multiply(2.0));
         anchor.setYaw(player.getLocation().getYaw());
         anchor.setPitch(0.0f);
 
         manager.move(camera, anchor);
         plugin.preview().refresh(player, camera);
-        plugin.messages().send(player, "camera.moved", Placeholder.unparsed("name", name));
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        plugin.messages().send(player, "camera.moved", Placeholder.unparsed("name", camera.name()));
+        return Command.SINGLE_SUCCESS;
     }
 
-    private int removeAllCameras(CommandContext<CommandSourceStack> ctx) {
-        Player player = requirePlayer(ctx);
-        if (player == null) {
-            return 0;
-        }
-        int count = manager.removeAllOwned(player.getUniqueId());
+    private int removeAllCameras(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+
+        var count = manager.removeAllOwned(player.getUniqueId());
         plugin.messages().send(player, "camera.removed-all", Placeholder.unparsed("count", String.valueOf(count)));
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        return Command.SINGLE_SUCCESS;
     }
 
-    private int removeAllPhotos(CommandContext<CommandSourceStack> ctx) {
-        Player player = requirePlayer(ctx);
-        if (player == null) {
-            return 0;
-        }
-        int count = photoManager.removeAllOwned(player.getUniqueId());
+    private int removeAllPhotos(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+
+        var count = photoManager.removeAllOwned(player.getUniqueId());
         plugin.messages().send(player, "map.photos-removed-all", Placeholder.unparsed("count", String.valueOf(count)));
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        return Command.SINGLE_SUCCESS;
     }
 
-    private int listCameras(CommandContext<CommandSourceStack> ctx) {
-        Player player = requirePlayer(ctx);
-        if (player == null) {
-            return 0;
-        }
-        List<Camera> cameras = manager.ownedBy(player.getUniqueId());
+    private int listCameras(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+
+        var cameras = manager.ownedBy(player.getUniqueId());
         if (cameras.isEmpty()) {
             plugin.messages().send(player, "camera.list-empty");
-            return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+            return Command.SINGLE_SUCCESS;
         }
+
         player.sendMessage(plugin.messages().get("camera.list-header",
                 Placeholder.unparsed("count", String.valueOf(cameras.size()))));
-        for (Camera c : cameras) {
+        for (var c : cameras) {
             player.sendMessage(plugin.messages().get("camera.list-entry",
                     Placeholder.unparsed("name", c.name()),
                     Placeholder.unparsed("ratio", c.aspectRatio().label()),
                     Placeholder.unparsed("scale", String.format(Locale.ROOT, "%.2f", c.zoom()))));
         }
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        return Command.SINGLE_SUCCESS;
     }
 
-    private int listPhotos(CommandContext<CommandSourceStack> ctx) {
-        Player player = requirePlayer(ctx);
-        if (player == null) {
-            return 0;
-        }
-        List<PlacedPhoto> owned = photoManager.ownedBy(player.getUniqueId());
+    private int listPhotos(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+
+        var owned = photoManager.ownedBy(player.getUniqueId());
         if (owned.isEmpty()) {
             plugin.messages().send(player, "map.photos-empty");
-            return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+            return Command.SINGLE_SUCCESS;
         }
+
         player.sendMessage(plugin.messages().get("map.photos-header",
                 Placeholder.unparsed("count", String.valueOf(owned.size()))));
-        for (PlacedPhoto photo : owned) {
+        for (var photo : owned) {
             player.sendMessage(plugin.messages().get("map.photos-entry",
                     Placeholder.unparsed("name", photo.name()),
                     Placeholder.unparsed("id", photo.shortId()),
                     Placeholder.unparsed("grid", photo.grid().label())));
         }
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        return Command.SINGLE_SUCCESS;
     }
 
-    private int giveItem(CommandContext<CommandSourceStack> ctx) {
-        Player player = requirePlayer(ctx);
-        if (player == null) {
-            return 0;
-        }
+    private int giveItem(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+
         player.getInventory().addItem(manager.createCameraItem());
         plugin.messages().send(player, "camera.given-item");
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        return Command.SINGLE_SUCCESS;
     }
 
-    private int setRatio(CommandContext<CommandSourceStack> ctx) {
-        Player player = requirePlayer(ctx);
-        if (player == null) {
-            return 0;
-        }
-        String name = StringArgumentType.getString(ctx, "name");
-        Camera camera = manager.byOwnerAndName(player.getUniqueId(), name).orElse(null);
-        if (camera == null) {
-            plugin.messages().send(player, "camera.not-found");
-            return 0;
-        }
-        AspectRatio ratio = AspectRatio.fromLabel(StringArgumentType.getString(ctx, "ratio").trim());
+    private int setRatio(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+        var camera = camera(ctx, player);
+
+        var ratio = AspectRatio.fromLabel(StringArgumentType.getString(ctx, "ratio").trim());
         if (ratio == null) {
             plugin.messages().send(player, "photo.invalid-ratio");
             return 0;
         }
+
         camera.aspectRatio(ratio);
         manager.applyAndPersist(camera);
         plugin.preview().refresh(player, camera);
         plugin.messages().send(player, "photo.ratio-set", Placeholder.unparsed("ratio", ratio.label()));
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        return Command.SINGLE_SUCCESS;
     }
 
-    private int makeMaps(CommandContext<CommandSourceStack> ctx) {
-        Player player = requirePlayer(ctx);
-        if (player == null) {
-            return 0;
-        }
-        String name = StringArgumentType.getString(ctx, "name");
-        Camera camera = manager.byOwnerAndName(player.getUniqueId(), name).orElse(null);
-        if (camera == null) {
-            plugin.messages().send(player, "camera.not-found");
-            return 0;
-        }
-        GridOption grid = GridOption.parse(StringArgumentType.getString(ctx, "grid"));
+    private int makeMaps(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+        var camera = camera(ctx, player);
+
+        var grid = GridOption.parse(StringArgumentType.getString(ctx, "grid"));
         if (grid == null || !GridLayouts.isValid(camera.aspectRatio(), grid)) {
-            String options = GridLayouts.optionsFor(camera.aspectRatio()).stream()
+            var options = GridLayouts.optionsFor(camera.aspectRatio()).stream()
                     .map(GridOption::label)
                     .collect(Collectors.joining(", "));
             plugin.messages().send(player, "map.invalid-grid",
@@ -328,12 +295,12 @@ public final class CameraCommand {
         }
 
         plugin.messages().send(player, "photo.capturing");
-        long start = System.currentTimeMillis();
-        World world = camera.anchor().getWorld();
+        var start = System.currentTimeMillis();
+        var world = camera.anchor().getWorld();
 
         renderService.capture(camera, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
             if (error != null || result == null || world == null) {
-                Throwable cause = error instanceof java.util.concurrent.CompletionException && error.getCause() != null
+                Throwable cause = error instanceof CompletionException && error.getCause() != null
                         ? error.getCause() : error;
                 if (cause instanceof CaptureTooLargeException tooLarge) {
                     runOnMain(() -> plugin.messages().send(player, "photo.too-large",
@@ -342,15 +309,15 @@ public final class CameraCommand {
                     return;
                 }
                 plugin.getLogger().warning("Harita render'ı başarısız (" + camera.name() + "): "
-                        + (cause != null ? cause.getMessage() : "boş sonuç/dünya"));
+                                           + (cause != null ? cause.getMessage() : "boş sonuç/dünya"));
                 runOnMain(() -> plugin.messages().send(player, "photo.failed"));
                 return;
             }
             runOnMain(() -> {
-                List<MapTile> tiles = ImageSlicer.slice(result, grid);
-                List<ItemStack> maps = mapService.createMapItems(world, tiles);
+                var tiles = ImageSlicer.slice(result, grid);
+                var maps = mapService.createMapItems(world, tiles);
                 boolean overflow = false;
-                for (ItemStack map : maps) {
+                for (var map : maps) {
                     if (!player.getInventory().addItem(map).isEmpty()) {
                         player.getWorld().dropItemNaturally(player.getLocation(), map);
                         overflow = true;
@@ -366,36 +333,24 @@ public final class CameraCommand {
                 }
             });
         });
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        return Command.SINGLE_SUCCESS;
     }
 
-    private int openDialog(CommandContext<CommandSourceStack> ctx) {
-        Player player = requirePlayer(ctx);
-        if (player == null) {
-            return 0;
-        }
-        String name = StringArgumentType.getString(ctx, "name");
-        Camera camera = manager.byOwnerAndName(player.getUniqueId(), name).orElse(null);
-        if (camera == null) {
-            plugin.messages().send(player, "camera.not-found");
-            return 0;
-        }
+    private int openDialog(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+        var camera = camera(ctx, player);
+
         dialogs.openCaptureDialog(player, camera);
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        return Command.SINGLE_SUCCESS;
     }
 
-    /** Joins the camera's preview as a watcher; adjusting still needs a click on it. */
-    private int previewStart(CommandContext<CommandSourceStack> ctx) {
-        Player player = requirePlayer(ctx);
-        if (player == null) {
-            return 0;
-        }
-        String name = StringArgumentType.getString(ctx, "name");
-        Camera camera = manager.byOwnerAndName(player.getUniqueId(), name).orElse(null);
-        if (camera == null) {
-            plugin.messages().send(player, "camera.not-found");
-            return 0;
-        }
+    /**
+     * Joins the camera's preview as a watcher; adjusting still needs a click on it.
+     */
+    private int previewStart(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+        var camera = camera(ctx, player);
+
         switch (plugin.preview().join(player, camera)) {
             case JOINED -> {
                 plugin.preview().refresh(camera);
@@ -404,58 +359,52 @@ public final class CameraCommand {
             case ALREADY -> plugin.messages().send(player, "preview.already");
             case OFFHAND_FULL -> plugin.messages().send(player, "preview.offhand-full");
         }
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        return Command.SINGLE_SUCCESS;
     }
 
-    private int previewStop(CommandContext<CommandSourceStack> ctx) {
-        Player player = requirePlayer(ctx);
-        if (player == null) {
-            return 0;
-        }
+    private int previewStop(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+
         if (!plugin.preview().leave(player, "preview.ended-self")) {
             plugin.messages().send(player, "preview.not-active");
             return 0;
         }
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        return Command.SINGLE_SUCCESS;
     }
 
-    private int unplace(CommandContext<CommandSourceStack> ctx) {
-        Player player = requirePlayer(ctx);
-        if (player == null) {
-            return 0;
-        }
-        String id = StringArgumentType.getString(ctx, "id");
-        PlacedPhoto photo = photoManager.findByShortId(player.getUniqueId(), id).orElse(null);
+    private int unplace(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+
+        var id = StringArgumentType.getString(ctx, "id");
+        var photo = photoManager.findByShortId(player.getUniqueId(), id).orElse(null);
         if (photo == null) {
             plugin.messages().send(player, "map.photo-not-found");
             return 0;
         }
         photoManager.remove(photo);
         plugin.messages().send(player, "map.photo-removed", Placeholder.unparsed("name", photo.name()));
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        return Command.SINGLE_SUCCESS;
     }
 
-    /** Admin only, so it resolves any owner's photo rather than just the caller's. */
-    private int export(CommandContext<CommandSourceStack> ctx, String fileName) {
-        Player player = requirePlayer(ctx);
-        if (player == null) {
-            return 0;
-        }
-        PlacedPhoto photo = photoManager.findByShortId(StringArgumentType.getString(ctx, "id")).orElse(null);
+    /**
+     * Admin only, so it resolves any owner's photo rather than just the caller's.
+     */
+    private int export(CommandContext<CommandSourceStack> ctx, String fileName) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+
+        var photo = photoManager.findByShortId(StringArgumentType.getString(ctx, "id")).orElse(null);
         if (photo == null) {
             plugin.messages().send(player, "map.photo-not-found");
             return 0;
         }
         plugin.messages().send(player, "photo.exporting", Placeholder.unparsed("name", photo.name()));
         photoManager.export(player, photo, fileName);
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        return Command.SINGLE_SUCCESS;
     }
 
-    private int cleanup(CommandContext<CommandSourceStack> ctx) {
-        Player player = requirePlayer(ctx);
-        if (player == null) {
-            return 0;
-        }
+    private int cleanup(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+
         int removed = photoManager.cleanupOwned(player.getUniqueId());
         plugin.messages().send(player, "map.cleaned", Placeholder.unparsed("count", String.valueOf(removed)));
 
@@ -466,13 +415,13 @@ public final class CameraCommand {
             plugin.messages().send(player, "camera.orphans-cleaned",
                     Placeholder.unparsed("count", String.valueOf(orphans)));
         }
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        return Command.SINGLE_SUCCESS;
     }
 
     private int reload(CommandContext<CommandSourceStack> ctx) {
         plugin.reloadAll();
         plugin.messages().send(ctx.getSource().getSender(), "general.reloaded");
-        return com.mojang.brigadier.Command.SINGLE_SUCCESS;
+        return Command.SINGLE_SUCCESS;
     }
 
     private void runOnMain(Runnable runnable) {
@@ -481,8 +430,8 @@ public final class CameraCommand {
 
     // --- suggestions ---
 
-    private java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestOwnedNames(
-            CommandContext<CommandSourceStack> ctx, com.mojang.brigadier.suggestion.SuggestionsBuilder builder) {
+    private CompletableFuture<Suggestions> suggestOwnedNames(
+            CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
         CommandSender sender = ctx.getSource().getSender();
         if (sender instanceof Player player) {
             String prefix = builder.getRemainingLowerCase();
@@ -495,8 +444,8 @@ public final class CameraCommand {
         return builder.buildFuture();
     }
 
-    private java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestRatios(
-            CommandContext<CommandSourceStack> ctx, com.mojang.brigadier.suggestion.SuggestionsBuilder builder) {
+    private CompletableFuture<Suggestions> suggestRatios(
+            CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
         String prefix = builder.getRemaining();
         for (AspectRatio ratio : AspectRatio.values()) {
             if (ratio.label().startsWith(prefix)) {
@@ -507,9 +456,9 @@ public final class CameraCommand {
     }
 
     // Suggests grids valid for the aspect ratio of the camera named in the previous argument.
-    private java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestGrids(
-            CommandContext<CommandSourceStack> ctx, com.mojang.brigadier.suggestion.SuggestionsBuilder builder) {
-        CommandSender sender = ctx.getSource().getSender();
+    private CompletableFuture<Suggestions> suggestGrids(
+            CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
+        var sender = ctx.getSource().getSender();
         if (sender instanceof Player player) {
             String name = StringArgumentType.getString(ctx, "name");
             Camera camera = manager.byOwnerAndName(player.getUniqueId(), name).orElse(null);
@@ -526,8 +475,8 @@ public final class CameraCommand {
     }
 
     // Every photo, not just the caller's: the command that uses it is admin only.
-    private java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestAllPhotoIds(
-            CommandContext<CommandSourceStack> ctx, com.mojang.brigadier.suggestion.SuggestionsBuilder builder) {
+    private CompletableFuture<Suggestions> suggestAllPhotoIds(
+            CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
         String prefix = builder.getRemaining();
         for (PlacedPhoto photo : photoManager.all()) {
             if (photo.shortId().startsWith(prefix)) {
@@ -537,9 +486,9 @@ public final class CameraCommand {
         return builder.buildFuture();
     }
 
-    private java.util.concurrent.CompletableFuture<com.mojang.brigadier.suggestion.Suggestions> suggestPhotoIds(
-            CommandContext<CommandSourceStack> ctx, com.mojang.brigadier.suggestion.SuggestionsBuilder builder) {
-        CommandSender sender = ctx.getSource().getSender();
+    private CompletableFuture<Suggestions> suggestPhotoIds(
+            CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
+        var sender = ctx.getSource().getSender();
         if (sender instanceof Player player) {
             String prefix = builder.getRemaining();
             for (PlacedPhoto photo : photoManager.ownedBy(player.getUniqueId())) {
@@ -551,12 +500,25 @@ public final class CameraCommand {
         return builder.buildFuture();
     }
 
-    private Player requirePlayer(CommandContext<CommandSourceStack> ctx) {
-        CommandSender sender = ctx.getSource().getSender();
-        if (sender instanceof Player player) {
-            return player;
+    private Player requirePlayer(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var sender = ctx.getSource().getSender();
+        if (sender instanceof Player player) return player;
+
+        var message = plugin.messages().asVanilla("general.player-only");
+        throw new CommandSyntaxException(
+                new SimpleCommandExceptionType(message),
+                message);
+    }
+
+    private Camera camera(CommandContext<CommandSourceStack> ctx, Player player) throws CommandSyntaxException {
+        var name = StringArgumentType.getString(ctx, "name");
+        var camera = manager.byOwnerAndName(player.getUniqueId(), name).orElse(null);
+        if (camera == null) {
+            var message = plugin.messages().asVanilla("camera.not-found");
+            throw new CommandSyntaxException(
+                    new SimpleCommandExceptionType(message),
+                    message);
         }
-        plugin.messages().send(sender, "general.player-only");
-        return null;
+        return camera;
     }
 }

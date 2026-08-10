@@ -13,7 +13,9 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
-/** Asynchronous persistence of placed photos to {@code maps.yml}. */
+/**
+ * Asynchronous persistence of placed photos to {@code maps.yml}.
+ */
 public final class PhotoStorage extends YamlStorage {
 
     public PhotoStorage(Izomap plugin) {
@@ -31,8 +33,8 @@ public final class PhotoStorage extends YamlStorage {
     }
 
     private FileConfiguration serialize(Collection<PlacedPhoto> photos) {
-        FileConfiguration cfg = new YamlConfiguration();
-        for (PlacedPhoto p : photos) {
+        var cfg = new YamlConfiguration();
+        for (var p : photos) {
             String base = "photos." + p.id();
             cfg.set(base + ".owner", p.owner().toString());
             cfg.set(base + ".name", p.name());
@@ -50,9 +52,9 @@ public final class PhotoStorage extends YamlStorage {
     }
 
     private static void writeSpec(FileConfiguration cfg, String base, CaptureSpec spec) {
-        if (spec == null || spec.worldId() == null) {
+        if (spec == null || spec.worldId() == null)
             return;
-        }
+
         cfg.set(base + ".world", spec.worldId().toString());
         cfg.set(base + ".x", spec.x());
         cfg.set(base + ".y", spec.y());
@@ -68,15 +70,15 @@ public final class PhotoStorage extends YamlStorage {
         cfg.set(base + ".render-depth", spec.renderDepth());
     }
 
-    /** Reads a capture spec; {@code null} for records written before it existed. */
+    /**
+     * Reads a capture spec; {@code null} for records written before it existed.
+     */
     private static CaptureSpec readSpec(ConfigurationSection s) {
-        if (s == null) {
-            return null;
-        }
-        UUID world = parseUuid(s.getString("world"));
-        if (world == null) {
-            return null;
-        }
+        if (s == null) return null;
+
+        var world = parseUUID(s.getString("world"));
+        if (world == null) return null;
+
         return new CaptureSpec(world,
                 s.getDouble("x"), s.getDouble("y"), s.getDouble("z"),
                 (float) s.getDouble("yaw"), (float) s.getDouble("pitch"),
@@ -87,42 +89,40 @@ public final class PhotoStorage extends YamlStorage {
                 s.getInt("render-depth", 64));
     }
 
-    /** Turns loaded data into {@link PlacedPhoto} objects. */
+    /**
+     * Turns loaded data into {@link PlacedPhoto} objects.
+     */
     public List<PlacedPhoto> readAll() {
         List<PlacedPhoto> result = new ArrayList<>();
-        FileConfiguration cfg = data();
-        if (cfg == null) {
-            return result;
-        }
-        ConfigurationSection root = cfg.getConfigurationSection("photos");
-        if (root == null) {
-            return result;
-        }
-        for (String key : root.getKeys(false)) {
-            ConfigurationSection s = root.getConfigurationSection(key);
-            if (s == null) {
-                continue;
-            }
-            PlacedPhoto photo = readOne(key, s);
-            if (photo != null) {
+        var cfg = data();
+        if (cfg == null) return result;
+
+        var root = cfg.getConfigurationSection("photos");
+        if (root == null) return result;
+
+        for (var key : root.getKeys(false)) {
+            var s = root.getConfigurationSection(key);
+            if (s == null) continue;
+
+            var photo = readOne(key, s);
+            if (photo != null)
                 result.add(photo);
-            }
         }
         return result;
     }
 
     private PlacedPhoto readOne(String key, ConfigurationSection s) {
-        UUID id = parseUuid(key);
-        UUID owner = parseUuid(s.getString("owner"));
-        UUID world = parseUuid(s.getString("world"));
-        GridOption grid = GridOption.parse(s.getString("grid"));
-        if (id == null || owner == null || world == null || grid == null) {
+        var id = parseUUID(key);
+        var owner = parseUUID(s.getString("owner"));
+        var world = parseUUID(s.getString("world"));
+        var grid = GridOption.parse(s.getString("grid"));
+        if (id == null || owner == null || world == null || grid == null)
             return null;
-        }
-        List<Integer> mapIds = s.getIntegerList("map-ids");
+
+        var mapIds = s.getIntegerList("map-ids");
         List<UUID> frameIds = new ArrayList<>();
-        for (String raw : s.getStringList("frame-ids")) {
-            UUID frameId = parseUuid(raw);
+        for (var raw : s.getStringList("frame-ids")) {
+            var frameId = parseUUID(raw);
             if (frameId != null) {
                 frameIds.add(frameId);
             }
@@ -133,10 +133,8 @@ public final class PhotoStorage extends YamlStorage {
                 s.getInt("base-x"), s.getInt("base-y"), s.getInt("base-z"));
     }
 
-    private static UUID parseUuid(String raw) {
-        if (raw == null) {
-            return null;
-        }
+    private static UUID parseUUID(String raw) {
+        if (raw == null) return null;
         try {
             return UUID.fromString(raw);
         } catch (IllegalArgumentException ex) {

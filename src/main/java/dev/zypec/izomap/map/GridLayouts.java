@@ -31,7 +31,9 @@ public final class GridLayouts {
         };
     }
 
-    /** Whether the grid is valid for the ratio. */
+    /**
+     * Whether the grid is valid for the ratio.
+     */
     public static boolean isValid(AspectRatio ratio, GridOption option) {
         return optionsFor(ratio).contains(option);
     }

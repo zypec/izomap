@@ -23,7 +23,9 @@ public abstract class YamlStorage {
     private final Path path;
     private final Executor asyncExecutor;
 
-    /** Only read and written inside synchronized blocks. */
+    /**
+     * Only read and written inside synchronized blocks.
+     */
     private FileConfiguration data;
 
     protected YamlStorage(Izomap plugin, String fileName) {
@@ -33,7 +35,9 @@ public abstract class YamlStorage {
                 plugin.getServer().getAsyncScheduler().runNow(plugin, scheduled -> task.run());
     }
 
-    /** Loads the file asynchronously. */
+    /**
+     * Loads the file asynchronously.
+     */
     public CompletableFuture<Void> load() {
         return CompletableFuture.runAsync(() -> {
             try {
@@ -44,7 +48,7 @@ public abstract class YamlStorage {
             } catch (IOException e) {
                 plugin.getLogger().severe("Veri dosyası oluşturulamadı: " + path.getFileName());
             }
-            FileConfiguration loaded = YamlConfiguration.loadConfiguration(path.toFile());
+            var loaded = YamlConfiguration.loadConfiguration(path.toFile());
             synchronized (this) {
                 this.data = loaded;
             }
@@ -52,7 +56,9 @@ public abstract class YamlStorage {
         }, asyncExecutor);
     }
 
-    /** Writes the in-memory data to disk asynchronously. */
+    /**
+     * Writes the in-memory data to disk asynchronously.
+     */
     public CompletableFuture<Void> save() {
         final String dump;
         synchronized (this) {
@@ -83,7 +89,9 @@ public abstract class YamlStorage {
         return data;
     }
 
-    /** Replaces the in-memory configuration wholesale, for bulk serialization. */
+    /**
+     * Replaces the in-memory configuration wholesale, for bulk serialization.
+     */
     protected synchronized void setData(FileConfiguration replacement) {
         this.data = replacement;
     }

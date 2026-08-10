@@ -115,7 +115,7 @@ public final class Camera {
     }
 
     public void camPitch(float camPitch) {
-        this.camPitch = Math.max(-90.0f, Math.min(90.0f, camPitch));
+        this.camPitch = Math.clamp(camPitch, -90.0f, 90.0f);
     }
 
     /**
@@ -127,7 +127,7 @@ public final class Camera {
     }
 
     public void zoom(float zoom) {
-        this.zoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom));
+        this.zoom = Math.clamp(zoom, MIN_ZOOM, MAX_ZOOM);
     }
 
     public AspectRatio aspectRatio() {
@@ -178,7 +178,7 @@ public final class Camera {
     }
 
     private static float normalizeYaw(float yaw) {
-        float y = yaw % 360.0f;
+        var y = yaw % 360.0f;
         if (y >= 180.0f) {
             y -= 360.0f;
         } else if (y < -180.0f) {

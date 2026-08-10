@@ -6,7 +6,6 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.MapMeta;
-import org.bukkit.map.MapRenderer;
 import org.bukkit.map.MapView;
 
 import java.util.ArrayList;
@@ -26,9 +25,11 @@ public final class MapService {
         this.plugin = plugin;
     }
 
-    /** Creates a {@link MapView} for a tile, with its renderer attached. */
+    /**
+     * Creates a {@link MapView} for a tile, with its renderer attached.
+     */
     public MapView createMapView(World world, int[] argb) {
-        MapView view = Bukkit.createMap(world);
+        var view = Bukkit.createMap(world);
         applyTile(view, argb);
         view.setTrackingPosition(false);
         view.setUnlimitedTracking(false);
@@ -36,35 +37,45 @@ public final class MapService {
         return view;
     }
 
-    /** Looks up a map by id, or {@code null} when it no longer exists. */
+    /**
+     * Looks up a map by id, or {@code null} when it no longer exists.
+     */
     public MapView viewById(int id) {
         return id < 0 ? null : Bukkit.getMap(id);
     }
 
-    /** Clears an existing {@link MapView}'s renderers and redraws the tile. */
+    /**
+     * Clears an existing {@link MapView}'s renderers and redraws the tile.
+     */
     public void applyTile(MapView view, int[] argb) {
-        for (MapRenderer renderer : new ArrayList<>(view.getRenderers())) {
+        for (var renderer : new ArrayList<>(view.getRenderers())) {
             view.removeRenderer(renderer);
         }
         view.addRenderer(new TileMapRenderer(argb));
     }
 
-    /** Builds a filled map item showing a {@link MapView}. */
+    /**
+     * Builds a filled map item showing a {@link MapView}.
+     */
     public ItemStack itemFor(MapView view) {
-        ItemStack item = ItemStack.of(Material.FILLED_MAP);
+        var item = ItemStack.of(Material.FILLED_MAP);
         item.editMeta(MapMeta.class, meta -> meta.setMapView(view));
         return item;
     }
 
-    /** Creates a filled map item for a single tile. */
+    /**
+     * Creates a filled map item for a single tile.
+     */
     private ItemStack createMapItem(World world, MapTile tile) {
         return itemFor(createMapView(world, tile.argb()));
     }
 
-    /** Converts a tile list to map items, preserving grid order. */
+    /**
+     * Converts a tile list to map items, preserving grid order.
+     */
     public List<ItemStack> createMapItems(World world, List<MapTile> tiles) {
         List<ItemStack> items = new ArrayList<>(tiles.size());
-        for (MapTile tile : tiles) {
+        for (var tile : tiles) {
             items.add(createMapItem(world, tile));
         }
         return items;

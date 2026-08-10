@@ -1,7 +1,5 @@
 package dev.zypec.izomap.render;
 
-import org.bukkit.Material;
-
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -19,7 +17,9 @@ import java.util.concurrent.Executor;
  */
 public final class IsometricRenderer {
 
-    /** The ray hit nothing (transparent pixel). */
+    /**
+     * The ray hit nothing (transparent pixel).
+     */
     private static final int MISS = 0;
 
     private static final int AXIS_X = 0;
@@ -43,20 +43,20 @@ public final class IsometricRenderer {
      */
     public RenderResult render(WorldSnapshot snapshot, RenderGeometry geo, ColorFilter filter,
                                int supersampling, Executor executor, int threads) {
-        final int w = geo.widthPx();
-        final int h = geo.heightPx();
-        final int[] argb = new int[w * h];
-        final int samples = Math.max(1, supersampling);
+        final var w = geo.widthPx();
+        final var h = geo.heightPx();
+        final var argb = new int[w * h];
+        final var samples = Math.max(1, supersampling);
 
-        int bands = Math.max(1, Math.min(threads, h));
+        var bands = Math.max(1, Math.min(threads, h));
         if (bands == 1) {
             renderBand(snapshot, geo, filter, samples, argb, 0, h);
             return new RenderResult(w, h, argb);
         }
 
         // The last band runs on the calling thread.
-        int rowsPerBand = (h + bands - 1) / bands;
-        CompletableFuture<?>[] pending = new CompletableFuture<?>[bands - 1];
+        var rowsPerBand = (h + bands - 1) / bands;
+        var pending = new CompletableFuture<?>[bands - 1];
         for (int band = 0; band < bands - 1; band++) {
             final int from = band * rowsPerBand;
             final int to = Math.min(h, from + rowsPerBand);
@@ -69,11 +69,13 @@ public final class IsometricRenderer {
         return new RenderResult(w, h, argb);
     }
 
-    /** Renders the row range {@code [yFrom, yTo)}. */
+    /**
+     * Renders the row range {@code [yFrom, yTo)}.
+     */
     private void renderBand(WorldSnapshot snapshot, RenderGeometry geo, ColorFilter filter,
                             int samples, int[] argb, int yFrom, int yTo) {
-        final int w = geo.widthPx();
-        final int h = geo.heightPx();
+        final var w = geo.widthPx();
+        final var h = geo.heightPx();
 
         // Unpack the vectors into primitives for the hot loop.
         final double cx = geo.planeCenter().getX(), cy = geo.planeCenter().getY(), cz = geo.planeCenter().getZ();
@@ -81,34 +83,34 @@ public final class IsometricRenderer {
         final double ux = geo.up().getX(), uy = geo.up().getY(), uz = geo.up().getZ();
         final double dx = geo.direction().getX(), dy = geo.direction().getY(), dz = geo.direction().getZ();
 
-        final double spanW = geo.spanWidth();
-        final double spanH = geo.spanHeight();
-        final double maxDist = geo.maxDistance();
-        final double eyeY = geo.eyeY();
-        final double maxBackoff = geo.maxBackoff();
+        final var spanW = geo.spanWidth();
+        final var spanH = geo.spanHeight();
+        final var maxDist = geo.maxDistance();
+        final var eyeY = geo.eyeY();
+        final var maxBackoff = geo.maxBackoff();
         // How much pulling a ray back raises it; 0 when not looking down, so no backoff.
-        final double climbPerBlock = -dy;
-        final int total = samples * samples;
-        final boolean needsSnap = samples > 1 || filter != ColorFilter.ORIGINAL;
+        final var climbPerBlock = -dy;
+        final var total = samples * samples;
+        final var needsSnap = samples > 1 || filter != ColorFilter.ORIGINAL;
 
-        for (int py = yFrom; py < yTo; py++) {
-            for (int px = 0; px < w; px++) {
+        for (var py = yFrom; py < yTo; py++) {
+            for (var px = 0; px < w; px++) {
                 int hits = 0, sumR = 0, sumG = 0, sumB = 0;
 
-                for (int sy = 0; sy < samples; sy++) {
-                    double v = (0.5 - (py + (sy + 0.5) / samples) / h) * spanH;
-                    for (int sx = 0; sx < samples; sx++) {
-                        double u = ((px + (sx + 0.5) / samples) / w - 0.5) * spanW;
+                for (var sy = 0; sy < samples; sy++) {
+                    var v = (0.5 - (py + (sy + 0.5) / samples) / h) * spanH;
+                    for (var sx = 0; sx < samples; sx++) {
+                        var u = ((px + (sx + 0.5) / samples) / w - 0.5) * spanW;
 
-                        double ox = cx + rx * u + ux * v;
-                        double oy = cy + ry * u + uy * v;
-                        double oz = cz + rz * u + uz * v;
+                        var ox = cx + rx * u + ux * v;
+                        var oy = cy + ry * u + uy * v;
+                        var oz = cz + rz * u + uz * v;
 
                         // Rays below the camera would start inside the ground and print
                         // a dirt slab, so they are pulled back to the camera's plane.
-                        double backoff = 0.0;
+                        var backoff = 0.0;
                         if (maxBackoff > 0.0 && oy < eyeY) {
-                            double needed = (eyeY - oy) / climbPerBlock;
+                            var needed = (eyeY - oy) / climbPerBlock;
                             if (needed <= maxBackoff) {
                                 backoff = needed;
                                 // Assign eyeY directly; rounding could leave the ray a
@@ -124,7 +126,7 @@ public final class IsometricRenderer {
 
                         // View distance is measured from the camera plane, so a
                         // pulled-back ray walks the extra distance too.
-                        int color = marchRay(snapshot, ox, oy, oz, dx, dy, dz, maxDist + backoff);
+                        var color = marchRay(snapshot, ox, oy, oz, dx, dy, dz, maxDist + backoff);
                         if (color != MISS) {
                             hits++;
                             sumR += (color >> 16) & 0xFF;
@@ -139,7 +141,7 @@ public final class IsometricRenderer {
                     argb[py * w + px] = 0;
                     continue;
                 }
-                int rgb = ((sumR / hits) << 16) | ((sumG / hits) << 8) | (sumB / hits);
+                var rgb = ((sumR / hits) << 16) | ((sumG / hits) << 8) | (sumB / hits);
                 if (filter != ColorFilter.ORIGINAL) {
                     rgb = filter.apply(rgb);
                 }
@@ -161,16 +163,15 @@ public final class IsometricRenderer {
                          double ox, double oy, double oz,
                          double dx, double dy, double dz,
                          double maxDist) {
-        int x = fastFloor(ox);
-        int y = fastFloor(oy);
-        int z = fastFloor(oz);
+        var x = fastFloor(ox);
+        var y = fastFloor(oy);
+        var z = fastFloor(oz);
 
-        int stepX = dx > 0.0 ? 1 : (dx < 0.0 ? -1 : 0);
-        int stepY = dy > 0.0 ? 1 : (dy < 0.0 ? -1 : 0);
-        int stepZ = dz > 0.0 ? 1 : (dz < 0.0 ? -1 : 0);
-        if (stepX == 0 && stepY == 0 && stepZ == 0) {
+        var stepX = Double.compare(dx, 0.0);
+        var stepY = Double.compare(dy, 0.0);
+        var stepZ = Double.compare(dz, 0.0);
+        if (stepX == 0 && stepY == 0 && stepZ == 0)
             return MISS;
-        }
 
         double invX = stepX == 0 ? Double.POSITIVE_INFINITY : Math.abs(1.0 / dx);
         double invY = stepY == 0 ? Double.POSITIVE_INFINITY : Math.abs(1.0 / dy);
@@ -182,18 +183,17 @@ public final class IsometricRenderer {
 
         // The first cell has no entry face since the ray starts inside it; assume the
         // face most perpendicular to the view so a camera inside a block still shades.
-        int face = dominantAxis(dx, dy, dz);
-        double t = 0.0;
+        var face = dominantAxis(dx, dy, dz);
+        var t = 0.0;
 
         while (true) {
             if (y >= snapshot.minY() && y < snapshot.maxY()) {
-                Material material = snapshot.materialAt(x, y, z);
+                var material = snapshot.materialAt(x, y, z);
                 if (!material.isAir()) {
-                    MapBaseColor base = colorTable.baseColorOf(material);
+                    var base = colorTable.baseColorOf(material);
                     // Colorless on maps (glass, torches, saplings): continue like vanilla.
-                    if (base != MapBaseColor.NONE) {
+                    if (base != MapBaseColor.NONE)
                         return base.rgb(shadeOf(face, dy)) | 0xFF000000;
-                    }
                 }
             } else if ((y >= snapshot.maxY() && stepY >= 0) || (y < snapshot.minY() && stepY <= 0)) {
                 // Left the world and will not come back.
@@ -230,23 +230,24 @@ public final class IsometricRenderer {
      * darkest (135).</p>
      */
     private static MapBaseColor.Shade shadeOf(int face, double dy) {
-        if (face == AXIS_Y) {
+        if (face == AXIS_Y)
             return dy < 0.0 ? MapBaseColor.Shade.HIGH : MapBaseColor.Shade.LOWEST;
-        }
+
         return face == AXIS_X ? MapBaseColor.Shade.NORMAL : MapBaseColor.Shade.LOW;
     }
 
-    /** Axis of the direction vector's largest component. */
+    /**
+     * Axis of the direction vector's largest component.
+     */
     private static int dominantAxis(double dx, double dy, double dz) {
         double ax = Math.abs(dx), ay = Math.abs(dy), az = Math.abs(dz);
-        if (ay >= ax && ay >= az) {
-            return AXIS_Y;
-        }
+        if (ay >= ax && ay >= az) return AXIS_Y;
+
         return ax >= az ? AXIS_X : AXIS_Z;
     }
 
     private static int fastFloor(double value) {
-        int i = (int) value;
+        var i = (int) value;
         return value < i ? i - 1 : i;
     }
 }

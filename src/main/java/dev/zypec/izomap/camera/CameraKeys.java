@@ -13,9 +13,13 @@ import java.util.UUID;
  */
 public final class CameraKeys {
 
-    /** On a display/interaction entity: the UUID of the camera it belongs to. */
+    /**
+     * On a display/interaction entity: the UUID of the camera it belongs to.
+     */
     private final NamespacedKey cameraId;
-    /** Marker on the camera placement item. */
+    /**
+     * Marker on the camera placement item.
+     */
     private final NamespacedKey cameraItem;
 
     public CameraKeys(Plugin plugin) {
@@ -28,10 +32,11 @@ public final class CameraKeys {
     }
 
     public UUID readCameraId(PersistentDataContainer pdc) {
-        String raw = pdc.get(cameraId, PersistentDataType.STRING);
-        if (raw == null) {
-            return null;
-        }
+        if (!pdc.has(cameraId, PersistentDataType.STRING)) return null;
+
+        var raw = pdc.get(cameraId, PersistentDataType.STRING);
+        if (raw == null) return null;
+
         try {
             return UUID.fromString(raw);
         } catch (IllegalArgumentException ex) {

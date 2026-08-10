@@ -24,7 +24,6 @@ import org.bukkit.map.MapView;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -45,7 +44,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * player who clicked once and walked away would hold it forever.</p>
  *
  * <p>The offhand must be empty to join, the map cannot be dropped, moved in the
- * inventory or swapped to the main hand, and it is taken back on every exit. Locking
+ * inventory, or swapped to the main hand, and it is taken back on every exit. Locking
  * watchers' maps too (rather than letting them carry one off, as first sketched)
  * keeps a live camera feed from leaking into inventories as a normal map item.</p>
  *
@@ -62,38 +61,60 @@ public final class PreviewManager implements Listener {
 
     private static final int TILE = 128;
 
-    /** Dash length of a guide line, in pixels. */
+    /**
+     * Dash length of a guideline, in pixels.
+     */
     private static final int DASH = 3;
-    /** Two tones so the guide stays visible on both light and dark terrain. */
+    /**
+     * Two tones so the guide stays visible on both light and dark terrain.
+     */
     private static final int GUIDE_LIGHT = 0xFFFFFFFF;
     private static final int GUIDE_DARK = 0xFF303030;
 
-    /** The client fades the action bar out after ~3 s, so it is resent every second. */
+    /**
+     * The client fades the action bar out after ~3 s, so it is resent every second.
+     */
     private static final long STATUS_PERIOD_TICKS = 20L;
-    /** How long a warning keeps the action bar to itself. */
+    /**
+     * How long a warning keeps the action bar to itself.
+     */
     private static final long NOTICE_MS = 5_000L;
 
-    /** Outcome of trying to join a camera's preview. */
+    /**
+     * Outcome of trying to join a camera's preview.
+     */
     public enum JoinResult {
-        /** The map is now in the player's offhand. */
+        /**
+         * The map is now in the player's offhand.
+         */
         JOINED,
-        /** The player was already watching this camera. */
+        /**
+         * The player was already watching this camera.
+         */
         ALREADY,
-        /** The offhand holds something else. */
+        /**
+         * The offhand holds something else.
+         */
         OFFHAND_FULL
     }
 
     private final Izomap plugin;
     private final RenderService renderService;
     private final MapService mapService;
-    /** Holds the camera id, so an item can be matched back to its session. */
+    /**
+     * Holds the camera id, so an item can be matched back to its session.
+     */
     private final NamespacedKey previewKey;
-    /** Pre-rewrite marker; only read to clear maps left over from an older build. */
+    /**
+     * Pre-rewrite marker; only read to clear maps left over from an older build.
+     */
     private final NamespacedKey legacyPreviewKey;
 
     private final Map<UUID, PreviewSession> sessions = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> watchedCamera = new ConcurrentHashMap<>();
-    /** Runs only while somebody is watching; see {@link #startStatusTask()}. */
+    /**
+     * Runs only while somebody is watching; see {@link #startStatusTask()}.
+     */
     private ScheduledTask statusTask;
 
     public PreviewManager(Izomap plugin, RenderService renderService, MapService mapService) {
@@ -104,17 +125,25 @@ public final class PreviewManager implements Listener {
         this.legacyPreviewKey = new NamespacedKey(plugin, "preview_map");
     }
 
-    /** State shared by everyone watching one camera. */
+    /**
+     * State shared by everyone watching one camera.
+     */
     private static final class PreviewSession {
         private final UUID cameraId;
-        /** Created with the first watcher; a session with an editor alone has none. */
+        /**
+         * Created with the first watcher; a session with an editor alone has none.
+         */
         private MapView view;
         private final Set<UUID> watchers = ConcurrentHashMap.newKeySet();
         private UUID editor;
         private long editorTouchedAt;
-        /** One render at a time per camera; swallows click spam from every watcher. */
+        /**
+         * One render at a time per camera; swallows click spam from every watcher.
+         */
         private boolean rendering;
-        /** Takes the action bar over from the status line until it expires. */
+        /**
+         * Takes the action bar over from the status line until it expires.
+         */
         private Component notice;
         private long noticeUntil;
 
@@ -134,7 +163,9 @@ public final class PreviewManager implements Listener {
         refresh(camera);
     }
 
-    /** Re-renders the camera's preview; does nothing when nobody is watching. */
+    /**
+     * Re-renders the camera's preview; does nothing when nobody is watching.
+     */
     public void refresh(Camera camera) {
         render(camera, sessions.get(camera.id()));
     }
@@ -144,23 +175,22 @@ public final class PreviewManager implements Listener {
      * another camera's preview if needed.
      */
     public JoinResult join(Player player, Camera camera) {
-        UUID playerId = player.getUniqueId();
-        if (camera.id().equals(watchedCamera.get(playerId))) {
+        var playerId = player.getUniqueId();
+        if (camera.id().equals(watchedCamera.get(playerId)))
             return JoinResult.ALREADY;
-        }
+
         // Switching cameras: the old map has to go before the offhand can be checked.
         // This camera's editor seat is spared, since joining often follows claiming it.
         forget(player, camera.id());
 
-        ItemStack offhand = player.getInventory().getItemInOffHand();
-        if (offhand != null && !offhand.getType().isAir()) {
+        var offhand = player.getInventory().getItemInOffHand();
+        if (!offhand.getType().isAir())
             return JoinResult.OFFHAND_FULL;
-        }
 
-        PreviewSession session = sessions.computeIfAbsent(camera.id(), PreviewSession::new);
-        if (session.view == null) {
+        var session = sessions.computeIfAbsent(camera.id(), PreviewSession::new);
+        if (session.view == null)
             session.view = previewView(camera);
-        }
+
         session.watchers.add(playerId);
         watchedCamera.put(playerId, camera.id());
         // Handed over blank: the first render lands a moment later, and waiting for it
@@ -175,12 +205,12 @@ public final class PreviewManager implements Listener {
      * were not watching anything.
      */
     public boolean leave(Player player, String reasonKey) {
-        if (!forget(player, null)) {
+        if (!forget(player, null))
             return false;
-        }
-        if (reasonKey != null) {
+
+        if (reasonKey != null)
             plugin.messages().send(player, reasonKey);
-        }
+
         return true;
     }
 
@@ -193,12 +223,14 @@ public final class PreviewManager implements Listener {
     public void close(UUID cameraId, String reasonKey, String cameraName) {
         end(sessions.remove(cameraId),
                 reasonKey == null ? null
-                        : plugin.messages().prefixed(reasonKey, Placeholder.unparsed("camera", cameraName)));
+                        : plugin.messages().get(reasonKey, Placeholder.unparsed("camera", cameraName)));
     }
 
-    /** Ends every session and takes the maps back, without telling anyone why. */
+    /**
+     * Ends every session and takes the maps back, without telling anyone why.
+     */
     public void closeAll() {
-        for (UUID cameraId : new ArrayList<>(sessions.keySet())) {
+        for (var cameraId : new ArrayList<>(sessions.keySet())) {
             end(sessions.remove(cameraId), null);
         }
         stopStatusTask();
@@ -211,9 +243,9 @@ public final class PreviewManager implements Listener {
         if (session.editor != null) {
             watchedCamera.remove(session.editor);
         }
-        for (UUID watcherId : session.watchers) {
+        for (var watcherId : session.watchers) {
             watchedCamera.remove(watcherId);
-            Player watcher = plugin.getServer().getPlayer(watcherId);
+            var watcher = plugin.getServer().getPlayer(watcherId);
             if (watcher == null) {
                 continue; // offline: the record is gone, PlayerJoinEvent clears the item
             }
@@ -229,10 +261,10 @@ public final class PreviewManager implements Listener {
      * as a watcher instead.
      */
     public boolean claimEditor(Player player, Camera camera) {
-        UUID playerId = player.getUniqueId();
-        PreviewSession session = sessions.computeIfAbsent(camera.id(), PreviewSession::new);
+        var playerId = player.getUniqueId();
+        var session = sessions.computeIfAbsent(camera.id(), PreviewSession::new);
 
-        Player editor = session.editor != null ? plugin.getServer().getPlayer(session.editor) : null;
+        var editor = session.editor != null ? plugin.getServer().getPlayer(session.editor) : null;
         if (editor != null && !session.editor.equals(playerId) && !seatExpired(session)) {
             plugin.messages().send(player, "preview.busy", Placeholder.unparsed("editor", editor.getName()));
             join(player, camera);
@@ -244,7 +276,9 @@ public final class PreviewManager implements Listener {
         return true;
     }
 
-    /** Whether the seat may be taken over because its holder went idle. */
+    /**
+     * Whether the seat may be taken over because its holder went idle.
+     */
     private boolean seatExpired(PreviewSession session) {
         long idleMs = plugin.config().editLockSeconds() * 1000L;
         return System.currentTimeMillis() - session.editorTouchedAt >= idleMs;
@@ -256,14 +290,14 @@ public final class PreviewManager implements Listener {
      * of them.
      */
     private boolean forget(Player player, UUID keepSeatOn) {
-        UUID playerId = player.getUniqueId();
+        var playerId = player.getUniqueId();
         takeMap(player);
-        UUID cameraId = watchedCamera.remove(playerId);
+        var cameraId = watchedCamera.remove(playerId);
         releaseEditorSeats(playerId, keepSeatOn);
         if (cameraId == null) {
             return false;
         }
-        PreviewSession session = sessions.get(cameraId);
+        var session = sessions.get(cameraId);
         if (session != null) {
             session.watchers.remove(playerId);
             discardIfIdle(session);
@@ -271,9 +305,11 @@ public final class PreviewManager implements Listener {
         return true;
     }
 
-    /** Frees every editor seat the player holds, whether or not they held a map. */
+    /**
+     * Frees every editor seat the player holds, whether or not they held a map.
+     */
     private void releaseEditorSeats(UUID playerId, UUID keepSeatOn) {
-        for (PreviewSession session : sessions.values()) {
+        for (var session : sessions.values()) {
             if (playerId.equals(session.editor) && !session.cameraId.equals(keepSeatOn)) {
                 session.editor = null;
                 discardIfIdle(session);
@@ -319,8 +355,8 @@ public final class PreviewManager implements Listener {
                         return;
                     }
                     // Report a budget overrun on the action bar instead of stalling silently.
-                    Throwable cause = error instanceof java.util.concurrent.CompletionException
-                            && error.getCause() != null ? error.getCause() : error;
+                    var cause = error instanceof java.util.concurrent.CompletionException
+                                && error.getCause() != null ? error.getCause() : error;
                     if (cause instanceof CaptureTooLargeException tooLarge) {
                         notice(session, plugin.messages().get("photo.too-large",
                                 Placeholder.unparsed("required", String.valueOf(tooLarge.required())),
@@ -330,8 +366,8 @@ public final class PreviewManager implements Listener {
     }
 
     private void actionBar(PreviewSession session, Component message) {
-        for (UUID watcherId : session.watchers) {
-            Player watcher = plugin.getServer().getPlayer(watcherId);
+        for (var watcherId : session.watchers) {
+            var watcher = plugin.getServer().getPlayer(watcherId);
             if (watcher != null) {
                 watcher.sendActionBar(message);
             }
@@ -345,8 +381,8 @@ public final class PreviewManager implements Listener {
      * caused the change — who may have no preview at all, when their offhand is full.
      */
     public void showStatus(Camera camera, Player actor) {
-        Component line = CameraStatus.line(plugin, camera);
-        PreviewSession session = sessions.get(camera.id());
+        var line = CameraStatus.line(plugin, camera);
+        var session = sessions.get(camera.id());
         if (session != null) {
             actionBar(session, line);
         }
@@ -377,19 +413,19 @@ public final class PreviewManager implements Listener {
     }
 
     private void tickStatus() {
-        boolean anyWatcher = false;
-        long now = System.currentTimeMillis();
-        for (PreviewSession session : sessions.values()) {
-            if (session.watchers.isEmpty()) {
+        var anyWatcher = false;
+        var now = System.currentTimeMillis();
+        for (var session : sessions.values()) {
+            if (session.watchers.isEmpty())
                 continue;
-            }
+
             anyWatcher = true;
             if (session.notice != null && now < session.noticeUntil) {
                 actionBar(session, session.notice);
                 continue;
             }
             session.notice = null;
-            Camera camera = plugin.cameras().byId(session.cameraId);
+            var camera = plugin.cameras().byId(session.cameraId);
             if (camera != null) {
                 actionBar(session, CameraStatus.line(plugin, camera));
             }
@@ -399,7 +435,9 @@ public final class PreviewManager implements Listener {
         }
     }
 
-    /** Holds the action bar against the status line, which would bury it in a second. */
+    /**
+     * Holds the action bar against the status line, which would bury it in a second.
+     */
     private void notice(PreviewSession session, Component message) {
         session.notice = message;
         session.noticeUntil = System.currentTimeMillis() + NOTICE_MS;
@@ -408,13 +446,17 @@ public final class PreviewManager implements Listener {
 
     // --- tile composition ---
 
-    /** Render width once the camera's ratio is fitted into the 128x128 tile. */
+    /**
+     * Render width once the camera's ratio is fitted into the 128x128 tile.
+     */
     private static int previewWidth(AspectRatio ratio) {
         double value = ratio.value();
         return value >= 1.0 ? TILE : Math.max(1, (int) Math.round(TILE * value));
     }
 
-    /** Render height once the camera's ratio is fitted into the 128x128 tile. */
+    /**
+     * Render height once the camera's ratio is fitted into the 128x128 tile.
+     */
     private static int previewHeight(AspectRatio ratio) {
         double value = ratio.value();
         return value >= 1.0 ? Math.max(1, (int) Math.round(TILE / value)) : TILE;
@@ -425,11 +467,11 @@ public final class PreviewManager implements Listener {
      * map's own parchment shows through as the letterbox bars.
      */
     private static int[] tileFrom(RenderResult result, boolean thirdsGuide) {
-        int[] tile = new int[TILE * TILE];
-        int w = Math.min(TILE, result.width());
-        int h = Math.min(TILE, result.height());
-        int offsetX = (TILE - w) / 2;
-        int offsetY = (TILE - h) / 2;
+        var tile = new int[TILE * TILE];
+        var w = Math.min(TILE, result.width());
+        var h = Math.min(TILE, result.height());
+        var offsetX = (TILE - w) / 2;
+        var offsetY = (TILE - h) / 2;
         for (int y = 0; y < h; y++) {
             System.arraycopy(result.argb(), y * result.width(), tile, (y + offsetY) * TILE + offsetX, w);
         }
@@ -447,13 +489,13 @@ public final class PreviewManager implements Listener {
      * alternate in {@link #DASH}-pixel dashes and stay visible on any terrain.</p>
      */
     private static void drawThirdsGuide(int[] tile, int offsetX, int offsetY, int w, int h) {
-        for (int third = 1; third <= 2; third++) {
-            int lineX = offsetX + Math.min(w - 1, (int) Math.round(w * third / 3.0));
-            for (int y = 0; y < h; y++) {
+        for (var third = 1; third <= 2; third++) {
+            var lineX = offsetX + Math.min(w - 1, (int) Math.round(w * third / 3.0));
+            for (var y = 0; y < h; y++) {
                 tile[(offsetY + y) * TILE + lineX] = dashColor(y);
             }
-            int lineY = offsetY + Math.min(h - 1, (int) Math.round(h * third / 3.0));
-            for (int x = 0; x < w; x++) {
+            var lineY = offsetY + Math.min(h - 1, (int) Math.round(h * third / 3.0));
+            for (var x = 0; x < w; x++) {
                 tile[lineY * TILE + offsetX + x] = dashColor(x);
             }
         }
@@ -466,7 +508,7 @@ public final class PreviewManager implements Listener {
     // --- the map item ---
 
     private ItemStack previewItem(MapView view, UUID cameraId) {
-        ItemStack item = mapService.itemFor(view);
+        var item = mapService.itemFor(view);
         item.editMeta(meta -> meta.getPersistentDataContainer()
                 .set(previewKey, PersistentDataType.STRING, cameraId.toString()));
         return item;
@@ -474,13 +516,15 @@ public final class PreviewManager implements Listener {
 
     private boolean isPreview(ItemStack item) {
         return item != null && item.hasItemMeta()
-                && item.getItemMeta().getPersistentDataContainer().has(previewKey, PersistentDataType.STRING);
+               && item.getItemMeta().getPersistentDataContainer().has(previewKey, PersistentDataType.STRING);
     }
 
-    /** Also matches maps written by the pre-session build, which used a boolean flag. */
+    /**
+     * Also matches maps written by the pre-session build, which used a boolean flag.
+     */
     private boolean isPreviewOrLegacy(ItemStack item) {
         return isPreview(item) || (item != null && item.hasItemMeta()
-                && item.getItemMeta().getPersistentDataContainer().has(legacyPreviewKey, PersistentDataType.BOOLEAN));
+                                   && item.getItemMeta().getPersistentDataContainer().has(legacyPreviewKey, PersistentDataType.BOOLEAN));
     }
 
     // --- locking and cleanup ---
@@ -514,7 +558,7 @@ public final class PreviewManager implements Listener {
     // of the drops rather than dropped and lost.
     @EventHandler(priority = EventPriority.LOWEST)
     public void onDeath(PlayerDeathEvent event) {
-        Player player = event.getEntity();
+        var player = event.getEntity();
         if (!watchedCamera.containsKey(player.getUniqueId())) {
             return;
         }
@@ -544,24 +588,24 @@ public final class PreviewManager implements Listener {
      * rather than with the number of cameras.</p>
      */
     private MapView previewView(Camera camera) {
-        MapView existing = mapService.viewById(camera.previewMapId());
+        var existing = mapService.viewById(camera.previewMapId());
         if (existing != null) {
             mapService.applyTile(existing, blank()); // the last session's image is stale
             return existing;
         }
-        MapView created = mapService.createMapView(worldOf(camera), blank());
+        var created = mapService.createMapView(worldOf(camera), blank());
         camera.previewMapId(created.getId());
         plugin.cameras().persist();
         return created;
     }
 
     private World worldOf(Camera camera) {
-        World world = camera.anchor().getWorld();
+        var world = camera.anchor().getWorld();
         if (world != null) {
             return world;
         }
-        List<World> worlds = plugin.getServer().getWorlds();
-        return worlds.get(0);
+        var worlds = plugin.getServer().getWorlds();
+        return worlds.getFirst();
     }
 
     private static int[] blank() {

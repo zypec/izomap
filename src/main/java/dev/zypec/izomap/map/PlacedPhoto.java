@@ -40,12 +40,16 @@ public record PlacedPhoto(
         int baseY,
         int baseZ) {
 
-    /** Short display id: the first 8 characters. */
+    /**
+     * Short display id: the first 8 characters.
+     */
     public String shortId() {
         return id.toString().substring(0, 8);
     }
 
-    /** Copy carrying the capture parameters the image was last produced with. */
+    /**
+     * Copy carrying the capture parameters the image was last produced with.
+     */
     public PlacedPhoto withSpec(CaptureSpec spec) {
         return new PlacedPhoto(id, owner, name, cameraName, spec, worldId, grid,
                 mapIds, frameIds, baseX, baseY, baseZ);

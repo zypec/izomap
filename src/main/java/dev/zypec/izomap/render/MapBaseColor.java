@@ -11,7 +11,7 @@ import java.util.Map;
  * <p>Each base color has four brightness variants ({@link Shade}), and the actual
  * color on the map is:</p>
  *
- * <pre>channel = baseChannel * shade.modifier / 255   (integer, rounded down)</pre>
+ * <pre>channel = baseChannel * shade.modifier / 255 (integer, rounded down)</pre>
  *
  * <p>The byte stored in map data is {@code baseColorId * 4 + shadeId}, see
  * {@link #packedId(Shade)}. Rendering against this table means every output pixel
@@ -88,13 +88,21 @@ public enum MapBaseColor {
      */
     public enum Shade {
 
-        /** Surfaces descending northwards (180/255). */
+        /**
+         * Surfaces descending northwards (180/255).
+         */
         LOW(0, 180),
-        /** Flat surfaces (220/255). */
+        /**
+         * Flat surfaces (220/255).
+         */
         NORMAL(1, 220),
-        /** Surfaces rising northwards (255/255). */
+        /**
+         * Surfaces rising northwards (255/255).
+         */
         HIGH(2, 255),
-        /** Darkest variant, used only for deep water (135/255). */
+        /**
+         * Darkest variant, used only for deep water (135/255).
+         */
         LOWEST(3, 135);
 
         private final int id;
@@ -105,12 +113,16 @@ public enum MapBaseColor {
             this.modifier = modifier;
         }
 
-        /** Lower two bits of the map byte. */
+        /**
+         * Lower two bits of the map byte.
+         */
         public int id() {
             return id;
         }
 
-        /** Brightness modifier out of 255. */
+        /**
+         * Brightness modifier out of 255.
+         */
         public int modifier() {
             return modifier;
         }
@@ -120,7 +132,7 @@ public enum MapBaseColor {
     private static final Map<Integer, MapBaseColor> BY_RGB = new HashMap<>();
 
     static {
-        for (MapBaseColor color : values()) {
+        for (var color : values()) {
             BY_ID[color.id] = color;
             BY_RGB.putIfAbsent(color.baseRgb, color);
         }
@@ -138,59 +150,75 @@ public enum MapBaseColor {
         }
     }
 
-    /** Base color id in the map format (0-63). */
+    /**
+     * Base color id in the map format (0-63).
+     */
     public int id() {
         return id;
     }
 
-    /** Unshaded base color (0xRRGGBB). */
+    /**
+     * Unshaded base color (0xRRGGBB).
+     */
     public int baseRgb() {
         return baseRgb;
     }
 
-    /** Actual map color at the given brightness (0xRRGGBB). */
+    /**
+     * Actual map color at the given brightness (0xRRGGBB).
+     */
     public int rgb(Shade shade) {
         return shaded[shade.id()];
     }
 
-    /** The byte stored in map data: {@code id * 4 + shadeId}. */
+    /**
+     * The byte stored in map data: {@code id * 4 + shadeId}.
+     */
     public byte packedId(Shade shade) {
         return (byte) ((id << 2) | shade.id());
     }
 
-    /** Base color by id; {@link #NONE} when undefined. */
+    /**
+     * Base color by id; {@link #NONE} when undefined.
+     */
     public static MapBaseColor byId(int id) {
-        if (id < 0 || id >= BY_ID.length) {
+        if (id < 0 || id >= BY_ID.length)
             return NONE;
-        }
-        MapBaseColor color = BY_ID[id];
+
+        var color = BY_ID[id];
         return color != null ? color : NONE;
     }
 
-    /** Base color matching an unshaded RGB exactly, or {@code null}. */
+    /**
+     * Base color matching an unshaded RGB exactly, or {@code null}.
+     */
     public static MapBaseColor byBaseRgb(int rgb) {
         return BY_RGB.get(rgb & 0xFFFFFF);
     }
 
-    /** Base color by name, case insensitive, or {@code null}. */
+    /**
+     * Base color by name, case-insensitive, or {@code null}.
+     */
     public static MapBaseColor byName(String name) {
-        if (name == null) {
-            return null;
-        }
-        String normalized = name.trim().toUpperCase(java.util.Locale.ROOT).replace('-', '_').replace(' ', '_');
-        for (MapBaseColor color : values()) {
-            if (color.name().equals(normalized)) {
+        if (name == null) return null;
+
+        var normalized = name.trim()
+                .toUpperCase(java.util.Locale.ROOT)
+                .replace('-', '_')
+                .replace(' ', '_');
+        for (var color : values())
+            if (color.name().equals(normalized))
                 return color;
-            }
-        }
         return null;
     }
 
-    /** Same integer arithmetic as vanilla {@code ARGB.scaleRGB}. */
+    /**
+     * Same integer arithmetic as vanilla {@code ARGB.scaleRGB}.
+     */
     private static int scale(int rgb, int modifier) {
-        int r = ((rgb >> 16) & 0xFF) * modifier / 255;
-        int g = ((rgb >> 8) & 0xFF) * modifier / 255;
-        int b = (rgb & 0xFF) * modifier / 255;
+        var r = ((rgb >> 16) & 0xFF) * modifier / 255;
+        var g = ((rgb >> 8) & 0xFF) * modifier / 255;
+        var b = (rgb & 0xFF) * modifier / 255;
         return (r << 16) | (g << 8) | b;
     }
 }

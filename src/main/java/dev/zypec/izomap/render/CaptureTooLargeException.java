@@ -16,12 +16,16 @@ public final class CaptureTooLargeException extends RuntimeException {
         this.budget = budget;
     }
 
-    /** Number of chunks the frame requires. */
+    /**
+     * Number of chunks the frame requires.
+     */
     public int required() {
         return required;
     }
 
-    /** Configured upper bound. */
+    /**
+     * Configured upper bound.
+     */
     public int budget() {
         return budget;
     }

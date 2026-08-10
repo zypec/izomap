@@ -21,11 +21,13 @@ public enum ColorFilter {
         return label;
     }
 
-    /** Applies the effect to a 0xRRGGBB color (no alpha). */
+    /**
+     * Applies the effect to a 0xRRGGBB color (no alpha).
+     */
     public int apply(int rgb) {
-        int r = (rgb >> 16) & 0xFF;
-        int g = (rgb >> 8) & 0xFF;
-        int b = rgb & 0xFF;
+        var r = (rgb >> 16) & 0xFF;
+        var g = (rgb >> 8) & 0xFF;
+        var b = rgb & 0xFF;
         switch (this) {
             case WARM -> {
                 r = clamp(r + 25);
@@ -51,11 +53,10 @@ public enum ColorFilter {
     }
 
     public static ColorFilter fromString(String raw, ColorFilter fallback) {
-        if (raw == null) {
-            return fallback;
-        }
-        String trimmed = raw.trim();
-        for (ColorFilter filter : values()) {
+        if (raw == null) return fallback;
+
+        var trimmed = raw.trim();
+        for (var filter : values()) {
             if (filter.name().equalsIgnoreCase(trimmed) || filter.label.equalsIgnoreCase(trimmed)) {
                 return filter;
             }

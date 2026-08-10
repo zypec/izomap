@@ -35,30 +35,34 @@ public final class WorldSnapshot {
      */
     public static WorldSnapshot of(Collection<ChunkSnapshot> snapshots, int minY, int maxY) {
         Map<Long, ChunkSnapshot> chunks = new HashMap<>(snapshots.size() * 2);
-        for (ChunkSnapshot snapshot : snapshots) {
+        for (var snapshot : snapshots) {
             chunks.put(key(snapshot.getX(), snapshot.getZ()), snapshot);
         }
         return new WorldSnapshot(chunks, minY, maxY);
     }
 
-    /** Material at a world coordinate, or AIR when the chunk was not copied. */
+    /**
+     * Material at a world coordinate, or AIR when the chunk was not copied.
+     */
     public Material materialAt(int x, int y, int z) {
-        if (y < minY || y >= maxY) {
+        if (y < minY || y >= maxY)
             return Material.AIR;
-        }
-        ChunkSnapshot snapshot = chunks.get(key(x >> 4, z >> 4));
-        if (snapshot == null) {
-            return Material.AIR;
-        }
-        return snapshot.getBlockType(x & 15, y, z & 15);
+
+        var snapshot = chunks.get(key(x >> 4, z >> 4));
+        return snapshot == null ? Material.AIR : snapshot.getBlockType(x & 15, y, z & 15);
+
     }
 
-    /** Lowest block height of the world (inclusive). */
+    /**
+     * Lowest block height of the world (inclusive).
+     */
     public int minY() {
         return minY;
     }
 
-    /** Highest block height of the world (exclusive). */
+    /**
+     * Highest block height of the world (exclusive).
+     */
     public int maxY() {
         return maxY;
     }
@@ -67,7 +71,9 @@ public final class WorldSnapshot {
         return chunks.size();
     }
 
-    /** Packs chunk coordinates into a single {@code long} key. */
+    /**
+     * Packs chunk coordinates into a single {@code long} key.
+     */
     public static long key(int chunkX, int chunkZ) {
         return ((long) chunkX << 32) ^ (chunkZ & 0xFFFFFFFFL);
     }

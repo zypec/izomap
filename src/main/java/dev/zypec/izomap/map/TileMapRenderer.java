@@ -25,16 +25,15 @@ public final class TileMapRenderer extends MapRenderer {
 
     @Override
     public void render(MapView map, MapCanvas canvas, Player player) {
-        if (rendered) {
-            return;
-        }
-        int size = GridOption.TILE;
-        for (int y = 0; y < size; y++) {
-            for (int x = 0; x < size; x++) {
-                int color = argb[y * size + x];
-                if ((color >>> 24) == 0) {
+        if (rendered) return;
+
+        var size = GridOption.TILE;
+        for (var y = 0; y < size; y++) {
+            for (var x = 0; x < size; x++) {
+                var color = argb[y * size + x];
+                if ((color >>> 24) == 0)
                     continue; // transparent pixel: leave it blank
-                }
+
                 canvas.setPixelColor(x, y, new Color(color, true));
             }
         }
