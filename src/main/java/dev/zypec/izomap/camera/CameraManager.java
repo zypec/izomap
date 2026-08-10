@@ -4,15 +4,18 @@ import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.render.AspectRatio;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Display;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.Interaction;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.ItemDisplay.ItemDisplayTransform;
 import org.bukkit.entity.Player;
+import org.bukkit.entity.TextDisplay;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Transformation;
 import org.joml.Quaternionf;
@@ -78,13 +81,17 @@ public final class CameraManager {
     }
 
     private void ingest(List<Camera> cameras) {
+        var changed = false;
         for (var c : cameras) {
             byId.put(c.id(), c);
             if (c.interactionEntityId() != null) {
                 byInteraction.put(c.interactionEntityId(), c);
             }
-            applyTransform(c);
+            changed |= applyTransform(c);
         }
+        if (changed)
+            persistAsync();
+
         plugin.messages().info("log.cameras-loaded",
                 Placeholder.unparsed("count", String.valueOf(cameras.size())));
     }
@@ -238,6 +245,7 @@ public final class CameraManager {
         loadAnchorChunk(camera);
         removeEntity(camera.displayEntityId());
         removeEntity(camera.interactionEntityId());
+        removeEntity(camera.hologramEntityId());
         byId.remove(camera.id());
         if (camera.interactionEntityId() != null) {
             byInteraction.remove(camera.interactionEntityId());
@@ -281,15 +289,18 @@ public final class CameraManager {
     // --- transform ---
 
     /**
-     * Applies the camera's yaw/pitch to its display entity and resizes its click box.
+     * Applies the camera's yaw/pitch to its display entity, resizes its click box and
+     * brings its hologram up to date.
      *
      * <p>Skipped when the entities are not loaded; {@link CameraListener} reapplies
      * this once the chunk loads, otherwise they would stay frozen as they were
      * created.</p>
      *
      * <p>Model size comes from {@code camera.model-scale}; zoom does not affect it.</p>
+     *
+     * @return whether the record changed and needs saving, see {@link #syncHologram}
      */
-    public void applyTransform(Camera camera) {
+    public boolean applyTransform(Camera camera) {
         if (camera.displayEntityId() != null
             && plugin.getServer().getEntity(camera.displayEntityId()) instanceof Display display) {
             applyTransform(camera, display);
@@ -298,6 +309,7 @@ public final class CameraManager {
             && plugin.getServer().getEntity(camera.interactionEntityId()) instanceof Interaction interaction) {
             applyInteractionSize(interaction);
         }
+        return syncHologram(camera);
     }
 
     /**
@@ -343,6 +355,127 @@ public final class CameraManager {
         interaction.setInteractionHeight(size);
     }
 
+    // --- hologram ---
+
+    /**
+     * Brings the camera's hologram in line with the camera: created when it is missing,
+     * removed when the feature is switched off, otherwise moved and rewritten.
+     *
+     * <p>A missing hologram is only recreated once the camera's <b>display</b> entity
+     * resolves. {@code getEntity} also returns null for an unloaded chunk, so without
+     * that check every start would hang a second hologram on every camera whose chunk
+     * happens to be unloaded.</p>
+     *
+     * <p>For the same reason a hologram that cannot be resolved is left alone when the
+     * feature is off: dropping the id while the entity is still out there would leave
+     * something in the world that nothing can find again.</p>
+     *
+     * @return whether the stored entity id changed and the record needs saving
+     */
+    public boolean syncHologram(Camera camera) {
+        var existing = entityById(camera.hologramEntityId());
+
+        if (!plugin.config().hologramEnabled()) {
+            if (existing == null) return false;
+
+            existing.remove();
+            camera.hologramEntityId(null);
+            return true;
+        }
+        if (existing instanceof TextDisplay hologram) {
+            // Every adjustment click lands here, and most of them do not move the camera.
+            var target = hologramLocation(camera);
+            if (!hologram.getLocation().equals(target)) {
+                hologram.teleport(target);
+            }
+            styleHologram(camera, hologram);
+            return false;
+        }
+        if (!(entityById(camera.displayEntityId()) instanceof Display)) return false;
+
+        var world = camera.anchor().getWorld();
+        if (world == null) return false;
+
+        var hologram = world.spawn(hologramLocation(camera), TextDisplay.class, e -> {
+            e.setPersistent(true);
+            keys.tagCamera(e.getPersistentDataContainer(), camera.id());
+            styleHologram(camera, e);
+        });
+        camera.hologramEntityId(hologram.getUniqueId());
+        return true;
+    }
+
+    /**
+     * Rewrites every hologram, for facts a camera cannot notice on its own such as how
+     * many photos have been taken with it.
+     */
+    public void refreshHolograms() {
+        var changed = false;
+        for (var camera : byId.values())
+            changed |= syncHologram(camera);
+
+        if (changed)
+            persistAsync();
+    }
+
+    private void styleHologram(Camera camera, TextDisplay hologram) {
+        hologram.text(CameraHologram.text(plugin, camera, photoCount(camera)));
+        hologram.setBillboard(resolveBillboard());
+        hologram.setViewRange((float) plugin.config().hologramViewRange());
+
+        var background = resolveBackground();
+        hologram.setDefaultBackground(background == null);
+        if (background != null)
+            hologram.setBackgroundColor(background);
+    }
+
+    /**
+     * Where the hologram floats. The offset scales with the model, so it neither sinks
+     * into a scaled-up camera nor drifts off a scaled-down one.
+     */
+    private Location hologramLocation(Camera camera) {
+        return camera.anchor()
+                .add(0.0, plugin.config().hologramOffsetY() * plugin.config().modelScale(), 0.0);
+    }
+
+    private int photoCount(Camera camera) {
+        var photos = plugin.photos();
+        return photos != null ? photos.countFor(camera.owner(), camera.name()) : 0;
+    }
+
+    private Display.Billboard resolveBillboard() {
+        var name = plugin.config().hologramBillboard();
+        try {
+            return Display.Billboard.valueOf(name.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            plugin.messages().warn("log.invalid-hologram-billboard",
+                    Placeholder.unparsed("value", name),
+                    Placeholder.unparsed("options", Arrays.toString(Display.Billboard.values())));
+            return Display.Billboard.CENTER;
+        }
+    }
+
+    /**
+     * Configured background color, or {@code null} to keep the vanilla one.
+     */
+    private Color resolveBackground() {
+        var raw = plugin.config().hologramBackground().trim();
+        if (raw.isEmpty() || raw.equalsIgnoreCase("default"))
+            return null;
+        if (raw.equalsIgnoreCase("none") || raw.equalsIgnoreCase("transparent"))
+            return Color.fromARGB(0, 0, 0, 0);
+
+        var hex = raw.startsWith("#") ? raw.substring(1) : raw;
+        try {
+            var value = Integer.parseUnsignedInt(hex, 16);
+            return Color.fromARGB(hex.length() > 6 ? value : value | 0xFF000000);
+        } catch (NumberFormatException ex) {
+            plugin.messages().warn("log.invalid-hologram-background",
+                    Placeholder.unparsed("value", raw));
+            return null;
+        }
+    }
+
     /**
      * Falls back to the default pose rather than dropping the model's look entirely.
      */
@@ -363,8 +496,12 @@ public final class CameraManager {
      * offset takes effect right after {@code /izomap reload}.
      */
     public void refreshTransforms() {
+        var changed = false;
         for (var camera : byId.values())
-            applyTransform(camera);
+            changed |= applyTransform(camera);
+
+        if (changed)
+            persistAsync();
     }
 
     /**
@@ -424,11 +561,13 @@ public final class CameraManager {
     }
 
     private void removeEntity(UUID id) {
-        if (id == null) return;
-
-        var entity = plugin.getServer().getEntity(id);
+        var entity = entityById(id);
         if (entity != null)
             entity.remove();
+    }
+
+    private Entity entityById(UUID id) {
+        return id != null ? plugin.getServer().getEntity(id) : null;
     }
 
     private static Material resolveMaterial(String name, Material fallback) {

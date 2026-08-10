@@ -322,7 +322,7 @@ bir delik bir daha sessizce oluşmaz.
 
 ## 4. Kamera
 
-Dünyada iki entity ile modellenir:
+Dünyada üç entity ile modellenir:
 
 - **Görsel model:** `ItemDisplay` (varsayılan, SPYGLASS) veya `BLOCK_DISPLAY`.
   `Billboard.FIXED`, kalıcı, viewRange 1.0. `ItemDisplay` ise duruşu
@@ -333,15 +333,39 @@ Dünyada iki entity ile modellenir:
   Sabit bir kutu model ölçeği değişince modele uymayı bırakıyordu: büyütülen kameranın
   gövdesine tıklamak tepkisiz kalıyor, küçültülende görünmeyen bir alan tıklanabiliyordu.
   Alt sınır küçük kamerayı tıklanabilir, üst sınır büyük kamerayı çevresini yutmaz tutar.
+- **Hologram:** modelin üstünde duran `TextDisplay` (aşağıda).
 
-İkisi de PDC'de kamera UUID'si taşır (`CameraKeys`). `Camera` yalnızca durum tutar;
+Üçü de PDC'de kamera UUID'si taşır (`CameraKeys`). `Camera` yalnızca durum tutar;
 entity işleri `CameraManager`'dadır. Bellek modeli tek doğruluk kaynağıdır, her
 değişiklikte tüm koleksiyon asenkron olarak `cameras.yml`'e yazılır.
+
+### Bilgi hologramı
+
+Modelin `camera.hologram.offset-y × camera.model-scale` kadar üstünde duran bir
+`TextDisplay`; ölçek çarpanı sayesinde büyütülen kamerada modelin içine gömülmez,
+küçültülende havada asılı kalmaz (tık kutusuyla aynı gerekçe).
+
+**Ne yazacağını kod bilmez.** Satırlar `messages.yml` → `camera.hologram.lines`
+listesinden gelir; bir satırı silmek onu hologramdan kaldırır. Kod yalnızca yer
+tutucuları sunar: `<name> <owner> <ratio> <zoom> <blocks> <yaw> <pitch> <filter>
+<photos>`. Metin `CameraHologram` tarafından üretilir, ayarlar değiştikçe
+(`applyTransform` yolundan) yeniden yazılır.
+
+`<photos>` kameranın çektiği yerleştirilmiş fotoğraf sayısıdır. Kamera bunu kendi
+başına göremediği için `PhotoManager` her fotoğraf ekleme/silme sonrasında
+`CameraManager#refreshHolograms` çağırır; açılışta fotoğraflar kameralardan **sonra**
+yüklendiği için aynı çağrı yükleme sonunda da yapılır, yoksa hologramlar açılış anındaki
+sıfırda kalırdı.
+
+Config: `camera.hologram.enabled` (kapatılırsa mevcut hologramlar da silinir),
+`.offset-y`, `.view-range`, `.billboard` (varsayılan `CENTER` = hep oyuncuya dönük),
+`.background` (`default` / `none` / `#AARRGGBB`). Geçersiz `billboard` ve `background`
+değerleri varsayılana düşer ve log'a uyarı yazar.
 
 #### Yüklü olmayan entity kuralı
 
 `getEntity(UUID)` yalnızca **yüklü chunk'lardaki** entity'yi bulur. Bu, kamera
-entity'lerine dokunan her iş için iki kurala yol açar:
+entity'lerine dokunan her iş için üç kurala yol açar:
 
 - **Silmeden önce chunk yüklenir** (`CameraManager#forget`). Aksi halde kayıt
   silinir ama model dünyada **yetim** kalır: hiçbir kameraya ait olmayan,
@@ -352,9 +376,19 @@ entity'lerine dokunan her iş için iki kurala yol açar:
   transformu tazeler. Bu kanca olmadan entity, oluşturulduğu andaki transformla
   donar — model ölçeği eskiden kameranın zoom'undan geldiği için eski kameralar
   devasa kalır ve `camera.model-scale` hiç devreye girmezdi.
+- **Kayıp hologram yalnızca model çözülüyorsa yeniden kurulur.** `null` dönmesi
+  "yok" değil, "yok **ya da** chunk yüklü değil" demektir; körlemesine kurmak her
+  açılışta her kameraya ikinci bir hologram asardı. Modelin çözülmesi chunk'ın yüklü
+  olduğunu kanıtladığı için karar ona bağlanır. Aynı sebeple hologram *kapatılırken*
+  çözülemeyen entity'nin kimliği kayıttan **silinmez**: kimlik gidince dünyada
+  kimsenin bulamayacağı bir entity kalırdı.
+
+`EntitiesLoadEvent` entity'leri **kimliğe göre** eşler, tipe göre değil: hologram da bir
+`Display`'dir ve modelin rotasyon/ölçeğini ona uygulamak metni yan yatırıp devasa yapardı.
 
 Dünyada zaten kalmış yetimler için `/izocam cleanup`, oyuncunun bulunduğu dünyadaki
-**yüklü** chunk'ları tarayıp kaydı olmayan Izomap entity'lerini siler.
+**yüklü** chunk'ları tarayıp kaydı olmayan Izomap entity'lerini siler — hologram da
+`Display` olduğu ve kamera UUID'si taşıdığı için bu taramaya kendiliğinden dahildir.
 
 ### Etkileşim
 
@@ -600,11 +634,25 @@ Fotoğraf silinince ön bellek dosyası da silinir. Açılışta `retainOnly` sa
 dosyalarını süpürür (çökme kalıntısı, yarış durumu); kayıt kümesi **boşsa** süpürme
 yapılmaz, çünkü `maps.yml` yüklenememişse tüm ön belleği silmek olurdu.
 
+### Yeniden çekme (`/izocam retake`)
+
+Duvardaki fotoğrafı sökmeden, aynı haritaların üstüne yeniden çeker. Parametreler
+kaynak kameranın **o anki** ayarlarından gelir — retake'in tanımı budur; kamera
+silinmişse fotoğrafın kendi `CaptureSpec`'i devreye girer, yani çekim aynı noktadan
+tekrarlanır ve yalnızca dünya değişmiş olur. İkisi de yoksa (spec'ten önceki bir kayıt,
+kamerası da silinmiş) işlem reddedilir.
+
+`retake <id> [kamera]` ile başka bir kamera kaynak gösterilebilir; o durumda fotoğrafın
+kayıtlı kamera adı da yeni kamerayla güncellenir.
+
+Yazma sırası kasıtlıdır: **çekim başarısız olursa hiçbir şeye dokunulmaz**, duvarda eski
+görüntü kalır. Başarıda önce ön bellek yazılır, sonra haritalar ve kayıt güncellenir.
+
 ### Dosyaya aktarma (`PhotoExporter`)
 
 `/izocam export <id> [dosya]` fotoğrafı PNG olarak `plugins/Izomap/exports/` altına
 yazar. Görüntü `PhotoManager#image` üzerinden gelir: **önce ön bellek, olmazsa
-`CaptureSpec`'ten yeniden render**. Aynı metot ileride retake'in de kaynağıdır.
+`CaptureSpec`'ten yeniden render**.
 
 - Kodlama ve disk yazımı asenkrondur; tam boy bir ızgara birkaç megapikseldir ve ana
   thread'de tick düşürürdü.
@@ -636,6 +684,7 @@ yazar. Görüntü `PhotoManager#image` üzerinden gelir: **önce ön bellek, olm
 | `preview stop` | Açık önizlemeyi kapatır (editör de izleyici de) |
 | `open <ad>` | Fotoğraf Dialog'unu açar |
 | `unplace <id>` | Kısa kimlikle (ilk 8 karakter) yerleştirilmiş fotoğrafı kaldırır |
+| `retake <id> [kamera]` | Asılı fotoğrafı yerinde yeniden çeker; kamera verilmezse fotoğrafın kendi kaynağı kullanılır |
 | `cleanup` | Çerçeveleri kaybolmuş fotoğraf kayıtlarını temizler |
 | `export <id> [dosya]` | Fotoğrafı PNG olarak `exports/` altına yazar (`izomap.admin`) |
 | `reload` | Yapılandırmayı yeniden yükler (`izomap.admin`) |
@@ -658,7 +707,7 @@ toplanır ve değerler mantıklı aralıklara clamp'lenir.
 | Bölüm | Anahtarlar |
 |---|---|
 | `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `render-timing`, `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player` |
-| `camera` | `display-type`, `model-material`, `item-display-transform`, `interaction-size` (0.1-3.0), `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `move-step` (0.05-16.0), `default-pitch` (-90..90), `edit-lock-seconds` (1-3600), `model-rotation.{x,y,z}` |
+| `camera` | `display-type`, `model-material`, `item-display-transform`, `interaction-size` (0.1-3.0), `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `move-step` (0.05-16.0), `default-pitch` (-90..90), `edit-lock-seconds` (1-3600), `model-rotation.{x,y,z}`, `hologram.{enabled, offset-y (-4..8), view-range (0.1-10), billboard, background}` |
 | `photo` | `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
 | `placement` | `distance`, `invisible-frames`, `build-backing-wall`, `backing-material` |
 
@@ -681,7 +730,7 @@ kontrol edip `0.25`'in üstündeyse log uyarısı verir.
 | `config.yml` | Ayarlar |
 | `messages.yml` | MiniMessage mesajları (`prefix` + anahtar ağacı; oyuncuya gidenler **ve** konsol) |
 | `block-colors.yml` | Blok rengi override'ları (v2) |
-| `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, üçler kuralı, entity UUID'leri, önizleme harita kimliği) |
+| `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, üçler kuralı, model/interaction/hologram entity UUID'leri, önizleme harita kimliği) |
 | `maps.yml` | Yerleştirilmiş fotoğraflar (harita id'leri, çerçeve UUID'leri, çıpa koordinatı, `capture` bloğunda çekim parametreleri) |
 | `photos/<uuid>.izm` | Fotoğrafın çekilmiş görüntüsü (palet indeksi + Deflate); YML değil, ikili |
 | `exports/<ad>.png` | `/izocam export` çıktısı; eklenti hiç okumaz, yalnızca yazar |

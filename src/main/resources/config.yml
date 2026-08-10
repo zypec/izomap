@@ -87,6 +87,25 @@ camera:
     x: 0.0   # pitch: öne/arkaya eğme
     y: 0.0   # yaw:   sağa/sola çevirme
     z: 0.0   # roll:  kendi ekseninde yatırma
+  # Kameranın üstünde duran bilgi hologramı (TextDisplay).
+  # HANGİ BİLGİNİN görüneceğini burası değil, messages.yml -> camera.hologram.lines
+  # belirler; oradaki bir satırı silmek onu hologramdan kaldırır.
+  hologram:
+    # Kapatılırsa mevcut hologramlar da silinir (chunk yüklendikçe).
+    enabled: true
+    # Hologramın çıpanın kaç blok üstünde duracağı. Gerçek yükseklik bununla
+    # model-scale'in çarpımıdır: büyütülmüş kamerada hologram modelin içine gömülmesin,
+    # küçültülmüşte de havada asılı kalmasın. Aralık: -4.0 - 8.0.
+    offset-y: 0.6
+    # Görünme mesafesi çarpanı. Aralık: 0.1 - 10.0.
+    view-range: 1.0
+    # Hologramın nasıl duracağı: FIXED, VERTICAL, HORIZONTAL, CENTER.
+    # CENTER = her zaman oyuncuya dönük. Geçersiz değer CENTER'a düşer.
+    billboard: CENTER
+    # Arka plan: "default" (vanilla koyu şerit), "none" / "transparent" (arka plan yok)
+    # ya da #AARRGGBB / #RRGGBB hex renk (örn. #80000000 = yarı saydam siyah).
+    # Geçersiz değer "default"a düşer ve log'a uyarı yazılır.
+    background: default
 
 photo:
   # Varsayılan en-boy oranı: RATIO_1_1, RATIO_16_9, RATIO_4_3

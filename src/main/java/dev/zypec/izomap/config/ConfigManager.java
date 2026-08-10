@@ -190,6 +190,38 @@ public final class ConfigManager {
         return clamp(cfg().getInt("camera.edit-lock-seconds", 30), 1, 3600);
     }
 
+    // --- camera hologram ---
+
+    /** Whether cameras carry an info hologram above their model. */
+    public boolean hologramEnabled() {
+        return cfg().getBoolean("camera.hologram.enabled", true);
+    }
+
+    /**
+     * Height of the hologram above the anchor at {@code model-scale} 1.0; the real
+     * offset scales with the model, as the click box does.
+     */
+    public double hologramOffsetY() {
+        return clamp(cfg().getDouble("camera.hologram.offset-y", 0.6), -4.0, 8.0);
+    }
+
+    public double hologramViewRange() {
+        return clamp(cfg().getDouble("camera.hologram.view-range", 1.0), 0.1, 10.0);
+    }
+
+    /** How the hologram turns, as a {@code Display.Billboard} name. */
+    public String hologramBillboard() {
+        return cfg().getString("camera.hologram.billboard", "CENTER");
+    }
+
+    /**
+     * Hologram background: {@code default}, {@code none}/{@code transparent}, or an
+     * {@code #AARRGGBB}/{@code #RRGGBB} color.
+     */
+    public String hologramBackground() {
+        return cfg().getString("camera.hologram.background", "default");
+    }
+
     // --- photo ---
 
     public String defaultAspectRatio() {

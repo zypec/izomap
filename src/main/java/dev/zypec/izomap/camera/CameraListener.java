@@ -91,24 +91,35 @@ public final class CameraListener implements Listener {
     }
 
     /**
-     * Reapplies the transform and click box of cameras whose chunk loads later.
+     * Reapplies the transform, click box and hologram of cameras whose chunk loads later.
      *
      * <p>Most cameras' chunks are unloaded while {@code cameras.yml} is read, so
      * {@code applyTransform} skips them. Without this hook the entities stay frozen
      * as they were created and {@code model-scale} never takes effect.</p>
+     *
+     * <p>Entities are matched by id rather than by type: a camera's hologram is a
+     * {@link Display} too, and giving it the model's rotation and scale would tip the
+     * text over and blow it up.</p>
      */
     @EventHandler
     public void onEntitiesLoad(EntitiesLoadEvent event) {
+        var changed = false;
         for (Entity entity : event.getEntities()) {
             var camera = manager.byId(keys.readCameraId(entity.getPersistentDataContainer()));
             if (camera == null) continue;
 
-            if (entity instanceof Display display) {
+            var id = entity.getUniqueId();
+            if (id.equals(camera.displayEntityId()) && entity instanceof Display display) {
                 manager.applyTransform(camera, display);
-            } else if (entity instanceof Interaction interaction) {
+                // The model resolving proves the chunk is loaded, so a hologram that
+                // cannot be found now is really gone and may be replaced.
+                changed |= manager.syncHologram(camera);
+            } else if (id.equals(camera.interactionEntityId()) && entity instanceof Interaction interaction) {
                 manager.applyInteractionSize(interaction);
             }
         }
+        if (changed)
+            manager.persist();
     }
 
     // Right-clicking a block with the camera item places a new camera.

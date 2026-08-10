@@ -46,6 +46,7 @@ import java.util.stream.Collectors;
  *   <li>{@code preview <name> | stop} – watches a camera's live view, or stops.</li>
  *   <li>{@code open <name>} – opens the capture dialog.</li>
  *   <li>{@code unplace <id>} – removes a placed photo.</li>
+ *   <li>{@code retake <id> [camera]} – shoots a placed photo again in place.</li>
  *   <li>{@code cleanup} – clears records whose frames are gone.</li>
  *   <li>{@code reload} – reloads the configuration (admin).</li>
  * </ul>
@@ -132,6 +133,14 @@ public final class CameraCommand {
                         .then(Commands.argument("id", StringArgumentType.word())
                                 .suggests(this::suggestPhotoIds)
                                 .executes(this::unplace)))
+                .then(Commands.literal("retake")
+                        .then(Commands.argument("id", StringArgumentType.word())
+                                .suggests(this::suggestPhotoIds)
+                                .executes(ctx -> retake(ctx, null))
+                                .then(Commands.argument("camera", StringArgumentType.word())
+                                        .suggests(this::suggestOwnedNames)
+                                        .executes(ctx -> retake(ctx,
+                                                StringArgumentType.getString(ctx, "camera"))))))
                 .then(Commands.literal("cleanup")
                         .executes(this::cleanup))
                 .then(Commands.literal("export")
@@ -382,6 +391,33 @@ public final class CameraCommand {
         }
         photoManager.remove(photo);
         plugin.messages().send(player, "map.photo-removed", Placeholder.unparsed("name", photo.name()));
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * Shoots a hanging photo again without taking it down. Without a camera argument
+     * the photo's own source camera is used, or its stored parameters when that camera
+     * is gone.
+     */
+    private int retake(CommandContext<CommandSourceStack> ctx, String cameraName) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+
+        var id = StringArgumentType.getString(ctx, "id");
+        var photo = photoManager.findByShortId(player.getUniqueId(), id).orElse(null);
+        if (photo == null) {
+            plugin.messages().send(player, "map.photo-not-found");
+            return 0;
+        }
+
+        Camera source = null;
+        if (cameraName != null) {
+            source = manager.byOwnerAndName(player.getUniqueId(), cameraName).orElse(null);
+            if (source == null) {
+                plugin.messages().send(player, "camera.not-found");
+                return 0;
+            }
+        }
+        photoManager.retake(player, photo, source);
         return Command.SINGLE_SUCCESS;
     }
 

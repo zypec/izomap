@@ -19,10 +19,8 @@
 T21 (fotoğraf listesi + hayalet yerleştirme UI'ı)
  └── T22 (kamera başına fotoğraf limiti + permission)
 
-T20 (retake komutu) — bağımsız (T1 bittiği için serbest)
-
-T6 (hologram) — bağımsız (T8 bitti; hologramın dikey offset'i de model ölçeğini
-                takip etmeli, hesap `CameraManager#applyInteractionSize` deseninde)
+T20 (retake komutu) ✔
+T6 (hologram) ✔
 
 T10 (çoklu preview altyapısı) ✔
  └── T11 (preview action bar) ✔
@@ -44,31 +42,6 @@ T30 (renk pipeline'ının parametrikleşmesi) ✔
 
 ## P1 — Kamera ve etkileşim
 
-### T6 — Kameranın üstünde bilgi hologramı (TextDisplay)
-
-`[ ]` **P1**
-
-Her kameranın display entity'sinin üstünde bir `TextDisplay` duracak ve kamera
-bilgilerini gösterecek (ad, sahip, oran, zoom, yaw/pitch, çekilmiş fotoğraf sayısı).
-
-**Senaryolar:**
-- Kamera oluşturulunca hologram da oluşur; PDC'de aynı kamera UUID'siyle etiketlenir.
-- Kamera silinince (`remove`, `remove all`) hologram da silinir. `Camera` kaydına
-  `hologramEntityId` eklenecek ve `cameras.yml`'e yazılacak.
-- Kamera taşınınca (T4, `/izocam move`) hologram da taşınır.
-- Ayar değişince metin güncellenir (yaw/pitch/zoom canlı görünür).
-- Sunucu yeniden başlarken hologram entity'si kaybolmuşsa yeniden oluşturulur;
-  **yetim hologram** kalmışsa (kamera kaydı yok ama entity var) temizlenir — chunk
-  yükleme gerektirdiği için `/izocam cleanup`'a bağlanması mantıklı.
-- Config: `camera.hologram.enabled`, `.offset-y` (varsayılan ~0.6), `.view-range`,
-  `.billboard` (varsayılan `CENTER`), `.background` (arka plan rengi / şeffaflık).
-- Metin şablonu `messages.yml`'de MiniMessage olarak, satır satır tanımlanır — böylece
-  hangi bilginin görüneceğini sunucu sahibi seçer.
-- `setPersistent(true)` ve dünya kaydıyla tutarlılık; `Display.Billboard.CENTER` ile
-  oyuncuya dönük dursun.
-
----
-
 ### T7 — Item ile çağrılan kamerayı envantere geri alma
 
 `[ ]` **P1**
@@ -82,7 +55,7 @@ verilebilmeli.
   çakışmayan bir yol gerekiyor. Öneri: `/izocam pickup <ad>` komutu **ve** Dialog'a
   "Kamerayı Topla" butonu. (Tuş kombinasyonu tüketmeden, keşfedilebilir kalır.)
 - Envanter doluysa eşya yere düşürülür ve oyuncuya bildirilir.
-- Kamera silinir; hologramı (T6) ve preview'ı (T10/T12) de temizlenir.
+- Kamera silinir; hologramı (T6) ve preview'ı (T10/T12) `CameraManager#forget` üzerinden zaten temizleniyor.
 - Kameraya ait çekilmiş ama yerleştirilmemiş fotoğraflar (T21) ne olacak? → Kamera
   toplanınca fotoğraflar da silinir; oyuncuya onay sorulur (Dialog).
 - Komutla oluşturulmuş kamerada `pickup` çalışır ama eşya **verilmez**, sadece silinir
@@ -91,24 +64,6 @@ verilebilmeli.
 ---
 
 ## P1 — Fotoğraf yönetimi ve yerleştirme
-
-### T20 — `/izocam retake <id>`
-
-`[ ]` **P1**
-
-Duvarda asılı bir fotoğrafı sökmeden, kameranın güncel ayarlarıyla yeniden çeker ve aynı
-haritalara uygular.
-
-**Senaryolar:**
-- `unplace` ile aynı kısa kimlik ve tab-complete kullanılır.
-- Kaynak kamera silinmişse: T1 sayesinde parametreler fotoğrafta olduğu için "aynı
-  noktadan tekrar çek" yine mümkün; oyuncu isterse mevcut bir kamerayı kaynak
-  gösterebilir → `retake <id> [kamera]`.
-- Çekim bütçeyi aşarsa fotoğraf bozulmaz, hata mesajı verilir.
-- Retake sonrası fotoğrafın kayıtlı parametreleri güncellenir.
-- Retake, T21'deki fotoğraf listesi UI'ından da butonla tetiklenecek.
-
----
 
 ### T21 — Fotoğraf çekme/listeleme/yerleştirme akışının yeniden tasarımı
 
@@ -132,7 +87,7 @@ Hedef akış:
   Butonlar kısa kalsın diye unicode simge kullanılacak; metin `messages.yml`'de configli.
 - İsim butonu → yeniden adlandırma Dialog'u.
 - Sil → onay ister (yerleştirilmişse çerçeveler de kalkar).
-- Retake → T20 mantığı, kameranın güncel ayarlarıyla.
+- Retake → `PhotoManager#retake` (T20) doğrudan çağrılır, kameranın güncel ayarlarıyla.
 
 **3) Yerleştirme — hayalet önizleme**
 
@@ -364,6 +319,75 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T6 — Kameranın üstünde bilgi hologramı
+
+`[x]` **P1** · 2026-08-10
+
+Kamera artık üç entity: model, tık kutusu ve modelin üstünde duran `TextDisplay`.
+Yükseklik `camera.hologram.offset-y × camera.model-scale` — tık kutusuyla aynı gerekçe,
+büyütülen kamerada metin modelin içine gömülmesin.
+
+**Ne yazacağını kod bilmiyor.** Satırlar `messages.yml` → `camera.hologram.lines`
+listesinden geliyor; kod yalnızca yer tutucuları sunuyor (`<name> <owner> <ratio> <zoom>
+<blocks> <yaw> <pitch> <filter> <photos>`). Bir satırı silmek onu hologramdan kaldırır.
+Metin `CameraHologram`'da üretiliyor.
+
+**`<photos>` için ters yönde bir bağ gerekti.** Kamera, kendisiyle çekilen fotoğraf
+sayısını göremez; `PhotoManager` her ekleme/silmeden sonra `refreshHolograms` çağırıyor.
+Açılışta fotoğraflar kameralardan **sonra** yüklendiği için aynı çağrı yükleme sonunda da
+yapılıyor, yoksa hologramlar açılış anındaki sıfırda donardı. Bağ `plugin.photos()`
+üzerinden kuruldu — `CameraManager#forget`'ın `plugin.preview()`'ye uzanmasıyla aynı
+desen.
+
+**İki tuzak çıktı:**
+
+1. **Körlemesine yeniden kurmak ikinci hologram asıyordu.** `getEntity(UUID)` null
+   dönmesi "yok" değil, "yok **ya da** chunk yüklü değil" demek. Karar bu yüzden modelin
+   çözülmesine bağlandı: model bulunuyorsa chunk yüklüdür, o hâlde kayıp hologram
+   gerçekten kayıptır. Aynı sebeple hologram *kapatılırken* çözülemeyen entity'nin
+   kimliği kayıttan silinmiyor — kimlik gidince dünyada kimsenin bulamayacağı bir entity
+   kalırdı.
+2. **`EntitiesLoadEvent` tipe göre eşliyordu.** Hologram da bir `Display` olduğundan
+   modelin rotasyon ve ölçeği ona uygulanacaktı: yan yatmış, devasa bir metin. Eşleme
+   kimliğe çevrildi.
+
+Yetim hologramlar `/izocam cleanup`'a kendiliğinden dahil: `removeOrphanEntities` zaten
+`Display`'lere bakıyor ve hologram da kamera UUID'si taşıyor.
+
+Config: `camera.hologram.enabled` (kapatılınca mevcut hologramlar da siliniyor),
+`.offset-y`, `.view-range`, `.billboard` (varsayılan `CENTER`), `.background`
+(`default` / `none` / `#AARRGGBB`). `cameras.yml`'e `hologram-entity` eklendi.
+
+`applyTransform(Camera)` artık `boolean` dönüyor: "kayıt değişti, yazılması gerek".
+Hologram kimliği yalnızca kurulunca/silinince değişir, dolayısıyla açılışta N kamera için
+N kez serialize etmek yerine döngü sonunda tek kez yazılıyor.
+
+**Sunucuda denenmedi** — özellikle `background` değerlerinin görünümü ve `offset-y`
+varsayılanının spyglass modeliyle uyumu gözlenmeli.
+
+### T20 — `/izocam retake <id> [kamera]`
+
+`[x]` **P1** · 2026-08-10
+
+Duvardaki fotoğrafı sökmeden aynı haritaların üstüne yeniden çekiyor. Kısa kimlik ve
+tab-complete `unplace` ile aynı.
+
+Parametre kaynağı sırayla: verilen kamera → fotoğrafın kaynak kamerası (**o anki**
+ayarlarıyla; retake'in tanımı bu) → fotoğrafın kendi `CaptureSpec`'i. Sonuncusu kamera
+silinmişken devreye giriyor ve çekim aynı noktadan tekrarlanıyor — görüntü yine de
+değişebilir, çünkü değişen dünyadır. Üçü de yoksa (spec öncesi kayıt + silinmiş kamera)
+işlem reddediliyor.
+
+Yazma sırası kasıtlı: çekim başarısız olursa **hiçbir şeye dokunulmuyor**, duvarda eski
+görüntü kalıyor. Bütçe aşımı `photo.too-large` ile ayrıca bildiriliyor
+(`reportCaptureError` artık `Camera` yerine ad alıyor, çünkü kaynak kamera silinmiş
+olabilir).
+
+Başka bir kamera kaynak gösterildiğinde fotoğrafın kayıtlı kamera adı da güncelleniyor;
+`PlacedPhoto#withSpec` bu yüzden `withCapture(cameraName, spec)` oldu.
+
+T21'in fotoğraf listesindeki ⟳ butonu doğrudan `PhotoManager#retake` çağıracak.
 
 ### T30 — Renk pipeline'ı ayrıldı ve kuyruğu tabloya katlandı
 

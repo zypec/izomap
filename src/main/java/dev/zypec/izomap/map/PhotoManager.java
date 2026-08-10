@@ -65,7 +65,16 @@ public final class PhotoManager {
             loaded = true;
             restoreAll();
             cache.retainOnly(photos.keySet());
+            photosChanged();
         }));
+    }
+
+    /**
+     * Tells the cameras their photo counts moved. Cameras load before photos do, so
+     * without this their holograms would sit on the count they saw at startup: zero.
+     */
+    private void photosChanged() {
+        cameraManager.refreshHolograms();
     }
 
     /**
@@ -140,7 +149,7 @@ public final class PhotoManager {
                 if (recovered) {
                     // Pin the parameters now, so the image stops following the camera
                     // from here on even if the cache is lost again.
-                    photos.put(photo.id(), photo.withSpec(used));
+                    photos.put(photo.id(), photo.withCapture(photo.cameraName(), used));
                     storage.saveAll(photos.values());
                 }
             });
@@ -160,7 +169,7 @@ public final class PhotoManager {
     /**
      * Reports a capture failure to the player, with a dedicated budget message.
      */
-    private void reportCaptureError(Player player, Camera camera, Throwable error) {
+    private void reportCaptureError(Player player, String cameraName, Throwable error) {
         if (Failures.unwrap(error) instanceof CaptureTooLargeException tooLarge) {
             plugin.runOnMain(() -> plugin.messages().send(player, "photo.too-large",
                     Placeholder.unparsed("required", String.valueOf(tooLarge.required())),
@@ -168,7 +177,7 @@ public final class PhotoManager {
             return;
         }
         plugin.messages().warn("log.photo-render-failed",
-                Placeholder.unparsed("camera", camera.name()),
+                Placeholder.unparsed("camera", cameraName),
                 Placeholder.unparsed("reason", plugin.messages().reason(error)));
         plugin.runOnMain(() -> plugin.messages().send(player, "photo.failed"));
     }
@@ -200,7 +209,7 @@ public final class PhotoManager {
 
         renderService.capture(spec, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
             if (error != null || result == null) {
-                reportCaptureError(player, camera, error);
+                reportCaptureError(player, camera.name(), error);
                 return;
             }
             plugin.runOnMain(() -> {
@@ -213,12 +222,58 @@ public final class PhotoManager {
                 photos.put(photo.id(), photo);
                 storage.saveAll(photos.values());
                 cache.write(photo.id(), grid, result);
+                photosChanged();
 
                 long ms = System.currentTimeMillis() - start;
                 plugin.messages().send(player, "map.placed",
                         Placeholder.unparsed("name", photo.name()),
                         Placeholder.unparsed("count", String.valueOf(photo.mapIds().size())),
                         Placeholder.unparsed("ms", String.valueOf(ms)));
+            });
+        });
+    }
+
+    /**
+     * Shoots a placed photo again and rewrites the maps it already hangs on.
+     *
+     * <p>The parameters come from the source camera's <b>current</b> settings, which is
+     * the whole point of a retake. When that camera is gone the photo's own stored
+     * parameters stand in, so the shot is repeated from the same spot and only the
+     * world has moved on. Must be started on the main thread.</p>
+     *
+     * @param source camera to shoot from, or {@code null} for the photo's own
+     */
+    public void retake(Player player, PlacedPhoto photo, Camera source) {
+        var camera = source != null
+                ? source
+                : cameraManager.byOwnerAndName(photo.owner(), photo.cameraName()).orElse(null);
+        var spec = camera != null ? renderService.specFor(camera) : photo.spec();
+        if (spec == null) {
+            plugin.messages().send(player, "map.photo-no-source",
+                    Placeholder.unparsed("camera", photo.cameraName()));
+            return;
+        }
+
+        var cameraName = camera != null ? camera.name() : photo.cameraName();
+        plugin.messages().send(player, "photo.capturing");
+        var start = System.currentTimeMillis();
+        var grid = photo.grid();
+
+        renderService.capture(spec, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
+            if (error != null || result == null) {
+                // Nothing was written yet, so the wall still shows the previous shot.
+                reportCaptureError(player, cameraName, error);
+                return;
+            }
+            cache.write(photo.id(), grid, result);
+            plugin.runOnMain(() -> {
+                applyToMaps(photo, ImageSlicer.slice(result, grid));
+                photos.put(photo.id(), photo.withCapture(cameraName, spec));
+                storage.saveAll(photos.values());
+                plugin.messages().send(player, "map.photo-retaken",
+                        Placeholder.unparsed("name", photo.name()),
+                        Placeholder.unparsed("camera", cameraName),
+                        Placeholder.unparsed("ms", String.valueOf(System.currentTimeMillis() - start)));
             });
         });
     }
@@ -316,6 +371,17 @@ public final class PhotoManager {
     }
 
     /**
+     * How many placed photos were shot with a given camera.
+     */
+    public int countFor(UUID owner, String cameraName) {
+        var count = 0;
+        for (var photo : photos.values())
+            if (photo.owner().equals(owner) && photo.cameraName().equalsIgnoreCase(cameraName))
+                count++;
+        return count;
+    }
+
+    /**
      * Finds a photo by its full id, however it was reached.
      */
     public Optional<PlacedPhoto> byId(UUID id) {
@@ -359,8 +425,10 @@ public final class PhotoManager {
             photos.remove(photo.id());
             cache.delete(photo.id());
         }
-        if (!owned.isEmpty())
+        if (!owned.isEmpty()) {
             storage.saveAll(photos.values());
+            photosChanged();
+        }
         return owned.size();
     }
 
@@ -382,8 +450,10 @@ public final class PhotoManager {
                 removed++;
             }
         }
-        if (removed > 0)
+        if (removed > 0) {
             storage.saveAll(photos.values());
+            photosChanged();
+        }
         return removed;
     }
 
@@ -395,6 +465,7 @@ public final class PhotoManager {
         photos.remove(photo.id());
         cache.delete(photo.id());
         storage.saveAll(photos.values());
+        photosChanged();
     }
 
     /**

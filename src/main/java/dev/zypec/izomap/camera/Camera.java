@@ -33,6 +33,9 @@ public final class Camera {
     private UUID displayEntityId;
     private UUID interactionEntityId;
 
+    /** Info hologram floating above the model, or {@code null} when it has none. */
+    private UUID hologramEntityId;
+
     /** View angles the photo direction is derived from. */
     private float camYaw;
     private float camPitch;
@@ -100,6 +103,14 @@ public final class Camera {
 
     public void interactionEntityId(UUID interactionEntityId) {
         this.interactionEntityId = interactionEntityId;
+    }
+
+    public UUID hologramEntityId() {
+        return hologramEntityId;
+    }
+
+    public void hologramEntityId(UUID hologramEntityId) {
+        this.hologramEntityId = hologramEntityId;
     }
 
     public float camYaw() {

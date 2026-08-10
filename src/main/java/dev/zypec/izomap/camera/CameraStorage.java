@@ -59,6 +59,8 @@ public final class CameraStorage extends YamlStorage {
                     c.displayEntityId() != null ? c.displayEntityId().toString() : null);
             cfg.set(base + ".interaction-entity",
                     c.interactionEntityId() != null ? c.interactionEntityId().toString() : null);
+            cfg.set(base + ".hologram-entity",
+                    c.hologramEntityId() != null ? c.hologramEntityId().toString() : null);
             cfg.set(base + ".cam-yaw", c.camYaw());
             cfg.set(base + ".cam-pitch", c.camPitch());
             cfg.set(base + ".zoom", c.zoom());
@@ -116,6 +118,7 @@ public final class CameraStorage extends YamlStorage {
         var camera = new Camera(id, owner, s.getString("name", "camera"), anchor);
         camera.displayEntityId(Ids.parse(s.getString("display-entity")));
         camera.interactionEntityId(Ids.parse(s.getString("interaction-entity")));
+        camera.hologramEntityId(Ids.parse(s.getString("hologram-entity")));
         camera.camYaw((float) s.getDouble("cam-yaw"));
         camera.camPitch((float) s.getDouble("cam-pitch"));
         // Older records used the key "scale" with the same meaning.

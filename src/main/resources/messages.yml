@@ -30,6 +30,16 @@ camera:
   item-name: "<gradient:#5e60ce:#48bfe3>Izomap Kamerası</gradient>"
   item-lore:
     - "<gray>Bir bloğa <white>sağ tık</white> ile kamera yerleştir."
+  # Kameranın üstünde duran hologram. Satırlar sırayla yazılır: bir satırı silmek onu
+  # hologramdan kaldırır, listeyi tamamen boşaltmak hologramı boş bırakır (kapatmak
+  # için config.yml -> camera.hologram.enabled kullan).
+  # Yer tutucular: <name> <owner> <ratio> <zoom> <blocks> <yaw> <pitch> <filter> <photos>
+  hologram:
+    lines:
+      - "<gradient:#5e60ce:#48bfe3><name></gradient>"
+      - "<gray><ratio> <dark_gray>·</dark_gray> <zoom>x <dark_gray>(<blocks> blok)</dark_gray>"
+      - "<gray>Yön <yaw>° <dark_gray>·</dark_gray> Eğim <pitch>°"
+      - "<dark_gray><photos> fotoğraf · <filter>"
 
 # Canlı önizleme: kamera başına tek harita, birden çok izleyici, tek "editör".
 # Editör kamerayı tık ile ayarlayan kişidir; diğerleri yalnızca izler.
@@ -96,6 +106,8 @@ map:
   photos-removed-all: "<yellow><count> fotoğraf kaldırıldı."
   photo-not-found: "<red>Fotoğraf bulunamadı."
   cleaned: "<green><count> kayıp/kırık fotoğraf kaydı temizlendi."
+  photo-retaken: "<green>Fotoğraf yeniden çekildi: <white><name></white> <gray>(kamera: <camera>, <ms>ms)"
+  photo-no-source: "<red>Bu fotoğraf yeniden çekilemez: <white><camera></white> kamerası yok ve fotoğrafın kayıtlı çekim parametreleri de bulunmuyor. <gray>Bir kamera adı vererek dene: <white>/izocam retake [id] [kamera]</white>"
 
 dialog:
   title: "<gradient:#5e60ce:#48bfe3>Izomap Fotoğraf</gradient>"
@@ -134,6 +146,8 @@ log:
   # --- yapılandırma ---
   risky-frame-shift: "<yellow>photo.frame-shift = <value>: kadraj kameranın üstüne kaydırılmış. Eğimi düşük (yatay ya da yukarı bakan) kameralarda hiçbir ışın araziye inmez ve fotoğraflar BOŞ çıkar. Önerilen değer 0.0 (kameranın baktığı nokta kadrajın merkezi olur)."
   invalid-item-display-transform: "camera.item-display-transform = '<value>' geçersiz; FIXED kullanılıyor. Geçerli değerler: <options>"
+  invalid-hologram-billboard: "camera.hologram.billboard = '<value>' geçersiz; CENTER kullanılıyor. Geçerli değerler: <options>"
+  invalid-hologram-background: "camera.hologram.background = '<value>' geçersiz; vanilla arka plan kullanılıyor. Beklenen: 'default', 'none' ya da #AARRGGBB."
   unknown-base-colors: "<count> blok, bilinmeyen bir harita temel rengi bildirdi; en yakın renge eşlendi. (MapBaseColor tablosu güncellenmeli.)"
   override-unknown-block: "<file>: bilinmeyen blok '<block>' atlandı."
   override-invalid-color: "<file>: '<block>' için geçersiz renk '<color>' atlandı."

@@ -48,9 +48,10 @@ public record PlacedPhoto(
     }
 
     /**
-     * Copy carrying the capture parameters the image was last produced with.
+     * Copy carrying the camera and parameters the image was last produced with. A
+     * retake may shoot from a different camera than the original.
      */
-    public PlacedPhoto withSpec(CaptureSpec spec) {
+    public PlacedPhoto withCapture(String cameraName, CaptureSpec spec) {
         return new PlacedPhoto(id, owner, name, cameraName, spec, worldId, grid,
                 mapIds, frameIds, baseX, baseY, baseZ);
     }
