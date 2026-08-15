@@ -29,7 +29,7 @@ import java.util.List;
 public final class Messages {
 
     private final Izomap plugin;
-    private MiniMessage mm = MiniMessage.miniMessage();
+    private MiniMessage miniMessage = MiniMessage.miniMessage();
 
     private FileConfiguration messages;
 
@@ -43,8 +43,11 @@ public final class Messages {
             plugin.saveResource("messages.yml", false);
 
         this.messages = YamlConfiguration.loadConfiguration(file);
-        this.mm = MiniMessage.builder()
-                .tags(Placeholder.parsed("prefix", messages.getString("prefix", "")))
+        this.miniMessage = MiniMessage.builder()
+                .tags(TagResolver.builder()
+                        .resolver(TagResolver.standard())
+                        .resolver(Placeholder.parsed("prefix", messages.getString("prefix", "")))
+                        .build())
                 .build();
     }
 
@@ -57,10 +60,9 @@ public final class Messages {
      */
     public Component get(String key, TagResolver... resolvers) {
         var raw = messages.getString(key);
-        if (raw == null) {
-            return Component.text("<missing: " + key + ">");
-        }
-        return mm.deserialize(raw, resolvers);
+        if (raw == null) return Component.text("<missing: " + key + ">");
+
+        return miniMessage.deserialize(raw, resolvers);
     }
 
     /**
@@ -87,7 +89,7 @@ public final class Messages {
     public List<Component> list(String key, TagResolver... resolvers) {
         List<Component> out = new ArrayList<>();
         for (var line : messages.getStringList(key)) {
-            out.add(mm.deserialize(line, resolvers));
+            out.add(miniMessage.deserialize(line, resolvers));
         }
         return out;
     }
@@ -128,6 +130,6 @@ public final class Messages {
     }
 
     public MiniMessage mini() {
-        return mm;
+        return miniMessage;
     }
 }

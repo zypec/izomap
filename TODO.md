@@ -5,7 +5,7 @@
 > güncellenir. Maddelere kimlikleriyle (T1, T2 …) referans verilir; kimlikler kalıcıdır,
 > tamamlanan maddeler silinmez, arşiv bölümüne taşınır.
 >
-> Son güncelleme: 2026-08-10
+> Son güncelleme: 2026-08-15
 
 **Öncelik:** `P0` = başkalarını bloke ediyor / bug · `P1` = asıl istenen özellikler ·
 `P2` = iyileştirme, teknik borç
@@ -29,18 +29,113 @@ T30 (renk pipeline'ının parametrikleşmesi) ✔
  ├── T31 (kullanıcı tanımlı filtreler)
  ├── T32 (gökyüzü)
  ├── T33 (gelişmiş gölgelendirme)
- └── T34 (biome tint)
+ ├── T34 (biome tint)
+ └── T36 (fotoğraf stilleri)
+
+T37 (temel renk tablosunun wiki ile denetimi)
+ └── T35 (ot bloklarının rengi)
 ```
 
 ---
 
 ## P0 — Önce bunlar
 
-*(Şu an açık P0 maddesi yok.)*
+### T25 — Fotoğrafın çerçeveleri dünyada kalıyor (doğrulanacak bug)
+
+`[ ]` **P0**
+
+Fotoğraf silinince / indirilince çerçevelerin hepsi gitmiyor gibi görünüyor: harita
+kayboluyor ama boş `ItemFrame`'ler duvarda kalıyor. Eski bir sürümde düzeltilmiş olabilir,
+önce **tekrarlanabilir mi** ona bakılacak.
+
+**Kodun bugünkü hâli (inceleme notları):**
+- `PhotoManager#removeFrames` (`PhotoManager.java:405`) `placement().frameIds()` listesinin
+  **tamamını** dolaşıyor, yani niyet doğru. `unplace`, `delete`, `removeAllOwned` ve taşıma
+  yolundaki `place` hepsi buradan geçiyor.
+- `PhotoStorage#writePlacement` (`PhotoStorage.java:89`) `frame-ids`'i diske yazıyor, yani
+  yeniden başlatma sonrası da liste elde duruyor.
+- Şüpheli tek nokta `Server#getEntity(UUID)`: chunk yüklü değilse `null` döner ve o çerçeve
+  sessizce atlanır. `loadChunks` (`PhotoManager.java:417`) sadece `base` etrafındaki
+  `max(cols, rows) + 2` bloklu kareyi yüklüyor — taban köşe mi merkez mi olduğuna göre
+  geniş bir fotoğrafın uzak ucu bu karenin dışında kalabilir.
+
+**Yapılacaklar:**
+- Test: 4x3 grid bir fotoğrafı as, `/izocam` üzerinden sil, çerçeveleri say. Aynı testi
+  fotoğraf uzaktayken (chunk yüklü değilken) ve sunucu yeniden başlatıldıktan sonra tekrarla.
+- `loadChunks`'ın kapsadığı alanı `Placement`'ın gerçek sınırlarından hesapla (base + grid
+  yönü), tahmini kareden değil.
+- Atlanan çerçeve olursa sessiz kalma: kaç çerçevenin bulunamadığını log'a yaz
+  (`log.frames-missing` gibi yeni bir anahtar).
+- Yedek yol: çerçeve `PhotoKeys` etiketini zaten taşıyor. Kaydı silinen fotoğrafın
+  çerçeveleri `EntitiesLoadEvent` sırasında etiketten tanınıp temizlenebilir — böylece
+  chunk yüklenmese bile geride kalan çerçeve er ya da geç gider. `camera.orphans-cleaned`
+  için zaten benzer bir tarama var, aynı desen kullanılabilir.
+
+---
+
+### T26 — Boş elle boşluğa sağ tık yerleştirmeyi onaylamıyor (bug)
+
+`[ ]` **P0**
+
+Hayalet yerleştirme modunda (T21) onay `PlayerInteractEvent`'in `RIGHT_CLICK_AIR` /
+`RIGHT_CLICK_BLOCK` aksiyonlarına bağlı (`PlacementManager.java:315`). Ama istemci, **eli
+boşken boşluğa** sağ tıklandığında sunucuya kullanım paketi göndermiyor; olay hiç
+tetiklenmiyor. Creative'de eli boş gezmek olağan olduğu için sorun sık görülüyor.
+
+**Seçenekler (uygulamada biri seçilecek):**
+1. **Sol tık da onaylasın.** `LEFT_CLICK_AIR` kol sallama paketiyle her zaman gelir.
+   Bedeli: oturum boyunca `BlockBreakEvent` ve creative'deki anında kırmayı da iptal etmek
+   gerekir; "sol tık = onay" da sezgisel değil.
+2. **Oturum boyunca ele geçici bir eşya ver.** Elde eşya varken sağ tık-boşluk paketi
+   gönderiliyor. Envanter kurcalamak riskli; eski slot'un geri yüklenmesi şart.
+3. **`PlayerAnimationEvent` (ARM_SWING) yedek yol olsun.** Sağ tık birincil kalır, hiç
+   gelmediği durumda kol sallama onay sayılır. En az invaziv olanı bu.
+- Hangisi seçilirse seçilsin, action bar metni (`placement.actionbar`) gerçek jesti
+  anlatmalı ve iptal (shift) yolu bozulmamalı.
+- Tüm senaryolar denenecek: survival/creative × eli boş/dolu × boşluk/blok/entity.
 
 ---
 
 ## P1 — Kamera ve etkileşim
+
+### T9 — Move tek bir özellik olsun, oyuncunun bakışına göre hareket etsin
+
+`[ ]` **P1** · T4'ü gözden geçirir
+
+Bugün `EditProperty` iki ayrı taşıma özelliği taşıyor: `MOVE_X` (kameranın yaw'ı boyunca
+ileri/geri) ve `MOVE_Y` (dikey). İkisi arasında dolaşmak için shift + sağ tık gerekiyor ve
+kamerayı istenen yere getirmek zahmetli.
+
+- İkisi tek bir `MOVE` sabitine indirilecek (`EditProperty.java`), `CameraListener#adjust`
+  içindeki iki `case` tek bir dala inecek.
+- Yön **oyuncunun bakış vektörü** olacak: sağ tık = oyuncunun baktığı yöne, sol tık = zıt
+  yöne, adım yine `settings.move-step`. Bakış vektörü pitch'i de içerdiği için dikey
+  hareket ayrı bir özelliğe gerek kalmadan gelir.
+- `clampToWorld` korunacak: dünya sınırının dışına taşan kamera tuhaf davranıyor.
+- `messages.yml` → `preview.property.MOVE_X` / `MOVE_Y` tek bir `MOVE` anahtarına inecek;
+  `cameras.yml`'de kayıtlı eski değerler (`MOVE_X`, `MOVE_Y`) okunurken `MOVE`'a düşecek.
+
+---
+
+### T17 — Preview güncellenirken durum göstergesi
+
+`[ ]` **P1**
+
+Preview haritası render bitince güncelleniyor; render async olduğu için tık ile ayar
+yapmakla haritanın değişmesi arasında gözle görülür bir boşluk var ve o boşlukta hiçbir
+şey olmuyormuş gibi görünüyor.
+
+- Önce ölçülecek: `settings.render-timing` açıkken bir preview render'ı gerçekte kaç ms
+  sürüyor? Gecikme render'dan mı, yoksa istemcinin harita paketini işlemesinden mi geliyor?
+- Ölçüme göre ya render hızlandırılacak ya da bekleme görünür kılınacak: preview action
+  bar'ında (T11) render sürerken "Güncelleniyor…" satırı. Action bar zaten saniyede bir
+  yenileniyor, yeni bir gösterim kanalı gerekmiyor.
+- Üst üste gelen istekler: hâlihazırda bir render koşarken yeni tık gelirse eskisi
+  bırakılıp yenisi başlatılmalı (varsa mevcut davranış korunacak, yoksa eklenecek).
+- Bir sonraki render'a kadar harita eski görüntüde kalır; bu doğru davranış, mesele
+  yalnızca oyuncunun beklediğini bilmesi.
+
+---
 
 ### T7 — Item ile çağrılan kamerayı envantere geri alma
 
@@ -83,6 +178,46 @@ verilebilmeli.
   `Player#getEffectivePermissions` üzerinden önek eşlemesiyle yapılacak.
 - Limit dolduğunda Dialog'daki "Fotoğraf Çek" butonu pasif görünür ve mesaj verir.
 - `settings.max-cameras-per-player` için de aynı desen uygulanabilir (T3'e ek, opsiyonel).
+
+---
+
+### T24 — Dialog geçişlerinde bekleme geri bildirimi
+
+`[ ]` **P1**
+
+Bir Dialog'dan diğerine geçiş (özellikle "Fotoğraflar" listesini açmak) gözle görülür
+biçimde geç. Ekran açılana kadar hiçbir şey olmuyormuş gibi görünüyor.
+
+- Önce nedeni ölçülecek; iki aday var:
+  1. `plugin.runOnMain(...)` (`Izomap.java:121`) `GlobalRegionScheduler#run` ile bir sonraki
+     tick'e atıyor — tek başına ≤50 ms, tek başına bu gecikmeyi açıklamaz.
+  2. Dialog API'sinin gidiş-dönüşü: buton `customClick` → sunucu → yeni dialog paketi.
+     Aradaki kapanma/açılma istemci tarafında da bir geçiş yaşıyor.
+- `CameraDialogs#openPhotoList`'in kendi işi ucuz (`takenWith` + mesaj çözümleme), yani
+  gecikme büyük ihtimalle veri değil taşıma kaynaklı.
+- Hızlandırılamıyorsa: geçiş sırasında "Yükleniyor…" gövdeli bir ara dialog gösterilip
+  hazır olunca asıl ekranla değiştirilecek. Metin `messages.yml` → `dialog.loading`.
+- Ara ekran her geçişte değil, yalnızca gerçekten yavaş olan geçişlerde açılmalı; yoksa
+  hızlı geçişlerde bir kare titreme olarak görünür.
+
+---
+
+### T27 — Capture dialog'unda zoom kaldırılsın, bilgi satırı genişlesin
+
+`[ ]` **P1**
+
+Zoom hem preview'da tık ile (`EditProperty.ZOOM`) hem de Dialog'daki açılır listeden
+ayarlanıyor; ikinci yol gereksiz ve preview'daki değeri geri yazarak şaşırtıyor.
+
+- `CameraDialogs`'tan `INPUT_ZOOM` girdisi, `ZOOM_PRESETS`, `zoomEntries` ve `nearestZoom`
+  kaldırılacak; `applyForm`/`onCapture` artık zoom yazmayacak (kameranın mevcut değeri
+  aynen kullanılır).
+- `messages.yml` → `dialog.scale-label` kaldırılacak.
+- `dialog.info` satırına yaw ve pitch eklenecek: bugün yalnızca `<camera> <ratio> <scale>`
+  var (`CameraDialogs.java:394`), `<yaw>` ve `<pitch>` yer tutucuları eklenecek. Zoom bilgi
+  satırında **kalacak** — kaldırılan ayar, gösterge değil.
+- Hologram (T6) zaten aynı bilgiyi gösteriyor; iki yerde aynı formatı kullanmak için
+  biçimlendirme ortak bir yardımcıya alınabilir.
 
 ---
 
@@ -217,6 +352,74 @@ manzarayı göstermek).
 - Uygulama: temel renk × tint, sonra palete snap. Palet kısıtı yüzünden fark bazı
   biome'larda görünmeyebilir — beklenen davranış, belgelenmeli.
 - Bilinmeyen/yeni biome → tint yok, temel renk kullanılır.
+
+---
+
+### T37 — Temel renk tablosu wiki ile denetlensin, blok durumu da renge girsin
+
+`[ ]` **P1**
+
+Buğday vanilla'da olgunlaştıkça harita rengi değişiyor (`WHEAT` age 0-1 → `PLANT`,
+sonrası → farklı temel renkler). Bizim tablomuz bloğun **materyaline** bakıyor, blok
+durumuna değil, dolayısıyla ekin tarlaları hep aynı renkte çıkıyor.
+
+- Kaynak: <https://minecraft.wiki/w/Map_item_format#Base_colors> — tablo baştan sona
+  okunup `MapBaseColor` (`render/MapBaseColor.java`, 61 sabit) ve `BlockColorTable`
+  eşlemesiyle karşılaştırılacak. Fark listesi çıkarılıp toplu düzeltilecek.
+- `BlockColorTable` bugün materyal → temel renk eşliyor; blok durumuna bakan bir istisna
+  yolu gerekiyor. Kapsam materyal başına birkaç bloğu geçmeyeceği için sıcak yolu
+  yavaşlatmayan küçük bir tablo yeter (materyal → durum yorumlayıcısı).
+- `RayHit` şu an ışının çarptığı bloğun neyini taşıyor, `BlockData`'ya erişimi var mı —
+  önce buna bakılacak; yoksa snapshot tarafında taşınması gerekir.
+- Kapsanacak durumlu bloklar buğdayla sınırlı değil: diğer ekinler, `SNOWY` çim bloğu,
+  yatay/dikey varyantlar. Denetim sırasında liste çıkarılacak.
+- Bilinmeyen temel renk bildiren bloklar için `log.unknown-base-colors` uyarısı zaten var;
+  denetimden sonra sayının düşmesi beklenir.
+
+---
+
+### T35 — Ot bloklarının rengi göze batıyor
+
+`[ ]` **P2** · Bağımlı: T37
+
+`SHORT_GRASS` ve `TALL_GRASS` fotoğrafta fazla parlak/doygun duruyor ve zeminden ayrışıp
+gürültü gibi görünüyor.
+
+- Önce doğru davranış tespit edilecek (T37): bu bloklar vanilla haritada gerçekte hangi
+  temel rengi bildiriyor, bizimki onunla uyuşuyor mu? Sorun yanlış eşleme ise çözüm T37'de.
+- Eşleme doğruysa mesele estetik. Seçenekler:
+  - Ot gibi "ince" blokların ışını durdurmaması, yani altındaki zeminin görünmesi
+    (`IsometricRenderer` ışın yürüyüşünde geçirgen materyal listesi).
+  - Ya da ışını durdursun ama zemin rengiyle harmanlansın.
+- Hangisi seçilirse `block-colors.yml` override'ıyla sunucu sahibinin geri alabilmesi
+  korunmalı.
+- Karar için önce/sonra ekran görüntüsü alınacak; bu madde göz kararıdır, ölçüt görsel.
+
+---
+
+### T36 — Fotoğraf stilleri (renk filtresinden ayrı)
+
+`[ ]` **P1** · Bağımlı: T30 ✔
+
+Eklentinin ilk sürümleri daha "yağlı boya" görünümlü fotoğraflar üretiyordu; şimdiki
+çıktı fazla keskin. Bu bir **stil** meselesi ve renk filtresinden ayrı bir eksen:
+stil pikselin nasıl oluştuğunu, filtre rengin nasıl kaydırıldığını belirler. İkisi bir
+fotoğrafa aynı anda uygulanabilmeli.
+
+- Ne değişti sorusu önce cevaplanacak: keskinliği getiren büyük ihtimalle
+  `settings.supersampling` ve `ColorPipeline#blend`'in kenar pikselleri ortalaması —
+  eski hâlde örnekleme yoktu ya da harmanlama farklıydı. Git geçmişinden karşılaştırılacak.
+- Stil = render sonrası (ya da örnekleme sırasında) uygulanan bir işlem kümesi. Aday
+  işlemler: komşu piksel harmanlama/yumuşatma, kenar yumuşatmayı azaltma, renk sayısını
+  düşürme (palet zaten 244), hafif bulanıklık, doku gürültüsü.
+- Konfigüre edilebilir olacak: `styles.yml`, T31'in `filters.yml` deseniyle aynı
+  (kimlik + görünen ad `messages.yml`'de + işlem listesi). İkisi birlikte tasarlanmalı ki
+  iki ayrı ama benzer mekanizma çıkmasın.
+- Oyuncu stili Dialog'dan seçer; `CaptureSpec`'e `style` alanı eklenir ve `photos.yml`'e
+  yazılır (retake aynı stille tekrarlanmalı).
+- Performans: filtre 244 girişli tabloya katlanıyor, stil **katlanamaz** — komşu piksellere
+  bakan bir işlem piksel başına çalışır. Maliyeti ölçülecek; gerekirse stil yalnızca son
+  görüntü üzerinde tek geçişte uygulanır.
 
 ---
 

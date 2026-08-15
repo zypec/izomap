@@ -119,7 +119,7 @@ public final class ConfigManager {
      * {@code ItemDisplay.ItemDisplayTransform} name. Ignored by {@code BLOCK_DISPLAY}.
      */
     public String itemDisplayTransform() {
-        return cfg().getString("camera.item-display-transform", "FIXED");
+        return cfg().getString("camera.item-display-transform", "NONE");
     }
 
     /**

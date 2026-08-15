@@ -487,7 +487,7 @@ public final class CameraManager {
             plugin.messages().warn("log.invalid-item-display-transform",
                     Placeholder.unparsed("value", name),
                     Placeholder.unparsed("options", Arrays.toString(ItemDisplayTransform.values())));
-            return ItemDisplayTransform.FIXED;
+            return ItemDisplayTransform.NONE;
         }
     }
 

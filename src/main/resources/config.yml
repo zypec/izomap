@@ -7,8 +7,8 @@ settings:
   # uzunluğu (blok). Aşırı uzaklaştırmanın sunucuyu dondurmasını engeller;
   # aşılırsa çekim yapılmaz ve oyuncuya yakınlaşması söylenir.
   # Hem kopyalanacak chunk sayısını hem de ışınların kat edebileceği mesafeyi
-  # sınırlar. Maliyet bununla KARESEL büyür: 512 -> ~1024 chunk,
-  # 1024 -> ~4096 chunk. Aralık: 64-4096.
+  # sınırlar. Maliyet bununla KARESEL büyür: 512 -> ~1024 chunk, 1024 -> ~4096 chunk.
+  # Aralık: 64-4096.
   max-capture-area: 512
   # Işınların, referans zeminden kaç blok daha AŞAĞIYA ulaşacağı.
   # Işın mesafesi ayar değil, hesaplanan bir sonuçtur:
@@ -47,10 +47,11 @@ camera:
   # ITEM_DISPLAY modelinin duruşu. Eşyanın hangi bağlamda çizileceğini seçer ve
   # görünümü belirgin biçimde değiştirir: NONE, THIRDPERSON_RIGHTHAND,
   # THIRDPERSON_LEFTHAND, FIRSTPERSON_RIGHTHAND, FIRSTPERSON_LEFTHAND, HEAD, GUI,
-  # GROUND, FIXED. Varsayılan FIXED = duvara asılı eşya görünümü (spyglass için en
-  # makulü). Geçersiz değer varsayılana düşer ve log'a uyarı yazılır.
+  # GROUND, FIXED.
+  # Varsayılan: NONE.
+  # Geçersiz değer varsayılana düşer ve log'a uyarı yazılır.
   # BLOCK_DISPLAY seçiliyken yok sayılır.
-  item-display-transform: FIXED
+  item-display-transform: NONE
   # Tık kutusunun model ölçeği 1.0'ken kenar uzunluğu. Gerçek kutu bununla
   # model-scale'in çarpımıdır (0.25-3.0 arasına sıkıştırılır): büyütülen kamerada
   # modelin gövdesine tıklamak çalışsın, küçültülende de görünmeyen bir alan
