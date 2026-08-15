@@ -22,6 +22,17 @@ public final class CameraStatus {
      * Every property with its value, the active one highlighted.
      */
     public static Component line(Izomap plugin, Camera camera) {
+        return line(plugin, camera, false);
+    }
+
+    /**
+     * The same line, told whether a render for this camera is still running.
+     *
+     * <p>A preview is redrawn asynchronously, so an adjustment shows up a moment after
+     * the click that made it. Without saying so the wait reads as a click that did
+     * nothing, and the player clicks again.</p>
+     */
+    public static Component line(Izomap plugin, Camera camera, boolean rendering) {
         var separator = plugin.messages().get("preview.actionbar-separator");
         var entries = Component.empty();
         boolean first = true;
@@ -32,7 +43,8 @@ public final class CameraStatus {
             entries = entries.append(entry(plugin, camera, property));
             first = false;
         }
-        return plugin.messages().get("preview.actionbar", Placeholder.component("entries", entries));
+        return plugin.messages().get(rendering ? "preview.actionbar-rendering" : "preview.actionbar",
+                Placeholder.component("entries", entries));
     }
 
     private static Component entry(Izomap plugin, Camera camera, EditProperty property) {

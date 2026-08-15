@@ -310,18 +310,59 @@ public final class CameraDialogs {
             return;
         }
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
-        Float zoom = parseFloat(view.getText(INPUT_ZOOM));
+        Float zoom = pickedZoom(view, camera);
         ColorFilter filter = ColorFilter.fromString(view.getText(INPUT_FILTER), camera.colorFilter());
-        float resolvedZoom = zoom != null ? zoom : camera.zoom();
 
         plugin.runOnMain(() -> {
+            var before = imageState(camera);
             change.accept(camera);
-            camera.zoom(resolvedZoom);
+            if (zoom != null) {
+                camera.zoom(zoom);
+            }
             camera.colorFilter(filter);
-            cameraManager.applyAndPersist(camera);
-            plugin.preview().refresh(player, camera);
-            then.run(player, name, resolvedZoom, filter);
+            applyIfChanged(player, camera, before);
+            then.run(player, name, camera.zoom(), filter);
         });
+    }
+
+    /**
+     * Everything the previewed image depends on, as a value to compare against.
+     */
+    private static List<Object> imageState(Camera camera) {
+        return List.of(camera.aspectRatio(), camera.thirdsGuide(), camera.zoom(), camera.colorFilter());
+    }
+
+    /**
+     * Persists and re-renders only when the shot actually changed.
+     *
+     * <p>Every button on the capture screen goes through the form, and a re-render is
+     * the most expensive thing this plugin does — it copies the chunks the frame covers
+     * on the main thread. Firing one for a button that only navigates somewhere else
+     * meant the next screen opened behind that copy, which is what made the photo list
+     * feel slow to reach. Main thread only.</p>
+     */
+    private void applyIfChanged(Player player, Camera camera, List<Object> before) {
+        if (imageState(camera).equals(before))
+            return;
+
+        cameraManager.applyAndPersist(camera);
+        plugin.preview().refresh(player, camera);
+    }
+
+    /**
+     * The zoom the player picked, or {@code null} when they left the dropdown alone.
+     *
+     * <p>The list only holds presets, so a camera zoomed by clicking sits between two
+     * of them and opens with the nearest one selected. Writing that back would snap the
+     * zoom on every button press and count as a change, so an untouched dropdown is
+     * read as no answer at all.</p>
+     */
+    private Float pickedZoom(DialogResponseView view, Camera camera) {
+        var zoom = parseFloat(view.getText(INPUT_ZOOM));
+        if (zoom == null || zoom == nearestZoom(camera.zoom()))
+            return null;
+
+        return zoom;
     }
 
     private interface FormAction {
@@ -333,17 +374,19 @@ public final class CameraDialogs {
             return;
         }
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
-        Float zoom = parseFloat(view.getText(INPUT_ZOOM));
+        Float zoom = pickedZoom(view, camera);
         ColorFilter filter = ColorFilter.fromString(view.getText(INPUT_FILTER), camera.colorFilter());
         String gridLabel = view.getText(INPUT_GRID);
 
         plugin.runOnMain(() -> {
+            var before = imageState(camera);
             if (zoom != null) {
                 camera.zoom(zoom);
             }
             camera.colorFilter(filter);
-            cameraManager.applyAndPersist(camera);
-            plugin.preview().refresh(player, camera);
+            // The capture below renders the same frame; refreshing an unchanged preview
+            // first would render it twice for one click.
+            applyIfChanged(player, camera, before);
 
             GridOption grid = GridOption.parse(gridLabel);
             if (grid == null || !GridLayouts.isValid(camera.aspectRatio(), grid)) {

@@ -534,6 +534,21 @@ Bütçe aşımı uyarısı bu satıra ezdirilmez: uyarı geldiğinde oturum 5 sa
 "notice" moduna girer ve durum satırı beklemeye alınır. Aksi halde uyarı bir saniye
 sonra kaybolur ve oyuncu neden hiçbir şey olmadığını anlamazdı.
 
+Render sürerken satır `preview.actionbar-rendering` şablonuna geçer ve sonuna
+"⟳ Güncelleniyor" eklenir. Render async'tir, yani tık ile haritanın değişmesi arasında
+gözle görülür bir boşluk var; işaret olmayınca o boşluk "tık boşa gitti" gibi okunuyor ve
+oyuncu tekrar tıklıyordu. İşaret render biter bitmez kalkar — saniyelik görevin sırasını
+beklemez.
+
+### Render kuyruğu: en fazla bir bekleyen
+
+Kamera başına aynı anda tek render koşar. Sürerken gelen değişiklikler **atılmaz**,
+`pending` bayrağına katlanır ve koşan render biter bitmez tek bir render daha başlar.
+Eskiden ikinci istek sessizce düşürülüyordu: bir dizi hızlı tığın **sonuncusu** hiç
+render edilmiyor, önizleme render'ın başladığı andaki hâlde takılı kalıyordu. Katlama
+hem tık spam'ini yutar hem de önizlemenin er ya da geç kameranın son hâline yakınsamasını
+garanti eder.
+
 ### Önizleme kameranın oranında çekilir
 
 Karo kare (128×128) olsa da render kameranın en-boy oranına göre küçültülüp karonun
@@ -601,6 +616,24 @@ seferinde "bu isim alınmış" derdi.
 
 Bir fotoğrafı **indirmek onu silmez**: çerçeveler kalkar, kayıt ve görüntü listede
 kalır. Silme yalnızca Dialog'daki ✖ ile (onay ister) ya da `remove all photos` ile olur.
+
+### Dialog butonu yalnızca gerçekten değişince render eder
+
+Çekim ekranındaki her buton formdan geçer (`CameraDialogs#applyForm`): girilen ad, zoom
+ve filtre okunur, butonun kendi değişikliği uygulanır, sonra bir sonraki adıma geçilir.
+Bu yol eskiden **koşulsuz** olarak kamerayı kaydedip önizlemeyi yeniden render ediyordu —
+"Fotoğraflar" gibi yalnızca başka bir ekrana geçen butonlarda bile. Render bu eklentinin
+en pahalı işi (kadrajın kapsadığı chunk'lar ana thread'de kopyalanır), dolayısıyla yeni
+ekran o kopyalamanın arkasında açılıyordu; fotoğraf listesinin geç açılmasının sebebi
+buydu.
+
+Artık görüntüyü etkileyen dört alanın (en-boy oranı, üçler kılavuzu, zoom, filtre)
+öncesi ve sonrası karşılaştırılır; **hiçbiri değişmediyse ne kayıt ne render** yapılır.
+
+Zoom açılır listesi yalnızca hazır değerler taşır, tık ile ayarlanmış bir kamera ise
+ikisinin arasında durur ve liste en yakınını seçili gösterir. O değeri geri yazmak her
+buton basışını bir değişiklik hâline getirirdi, bu yüzden **dokunulmamış liste cevapsız
+sayılır**: seçili değer "en yakın hazır değer"e eşitse zoom'a hiç dokunulmaz.
 
 ### Hayalet önizleme (`place/PlacementManager`)
 
@@ -880,6 +913,8 @@ kullanılır.
 
 | Konu | Madde |
 |---|---|
+| Silinen fotoğrafın çerçeveleri dünyada kalabiliyor | T25 |
+| Eli boşken boşluğa sağ tık yerleştirmeyi onaylamıyor | T26 |
 | Birim test yok | T41 |
 
 ---

@@ -139,9 +139,16 @@ public final class PreviewManager implements Listener {
         private UUID editor;
         private long editorTouchedAt;
         /**
-         * One render at a time per camera; swallows click spam from every watcher.
+         * One render at a time per camera; click spam from every watcher collapses
+         * into {@link #pending} instead of queuing up.
          */
         private boolean rendering;
+        /**
+         * A change arrived mid-render, so one more render is owed once this one lands.
+         * Dropping it outright used to leave the preview on the state the render
+         * started from: the last click of a burst was the one that never showed.
+         */
+        private boolean pending;
         /**
          * Takes the action bar over from the status line until it expires.
          */
@@ -333,10 +340,16 @@ public final class PreviewManager implements Listener {
     // --- rendering ---
 
     private void render(Camera camera, PreviewSession session) {
-        if (session == null || session.view == null || session.watchers.isEmpty() || session.rendering) {
+        if (session == null || session.view == null || session.watchers.isEmpty()) {
+            return;
+        }
+        if (session.rendering) {
+            // Whatever changed now is rendered as soon as the running one is done.
+            session.pending = true;
             return;
         }
         session.rendering = true;
+        session.pending = false;
 
         CompletableFuture<RenderResult> capture;
         try {
@@ -353,15 +366,32 @@ public final class PreviewManager implements Listener {
                     session.rendering = false;
                     if (error == null && result != null) {
                         mapService.applyTile(session.view, tileFrom(result, camera.thirdsGuide()));
-                        return;
-                    }
-                    // Report a budget overrun on the action bar instead of stalling silently.
-                    if (Failures.unwrap(error) instanceof CaptureTooLargeException tooLarge) {
+                    } else if (Failures.unwrap(error) instanceof CaptureTooLargeException tooLarge) {
+                        // Report a budget overrun on the action bar instead of stalling silently.
                         notice(session, plugin.messages().get("photo.too-large",
                                 Placeholder.unparsed("required", String.valueOf(tooLarge.required())),
                                 Placeholder.unparsed("budget", String.valueOf(tooLarge.budget()))));
                     }
+                    renderPending(session);
+                    // The status task only comes round once a second; without this the
+                    // "rendering" mark would linger after the image already changed.
+                    if (session.notice == null)
+                        showStatus(session);
                 }));
+    }
+
+    /**
+     * Runs the render owed to the changes that arrived while the last one was running.
+     * Main thread only.
+     */
+    private void renderPending(PreviewSession session) {
+        if (!session.pending)
+            return;
+
+        session.pending = false;
+        var camera = plugin.cameras().byId(session.cameraId);
+        if (camera != null)
+            render(camera, session);
     }
 
     private void actionBar(PreviewSession session, Component message) {
@@ -380,8 +410,8 @@ public final class PreviewManager implements Listener {
      * caused the change — who may have no preview at all, when their offhand is full.
      */
     public void showStatus(Camera camera, Player actor) {
-        var line = CameraStatus.line(plugin, camera);
         var session = sessions.get(camera.id());
+        var line = CameraStatus.line(plugin, camera, session != null && session.rendering);
         if (session != null) {
             actionBar(session, line);
         }
@@ -424,14 +454,21 @@ public final class PreviewManager implements Listener {
                 continue;
             }
             session.notice = null;
-            var camera = plugin.cameras().byId(session.cameraId);
-            if (camera != null) {
-                actionBar(session, CameraStatus.line(plugin, camera));
-            }
+            showStatus(session);
         }
         if (!anyWatcher) {
             stopStatusTask();
         }
+    }
+
+    /**
+     * Pushes the status line to a session's watchers, carrying whether a render for it
+     * is still running.
+     */
+    private void showStatus(PreviewSession session) {
+        var camera = plugin.cameras().byId(session.cameraId);
+        if (camera != null)
+            actionBar(session, CameraStatus.line(plugin, camera, session.rendering));
     }
 
     /**

@@ -57,6 +57,9 @@ preview:
   # entry/entry-active şablonlarının ayraçla birleştirilmiş hâlidir; ayarlanmakta olan
   # özellik entry-active ile yazılır.
   actionbar: "<entries>"
+  # Render bitene kadar action bar'da bunun yerine bu satır durur. Preview'ın
+  # yenilenmesi bir tık kadar sürmez; işareti olmayınca tık boşa gitmiş gibi görünür.
+  actionbar-rendering: "<entries><dark_gray>  ·  </dark_gray><yellow>⟳ Güncelleniyor</yellow>"
   actionbar-separator: "<dark_gray>  ·  </dark_gray>"
   entry: "<gray><label> <white><value></white></gray>"
   entry-active: "<yellow><bold><label> <value></bold></yellow>"

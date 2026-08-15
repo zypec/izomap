@@ -117,26 +117,6 @@ kamerayı istenen yere getirmek zahmetli.
 
 ---
 
-### T17 — Preview güncellenirken durum göstergesi
-
-`[ ]` **P1**
-
-Preview haritası render bitince güncelleniyor; render async olduğu için tık ile ayar
-yapmakla haritanın değişmesi arasında gözle görülür bir boşluk var ve o boşlukta hiçbir
-şey olmuyormuş gibi görünüyor.
-
-- Önce ölçülecek: `settings.render-timing` açıkken bir preview render'ı gerçekte kaç ms
-  sürüyor? Gecikme render'dan mı, yoksa istemcinin harita paketini işlemesinden mi geliyor?
-- Ölçüme göre ya render hızlandırılacak ya da bekleme görünür kılınacak: preview action
-  bar'ında (T11) render sürerken "Güncelleniyor…" satırı. Action bar zaten saniyede bir
-  yenileniyor, yeni bir gösterim kanalı gerekmiyor.
-- Üst üste gelen istekler: hâlihazırda bir render koşarken yeni tık gelirse eskisi
-  bırakılıp yenisi başlatılmalı (varsa mevcut davranış korunacak, yoksa eklenecek).
-- Bir sonraki render'a kadar harita eski görüntüde kalır; bu doğru davranış, mesele
-  yalnızca oyuncunun beklediğini bilmesi.
-
----
-
 ### T7 — Item ile çağrılan kamerayı envantere geri alma
 
 `[ ]` **P1**
@@ -183,22 +163,34 @@ verilebilmeli.
 
 ### T24 — Dialog geçişlerinde bekleme geri bildirimi
 
-`[ ]` **P1**
+`[~]` **P1** · 2026-08-15 · sunucuda ölçülmeyi bekliyor
 
 Bir Dialog'dan diğerine geçiş (özellikle "Fotoğraflar" listesini açmak) gözle görülür
 biçimde geç. Ekran açılana kadar hiçbir şey olmuyormuş gibi görünüyor.
 
-- Önce nedeni ölçülecek; iki aday var:
-  1. `plugin.runOnMain(...)` (`Izomap.java:121`) `GlobalRegionScheduler#run` ile bir sonraki
-     tick'e atıyor — tek başına ≤50 ms, tek başına bu gecikmeyi açıklamaz.
-  2. Dialog API'sinin gidiş-dönüşü: buton `customClick` → sunucu → yeni dialog paketi.
-     Aradaki kapanma/açılma istemci tarafında da bir geçiş yaşıyor.
-- `CameraDialogs#openPhotoList`'in kendi işi ucuz (`takenWith` + mesaj çözümleme), yani
-  gecikme büyük ihtimalle veri değil taşıma kaynaklı.
-- Hızlandırılamıyorsa: geçiş sırasında "Yükleniyor…" gövdeli bir ara dialog gösterilip
-  hazır olunca asıl ekranla değiştirilecek. Metin `messages.yml` → `dialog.loading`.
-- Ara ekran her geçişte değil, yalnızca gerçekten yavaş olan geçişlerde açılmalı; yoksa
-  hızlı geçişlerde bir kare titreme olarak görünür.
+**Bulunan sebep ve yapılan düzeltme (2026-08-15):** Çekim ekranındaki **her** buton
+`CameraDialogs#applyForm`'dan geçiyor ve bu yol koşulsuz olarak
+`cameraManager.applyAndPersist` + `preview().refresh()` çağırıyordu. İkincisi tam bir
+preview render'ı başlatır; `RenderService#capture`'ın chunk kopyalama aşaması **ana
+thread'de** koşar, yani yeni dialog o kopyalamanın arkasında sıraya girer. "Fotoğraflar"
+butonu hiçbir şeyi değiştirmediği hâlde bunu ödüyordu.
+
+- Artık görüntüyü etkileyen dört alan (oran, üçler kılavuzu, zoom, filtre) öncesi/sonrası
+  karşılaştırılıyor; değişmemişse kayıt da render da yapılmıyor (`applyIfChanged`).
+- Zoom açılır listesi dokunulmadığında cevapsız sayılıyor (`pickedZoom`); eskiden en yakın
+  hazır değere snap edip her butonu "değişiklik" hâline getiriyordu.
+- `onCapture` de aynı korumayı aldı: çekimden hemen önce aynı kadrajı bir de preview için
+  render etmek tek tık için iki render demekti.
+
+**Kalanlar:**
+- Sunucuda denenecek: geçiş hâlâ yavaş mı? `settings.render-timing` açıkken bir preview
+  render'ının kaç ms sürdüğü de kaydedilecek.
+- Hâlâ yavaşsa geriye Dialog API'sinin kendi gidiş-dönüşü kalır (buton `customClick` →
+  sunucu → yeni dialog paketi) ve bir de `plugin.runOnMain`'in bir sonraki tick'e atması
+  (≤50 ms) var. O durumda: geçişte "Yükleniyor…" gövdeli ara dialog (`dialog.loading`),
+  hazır olunca asıl ekranla değiştirilir.
+- Ara ekran her geçişte değil yalnızca gerçekten yavaş olanlarda açılmalı; yoksa hızlı
+  geçişlerde bir kare titreme olarak görünür.
 
 ---
 
@@ -458,6 +450,28 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T17 — Preview'ın düşürdüğü render'lar katlandı, bekleme görünür oldu
+
+`[x]` **P1** · 2026-08-15
+
+Şikâyet "preview geç güncelleniyor"du; altından iki ayrı şey çıktı.
+
+**Düşürülen render'lar (asıl kusur).** `PreviewManager#render` bir render koşarken gelen
+isteği `return` ile **atıyordu**. Yani hızlı bir tık dizisinin *sonuncusu* hiç render
+edilmiyor, harita ilk tığın başlattığı render'ın gösterdiği hâlde kalıyordu — gecikme
+değil, kalıcı bir sapma. Artık istek `pending` bayrağına katlanıyor ve koşan render biter
+bitmez tek bir render daha başlıyor; önizleme kameranın son hâline yakınsıyor.
+
+**Bekleme görünürlüğü.** Render sürerken durum satırı `preview.actionbar-rendering`
+şablonuna geçiyor ve sonuna "⟳ Güncelleniyor" ekleniyor. İşaret render biter bitmez
+kalkıyor; saniyelik durum görevinin sırasını beklemiyor. `CameraStatus#line` bir `boolean
+rendering` parametresi aldı, eski imza ona düşüyor.
+
+Dokunulanlar: `PreviewManager`, `CameraStatus`, `messages.yml`
+(`preview.actionbar-rendering`), `IZOMAP.md` §5.
+
+---
 
 ### T21 — Çekmek, listelemek ve asmak ayrıldı
 
