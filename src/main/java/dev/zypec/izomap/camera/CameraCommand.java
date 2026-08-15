@@ -474,6 +474,12 @@ public final class CameraCommand {
             plugin.messages().send(player, "camera.orphans-cleaned",
                     Placeholder.unparsed("count", String.valueOf(orphans)));
         }
+
+        int frames = photoManager.removeOrphanFrames(player.getWorld());
+        if (frames > 0) {
+            plugin.messages().send(player, "map.orphan-frames-cleaned",
+                    Placeholder.unparsed("count", String.valueOf(frames)));
+        }
         return Command.SINGLE_SUCCESS;
     }
 

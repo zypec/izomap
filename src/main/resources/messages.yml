@@ -86,6 +86,12 @@ filter:
 # Hayalet yerleştirme modu: fotoğraf asılmadan önce nereye asılacağı seçilir.
 placement:
   started: "<prefix> <green>Yerleştirme modu: <white><name></white> <gray>— hayaleti istediğin yere getir, <white>sağ tık</white> ile onayla, <white>shift + sağ tık</white> ile vazgeç."
+  # Yerleştirme boyunca sol ele konan eşya. Sadece görsel değil: istemci boş ele sağ tık
+  # paketini göndermiyor, dolayısıyla onayın çalışması bu eşyaya bağlı.
+  item-name: "<gradient:#5e60ce:#48bfe3>Yerleştiriliyor</gradient> <dark_gray>—</dark_gray> <white><name></white>"
+  item-lore:
+    - "<gray><white>Sağ tık</white> ile onayla."
+    - "<gray><white>Shift + sağ tık</white> ile vazgeç."
   actionbar: "<green>Sağ tık: yerleştir</green> <dark_gray>·</dark_gray> <gray>Shift + sağ tık: iptal"
   actionbar-blocked: "<red>Buraya sığmıyor</red> <dark_gray>·</dark_gray> <gray>Çerçevelerin yeri boş, arkası dolu olmalı"
   blocked: "<prefix> <red>Buraya yerleştirilemez; hayalet yeşile dönene kadar başka bir yere bak."
@@ -115,6 +121,7 @@ map:
   place-blocked: "<prefix> <red>Yerleştirme başarısız: hedef alan artık boş değil. Başka bir yere bakarak tekrar dene."
   still-loading: "<prefix> <yellow>Bu fotoğraf hâlâ yükleniyor; birazdan tekrar dene."
   orphan-frame: "<prefix> <gray>Kaydı bulunmayan bir Izomap çerçevesi kaldırıldı."
+  orphan-frames-cleaned: "<prefix> <yellow><count> sahipsiz fotoğraf çerçevesi temizlendi. <gray>(Hiçbir kaydın sahiplenmediği çerçeveler; yalnızca yüklü chunk'lar taranır.)"
   name-taken: "<prefix> <red>Bu isimde bir fotoğrafın zaten var: <white><name></white>"
   photos-header: "<prefix> <gray>Fotoğraflar (<count>):"
   photos-entry: "<prefix> <dark_gray>› <white><name></white> <gray>[<id>] <camera>, <grid> <dark_gray>— asılı değil"
@@ -209,6 +216,8 @@ log:
   photo-recapture-failed: "Fotoğraf '<name>' yeniden çekilemedi: <reason>"
   photo-unrestorable: "Fotoğraf '<name>' (<id>) ne ön bellekte var ne de çekim parametreleri kayıtlı; haritalar son hâlinde bırakıldı."
   photo-unplaceable: "Fotoğraf '<name>' asılamadı, görüntüsü elde edilemedi: <reason>"
+  # Çerçeve bulunamadıysa dünyada kalmış olabilir; '/izocam cleanup' onu da toplar.
+  frames-missing: "Fotoğraf '<name>' (<id>) indirilirken <total> çerçevenin <missing> tanesi bulunamadı; dünyada kalmış olabilirler."
   photo-export-failed: "Fotoğraf dışa aktarılamadı (<id>): <reason>"
 
   # --- disk ---

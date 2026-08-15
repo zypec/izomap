@@ -666,6 +666,24 @@ gerekmez).
 > bir fotoğrafta kutu oyuncuya doğru 8 blok uzanır ve çevresindeki her şeyi yutardı.
 > Oturum açıkken sağ tıkın kendisi onay sayıldı; nereye denk geldiği önemsiz.
 
+#### Sol eldeki işaretçi eşya — onayın çalışma şartı
+
+Yerleştirme boyunca sol ele bir `ITEM_FRAME` konur ve oturum bitince oradaki eski eşya
+geri verilir. Bu **süs değil, jestin ön şartıdır**: istemci boşluğa sağ tıkta elleri tek
+tek dolaşır ve **boş olanı atlar**, yalnızca dolu el için kullanım paketi gönderir. İki
+eli de boş bir oyuncu gökyüzüne sağ tıkladığında sunucuya hiçbir şey ulaşmaz, dolayısıyla
+`PlayerInteractEvent` hiç tetiklenmez ve onay kaybolurdu — creative'de gezinme hâli tam
+olarak budur.
+
+Bunun sonucu olarak tık işleyicisi **iki eli de kabul eder**; paket hangi elde eşya
+varsa onunla gelir. İki el de doluysa istemci el başına bir paket gönderir, ikincisi
+ortada oturum bulamaz ve düşer.
+
+İşaretçi PDC etiketiyle tanınır ve envanterden kaçamaz: atmak oturumu iptal eder, el
+değiştirme ve envanterde taşıma engellenir, ölümde drop listesinden çıkarılıp yerine
+oyuncunun kendi eşyası konur (aksi halde oyuncu ölünce sol elindeki eşyayı kaybederdi),
+çökme sonrası girişte sol elde kalmışsa temizlenir.
+
 ### Duvara asma (`MapPlacer`, `PlacementArea`)
 
 Nereye asılacağını `PlacementArea` belirler: oyuncunun baktığı yönde `placement.distance`
@@ -694,6 +712,21 @@ kalırdı. Etiketsiz eski çerçeveler eskisi gibi yalnızca kayıt üzerinden b
 
 `PhotoManager#removeFrames` çerçeveleri kaldırmadan önce ilgili chunk'ları yükler;
 aksi halde chunk yüklü değilken `getEntity` null döner ve çerçeveler dünyada kalırdı.
+Yine de çözülemeyen çerçeve olursa **sessiz kalınmaz**: kaçının bulunamadığı
+`log.frames-missing` ile yazılır. Aksi halde dünyada inmemekte direnen bir fotoğrafın
+log'da hiçbir izi olmuyordu.
+
+**Sahipsiz çerçeve süpürme.** `/izocam cleanup` iki yönde de çalışır: `cleanupOwned`
+çerçeveleri kaybolmuş **kayıtları** asılı olmayana çeker, `removeOrphanFrames` ise
+hiçbir kaydın sahiplenmediği **çerçeveleri** dünyadan kaldırır. Bir çerçeve şu üç
+durumda sahipsiz sayılır: fotoğrafın kaydı hiç yok, kayıt var ama "asılı değil" diyor,
+ya da kayıt asılı ama başka çerçeveleri gösteriyor (fotoğraf taşındı, eski ızgara kaldı).
+`World#getEntities()` yalnızca yüklü chunk'ları gördüğü için tarama komutu verenin
+çevresini kapsar; `photos.yml` yüklenmeden hiçbir şey sahipsiz sayılmaz.
+
+Asılı bir fotoğrafı taşırken önce eski çerçeveler kaldırılır, sonra yenisi asılır. Yeni
+yer o sırada dolmuşsa yerleştirme başarısız olur ve kayıt **asılı olmayana** çekilir:
+çerçeveler zaten inmiştir, kaydın onları göstermeye devam etmesi listeyi yalancı yapardı.
 
 ### Yeniden başlatma — fotoğraf ön belleği (`PhotoCache`)
 
@@ -782,7 +815,7 @@ yazar. Görüntü `PhotoManager#image` üzerinden gelir: **önce ön bellek, olm
 | `unplace <id>` | Kısa kimlikle (ilk 8 karakter) fotoğrafı duvardan **indirir**; fotoğraf listede kalır |
 | `retake <id> [kamera]` | Fotoğrafı yeniden çeker; kamera verilmezse fotoğrafın kendi kaynağı kullanılır |
 | `cancel` | Açık hayalet yerleştirmeyi iptal eder |
-| `cleanup` | Çerçeveleri kaybolmuş fotoğrafları "asılı değil"e çeker |
+| `cleanup` | Çerçeveleri kaybolmuş fotoğrafları "asılı değil"e çeker; sahipsiz kalmış çerçeveleri ve kamera modellerini dünyadan siler |
 | `export <id> [dosya]` | Fotoğrafı PNG olarak `exports/` altına yazar (`izomap.admin`) |
 | `reload` | Yapılandırmayı yeniden yükler (`izomap.admin`) |
 
@@ -913,8 +946,6 @@ kullanılır.
 
 | Konu | Madde |
 |---|---|
-| Silinen fotoğrafın çerçeveleri dünyada kalabiliyor | T25 |
-| Eli boşken boşluğa sağ tık yerleştirmeyi onaylamıyor | T26 |
 | Birim test yok | T41 |
 
 ---

@@ -9,6 +9,8 @@ import dev.zypec.izomap.render.RenderService;
 import dev.zypec.izomap.util.Failures;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
+import org.bukkit.World;
+import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
 
 import java.nio.file.Files;
@@ -38,6 +40,7 @@ public final class PhotoManager {
     private final RenderService renderService;
     private final MapService mapService;
     private final MapPlacer placer;
+    private final PhotoKeys keys;
     private final PhotoStorage storage;
     private final PhotoCache cache;
     private final PhotoExporter exporter;
@@ -57,6 +60,7 @@ public final class PhotoManager {
         this.renderService = renderService;
         this.mapService = mapService;
         this.placer = new MapPlacer(plugin, mapService, keys);
+        this.keys = keys;
         this.storage = new PhotoStorage(plugin);
         this.cache = new PhotoCache(plugin);
         this.exporter = new PhotoExporter(plugin);
@@ -298,12 +302,18 @@ public final class PhotoManager {
 
                 // Placing an already hanging photo moves it; the old frames have to go
                 // first or they stay behind with nothing pointing at them.
-                if (current.isPlaced())
+                var moved = current.isPlaced();
+                if (moved)
                     removeFrames(current);
 
                 var placement = placer.place(area, current.id(), current.grid(),
                         ImageSlicer.slice(result, current.grid()));
                 if (placement == null) {
+                    // The old frames are already down, so the record cannot keep
+                    // claiming them; the photo lands back in the unplaced list.
+                    if (moved)
+                        replace(current.withPlacement(null));
+
                     plugin.messages().send(player, "map.place-blocked");
                     return;
                 }
@@ -401,14 +411,68 @@ public final class PhotoManager {
      * Removes the frame entities and their maps without dropping items. The chunks
      * are loaded first because {@code getEntity} returns null for unloaded ones,
      * which would leave the frames behind in the world.
+     *
+     * <p>A frame that still cannot be resolved is reported rather than passed over:
+     * silence here reads in the world as a photo that refuses to come down, with
+     * nothing in the log to say why. {@link #removeOrphanFrames} clears whatever is
+     * left this way.</p>
      */
     private void removeFrames(Photo photo) {
         loadChunks(photo);
+        var missing = 0;
         for (var frameId : photo.placement().frameIds()) {
             var entity = plugin.getServer().getEntity(frameId);
-            if (entity != null)
+            if (entity != null) {
                 entity.remove();
+            } else {
+                missing++;
+            }
         }
+        if (missing > 0) {
+            plugin.messages().warn("log.frames-missing",
+                    Placeholder.unparsed("name", photo.name()),
+                    Placeholder.unparsed("id", photo.shortId()),
+                    Placeholder.unparsed("missing", String.valueOf(missing)),
+                    Placeholder.unparsed("total", String.valueOf(photo.placement().frameIds().size())));
+        }
+    }
+
+    /**
+     * Removes photo frames in the world that no record claims any more, and returns how
+     * many were removed. Main thread only.
+     *
+     * <p>Three ways a frame ends up here: its photo was deleted while the frame could
+     * not be resolved, the record was taken down without the world following, or the
+     * photo was rehung somewhere else and the old grid stayed up. All three leave a
+     * frame that no longer belongs to anything, and until it is hit by a player nothing
+     * takes it down.</p>
+     *
+     * <p>{@link World#getEntities()} only sees loaded chunks, so this sweeps the area
+     * around whoever asked. Frames a record still claims are never touched, and neither
+     * is anything before {@code photos.yml} has been read — an unknown id means an
+     * orphan only once every record is in.</p>
+     */
+    public int removeOrphanFrames(World world) {
+        if (!loaded) return 0;
+
+        var removed = 0;
+        for (var entity : world.getEntities()) {
+            if (!(entity instanceof ItemFrame frame))
+                continue;
+
+            var photoId = keys.readPhotoId(frame.getPersistentDataContainer());
+            if (photoId == null)
+                continue;
+
+            var photo = photos.get(photoId);
+            if (photo != null && photo.isPlaced()
+                && photo.placement().frameIds().contains(frame.getUniqueId()))
+                continue;
+
+            frame.remove();
+            removed++;
+        }
+        return removed;
     }
 
     /**

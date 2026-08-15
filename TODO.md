@@ -40,59 +40,7 @@ T37 (temel renk tablosunun wiki ile denetimi)
 
 ## P0 — Önce bunlar
 
-### T25 — Fotoğrafın çerçeveleri dünyada kalıyor (doğrulanacak bug)
-
-`[ ]` **P0**
-
-Fotoğraf silinince / indirilince çerçevelerin hepsi gitmiyor gibi görünüyor: harita
-kayboluyor ama boş `ItemFrame`'ler duvarda kalıyor. Eski bir sürümde düzeltilmiş olabilir,
-önce **tekrarlanabilir mi** ona bakılacak.
-
-**Kodun bugünkü hâli (inceleme notları):**
-- `PhotoManager#removeFrames` (`PhotoManager.java:405`) `placement().frameIds()` listesinin
-  **tamamını** dolaşıyor, yani niyet doğru. `unplace`, `delete`, `removeAllOwned` ve taşıma
-  yolundaki `place` hepsi buradan geçiyor.
-- `PhotoStorage#writePlacement` (`PhotoStorage.java:89`) `frame-ids`'i diske yazıyor, yani
-  yeniden başlatma sonrası da liste elde duruyor.
-- Şüpheli tek nokta `Server#getEntity(UUID)`: chunk yüklü değilse `null` döner ve o çerçeve
-  sessizce atlanır. `loadChunks` (`PhotoManager.java:417`) sadece `base` etrafındaki
-  `max(cols, rows) + 2` bloklu kareyi yüklüyor — taban köşe mi merkez mi olduğuna göre
-  geniş bir fotoğrafın uzak ucu bu karenin dışında kalabilir.
-
-**Yapılacaklar:**
-- Test: 4x3 grid bir fotoğrafı as, `/izocam` üzerinden sil, çerçeveleri say. Aynı testi
-  fotoğraf uzaktayken (chunk yüklü değilken) ve sunucu yeniden başlatıldıktan sonra tekrarla.
-- `loadChunks`'ın kapsadığı alanı `Placement`'ın gerçek sınırlarından hesapla (base + grid
-  yönü), tahmini kareden değil.
-- Atlanan çerçeve olursa sessiz kalma: kaç çerçevenin bulunamadığını log'a yaz
-  (`log.frames-missing` gibi yeni bir anahtar).
-- Yedek yol: çerçeve `PhotoKeys` etiketini zaten taşıyor. Kaydı silinen fotoğrafın
-  çerçeveleri `EntitiesLoadEvent` sırasında etiketten tanınıp temizlenebilir — böylece
-  chunk yüklenmese bile geride kalan çerçeve er ya da geç gider. `camera.orphans-cleaned`
-  için zaten benzer bir tarama var, aynı desen kullanılabilir.
-
----
-
-### T26 — Boş elle boşluğa sağ tık yerleştirmeyi onaylamıyor (bug)
-
-`[ ]` **P0**
-
-Hayalet yerleştirme modunda (T21) onay `PlayerInteractEvent`'in `RIGHT_CLICK_AIR` /
-`RIGHT_CLICK_BLOCK` aksiyonlarına bağlı (`PlacementManager.java:315`). Ama istemci, **eli
-boşken boşluğa** sağ tıklandığında sunucuya kullanım paketi göndermiyor; olay hiç
-tetiklenmiyor. Creative'de eli boş gezmek olağan olduğu için sorun sık görülüyor.
-
-**Seçenekler (uygulamada biri seçilecek):**
-1. **Sol tık da onaylasın.** `LEFT_CLICK_AIR` kol sallama paketiyle her zaman gelir.
-   Bedeli: oturum boyunca `BlockBreakEvent` ve creative'deki anında kırmayı da iptal etmek
-   gerekir; "sol tık = onay" da sezgisel değil.
-2. **Oturum boyunca ele geçici bir eşya ver.** Elde eşya varken sağ tık-boşluk paketi
-   gönderiliyor. Envanter kurcalamak riskli; eski slot'un geri yüklenmesi şart.
-3. **`PlayerAnimationEvent` (ARM_SWING) yedek yol olsun.** Sağ tık birincil kalır, hiç
-   gelmediği durumda kol sallama onay sayılır. En az invaziv olanı bu.
-- Hangisi seçilirse seçilsin, action bar metni (`placement.actionbar`) gerçek jesti
-  anlatmalı ve iptal (shift) yolu bozulmamalı.
-- Tüm senaryolar denenecek: survival/creative × eli boş/dolu × boşluk/blok/entity.
+*(Şu an açık P0 maddesi yok.)*
 
 ---
 
@@ -450,6 +398,60 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T26 — Boş elle sağ tık onayı: işaretçi eşya sol ele kondu
+
+`[x]` **P0** · 2026-08-15
+
+Sebep protokoldeydi, bizim dinleyicimizde değil: istemci boşluğa sağ tıkta elleri tek tek
+dolaşıp **boş olanı atlıyor**, yalnızca dolu el için kullanım paketi gönderiyor. İki eli
+de boş bir oyuncunun gökyüzüne sağ tıkı sunucuya hiç ulaşmıyor, dolayısıyla
+`PlayerInteractEvent` tetiklenmiyordu. Creative'de eli boş gezmek olağan olduğu için sık
+görülüyordu.
+
+Çözüm: oturum boyunca sol ele `ITEM_FRAME` işaretçisi konuyor, oturum bitince eski eşya
+geri veriliyor. Paket geri geldiği gibi oyuncu ne taşıdığını da görüyor. Tık işleyicisi
+artık **iki eli de** kabul ediyor; iki el de doluysa gelen ikinci paket ortada oturum
+bulamayıp düşüyor.
+
+İşaretçi PDC etiketiyle tanınıyor ve envanterden kaçamıyor: atmak oturumu iptal ediyor,
+el değiştirme ve envanterde taşıma engelli, ölümde drop listesinden çıkarılıp yerine
+oyuncunun kendi eşyası konuyor, çökme sonrası girişte temizleniyor.
+
+Değerlendirilip elenen seçenekler: sol tığı onay yapmak (creative'de blok kırmayı da
+iptal etmek gerekirdi, üstelik sezgisel değil), `PlayerAnimationEvent`'i yedek yol yapmak
+(aynı sorun — sol tık jesti onay anlamına gelirdi).
+
+Dokunulanlar: `PlacementManager`, `messages.yml` (`placement.item-name`,
+`placement.item-lore`), `IZOMAP.md` §6.
+
+---
+
+### T25 — Sahipsiz çerçeveler için süpürme ve sessiz atlamanın sonu
+
+`[x]` **P0** · 2026-08-15
+
+Şikâyet doğrulanamadı ama incelemede kodun **sessiz kaldığı** yer bulundu:
+`PhotoManager#removeFrames` çözemediği çerçeveyi hiçbir iz bırakmadan atlıyordu, ve
+dünyada kalmış bir çerçeveyi toplayan tek yol onu elle vurmaktı.
+
+- `removeFrames` artık kaç çerçevenin bulunamadığını `log.frames-missing` ile yazıyor.
+- `PhotoManager#removeOrphanFrames` eklendi ve `/izocam cleanup`'a bağlandı: hiçbir kaydın
+  sahiplenmediği çerçeveler dünyadan siliniyor. Sahipsizlik üç durumda: kayıt yok, kayıt
+  "asılı değil" diyor, ya da kayıt başka çerçeveleri gösteriyor (fotoğraf taşındı, eski
+  ızgara kaldı).
+- Taşımanın ters yönlü kusuru da kapatıldı: asılı fotoğraf taşınırken eski çerçeveler
+  kaldırılıp yeni yerleştirme başarısız olursa kayıt artık "asılı değil"e çekiliyor.
+  Eskiden kayıt olmayan çerçeveleri göstermeye devam ediyordu.
+
+`loadChunks`'ın kapsadığı kare de denetlendi ve **kusurlu değil**: span
+`max(cols, rows) + 2`, ızgaranın taban etrafındaki gerçek yayılımı her zaman kapsıyor.
+Bu yüzden dokunulmadı.
+
+Dokunulanlar: `PhotoManager`, `CameraCommand`, `messages.yml`
+(`log.frames-missing`, `map.orphan-frames-cleaned`), `IZOMAP.md` §6.
+
+---
 
 ### T17 — Preview'ın düşürdüğü render'lar katlandı, bekleme görünür oldu
 

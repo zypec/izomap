@@ -5,9 +5,11 @@ import dev.zypec.izomap.map.GridOption;
 import dev.zypec.izomap.map.Photo;
 import dev.zypec.izomap.map.PlacementArea;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Color;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Player;
@@ -16,11 +18,16 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.inventory.EquipmentSlot;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.persistence.PersistentDataType;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -50,6 +57,16 @@ import java.util.concurrent.ConcurrentHashMap;
  * and Z, so a 16-wide photo would reach eight blocks out towards the player and
  * swallow everything around them. While a session is open the right-click itself is
  * the confirmation instead, wherever it lands, and sneaking turns it into a cancel.</p>
+ *
+ * <h2>Why the session holds the offhand</h2>
+ *
+ * <p>A right-click that hits nothing is only reported when a hand holds something: the
+ * client walks both hands, skips the empty ones, and sends a use packet for the rest.
+ * Empty-handed at the sky, the server hears nothing at all and the confirmation never
+ * arrives — which is most of the time in creative. A marker item is therefore put in
+ * the offhand for the length of the session, which restores the packet and, as a
+ * bonus, shows what the player is carrying to the wall. Whatever was there is given
+ * back on every exit.</p>
  */
 public final class PlacementManager implements Listener {
 
@@ -74,6 +91,10 @@ public final class PlacementManager implements Listener {
     private static final Color BLOCKED = Color.fromRGB(0xFF5555);
 
     private final Izomap plugin;
+    /**
+     * Marks the offhand item as ours, so it can be told apart from a real one.
+     */
+    private final NamespacedKey markerKey;
 
     private final Map<UUID, Session> sessions = new ConcurrentHashMap<>();
     private ScheduledTask task;
@@ -81,6 +102,7 @@ public final class PlacementManager implements Listener {
 
     public PlacementManager(Izomap plugin) {
         this.plugin = plugin;
+        this.markerKey = new NamespacedKey(plugin, "placement_marker");
     }
 
     /**
@@ -91,13 +113,18 @@ public final class PlacementManager implements Listener {
         private final GridOption grid;
         private final List<BlockDisplay> ghosts = new ArrayList<>();
         private final long expiresAt;
+        /**
+         * What the offhand held before the marker took its place.
+         */
+        private final ItemStack offhand;
         private PlacementArea area;
         private boolean fits;
 
-        private Session(UUID photoId, GridOption grid, long expiresAt) {
+        private Session(UUID photoId, GridOption grid, long expiresAt, ItemStack offhand) {
             this.photoId = photoId;
             this.grid = grid;
             this.expiresAt = expiresAt;
+            this.offhand = offhand;
         }
     }
 
@@ -115,11 +142,13 @@ public final class PlacementManager implements Listener {
         plugin.preview().leave(player, null);
 
         var timeout = plugin.config().placementTimeoutSeconds() * 1000L;
-        var session = new Session(photo.id(), photo.grid(), System.currentTimeMillis() + timeout);
+        var session = new Session(photo.id(), photo.grid(), System.currentTimeMillis() + timeout,
+                player.getInventory().getItemInOffHand().clone());
         session.area = PlacementArea.inFrontOf(player, plugin.config().placementDistance());
         session.fits = session.area.fits(session.grid, plugin.config().buildBackingWall());
 
         spawnGhosts(player, session);
+        player.getInventory().setItemInOffHand(marker(photo));
         sessions.put(player.getUniqueId(), session);
         startTask();
 
@@ -169,7 +198,7 @@ public final class PlacementManager implements Listener {
             if (player != null) {
                 end(player, reasonKey);
             } else {
-                discard(sessions.remove(entry.getKey()));
+                discard(entry.getKey(), sessions.remove(entry.getKey()));
             }
         }
     }
@@ -179,13 +208,13 @@ public final class PlacementManager implements Listener {
      */
     public void cancelAll() {
         for (var playerId : List.copyOf(sessions.keySet())) {
-            discard(sessions.remove(playerId));
+            discard(playerId, sessions.remove(playerId));
         }
         stopTask();
     }
 
     private void end(Player player, String reasonKey) {
-        discard(sessions.remove(player.getUniqueId()));
+        discard(player.getUniqueId(), sessions.remove(player.getUniqueId()));
         if (reasonKey != null)
             plugin.messages().send(player, reasonKey);
 
@@ -193,13 +222,31 @@ public final class PlacementManager implements Listener {
             stopTask();
     }
 
-    private void discard(Session session) {
+    /**
+     * Clears the ghosts and gives the offhand back. Safe for an offline player: only
+     * the item needs them online, and a marker left in a saved inventory is cleared
+     * when they next join.
+     */
+    private void discard(UUID playerId, Session session) {
         if (session == null) return;
 
         for (var ghost : session.ghosts)
             ghost.remove();
 
         session.ghosts.clear();
+
+        var player = plugin.getServer().getPlayer(playerId);
+        if (player != null)
+            restoreOffhand(player, session);
+    }
+
+    /**
+     * Puts back whatever the marker displaced, unless the offhand has moved on to
+     * something else in the meantime.
+     */
+    private void restoreOffhand(Player player, Session session) {
+        if (isMarker(player.getInventory().getItemInOffHand()))
+            player.getInventory().setItemInOffHand(session.offhand);
     }
 
     // --- ghosts ---
@@ -261,6 +308,29 @@ public final class PlacementManager implements Listener {
         return (material != null && material.isBlock()) ? material : Material.WHITE_CONCRETE;
     }
 
+    // --- the offhand marker ---
+
+    /**
+     * The item the session holds the offhand with; it names the photo being hung.
+     */
+    private ItemStack marker(Photo photo) {
+        var item = ItemStack.of(Material.ITEM_FRAME);
+        item.editMeta(meta -> {
+            meta.displayName(plugin.messages().get("placement.item-name",
+                    Placeholder.unparsed("name", photo.name())).decoration(TextDecoration.ITALIC, false));
+            meta.lore(plugin.messages().list("placement.item-lore").stream()
+                    .map(line -> line.decoration(TextDecoration.ITALIC, false))
+                    .toList());
+            meta.getPersistentDataContainer().set(markerKey, PersistentDataType.BYTE, (byte) 1);
+        });
+        return item;
+    }
+
+    private boolean isMarker(ItemStack item) {
+        return item != null && item.hasItemMeta()
+               && item.getItemMeta().getPersistentDataContainer().has(markerKey, PersistentDataType.BYTE);
+    }
+
     // --- the update loop ---
 
     private void startTask() {
@@ -284,7 +354,7 @@ public final class PlacementManager implements Listener {
             var player = plugin.getServer().getPlayer(entry.getKey());
             var session = entry.getValue();
             if (player == null) {
-                discard(sessions.remove(entry.getKey()));
+                discard(entry.getKey(), sessions.remove(entry.getKey()));
                 continue;
             }
             if (now >= session.expiresAt) {
@@ -310,11 +380,14 @@ public final class PlacementManager implements Listener {
 
     /**
      * While a session is open the right-click belongs to it, wherever it lands.
+     *
+     * <p>Both hands count. The marker rides in the offhand precisely so that a click at
+     * the sky is reported at all, and that click arrives tagged with the hand that held
+     * something. Holding an item in the main hand as well makes the client send one
+     * packet per hand; the second finds no session left and falls through.</p>
      */
     @EventHandler(priority = EventPriority.LOWEST)
     public void onInteract(PlayerInteractEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND)
-            return;
         if (event.getAction() != Action.RIGHT_CLICK_AIR && event.getAction() != Action.RIGHT_CLICK_BLOCK)
             return;
         if (!sessions.containsKey(event.getPlayer().getUniqueId()))
@@ -330,8 +403,6 @@ public final class PlacementManager implements Listener {
      */
     @EventHandler(priority = EventPriority.LOWEST)
     public void onInteractEntity(PlayerInteractEntityEvent event) {
-        if (event.getHand() != EquipmentSlot.HAND)
-            return;
         if (!sessions.containsKey(event.getPlayer().getUniqueId()))
             return;
 
@@ -349,14 +420,55 @@ public final class PlacementManager implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        discard(sessions.remove(event.getPlayer().getUniqueId()));
+        var playerId = event.getPlayer().getUniqueId();
+        discard(playerId, sessions.remove(playerId));
         if (sessions.isEmpty())
             stopTask();
     }
 
-    @EventHandler
+    /**
+     * Keeps the marker out of the grave and puts what it displaced in its place, so
+     * dying mid-placement costs the player exactly what dying normally costs.
+     */
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onDeath(PlayerDeathEvent event) {
+        var session = sessions.get(event.getEntity().getUniqueId());
+        if (session != null) {
+            event.getDrops().removeIf(this::isMarker);
+            if (!event.getKeepInventory() && !session.offhand.getType().isAir())
+                event.getDrops().add(session.offhand);
+        }
         cancel(event.getEntity(), "placement.ended-died");
+    }
+
+    // Dropping the marker ends the session instead of leaving it on the ground.
+    @EventHandler(ignoreCancelled = true)
+    public void onDrop(PlayerDropItemEvent event) {
+        if (isMarker(event.getItemDrop().getItemStack())) {
+            event.setCancelled(true);
+            cancel(event.getPlayer(), "placement.ended-self");
+        }
+    }
+
+    // The marker stays in the offhand: swapping it away would take the gesture with it.
+    @EventHandler(ignoreCancelled = true)
+    public void onSwap(PlayerSwapHandItemsEvent event) {
+        if (isMarker(event.getOffHandItem()) || isMarker(event.getMainHandItem()))
+            event.setCancelled(true);
+    }
+
+    // Moving or dragging it in the inventory is blocked for the same reason.
+    @EventHandler(ignoreCancelled = true, priority = EventPriority.HIGH)
+    public void onInventoryClick(InventoryClickEvent event) {
+        if (isMarker(event.getCurrentItem()) || isMarker(event.getCursor()))
+            event.setCancelled(true);
+    }
+
+    // Clear a marker left in the offhand by a crash; its session did not survive.
+    @EventHandler
+    public void onJoin(PlayerJoinEvent event) {
+        if (isMarker(event.getPlayer().getInventory().getItemInOffHand()))
+            event.getPlayer().getInventory().setItemInOffHand(null);
     }
 
     // The ghosts belong to the world they were spawned in and cannot follow.
