@@ -222,6 +222,26 @@ Haritada renksiz bloklar (cam, meşale, fidan…) `MapBaseColor.NONE` verir ve �
 vanilla'daki gibi arkalarını görerek devam eder — bu, 1. aşamadan önce yürüyüşte
 elenir.
 
+#### Rengi büyüme durumuna göre değişen bloklar
+
+Bir materyal her zaman tek renk değildir: buğday büyürken `PLANT` (yeşil), olgunlaşınca
+`COLOR_YELLOW`'dur (wiki: age 0-5 / 6-7). Tablo yalnızca **varsayılan** blok durumunu
+okuduğu sürece olgun bir tarla fide rengiyle çıkıyordu.
+
+Hangi blokların böyle olduğu **elle listelenmez** — öyle bir liste her sürümde
+çürürdü. Yükleme sırasında `Ageable` olan her blok her yaşında ayrı ayrı sorulur
+(`BlockData#getMapColor()` blok durumuna göre cevap verir) ve yalnızca gerçekten farklı
+cevap verenler için yaş tablosu tutulur. Vanilla bir sunucuda bu, buğday ve varsa
+benzerleridir; kaç tane bulunduğu açılışta log'a yazılır.
+
+Sıcak yol bunun bedelini yalnızca gerektiği yerde öder: yaş tablosu olan materyal
+sayısı `variesByState` ile bakılır ve **yalnızca ışın o bloğa çarptığında** tam blok
+durumu okunur (`WorldSnapshot#blockDataAt`, çağrı başına bir nesne). Diğer her blok
+eskisi gibi tek `EnumMap` okumasıdır.
+
+`block-colors.yml`'deki bir override materyalin tamamını bağlar: o materyalin yaş
+tablosu düşürülür, yoksa override'ın üstüne geri yazardı.
+
 Sonuç olarak **her çıktı pikseli gerçek bir harita rengidir**. Ön bellek bunun üstüne
 kurulur: `MapColorConverter#packedId` piksel → harita baytı dönüşümünü tam eşleşmeyle
 (yeniden renk arama yapmadan), `#argbOf` ters yönü 256 girişli tabloyla yapar.

@@ -191,6 +191,8 @@ log:
   photos-loaded: "<count> fotoğraf yüklendi."
   photos-migrated: "<count> fotoğraf <file> dosyasından alındı ve photos.yml'e taşındı. Eski dosya silinmedi; bir sorun çıkarsa oradan geri dönülebilir."
   block-colors-ready: "<count> blok için harita temel rengi hazır."
+  # Olgunlaştıkça rengi değişen bloklar (buğday gibi); liste sunucuya sorularak bulunur.
+  state-colors-ready: "<count> bloğun rengi büyüme durumuna göre değişiyor; her durumu ayrı okundu."
   block-colors-overridden: "<count> blok rengi override edildi."
   camera-world-missing: "Kamera '<camera>' atlandı: dünya yüklü değil (<world>)."
 

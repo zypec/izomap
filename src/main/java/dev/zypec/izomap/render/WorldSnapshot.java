@@ -2,6 +2,7 @@ package dev.zypec.izomap.render;
 
 import org.bukkit.ChunkSnapshot;
 import org.bukkit.Material;
+import org.bukkit.block.data.BlockData;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -51,6 +52,21 @@ public final class WorldSnapshot {
         var snapshot = chunks.get(key(x >> 4, z >> 4));
         return snapshot == null ? Material.AIR : snapshot.getBlockType(x & 15, y, z & 15);
 
+    }
+
+    /**
+     * Full block state at a world coordinate, or {@code null} when the chunk was not
+     * copied.
+     *
+     * <p>Costs an object per call, unlike {@link #materialAt}, so the walk only asks
+     * for the few materials whose color depends on their state.</p>
+     */
+    public BlockData blockDataAt(int x, int y, int z) {
+        if (y < minY || y >= maxY)
+            return null;
+
+        var snapshot = chunks.get(key(x >> 4, z >> 4));
+        return snapshot == null ? null : snapshot.getBlockData(x & 15, y, z & 15);
     }
 
     /**

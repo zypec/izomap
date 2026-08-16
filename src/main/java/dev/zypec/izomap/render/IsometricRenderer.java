@@ -198,6 +198,13 @@ public final class IsometricRenderer {
                     var base = colorTable.baseColorOf(material);
                     // Colorless on maps (glass, torches, saplings): continue like vanilla.
                     if (base != MapBaseColor.NONE) {
+                        // Crops and the like wear a different color as they grow, and
+                        // only they are worth reading a whole block state for.
+                        if (colorTable.variesByState(material)) {
+                            var data = snapshot.blockDataAt(x, y, z);
+                            if (data != null)
+                                base = colorTable.baseColorOf(material, data);
+                        }
                         out.hit = true;
                         out.material = material;
                         out.base = base;

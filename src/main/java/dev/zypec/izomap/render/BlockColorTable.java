@@ -3,6 +3,8 @@ package dev.zypec.izomap.render;
 import dev.zypec.izomap.Izomap;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Material;
+import org.bukkit.block.data.Ageable;
+import org.bukkit.block.data.BlockData;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
@@ -18,6 +20,19 @@ import java.util.Map;
  * vanilla maps use, so stair/slab/wall variants and blocks added in newer versions
  * are all correct.</p>
  *
+ * <h2>Blocks whose color depends on their state</h2>
+ *
+ * <p>A material is not always one color. Wheat is green while it grows and yellow once
+ * ripe, so reading the default state alone paints a ripe field the color of seedlings.
+ * The states that matter are the ages, and rather than keep a list of which blocks have
+ * age-dependent colors — a list that would rot with every version — the load
+ * <b>asks</b>: every ageable block is probed at each of its ages, and only the ones
+ * that actually answer differently get a table. On a vanilla server that is wheat and
+ * whatever else grows into a new color.</p>
+ *
+ * <p>The ray walk pays for this only where it applies: the extra state lookup happens
+ * on a hit, and only for the handful of materials that came back varying.</p>
+ *
  * <p>{@code block-colors.yml} exists only for overrides.</p>
  *
  * <p>The table is read-only once loaded, so render threads may use it.</p>
@@ -31,6 +46,17 @@ public final class BlockColorTable {
     private static final int FILE_VERSION = 2;
 
     private final Map<Material, MapBaseColor> colors = new EnumMap<>(Material.class);
+    /**
+     * Colors per age, for the materials that have more than one. Absent means the
+     * material's color is its own, whatever state it is in.
+     */
+    private final Map<Material, MapBaseColor[]> byAge = new EnumMap<>(Material.class);
+
+    /**
+     * Blocks reporting a base color this build's table does not know, counted across
+     * the whole load so one warning covers them all.
+     */
+    private int unknown;
 
     private BlockColorTable() {
     }
@@ -58,33 +84,101 @@ public final class BlockColorTable {
     }
 
     /**
-     * Reads the map color of each material's default block state.
+     * Whether this material's color depends on the state of the individual block, and
+     * the walk therefore has to look that state up.
+     */
+    public boolean variesByState(Material material) {
+        return byAge.containsKey(material);
+    }
+
+    /**
+     * Color of one particular block. Falls back to the material's own color for a
+     * state that carries no age, so a caller may always ask.
+     */
+    public MapBaseColor baseColorOf(Material material, BlockData data) {
+        var ages = byAge.get(material);
+        if (ages == null || !(data instanceof Ageable ageable))
+            return baseColorOf(material);
+
+        var age = ageable.getAge();
+        return age >= 0 && age < ages.length ? ages[age] : baseColorOf(material);
+    }
+
+    /**
+     * Reads the map color of every material, and of every age of the ones that grow
+     * into a different one.
      */
     private void readFromServer(Izomap plugin) {
-        var unknown = 0;
+        var varying = 0;
         for (var material : Material.values()) {
             if (material.isLegacy() || !material.isBlock()) continue;
 
-            int rgb;
+            BlockData data;
             try {
-                rgb = material.createBlockData().getMapColor().asRGB();
+                data = material.createBlockData();
             } catch (RuntimeException ex) {
                 // Materials without a usable block state do not show on maps either.
                 continue;
             }
+            var base = colorOf(data);
+            if (base == null) continue;
 
-            var base = MapBaseColor.byBaseRgb(rgb);
-            if (base == null) {
-                // A base color this build's table does not know: fall back to the nearest.
-                base = nearestBase(rgb);
-                unknown++;
-            }
             colors.put(material, base);
+
+            var ages = readAgedColors(data, base);
+            if (ages != null) {
+                byAge.put(material, ages);
+                varying++;
+            }
         }
         if (unknown > 0) {
             plugin.messages().warn("log.unknown-base-colors",
                     Placeholder.unparsed("count", String.valueOf(unknown)));
         }
+        if (varying > 0) {
+            plugin.messages().info("log.state-colors-ready",
+                    Placeholder.unparsed("count", String.valueOf(varying)));
+        }
+    }
+
+    /**
+     * One color per age, or {@code null} when the block has no age or wears the same
+     * color at all of them — which is nearly every ageable block, and the case the ray
+     * walk must not pay for.
+     */
+    private MapBaseColor[] readAgedColors(BlockData data, MapBaseColor base) {
+        if (!(data instanceof Ageable ageable))
+            return null;
+
+        var ages = new MapBaseColor[ageable.getMaximumAge() + 1];
+        var varies = false;
+        for (var age = 0; age < ages.length; age++) {
+            var probe = (Ageable) data.clone();
+            probe.setAge(age);
+            var color = colorOf((BlockData) probe);
+            ages[age] = color != null ? color : base;
+            varies |= ages[age] != base;
+        }
+        return varies ? ages : null;
+    }
+
+    /**
+     * The base color a block state reports, or {@code null} when it has none to give.
+     * An unrecognized one falls back to the nearest and is counted for the warning.
+     */
+    private MapBaseColor colorOf(BlockData data) {
+        int rgb;
+        try {
+            rgb = data.getMapColor().asRGB();
+        } catch (RuntimeException ex) {
+            return null;
+        }
+        var base = MapBaseColor.byBaseRgb(rgb);
+        if (base != null)
+            return base;
+
+        unknown++;
+        return nearestBase(rgb);
     }
 
     /**
@@ -113,6 +207,9 @@ public final class BlockColorTable {
                 continue;
             }
             colors.put(material, base);
+            // An override is one color for the whole material, ages included; keeping
+            // the age table would let it win back over what the owner asked for.
+            byAge.remove(material);
             applied++;
         }
         if (applied > 0) {

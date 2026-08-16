@@ -32,7 +32,7 @@ T30 (renk pipeline'ının parametrikleşmesi) ✔
  ├── T34 (biome tint)
  └── T36 (fotoğraf stilleri)
 
-T37 (temel renk tablosunun wiki ile denetimi)
+T37 (temel renk tablosunun wiki ile denetimi) ✔
  └── T35 (ot bloklarının rengi)
 ```
 
@@ -257,32 +257,9 @@ manzarayı göstermek).
 
 ---
 
-### T37 — Temel renk tablosu wiki ile denetlensin, blok durumu da renge girsin
-
-`[ ]` **P1**
-
-Buğday vanilla'da olgunlaştıkça harita rengi değişiyor (`WHEAT` age 0-1 → `PLANT`,
-sonrası → farklı temel renkler). Bizim tablomuz bloğun **materyaline** bakıyor, blok
-durumuna değil, dolayısıyla ekin tarlaları hep aynı renkte çıkıyor.
-
-- Kaynak: <https://minecraft.wiki/w/Map_item_format#Base_colors> — tablo baştan sona
-  okunup `MapBaseColor` (`render/MapBaseColor.java`, 61 sabit) ve `BlockColorTable`
-  eşlemesiyle karşılaştırılacak. Fark listesi çıkarılıp toplu düzeltilecek.
-- `BlockColorTable` bugün materyal → temel renk eşliyor; blok durumuna bakan bir istisna
-  yolu gerekiyor. Kapsam materyal başına birkaç bloğu geçmeyeceği için sıcak yolu
-  yavaşlatmayan küçük bir tablo yeter (materyal → durum yorumlayıcısı).
-- `RayHit` şu an ışının çarptığı bloğun neyini taşıyor, `BlockData`'ya erişimi var mı —
-  önce buna bakılacak; yoksa snapshot tarafında taşınması gerekir.
-- Kapsanacak durumlu bloklar buğdayla sınırlı değil: diğer ekinler, `SNOWY` çim bloğu,
-  yatay/dikey varyantlar. Denetim sırasında liste çıkarılacak.
-- Bilinmeyen temel renk bildiren bloklar için `log.unknown-base-colors` uyarısı zaten var;
-  denetimden sonra sayının düşmesi beklenir.
-
----
-
 ### T35 — Ot bloklarının rengi göze batıyor
 
-`[ ]` **P2** · Bağımlı: T37
+`[ ]` **P2** · Bağımlı: T37 ✔
 
 `SHORT_GRASS` ve `TALL_GRASS` fotoğrafta fazla parlak/doygun duruyor ve zeminden ayrışıp
 gürültü gibi görünüyor.
@@ -360,6 +337,30 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T37 — Renk tablosu wiki ile denetlendi, blok durumu renge girdi
+
+`[x]` **P1** · 2026-08-16 · Serbest bıraktıkları: T35
+
+**Denetim sonucu: `MapBaseColor` tablosu doğru.** Wiki'deki 61 temel rengin ID'si de
+hex'i de bizimkiyle birebir uyuşuyor, en yüksek ID 61 (`GLOW_LICHEN`) ve bizde de öyle.
+Zaten uyuşması bekleniyordu: eşleme elle yazılmıyor, `BlockData#getMapColor()` ile
+sunucudan okunuyor. Tabloda değişiklik gerekmedi.
+
+**Gerçek açık blok durumundaydı.** `readFromServer` materyalin **varsayılan** durumunu
+okuyordu; buğdayın varsayılanı age 0 olduğu için olgun tarlalar da fide yeşili
+çıkıyordu (wiki: age 0-5 → `PLANT`, 6-7 → `COLOR_YELLOW`).
+
+Çözüm listeye dayanmıyor: yüklemede `Ageable` olan her blok her yaşında ayrı ayrı
+sorgulanıyor ve yalnızca farklı cevap verenler için yaş tablosu tutuluyor. Böylece
+sürüm değişince liste çürümüyor. Sıcak yol yalnızca gerektiğinde ödüyor: `variesByState`
+kontrolü ışın çarptığında yapılıyor ve tam blok durumu sadece o materyaller için
+okunuyor.
+
+Dokunulanlar: `BlockColorTable`, `WorldSnapshot#blockDataAt`, `IsometricRenderer`,
+`messages.yml` (`log.state-colors-ready`), `IZOMAP.md` §3.
+
+---
 
 ### T27 — Dialog'dan zoom kaldırıldı, bilgi satırı genişledi
 
