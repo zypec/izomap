@@ -31,10 +31,6 @@ public enum PhotoStyle {
         if (raw == null) return fallback;
 
         var trimmed = raw.trim();
-        // Written as SOFT while the three-way comparison ran; same mechanism.
-        if (trimmed.equalsIgnoreCase("SOFT"))
-            return FAST;
-
         for (var style : values()) {
             if (style.name().equalsIgnoreCase(trimmed)) {
                 return style;

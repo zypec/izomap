@@ -12,7 +12,7 @@ import java.util.UUID;
  * Marks the item frames of a placed photo on the entity itself.
  *
  * <p>Frame protection used to depend on the in-memory record, which leaves the frames
- * unprotected until {@code maps.yml} has loaded, and permanently so if that load ever
+ * unprotected until {@code photos.yml} has loaded, and permanently so if that load ever
  * fails. The tag travels with the entity, so a frame is recognizable as ours before
  * any record exists — and an orphaned frame stays recognizable after its record is
  * gone.</p>

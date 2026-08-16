@@ -246,8 +246,9 @@ Sonuç olarak **her çıktı pikseli gerçek bir harita rengidir**. Ön bellek b
 kurulur: `MapColorConverter#packedId` piksel → harita baytı dönüşümünü tam eşleşmeyle
 (yeniden renk arama yapmadan), `#argbOf` ters yönü 256 girişli tabloyla yapar.
 
-`block-colors.yml` yalnızca **override** dosyasıdır; varsayılan tablo içermez. `version: 2`
-taşır, eski v1 dosyaları `.v1.bak` olarak yedeklenip yenilenir.
+`block-colors.yml` yalnızca **override** dosyasıdır; varsayılan tablo içermez. Dosyada bir
+`version` alanı duruyor ama şu an okunmuyor: yayınlanmamış bir eklentinin göç edecek eski
+kurulumu yok (T52). Göçler geri geldiğinde yeri hazır.
 
 #### Vanilla'nın bloğa benzemeyen renkleri
 
@@ -311,7 +312,7 @@ tonu görür. Dithering rengi pikselin hücre içindeki yerine bağlar, snap ise
 üzerinde arama demektir — ikisi de piksel başına yapılamaz, bu yüzden satır başına 16
 girişlik hücreye önceden çözülür: gökyüzü pikseli boyamak tek dizi okumasıdır.
 
-Gökyüzü render **sırasında** boyanır, stil geçişlerinden önce. Böylece `SOFT`'un büyütmesi
+Gökyüzü render **sırasında** boyanır, stil geçişlerinden önce. Böylece `FAST`'ın büyütmesi
 araziyi gökyüzüne karıştırır; sonradan boyansaydı yumuşak arazinin üstünde keskin bir
 gökyüzü kalırdı.
 
@@ -330,7 +331,6 @@ delik.
 
 Stil kamerada tutulur (`cameras.yml` → `style`), çekimde `CaptureSpec`'e donar
 (`photos.yml` → `capture.style`), dolayısıyla retake aynı maliyetle tekrarlanır.
-Diskteki eski `SOFT` değeri `FAST` olarak okunur.
 
 > **"Yağlı boya" görünümü buradan gelmiyor.** Bir dönem eski sürümün yumuşak görüntüsünü
 > geri getirmek için üç stil denendi (küçük render + büyütme, örnek saçılması, komşu
@@ -1064,7 +1064,7 @@ spec kayda yazılır, böylece fotoğraf bir daha kamerayı takip etmez.
 
 Fotoğraf silinince ön bellek dosyası da silinir. Açılışta `retainOnly` sahipsiz `.izm`
 dosyalarını süpürür (çökme kalıntısı, yarış durumu); kayıt kümesi **boşsa** süpürme
-yapılmaz, çünkü `maps.yml` yüklenememişse tüm ön belleği silmek olurdu.
+yapılmaz, çünkü `photos.yml` yüklenememişse tüm ön belleği silmek olurdu.
 
 ### Yeniden çekme (`/izocam retake`)
 
@@ -1192,11 +1192,10 @@ toplanır ve değerler mantıklı aralıklara clamp'lenir.
 | `photo` | `sky.colors.*`, `sky.gradient`, `sky.horizon-blend`, `sky.dither`, `style.fast-scale`, `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
 | `placement` | `distance`, `invisible-frames`, `build-backing-wall`, `backing-material`, `timeout-seconds` (5-600) |
 
-**Geriye dönük uyumluluk:** `photo.region-size` → `frame-height`,
-`camera.model-pitch-offset`/`model-yaw-offset` → `model-rotation.x`/`.y`,
-`settings.max-chunks-per-capture` → `max-capture-area` (`√chunk × 16`),
-`cameras.yml` içinde `scale` → `zoom` anahtarları hâlâ okunur.
-`settings.max-render-distance` **kaldırıldı**; artık hesaplanıyor.
+**Geriye dönük uyumluluk yok, bilerek.** Eklenti yayınlanmadığı için okunacak eski kurulum
+da yok; eski anahtar adlarını okuyan yolların tamamı silindi (T52). Kural, **ilk yayın**
+ile birlikte başlayacak: o günün dosyaları "v1" sayılacak ve sonraki sürümler onları
+okumaya devam edecek.
 
 **Dikkat — varsayılan değişikliği diske yansımaz.** `saveDefaultConfig()` mevcut
 `config.yml`'i korur, yani varsayılanı değişen bir anahtar eski kurulumlarda eski
@@ -1214,7 +1213,6 @@ kontrol edip `0.25`'in üstündeyse log uyarısı verir.
 | `block-colors.yml` | Blok rengi override'ları (v2) |
 | `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, üçler kuralı, model/interaction/hologram entity UUID'leri, önizleme harita kimliği) |
 | `photos.yml` | Fotoğraflar (ad, kamera, ızgara, `capture` bloğunda çekim parametreleri; asılıysa `placement` bloğunda harita id'leri, çerçeve UUID'leri ve çıpa koordinatı) |
-| `maps.yml` | **Eski** yerleşim kaydı; yalnızca açılışta, `photos.yml`'in tanımadığı fotoğraflar için okunur |
 | `photos/<uuid>.izm` | Fotoğrafın çekilmiş görüntüsü (palet indeksi + Deflate); YML değil, ikili |
 | `exports/<ad>.png` | `/izocam export` çıktısı; eklenti hiç okumaz, yalnızca yazar |
 

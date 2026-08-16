@@ -18,7 +18,8 @@
 #    - NONE: blok fotoğrafta tamamen saydam olur (ışın arkasını görür)
 # ============================================================
 
-version: 2
+# Sürüm alanı ileride göç (migration) gerekirse diye duruyor; şu an okunmuyor.
+version: 1
 
 #  DİKKAT: vanilla'nın temel rengi her zaman bloğa BENZEMEZ. Renk, bloğun dokusundan
 #  üretilmiş bir ortalama değil, elle atanmış bir değerdir. En belirgin örnek tuff

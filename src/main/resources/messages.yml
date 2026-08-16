@@ -240,7 +240,6 @@ log:
   # --- yükleme ---
   cameras-loaded: "<count> kamera yüklendi."
   photos-loaded: "<count> fotoğraf yüklendi."
-  photos-migrated: "<count> fotoğraf <file> dosyasından alındı ve photos.yml'e taşındı. Eski dosya silinmedi; bir sorun çıkarsa oradan geri dönülebilir."
   filters-loaded: "<count> renk filtresi yüklendi."
   filter-unknown-op: "<file>: '<filter>' filtresindeki '<op>' işlemi tanınmadı, atlandı."
   block-colors-ready: "<count> blok için harita temel rengi hazır."
@@ -259,8 +258,6 @@ log:
   unknown-base-colors: "<count> blok, bilinmeyen bir harita temel rengi bildirdi; en yakın renge eşlendi. (MapBaseColor tablosu güncellenmeli.)"
   override-unknown-block: "<file>: bilinmeyen blok '<block>' atlandı."
   override-invalid-color: "<file>: '<block>' için geçersiz renk '<color>' atlandı."
-  block-colors-backup-failed: "<file> eski sürümde ve yedeklenemedi; override'lar yok sayıldı."
-  block-colors-upgraded: "<file> eski sürümdeydi; <backup> olarak yedeklendi ve yeni varsayılan yazıldı."
 
   # --- render ---
   # Eksik chunk kopyası, fotoğrafta chunk boyunda şeffaf bir delik bırakır.

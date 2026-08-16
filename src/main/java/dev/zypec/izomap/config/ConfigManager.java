@@ -54,13 +54,9 @@ public final class ConfigManager {
      * <p>The single cost setting: it bounds both the number of copied chunks and the
      * distance rays may travel. Exceeding it rejects the capture.</p>
      *
-     * <p>The legacy {@code settings.max-chunks-per-capture} key is still read and
-     * converted to a side length ({@code √chunks × 16}).</p>
      */
     public int maxCaptureArea() {
-        int legacyChunks = cfg().getInt("settings.max-chunks-per-capture", 1024);
-        int legacyArea = (int) Math.round(Math.sqrt(Math.max(1, legacyChunks)) * 16.0);
-        return clamp(cfg().getInt("settings.max-capture-area", legacyArea), 64, 4096);
+        return clamp(cfg().getInt("settings.max-capture-area", 512), 64, 4096);
     }
 
     /**
@@ -172,20 +168,14 @@ public final class ConfigManager {
         return clamp(cfg().getDouble("camera.default-pitch", 30.0), -90.0, 90.0);
     }
 
-    /**
-     * Model rotation offset around X (pitch), degrees. The legacy
-     * {@code camera.model-pitch-offset} key is read as the default.
-     */
+    /** Model rotation offset around X (pitch), degrees. */
     public double modelRotationX() {
-        return cfg().getDouble("camera.model-rotation.x", cfg().getDouble("camera.model-pitch-offset", 0.0));
+        return cfg().getDouble("camera.model-rotation.x", 0.0);
     }
 
-    /**
-     * Model rotation offset around Y (yaw), degrees. The legacy
-     * {@code camera.model-yaw-offset} key is read as the default.
-     */
+    /** Model rotation offset around Y (yaw), degrees. */
     public double modelRotationY() {
-        return cfg().getDouble("camera.model-rotation.y", cfg().getDouble("camera.model-yaw-offset", 0.0));
+        return cfg().getDouble("camera.model-rotation.y", 0.0);
     }
 
     /** Model rotation offset around Z (roll), degrees. */
@@ -335,12 +325,9 @@ public final class ConfigManager {
      *
      * <p>Under orthographic projection this alone sets object size; distance to the
      * subject does not. The camera's own scale divides it.</p>
-     *
-     * <p>The legacy {@code photo.region-size} key is read as the default.</p>
      */
     public double frameHeight() {
-        double legacy = cfg().getDouble("photo.region-size", 48.0);
-        return clamp(cfg().getDouble("photo.frame-height", legacy), 4.0, 512.0);
+        return clamp(cfg().getDouble("photo.frame-height", 48.0), 4.0, 512.0);
     }
 
     /**

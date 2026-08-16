@@ -19,7 +19,7 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
  * stays intact.
  *
  * <p>A frame is recognized by its {@link PhotoKeys} tag, not by the in-memory record,
- * so protection holds during the window before {@code maps.yml} finishes loading and
+ * so protection holds during the window before {@code photos.yml} finishes loading and
  * survives a failed load. Three cases follow from the tag:</p>
  *
  * <ul>

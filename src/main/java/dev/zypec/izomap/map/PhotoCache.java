@@ -112,7 +112,7 @@ public final class PhotoCache {
      * writing and the record save, or from a deleted that raced its own writing.
      *
      * <p>An empty record set is treated as "not known yet" rather than "nothing is
-     * kept", because {@code maps.yml} failing to load would otherwise wipe every
+     * kept", because {@code photos.yml} failing to load would otherwise wipe every
      * cached image at once.</p>
      */
     public CompletableFuture<Void> retainOnly(Set<UUID> photoIds) {

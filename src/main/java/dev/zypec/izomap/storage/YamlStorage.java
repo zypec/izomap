@@ -13,7 +13,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
- * Base class for YML data files such as {@code cameras.yml} and {@code maps.yml}.
+ * Base class for YML data files such as {@code cameras.yml} and {@code photos.yml}.
  *
  * <p>Disk I/O never runs on the main thread; loading and saving go through Paper's
  * async scheduler.</p>

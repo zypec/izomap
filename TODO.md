@@ -32,26 +32,252 @@ T30 (renk pipeline'ının parametrikleşmesi) ✔
  └── T34 (biome tint)
 
 T37 (temel renk tablosunun wiki ile denetimi) ✔
- └── T35 (ot bloklarının rengi)
+ └── T35 (ot bloklarının rengi) ✔
+
+T49 (kısmi kaplama / karıştırma aşaması)
+ └── T57 (su render'ı, TRANSLUCENT kipi)
+
+T54 (permission ağacı)
+ ├── T53 (çerçeveler)
+ ├── T55 (gök cisimleri)
+ └── T56 (imza)
+
+T53 (çerçeveler — overlay aşaması + fotoğraf sağ tık Dialog'u)
+ └── T56 (imza — aynı overlay aşamasını kullanır)
+
+Yayın öncesi kapı: T50 (performans testleri) + T51 (wiki + İngilizce config)
 ```
 
 ---
 
 ## P0 — Önce bunlar
 
-*(Şu an açık P0 maddesi yok.)*
+> Bu bölümdeki iki madde **yayın kapısıdır**: ikisi bitmeden sürüm paylaşılmaz.
+
+### T50 — Yayın öncesi performans testi
+
+`[ ]` **P0** · 2026-08-16
+
+Bugüne kadar ölçüm parça parça yapıldı (pipeline geçişi, gölgelendirme) ve her seferinde
+düzenek geçici olduğu için commit edilmedi. Yayından önce **tek bir tur**, aynı sahnede,
+aynı düzenle koşulup sonucu `IZOMAP.md` §3'e yazılacak.
+
+**Düzenek.** Sunucuda `settings.render-timing: true`; log her çekimi *chunk kopyalama* ve
+*ışın yürüyüşü* olarak ayrı yazar — iki yarı ayrı ayrı okunacak, çünkü ilki ana thread'i
+tutar, ikincisi tutmaz. Her senaryo 3 ölçüm, medyan alınır, ilk çekim ısınma sayılır.
+Sabitler: aynı kamera (y≈100, yaw 45, pitch 30, `frame-height` 48, zoom 1.0), aynı dünya,
+aynı sunucu, oyuncu sayısı 1.
+
+**Ölçülecek senaryolar:**
+
+| # | Ne | Neden |
+|---|---|---|
+| 1 | Izgara: 1x1, 2x1, 2x2, 4x2, 4x4 (ss1, SHARP) | Çözünürlüğün gerçek eğrisi; permission limitinin (T54) nereye konacağı buradan çıkar |
+| 2 | `supersampling` 1 / 2 / 3, sabit 2x2 | ss maliyeti karesel; hangi ss'in savunulabilir olduğu |
+| 3 | Stil `SHARP` / `FAST` (aynı ızgara, ss2) | FAST'ın vaat ettiği kare kazanç gerçek mi |
+| 4 | Gölgelendirme: kapalı / AO / güneş / ışık / üçü | T33'ün sentetik ölçümünün sunucudaki karşılığı |
+| 5 | `block-light` açık/kapalı **kopyalama** süresi | Işık dizisi kopyasının faturası (T33'ten devreden tek açık ölçüm) |
+| 6 | Gökyüzü kapalı / açık (gradient + dither) | T32'nin hiç ölçülmemiş olması |
+| 7 | Renk filtresi yok / `GRAYSCALE` / 5 işlemli zincir | Pipeline tablosunun filtreyi bedava yapması iddiasının doğrulanması |
+| 8 | `render-threads` 1 / 2 / 4 / 8, sabit 4x2 | Ölçeklenme; varsayılan 4 doğru mu |
+| 9 | Canlı önizleme: 10 sn boyunca tık spam'i | Sürekli render'ın TPS'e etkisi (`/tps` ve `/timings`) |
+| 10 | Aynı anda 3 kamera 3 oyuncu tarafından düzenlenirken | Havuzun ve editör koltuğunun gerçek yük altındaki hâli |
+| 11 | Yükleme: 20 asılı fotoğrafla sunucu açılışı | `.izm` ön belleğinin açılışa maliyeti |
+| 12 | Chunk yükleme: yüklü / diskten / üretilmemiş bölge | `load-missing-chunks` ve `generate-missing-chunks` etkisi |
+
+**Çıktı:** her senaryo için kopyalama ms / yürüyüş ms / TPS düşüşü tablosu, ardından üç
+karar: (a) `max-capture-area` varsayılanı doğru mu, (b) hangi ızgara ve ss değerleri
+permission'a bağlanacak (T54), (c) varsayılan `render-threads` ve `style` ne olmalı.
+
+**Ayrıca bakılacak:** ana thread'i 50 ms'in üzerinde tutan tek bir aşama kalmamalı; bu
+sınırı aşan senaryo varsa yayın öncesi ya bölünür ya varsayılan dışına atılır.
+
+---
+
+### T51 — Wiki (TR + EN) ve İngilizce config yorumları
+
+`[ ]` **P0** · 2026-08-16
+
+Şu an tüm açıklama config dosyalarının içinde ve Türkçe. Yayında bu iki türlü de
+yetmiyor: dosyalar şişiyor, Türkçe bilmeyen sunucu sahibi hiçbir şey anlamıyor.
+
+**Karar: açıklama wiki'ye taşınır, dosyalarda özet kalır.**
+
+- **Config yorumları İngilizce ve özet olur** — anahtar başına bir, en fazla iki satır:
+  ne işe yarar, aralığı ne, varsayılanı ne. Gerekçeler, ölçümler ve "neden böyle"
+  anlatıları wiki'ye gider. Etkilenen dosyalar: `config.yml`, `block-colors.yml`,
+  `filters.yml`, `messages.yml` (mesaj **değerleri** Türkçe kalır — onlar oyuncuya
+  görünen metin; yalnızca yorum satırları İngilizceye çevrilir).
+- **Wiki GitHub Wiki uyumlu olur:** depoda `wiki/` klasörü, dosya adları GitHub Wiki'nin
+  sayfa adı kuralına göre (`Home.md`, `Configuration.md`, `Configuration-TR.md` …), iç
+  bağlantılar `[[Sayfa-Adı]]` biçiminde. Böylece klasör olduğu gibi wiki deposuna
+  itilebilir.
+- **İki dil, iki sayfa ağacı.** İngilizce ana ağaç, Türkçe `-TR` sonekiyle eş sayfalar;
+  `Home` her ikisine de bağlanır. Çeviri değil, **eş metin**: aynı başlıklar, aynı sıra.
+
+**Sayfa planı** (her biri hem EN hem TR):
+
+| Sayfa | İçerik |
+|---|---|
+| `Home` | Eklenti nedir, 5 satırlık hızlı başlangıç, dil seçimi |
+| `Getting-Started` | Kurulum, `/izocam` ile ilk kamera, ilk fotoğraf, duvara asma |
+| `Commands` | Tüm komutlar, argümanları, örnekleri |
+| `Permissions` | Tüm node'lar, varsayılanları, sayısal limit node'ları (T54 ile birlikte yazılır) |
+| `Configuration` | `config.yml`'in **her** anahtarı: ne yapar, aralık, varsayılan, maliyet notu |
+| `Block-Colors` | `block-colors.yml`: temel renk sistemi, override yazımı, `NONE`, vanilla düzeltmeleri |
+| `Filters` | `filters.yml`: sekiz işlem, zincir mantığı, örnek filtre yazımı |
+| `Messages` | `messages.yml`: MiniMessage, placeholder listesi, kendi dilini yazma |
+| `Performance` | T50 tablosu, hangi ayar neyi pahalılaştırır, önerilen profiller (küçük/orta/büyük sunucu) |
+| `FAQ` | "Fotoğraf boş çıktı", "kadraj çok geniş", "renk vanilla'dan farklı", "önizleme açılmıyor" |
+
+**Dil ve seviye:** okuyucu Java bilmiyor, Minecraft sunucusu işletiyor. Her sayfa
+"ne yapmak istiyorsan şunu yaz" ile başlar, gerekçe alta iner. Her config örneği
+kopyalanıp yapıştırılabilir olmalı.
+
+**Sıra:** önce `Configuration` (asıl ihtiyaç), sonra `Permissions` + `Performance`
+(T54 ve T50 bitince), en son `FAQ`. `Home`/`Getting-Started` en sona kalabilir, çünkü
+en çok değişecek olan onlar.
 
 ---
 
 ## P1 — Kamera ve etkileşim
 
-*(Şu an açık madde yok.)*
+### T54 — Permission ağacı: pahalı olan her seçenek izne bağlansın
+
+`[ ]` **P1** · 2026-08-16 · Bloke ettikleri: T53, T55, T56
+
+Bugün yalnızca dört node var: `izomap.camera` (varsayılan açık), `izomap.admin` (op) ve
+iki sayısal limit — `izomap.max_cameras_by_player.<n>`, `izomap.max_photos_by_camera.<n>`.
+Yani **her oyuncu 4x4 ızgarada, ss3, SHARP fotoğraf çekebiliyor**; sunucunun ödediği
+bedel ile oyuncunun tıkladığı buton arasında hiçbir bağ yok.
+
+**İki kalıp kullanılır** (ikisi de projede mevcut):
+
+- **Sayısal limit** — "ne kadar" sorusu için: `izomap.<ad>.<n>`, `PermissionLimit` en
+  büyüğü alır, `*` = sınırsız.
+- **Boolean node** — "hangisi" sorusu için: `izomap.<alan>.<SEÇENEK>`.
+
+**Önerilen ağaç:**
+
+| Node | Ne verir | Varsayılan |
+|---|---|---|
+| `izomap.camera` | Kamera kurma, ayarlama, çekme (mevcut) | `true` |
+| `izomap.admin` | Başkasının kamerası/fotoğrafı üzerinde işlem (mevcut) | `op` |
+| `izomap.max_cameras_by_player.<n>` | Kamera sayısı (mevcut) | — |
+| `izomap.max_photos_by_camera.<n>` | Kamera başına fotoğraf (mevcut) | — |
+| **`izomap.max_map_tiles.<n>`** | Bir fotoğrafın toplam harita karesi (1x1=1, 4x2=8). Izgara listesi buna göre filtrelenir | `4` (2x2'ye kadar) |
+| **`izomap.style.fast`** | `FAST` stil | `true` |
+| **`izomap.style.sharp`** | `SHARP` stil — asıl pahalı olan | `op` |
+| **`izomap.filter`** | Renk filtresi kullanabilmek | `op` |
+| **`izomap.filter.<ID>`** | Tek bir filtre (`filters.yml`'deki kimlik) | — |
+| **`izomap.sky`** | Gökyüzü seçebilmek | `true` |
+| **`izomap.sky.<SEÇENEK>`** | Tek bir gökyüzü (`NONE`/`WORLD`/`DAWN`/`DAY`/`DUSK`/`NIGHT`) | — |
+| **`izomap.sky.bodies`** | Ay/güneş/yıldız (T55) | `op` |
+| **`izomap.frame`** | Çerçeve kullanabilmek (T53) | `op` |
+| **`izomap.frame.<ID>`** | Tek bir çerçeve | — |
+| **`izomap.signature`** | Fotoğrafa imza atmak (T56) | `op` |
+| **`izomap.ratio.<AD>`** | Belirli en-boy oranları | `true` |
+| **`izomap.export`** | PNG dışa aktarma (diske yazar) | `op` |
+
+**Kurallar:**
+
+- **Alan node'u + seçenek node'u.** `izomap.filter` alanın kapısıdır; yoksa filtre
+  butonu ekranda hiç görünmez. Varsa, oyuncu yalnızca `izomap.filter.<ID>` tuttuğu
+  filtreleri görür. Aynısı gökyüzü ve çerçeve için. Kapıyı ayrı tutmak, "filtre diye bir
+  şey olduğunu bile görmesin" ile "görsün ama seçemesin" arasını ayırır.
+- **Ekranda gizle, tıkta reddetme.** İzin yoksa seçenek Dialog'da hiç çizilmez; izinliyi
+  gizlemek de, izinsizi gösterip tıkta mesaj vermek de kötü. Tek istisna ızgara: sınırın
+  üstündeki seçenekler **soluk** görünür ve neden kapalı olduğu yazar, çünkü orada
+  oyuncunun bir üst kademeyi istemesi anlamlı.
+- **Çekim anında bir kez daha bakılır.** Dialog açıkken izin kaybedilmiş olabilir.
+- **Retake izin sormaz.** Fotoğraf zaten çekilmiş; sonradan izni alınan bir ayarı geri
+  almak, duvardaki resmi bozmak demek olurdu.
+- **Varsayılan felsefe:** ucuz olan herkese açık (FAST, 1x1–2x2, `NONE` gökyüzü,
+  `ORIGINAL` filtre), pahalı ve süs olan izne bağlı (SHARP, büyük ızgara, çerçeve,
+  imza, gök cisimleri).
+
+Sınırların **sayısal değerleri T50'nin ölçümünden sonra** kesinleşir; tablodaki
+varsayılanlar şimdilik tahmin.
 
 ---
 
 ## P1 — Fotoğraf yönetimi ve yerleştirme
 
-*(Şu an açık madde yok.)*
+### T53 — Çerçeveler ve asılı fotoğrafın sağ tık Dialog'u
+
+`[ ]` **P1** · 2026-08-16 · Bağımlı: T54 (permission)
+
+Fotoğraflara çerçeve. Çeşitli çerçeveler olacak, oyuncu **asıldıktan sonra** da
+takabilecek, ve hangi çerçeveyi kimin kullanabileceği permission'a bağlı olacak.
+
+**Overlay aşaması (T56 ile ortak).** Çerçeve de imza da aynı şeyi yapıyor: `.izm`'deki
+piksellerin üstüne bir katman basmak. Tek bir *overlay* adımı yazılır, iki kaynağı olur.
+Sıra: `.izm` → çerçeve → imza → dilimleme → `MapView`.
+
+**Çerçeve dosyaları.** `plugins/Izomap/frames/<id>.png` + `frames.yml` (görünen ad,
+permission soneki, nine-slice kenar kalınlıkları). PNG yüklenince palete snap edilir ve
+**nine-slice** çizilir: dört köşe sabit, kenarlar tekrarlanır. Böylece tek çerçeve dosyası
+1x1'de de 4x2'de de doğru durur — ölçekleme yapılmaz, tekrar yapılır (piksel sanatı
+ölçeklenince bulanır).
+
+**Kadraj kararı:** çerçeve fotoğrafın **dış piksellerinin üstüne çizilir** (kırpar),
+fotoğrafı küçültmez. Küçültme daha güzel olurdu ama ya yeniden render ya yeniden örnekleme
+ister; `.izm` tam boy görüntüyü tuttuğu için üstüne basmak bedava. `frames.fit: shrink`
+sonra bir seçenek olarak eklenebilir.
+
+**Gömülü mü, referans mı** (`photo.frames.embed`, config'ten):
+
+- `false` (**önerilen varsayılan**) — fotoğraf kaydında yalnızca `frame: <id>` durur,
+  katman her yüklemede basılır. Çerçeve değiştirilebilir/kaldırılabilir. Maliyeti bir
+  piksel kopyası; `.izm` zaten okunuyor. Riski: dosya silinirse fotoğraf çerçevesiz
+  yüklenir ve log uyarır.
+- `true` — çerçeve pikselleri `.izm`'e işlenir, kayıtta `frame-embedded: <id>` durur.
+  Fotoğraf kendi kendine yeter, ama **değiştirilemez**; Dialog bunu açıkça yazar
+  ("Bu fotoğrafın çerçevesi gömülü, değiştirilemez"). Sunucu sahibi kalıcılık isterse
+  bunu seçer.
+
+Karar anı **çerçeve takıldığı an**dır: o anki ayar neyse fotoğraf onu taşır. Ayar sonradan
+değişse bile eski fotoğraflar olduğu gibi kalır (gömülü olan gömülü kalır).
+
+**Fotoğraf sağ tık Dialog'u.** Bugün asılı fotoğrafa sağ tık yalnızca **iptal ediliyor**
+(`PhotoFrameListener#onRotate`, haritanın dönmesini engellemek için). Oraya Dialog
+bağlanır:
+
+| Seçenek | Koşul |
+|---|---|
+| Yeniden çek (retake) | Sahibi ya da `izomap.admin`; fotoğrafın `capture` bloğu olmalı |
+| Çerçeve tak / değiştir / kaldır | `izomap.frame` + gömülü değilse |
+| İmza ekle (T56) | `izomap.signature` |
+| Adını değiştir | Sahibi |
+| Duvardan kaldır | Sahibi ya da `izomap.admin` |
+
+Sahibi olmayan ve `izomap.admin` tutmayan oyuncuya Dialog **açılmaz** ve sağ tık bugünkü
+gibi sessizce iptal edilir — herkesin duvardaki resme tıklayınca menü görmesi gürültü.
+
+**Açık sorular:** çerçeve seçim ekranında önizleme nasıl gösterilir (küçük bir örnek
+render mı, yalnızca ad mı); varsayılan pakette kaç çerçeve gelir ve nasıl görünürler.
+
+### T56 — Fotoğrafa imza
+
+`[ ]` **P1** · 2026-08-16 · Bağımlı: T53 (overlay aşaması), T54 (permission)
+
+`izomap.signature` tutan oyuncu fotoğrafın istediği köşesine kısa bir metin koyabilir.
+
+- **Girdi:** Dialog'da metin kutusu, karakter limiti (öneri: 24), köşe seçimi (dört
+  köşe), **ölçek** seçimi (1x / 2x / 3x — oyuncu isterse daha küçük koyar).
+- **Çizim:** paket içine gömülü küçük bir bitmap font (öneri: 5x7 + 1 piksel boşluk).
+  MiniMessage yok, renk tek: paletten seçilen bir ton + okunurluk için 1 piksel koyu
+  gölge. Yazı tipi dosyadan gelmez; harita paletinde okunabilirlik font seçiminden çok
+  kontrasta bağlı.
+- **Saklama:** fotoğraf kaydında `signature: {text, corner, scale}`. Gömülü/gömülü değil
+  ayrımı çerçeveyle **aynı** anahtarı izler (`photo.frames.embed`), çünkü ikisi de aynı
+  overlay adımından geçiyor ve fotoğrafın "dokunulmaz" olup olmaması tek bir karardır.
+- **Denetim:** metin sunucu tarafında filtrelenir (kontrol karakterleri, aşırı boşluk) ve
+  log'lanır; duvara asılan bir yazı, chat'ten farklı olarak kalıcıdır.
+
+**Açık soru:** imza sahibinin adı otomatik mi gelsin (varsayılan metin olarak) yoksa
+tamamen serbest mi olsun? Öneri: kutu oyuncunun adıyla **dolu açılır**, silip
+değiştirebilir.
 
 ---
 
@@ -138,9 +364,60 @@ manzarayı göstermek).
   biome'larda görünmeyebilir — beklenen davranış, belgelenmeli.
 - Bilinmeyen/yeni biome → tint yok, temel renk kullanılır.
 
+### T55 — Gökyüzüne güneş, ay ve yıldızlar
+
+`[ ]` **P1** · 2026-08-16 · Bağımlı: T32 ✔, T54 (permission)
+
+Gökyüzü şu an dikey bir gradyan + dither. Üstüne üç cisim:
+
+- **Güneş / ay.** Yeri hesaplanabilir, uydurulmaz: kameranın `right`/`up` eksenlerine
+  izdüşüm alınır (`u = dot(yön, right)`, `v = dot(yön, up)`), `dot(yön, direction) > 0`
+  ise kadrajın içindedir ve piksel koordinatı doğrudan çıkar. Yani kamera çevrildikçe
+  güneş kadrajda doğru yere kayar. Ay güneşin tam tersi yönde; evresi donmuş oyun
+  saatinden gelir.
+- **Yıldızlar.** Yön uzayında deterministik bir hash alanı (kamera yönüne göre izdüşümü
+  aynı yolla alınır), yani aynı kamera aynı yıldızları görür ve panoramada kaymaz.
+  Yalnızca gökyüzü rengi geceye yakınken çizilir; gündüz gökyüzünde yıldız, "efekt"
+  değil hata gibi durur.
+- **Hangi güneş?** Gölgelendirmenin güneşi sabit açılıdır (`sun-yaw`/`sun-pitch`),
+  gökyüzünün rengi ise donmuş oyun saatinden gelir. **Karar: disk, gölgeyi atan güneşin
+  yönüne çizilir.** Aksi hâlde gölgeler bir yana, güneş öbür yana düşer ve fotoğraf
+  kendi içinde çelişir.
+
+Config: `photo.sky.bodies.{sun, moon, stars}` açık/kapalı + boyut ve yıldız yoğunluğu.
+Oyuncu tarafı `izomap.sky.bodies` iznine bağlı ve **UI düzenlemesi gerekiyor**: çekim
+ekranında gökyüzü zaten tek butonla döngüleniyor, cisimler ayrı bir satır ister. Muhtemel
+çözüm, gökyüzü seçimini kendi alt ekranına almak (gökyüzü + cisimler + ileride hava
+durumu). T53'ün Dialog düzenlemesiyle birlikte planlanmalı.
+
+### T57 — Su fazla düz duruyor
+
+`[ ]` **P1** · 2026-08-16 · İlgili: T49 (karıştırma aşaması)
+
+Su tek bir `WATER` temel renginin tek tonu olarak çıkıyor: göl de okyanus da aynı düz
+mavi. Vanilla harita bile bunu yapmıyor — orada su **derinliğe göre** tonlanır.
+
+Config: `photo.water.mode`, üç kip, sırayla uygulanabilir:
+
+1. **`DEPTH` (önerilen ilk adım, neredeyse bedava).** Işın suya girdiğinde durmak yerine
+   kaç blok su geçtiğini sayar, sonra dibe ya da sınıra varınca durur; sayıya göre bir ya
+   da iki ton iner. Sığ kıyı açık, derin okyanus koyu olur ve kıyı çizgisi kendiliğinden
+   belirir. Vanilla haritanın yaptığı da tam olarak budur, yani "gerçekçi mi" tartışması
+   yok.
+2. **`TRANSLUCENT`.** T49'un karıştırma aşaması gelince: su rengi, dipteki bloğun rengiyle
+   derinliğe bağlı bir oranla karışır. Sığ suda kum/çakıl görünür, derinde su kazanır.
+   T49 olmadan yapılmaz, o yüzden ona bağlı.
+3. **`GLINT` (deneysel).** Güneşin yansıma yönüne yakın yüzeylerde dağınık bir ton
+   yukarı; süpersamplingle birlikte parıltı gibi durur. Riski: paletle birleşince
+   "kirli" görünebilir, denenmeden karar verilmez.
+
+Ayrıca su yüzeyi hep `TOP` yüzü aldığından yatay bir düzlem gibi parlıyor; dalga kırığı
+istenirse dünya koordinatına bağlı deterministik bir desenle tek ton oynatılabilir
+(`DEPTH`'in üstüne, ayrı anahtar). Buz, buzul ve `WATER_CAULDRON` bu işin dışında kalır.
+
 ### T49 — Kısmi kaplama: ince bloklar bloğun tamamını boyamasın
 
-`[ ]` **P2** · 2026-08-16 · İlgili: T35 ✔
+`[ ]` **P2** · 2026-08-16 · İlgili: T35 ✔ · Bloke ettiği: T57 (`TRANSLUCENT`)
 
 **Soru (oyuncu):** her blok "dolu bir piksel" olmak zorunda mı? Ot, çiçek gibi bloklar
 daha küçük bir kaplamayla çizilse göze daha az batmaz mı?
@@ -178,6 +455,39 @@ Karar verilmesi gerekenler: varsayılan `coverage` tablosu olacak mı (dosyanın
 tablo yoktur" kuralı buna karşı), yoksa yalnızca örnek mi; ve hangi bloklar (ot, eğrelti,
 çiçekler, fideler, sarmaşık, şeker kamışı…) hangi oranla.
 
+**Karar (2026-08-16): B denenecek, ve liste elle tutulacak.**
+
+**Neden otomatik değil.** "Blok tam küp mü" sorusunun API'de hazır cevabı yok:
+`BlockData#getCollisionShape` **çarpışma** kutusunu verir, görsel şekli değil — ve tam da
+dertli bloklarda (ot, çiçek, glow lichen, sarmaşık) çarpışma kutusu **boştur**. Yani
+otomatik türetim, düzeltmek istediğimiz blokların hepsini kaçırır. Elle tablo doğru karar.
+
+**Ölçüt: "gerçekte arkasını görüyor musun?"** Bu, blokları üçe ayırıyor ve `slab`'ın niye
+rahatsız etmediğini de açıklıyor:
+
+| Sınıf | Örnek | Ne yapılır |
+|---|---|---|
+| İnce/serpme bitki | ot, eğrelti, çiçek, fide, şeker kamışı, ölü çalı | `coverage` 0.25–0.35, harmanlanır |
+| Yüzeye yapışık kaplama | **glow lichen**, sarmaşık, merdiven (ladder), ray, halı, kar tabakası, nilüfer, redstone tozu | `coverage` 0.1–0.2, harmanlanır |
+| Katı ama yarım blok | slab, stairs, duvar, çit | **dokunulmaz**, 1.0 kalır |
+
+Üçüncü sınıf bilerek dışarıda: bir slab'ın kapladığı yarı hacim *gerçekten* taştır, onu
+zeminle harmanlamak rengi boşuna soldurur. Slab'ın rahatsız etmemesinin sebebi de bu —
+rengi zaten çevresindeki taşla aynı. Onları düzeltmek `coverage` değil **alt-voxel
+yürüyüşü** ister (hücre içinde yükseklik bilgisi), o da bambaşka bir iş.
+
+**Glow lichen'in özel derdi ve ucuz çözümü.** Duvara yapışık bir kaplama, ön yüzünden
+bakınca gerçekten o yüzü kaplar (kaplama doğrudur), yandan bakınca ise koca bir küp
+boyar (tuhaf olan bu). Işının girdiği yüz zaten elimizde (`RayHit.Face`), yani tablo
+istenirse yüze göre iki değer taşıyabilir: `coverage: {face: 0.9, side: 0.15}`. Ekstra
+maliyet bir tablo okuması. **Sıra:** önce tek skaler değerle B, sonra gerekirse yüze
+duyarlı hâli.
+
+**Üst üste ince bloklar.** Uzun ot iki blok, sarmaşık bir sütun olabilir. Karıştırma
+biriktirilir (geçirgenlik çarpılarak) ve bir sınırda kesilir (öneri: en çok 3 ince
+katman, sonra sonuncusu opak sayılır) — yoksa sarmaşık perdesi ışını dünyanın öbür
+ucuna kadar yürütür.
+
 ---
 
 ## P2 — Teknik borç
@@ -194,6 +504,45 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T52 — Geriye dönük okumaların tamamı silindi
+
+`[x]` **P0** · 2026-08-16
+
+Yönergedeki "eski kayıtları da oku" ilkesi **yayından sonra** yeniden geçerli olacak; ama
+eklenti şu an kimseyle paylaşılmadı, dolayısıyla okunacak eski kurulum yok. Kod bugüne
+kadar var olmamış sürümlerin dosyalarını okumaya çalışıyordu.
+
+Silinenler:
+
+| Nerede | Ne okunuyordu |
+|---|---|
+| `PhotoStorage` | `maps.yml` — açılışta okunup `photos.yml`'e katılan eski yerleşim dosyası, `legacyLayout` yolu ve `log.photos-migrated` mesajı |
+| `ConfigManager` | `settings.max-chunks-per-capture`, `photo.region-size`, `camera.model-pitch-offset`, `camera.model-yaw-offset` |
+| `CameraStorage` | `zoom` yoksa `scale` anahtarına düşme |
+| `PreviewManager` | `izomap:preview_map` (boolean) eski önizleme etiketi ve `isPreviewOrLegacy` |
+| `PhotoStyle` | `SOFT` → `FAST` takma adı |
+| `BlockColorTable` | `block-colors.yml` v1 → v2 yedekle-ve-değiştir yolu, iki log mesajı |
+
+**Kalanlar ve gerekçeleri** — bunlar geriye dönük okuma değil:
+
+- **Eksik anahtar → varsayılan.** `getInt("x", 5)` bir sürüm uyumu değil, config'in
+  tanımı; kullanıcı anahtarı silmiş olabilir.
+- **Bozuk kayda dayanıklılık.** `readSpec` bloğu olmayan fotoğrafta `null`, `readShading`
+  bölümü olmayanda `NONE` döndürüyor. Elle bozulmuş dosyaya karşı, eski sürüme karşı
+  değil.
+- **`.izm` sürüm alanı.** Farklı sürüm = ön belleği yok say, yeniden render et. Zaten
+  "göç" değil, "çöpe at" yolu.
+- **`block-colors.yml` içindeki `version` alanı.** Dosyada duruyor ama artık kimse
+  okumuyor; göçler geri geldiğinde yeri hazır olsun diye bırakıldı, değeri 1'e çekildi.
+
+Yayın sonrası kural: **ilk yayınlanan sürümden itibaren** okuma yolları geriye dönük
+tutulur. Şu anki dosyalar o zamanki "v1"dir.
+
+Dokunulanlar: `PhotoStorage`, `ConfigManager`, `CameraStorage`, `PreviewManager`,
+`PhotoStyle`, `BlockColorTable`, `messages.yml`, `block-colors.yml`.
+
+---
 
 ### T35 — Ot bloklarının rengi göze batıyor
 

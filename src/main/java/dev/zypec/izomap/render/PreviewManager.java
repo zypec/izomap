@@ -106,11 +106,6 @@ public final class PreviewManager implements Listener {
      * Holds the camera id, so an item can be matched back to its session.
      */
     private final NamespacedKey previewKey;
-    /**
-     * Pre-rewrite marker; only read to clear maps left over from an older build.
-     */
-    private final NamespacedKey legacyPreviewKey;
-
     private final Map<UUID, PreviewSession> sessions = new ConcurrentHashMap<>();
     private final Map<UUID, UUID> watchedCamera = new ConcurrentHashMap<>();
     /**
@@ -123,7 +118,6 @@ public final class PreviewManager implements Listener {
         this.renderService = renderService;
         this.mapService = mapService;
         this.previewKey = new NamespacedKey(plugin, "preview_camera");
-        this.legacyPreviewKey = new NamespacedKey(plugin, "preview_map");
     }
 
     /**
@@ -555,14 +549,6 @@ public final class PreviewManager implements Listener {
                && item.getItemMeta().getPersistentDataContainer().has(previewKey, PersistentDataType.STRING);
     }
 
-    /**
-     * Also matches maps written by the pre-session build, which used a boolean flag.
-     */
-    private boolean isPreviewOrLegacy(ItemStack item) {
-        return isPreview(item) || (item != null && item.hasItemMeta()
-                                   && item.getItemMeta().getPersistentDataContainer().has(legacyPreviewKey, PersistentDataType.BOOLEAN));
-    }
-
     // --- locking and cleanup ---
 
     // Dropping ends the preview cleanly instead of leaving the map on the ground.
@@ -610,7 +596,7 @@ public final class PreviewManager implements Listener {
     // Clear a preview left in the offhand by a crash; its session did not survive.
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
-        if (isPreviewOrLegacy(event.getPlayer().getInventory().getItemInOffHand())) {
+        if (isPreview(event.getPlayer().getInventory().getItemInOffHand())) {
             event.getPlayer().getInventory().setItemInOffHand(null);
         }
     }

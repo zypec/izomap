@@ -53,10 +53,6 @@ import java.util.Map;
 public final class BlockColorTable {
 
     private static final String FILE_NAME = "block-colors.yml";
-    /**
-     * File format version; older files are backed up and replaced.
-     */
-    private static final int FILE_VERSION = 2;
 
     /**
      * Blocks whose vanilla map colour does not resemble them, and what to use instead.
@@ -285,32 +281,17 @@ public final class BlockColorTable {
     }
 
     /**
-     * Loads the file, backing up and replacing older versions so that approximated
-     * colors from v1 cannot overwrite the correct vanilla ones.
+     * Loads the file, writing the default one out the first time.
+     *
+     * <p>The file carries a {@code version} field that nothing reads yet. Until the
+     * plugin is released there are no installs to migrate, so the loader takes whatever
+     * is on disk; the field is there for the day migrations become real.</p>
      */
     private static YamlConfiguration loadFile(Izomap plugin) {
         var file = new File(plugin.getDataFolder(), FILE_NAME);
-        if (file.exists()) {
-            var existing = YamlConfiguration.loadConfiguration(file);
-            if (existing.getInt("version", 1) >= FILE_VERSION) {
-                return existing;
-            }
-            var backup = new File(plugin.getDataFolder(), FILE_NAME + ".v1.bak");
-            if (backup.exists() && !backup.delete()) {
-                plugin.messages().warn("log.block-colors-backup-failed",
-                        Placeholder.unparsed("file", FILE_NAME));
-                return new YamlConfiguration();
-            }
-            if (!file.renameTo(backup)) {
-                plugin.messages().warn("log.block-colors-backup-failed",
-                        Placeholder.unparsed("file", FILE_NAME));
-                return new YamlConfiguration();
-            }
-            plugin.messages().info("log.block-colors-upgraded",
-                    Placeholder.unparsed("file", FILE_NAME),
-                    Placeholder.unparsed("backup", backup.getName()));
-        }
-        plugin.saveResource(FILE_NAME, false);
+        if (!file.exists())
+            plugin.saveResource(FILE_NAME, false);
+
         return YamlConfiguration.loadConfiguration(file);
     }
 

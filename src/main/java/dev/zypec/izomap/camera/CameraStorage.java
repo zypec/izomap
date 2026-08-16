@@ -126,8 +126,7 @@ public final class CameraStorage extends YamlStorage {
         camera.hologramEntityId(Ids.parse(s.getString("hologram-entity")));
         camera.camYaw((float) s.getDouble("cam-yaw"));
         camera.camPitch((float) s.getDouble("cam-pitch"));
-        // Older records used the key "scale" with the same meaning.
-        camera.zoom((float) s.getDouble("zoom", s.getDouble("scale", 1.0)));
+        camera.zoom((float) s.getDouble("zoom", 1.0));
         camera.aspectRatio(AspectRatio.fromString(s.getString("aspect-ratio"), AspectRatio.RATIO_1_1));
         camera.colorFilter(plugin.filters().byId(s.getString("color-filter"), ColorFilter.ORIGINAL));
         camera.style(PhotoStyle.fromString(s.getString("style"), PhotoStyle.SHARP));
