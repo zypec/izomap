@@ -250,6 +250,49 @@ public final class ConfigManager {
         return clamp(cfg().getDouble("photo.style.blend", 0.5), 0.0, 1.0);
     }
 
+    /**
+     * Whether the sky pales towards the horizon down the frame instead of being flat.
+     */
+    public boolean skyGradient() {
+        return cfg().getBoolean("photo.sky.gradient", true);
+    }
+
+    /**
+     * How far the bottom row of a gradient sky moves towards white.
+     */
+    public double skyHorizonBlend() {
+        return clamp(cfg().getDouble("photo.sky.horizon-blend", 0.45), 0.0, 1.0);
+    }
+
+    /**
+     * How far a dithered sky pixel may stray from the true color, in channel steps.
+     * Zero paints flat bands instead.
+     */
+    public double skyDither() {
+        return clamp(cfg().getDouble("photo.sky.dither", 24.0), 0.0, 128.0);
+    }
+
+    /** Sky color at the given keyframe, as 0xRRGGBB. */
+    public int skyColor(String keyframe, int fallback) {
+        return parseRgb(cfg().getString("photo.sky.colors." + keyframe), fallback);
+    }
+
+    /**
+     * Reads a {@code #RRGGBB} value; a malformed one falls back rather than failing a
+     * capture over a colour.
+     */
+    private static int parseRgb(String raw, int fallback) {
+        if (raw == null || raw.isBlank()) return fallback;
+
+        var hex = raw.trim();
+        if (hex.startsWith("#")) hex = hex.substring(1);
+        try {
+            return Integer.parseInt(hex, 16) & 0xFFFFFF;
+        } catch (NumberFormatException ex) {
+            return fallback;
+        }
+    }
+
     public String defaultAspectRatio() {
         return cfg().getString("photo.default-aspect-ratio", "RATIO_1_1");
     }

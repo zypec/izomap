@@ -144,6 +144,27 @@ photo:
   # KENAR YUMUŞATMA: piksel başına NxN ışın gönderilip ortalaması alınır.
   # 1 = kapalı (en hızlı), 2 = önerilen, 3-4 = daha temiz kenar, N² kat maliyet.
   supersampling: 2
+  # GÖKYÜZÜ. Hiçbir bloğa çarpmayan ışın normalde şeffaf piksel bırakır; gökyüzü
+  # açıksa o pikseller boyanır. HANGİ gökyüzünü oyuncu Dialog'dan seçer (Şeffaf, Oyun
+  # saati, Şafak, Gündüz, Gün batımı, Gece); buradakiler gökyüzünün NASIL çizildiğidir.
+  # Renk çekim anında çözülüp fotoğrafa donar, yani yeniden render'da saat kaymaz.
+  sky:
+    # Renk oyun saatine göre bu dört kareden interpolasyonla gelir.
+    # Saatler: şafak 23000, gündüz 6000, gün batımı 12500, gece 18000.
+    colors:
+      dawn: "#FF9E6B"
+      day: "#78A7FF"
+      dusk: "#FF7A4D"
+      night: "#0B1026"
+    # Aşağı indikçe ufka doğru açılsın mı? Kapalıysa düz tek renk gökyüzü.
+    gradient: true
+    # Gradyanın en alt satırının beyaza ne kadar yaklaşacağı. Aralık: 0.0-1.0.
+    horizon-blend: 0.45
+    # DITHERING. Harita paletinde mavi az olduğu için gradyan bantlaşır; bu ayar
+    # komşu iki paleti 4x4 damalı karıştırıp aradaki tonu göz için üretir.
+    # Değer, bir pikselin gerçek renkten kaç kanal basamağı sapabileceğidir.
+    # 0 = kapalı (temiz ama bantlı). Aralık: 0-128.
+    dither: 24.0
   # FOTOĞRAF STİLİ ayarları. Stil, pikselin nasıl oluştuğunu belirler; renk efektinden
   # (filtre) ayrı bir eksendir ve ikisi aynı fotoğrafa birlikte uygulanır.
   # Stili oyuncu Dialog'dan seçer; buradakiler her stilin şiddetidir.

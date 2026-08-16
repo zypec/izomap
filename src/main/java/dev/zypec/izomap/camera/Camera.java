@@ -3,6 +3,7 @@ package dev.zypec.izomap.camera;
 import dev.zypec.izomap.render.AspectRatio;
 import dev.zypec.izomap.render.ColorFilter;
 import dev.zypec.izomap.render.PhotoStyle;
+import dev.zypec.izomap.render.SkyOption;
 import org.bukkit.Location;
 
 import java.util.UUID;
@@ -45,6 +46,7 @@ public final class Camera {
     private AspectRatio aspectRatio;
     private ColorFilter colorFilter;
     private PhotoStyle style;
+    private SkyOption sky;
 
     private boolean thirdsGuide;
 
@@ -65,6 +67,7 @@ public final class Camera {
         this.aspectRatio = AspectRatio.RATIO_1_1;
         this.colorFilter = ColorFilter.ORIGINAL;
         this.style = PhotoStyle.SHARP;
+        this.sky = SkyOption.NONE;
         this.thirdsGuide = false;
     }
 
@@ -162,6 +165,14 @@ public final class Camera {
 
     public void style(PhotoStyle style) {
         this.style = style;
+    }
+
+    public SkyOption sky() {
+        return sky;
+    }
+
+    public void sky(SkyOption sky) {
+        this.sky = sky;
     }
 
     public void colorFilter(ColorFilter colorFilter) {

@@ -249,6 +249,34 @@ kurulur: `MapColorConverter#packedId` piksel → harita baytı dönüşümünü 
 `block-colors.yml` yalnızca **override** dosyasıdır; varsayılan tablo içermez. `version: 2`
 taşır, eski v1 dosyaları `.v1.bak` olarak yedeklenip yenilenir.
 
+### Gökyüzü (`SkyOption`, `Sky`)
+
+Hiçbir bloğa çarpmayan ışın normalde şeffaf piksel bırakır. Gökyüzü açıksa o pikseller
+boyanır; kapalıysa (varsayılan `NONE`) davranış eskisi gibidir — fotoğrafı arka planı
+olmadan asmak isteyen için o delik gereklidir.
+
+**Soru ikiye bölünür.** Oyuncu *hangi* gökyüzünü istediğini seçer (`SkyOption`: Şeffaf,
+Oyun saati, Şafak, Gündüz, Gün batımı, Gece), sunucu sahibi *nasıl* çizildiğini
+belirler (`config.yml` → `photo.sky`). Bir gün batımı için oyuncudan tick sayısı ve
+çizim modu istemek, tek karar için iki soru sormak olurdu.
+
+**Renk çekimde donar.** `SkyOption.WORLD` ilerleyen bir saati okur; `specFor` onu o anda
+çözüp `CaptureSpec.skyArgb`'a yazar. Böylece fotoğraf çekildiği akşamı korur — saat de,
+sonradan değiştirilmiş bir renk tablosu da onu kaydıramaz. Renk dört kareden
+(şafak 23000, gündüz 6000, gün batımı 12500, gece 18000) dairesel interpolasyonla gelir;
+şafaktan öğleye giden aralık tick 0'ın üstünden geçer.
+
+**Neden bir arama tablosu.** Palette 244 renk var ve mavi olanları bir avuç; dikey bir
+gradyan saklanamaz, satır satır snap'lemek onu birkaç geniş banda çevirir. `photo.sky.dither`
+bunun yerine gerçek rengin iki yanındaki paletleri 4×4 damalı karıştırır ve göz aradaki
+tonu görür. Dithering rengi pikselin hücre içindeki yerine bağlar, snap ise palet
+üzerinde arama demektir — ikisi de piksel başına yapılamaz, bu yüzden satır başına 16
+girişlik hücreye önceden çözülür: gökyüzü pikseli boyamak tek dizi okumasıdır.
+
+Gökyüzü render **sırasında** boyanır, stil geçişlerinden önce. Böylece `SOFT`'un büyütmesi
+araziyi gökyüzüne karıştırır; sonradan boyansaydı yumuşak arazinin üstünde keskin bir
+gökyüzü kalırdı.
+
 ### Fotoğraf stilleri (`PhotoStyle`, `StylePass`)
 
 **Stil pikselin nasıl oluştuğunu, filtre rengin nasıl kaydırıldığını belirler.** İki ayrı
@@ -937,7 +965,7 @@ toplanır ve değerler mantıklı aralıklara clamp'lenir.
 |---|---|
 | `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `render-timing`, `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player`, `max-photos-per-camera` |
 | `camera` | `display-type`, `model-material`, `item-display-transform`, `interaction-size` (0.1-3.0), `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `move-step` (0.05-16.0), `default-pitch` (-90..90), `edit-lock-seconds` (1-3600), `model-rotation.{x,y,z}`, `hologram.{enabled, offset-y (-4..8), view-range (0.1-10), billboard, background}` |
-| `photo` | `style.soft-scale`, `style.grain`, `style.blend`, `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
+| `photo` | `sky.colors.*`, `sky.gradient`, `sky.horizon-blend`, `sky.dither`, `style.soft-scale`, `style.grain`, `style.blend`, `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
 | `placement` | `distance`, `invisible-frames`, `build-backing-wall`, `backing-material`, `timeout-seconds` (5-600) |
 
 **Geriye dönük uyumluluk:** `photo.region-size` → `frame-height`,

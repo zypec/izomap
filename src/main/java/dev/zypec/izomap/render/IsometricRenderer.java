@@ -28,6 +28,8 @@ public final class IsometricRenderer {
     /**
      * Renders the image.
      *
+     * @param sky           color for rays that reach nothing; {@link Sky#NONE} leaves
+     *                      them transparent
      * @param supersampling antialiasing rays per pixel (NxN); 1 disables it
      * @param jitter        how far a sample may stray inside its own cell, 0 to 1;
      *                      0 keeps the regular grid
@@ -35,7 +37,8 @@ public final class IsometricRenderer {
      * @param threads       how many bands, and therefore threads, to use
      */
     public RenderResult render(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
-                               int supersampling, double jitter, Executor executor, int threads) {
+                               Sky sky, int supersampling, double jitter,
+                               Executor executor, int threads) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
         final var argb = new int[w * h];
@@ -43,7 +46,7 @@ public final class IsometricRenderer {
 
         var bands = Math.max(1, Math.min(threads, h));
         if (bands == 1) {
-            renderBand(snapshot, geo, pipeline, samples, jitter, argb, 0, h);
+            renderBand(snapshot, geo, pipeline, sky, samples, jitter, argb, 0, h);
             return new RenderResult(w, h, argb);
         }
 
@@ -54,9 +57,9 @@ public final class IsometricRenderer {
             final int from = band * rowsPerBand;
             final int to = Math.min(h, from + rowsPerBand);
             pending[band] = CompletableFuture.runAsync(
-                    () -> renderBand(snapshot, geo, pipeline, samples, jitter, argb, from, to), executor);
+                    () -> renderBand(snapshot, geo, pipeline, sky, samples, jitter, argb, from, to), executor);
         }
-        renderBand(snapshot, geo, pipeline, samples, jitter, argb, (bands - 1) * rowsPerBand, h);
+        renderBand(snapshot, geo, pipeline, sky, samples, jitter, argb, (bands - 1) * rowsPerBand, h);
         CompletableFuture.allOf(pending).join();
 
         return new RenderResult(w, h, argb);
@@ -66,7 +69,7 @@ public final class IsometricRenderer {
      * Renders the row range {@code [yFrom, yTo)}.
      */
     private void renderBand(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
-                            int samples, double jitter, int[] argb, int yFrom, int yTo) {
+                            Sky sky, int samples, double jitter, int[] argb, int yFrom, int yTo) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
 
@@ -142,9 +145,10 @@ public final class IsometricRenderer {
                     }
                 }
 
-                // The map palette has no translucency, so the majority decides.
+                // The map palette has no translucency, so the majority decides: a pixel
+                // is either terrain or whatever lies beyond it.
                 if (hits * 2 < total) {
-                    argb[py * w + px] = 0;
+                    argb[py * w + px] = sky.argbAt(px, py);
                     continue;
                 }
                 // Samples that all agreed left the color on the palette, so the finished

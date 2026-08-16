@@ -78,9 +78,32 @@ public final class RenderService {
                 world != null ? world.getUID() : null,
                 anchor.getX(), anchor.getY(), anchor.getZ(),
                 camera.camYaw(), camera.camPitch(), camera.zoom(), camera.colorFilter(), camera.style(),
+                skyArgbFor(camera.sky(), world),
                 plugin.config().frameHeight(), plugin.config().frameShift(),
                 plugin.config().supersampling(), plugin.config().maxCaptureArea(),
                 plugin.config().renderDepth());
+    }
+
+    /**
+     * Resolves a player's sky choice into the colour it means right now.
+     *
+     * <p>Done here, once, at capture: {@code WORLD} has to read a clock that keeps
+     * moving, and the whole point of freezing it is that the photo keeps the evening it
+     * was taken in.</p>
+     */
+    private int skyArgbFor(SkyOption option, World world) {
+        if (!option.draws())
+            return 0;
+
+        var ticks = option.ticks();
+        if (ticks < 0)
+            ticks = world != null ? (int) (world.getTime() % 24_000L) : SkyOption.DAY.ticks();
+
+        return 0xFF000000 | Sky.colorAt(ticks,
+                plugin.config().skyColor("dawn", 0xFF9E6B),
+                plugin.config().skyColor("day", 0x78A7FF),
+                plugin.config().skyColor("dusk", 0xFF7A4D),
+                plugin.config().skyColor("night", 0x0B1026));
     }
 
     /**
@@ -150,6 +173,11 @@ public final class RenderService {
         var renderHeight = Math.max(1, (int) Math.round(heightPx * scale));
         var jitter = style == PhotoStyle.GRAINY ? plugin.config().styleGrain() : 0.0;
         var blendStrength = style == PhotoStyle.BLENDED ? plugin.config().styleBlend() : 0.0;
+        var sky = spec.skyArgb() == 0
+                ? Sky.NONE
+                : Sky.of(spec.skyArgb() & 0xFFFFFF, plugin.config().skyGradient(),
+                plugin.config().skyHorizonBlend(), plugin.config().skyDither(),
+                renderHeight, converter);
 
         var geometry = new RenderGeometry(
                 planeCenter, right, up, direction, spanWidth, spanHeight, maxDistance,
@@ -172,7 +200,7 @@ public final class RenderService {
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                 try {
                     var result = renderer.render(
-                            snapshot, geometry, pipeline, supersampling, jitter, executor, threads);
+                            snapshot, geometry, pipeline, sky, supersampling, jitter, executor, threads);
                     result = StylePass.upscale(result, widthPx, heightPx, converter);
                     result = StylePass.blend(result, blendStrength, converter);
                     if (timing) {

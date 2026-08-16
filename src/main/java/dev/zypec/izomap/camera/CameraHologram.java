@@ -36,6 +36,8 @@ public final class CameraHologram {
                         plugin.messages().get("filter." + camera.colorFilter().name())),
                 Placeholder.component("style",
                         plugin.messages().get("style." + camera.style().name())),
+                Placeholder.component("sky",
+                        plugin.messages().get("sky." + camera.sky().name())),
                 Placeholder.unparsed("photos", String.valueOf(photoCount)));
         return Component.join(JoinConfiguration.newlines(), lines);
     }

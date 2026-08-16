@@ -33,7 +33,8 @@ camera:
   # Kameranın üstünde duran hologram. Satırlar sırayla yazılır: bir satırı silmek onu
   # hologramdan kaldırır, listeyi tamamen boşaltmak hologramı boş bırakır (kapatmak
   # için config.yml -> camera.hologram.enabled kullan).
-  # Yer tutucular: <name> <owner> <ratio> <zoom> <blocks> <yaw> <pitch> <filter> <style> <photos>
+  # Yer tutucular: <name> <owner> <ratio> <zoom> <blocks> <yaw> <pitch> <filter> <style>
+  #                <sky> <photos>
   hologram:
     lines:
       - "<aqua><name>"
@@ -80,6 +81,16 @@ filter:
   WARM: "Sıcak"
   COOL: "Soğuk"
   GRAYSCALE: "Siyah-Beyaz"
+
+# Gökyüzü seçenekleri; anahtar SkyOption sabitinin adıdır. Oyuncu HANGİ gökyüzünü
+# istediğini seçer, NASIL çizildiği config.yml -> photo.sky altındadır.
+sky:
+  NONE: "Şeffaf"
+  WORLD: "Oyun saati"
+  DAWN: "Şafak"
+  DAY: "Gündüz"
+  DUSK: "Gün batımı"
+  NIGHT: "Gece"
 
 # Fotoğraf stili adları; anahtar PhotoStyle sabitinin adıdır. Stil, pikselin nasıl
 # oluştuğunu belirler — renk efektinden ayrı bir eksendir, ikisi birlikte uygulanır.
@@ -153,6 +164,7 @@ dialog:
   name-label: "Fotoğraf adı"
   filter-label: "Renk efekti"
   style-label: "Stil"
+  sky-label: "Gökyüzü"
   grid-label: "Yerleşim (grid)"
   grid-option: "<grid> — <count> harita (<wpx>x<hpx>px)"
   capture-full: "Limit dolu (<limit>)"

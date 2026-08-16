@@ -123,6 +123,7 @@ public final class PhotoStorage extends YamlStorage {
         cfg.set(base + ".zoom", spec.zoom());
         cfg.set(base + ".color-filter", spec.colorFilter().name());
         cfg.set(base + ".style", spec.style().name());
+        cfg.set(base + ".sky-argb", spec.skyArgb());
         cfg.set(base + ".frame-height", spec.frameHeight());
         cfg.set(base + ".frame-shift", spec.frameShift());
         cfg.set(base + ".supersampling", spec.supersampling());
@@ -145,6 +146,7 @@ public final class PhotoStorage extends YamlStorage {
                 (float) s.getDouble("zoom", 1.0),
                 ColorFilter.fromString(s.getString("color-filter"), ColorFilter.ORIGINAL),
                 PhotoStyle.fromString(s.getString("style"), PhotoStyle.SHARP),
+                s.getInt("sky-argb", 0),
                 s.getDouble("frame-height", 48.0), s.getDouble("frame-shift", 0.0),
                 s.getInt("supersampling", 1), s.getInt("max-capture-area", 512),
                 s.getInt("render-depth", 64));

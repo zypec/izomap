@@ -10,6 +10,7 @@ import dev.zypec.izomap.map.PhotoManager;
 import dev.zypec.izomap.render.AspectRatio;
 import dev.zypec.izomap.render.ColorFilter;
 import dev.zypec.izomap.render.PhotoStyle;
+import dev.zypec.izomap.render.SkyOption;
 import dev.zypec.izomap.util.Format;
 import io.papermc.paper.dialog.Dialog;
 import io.papermc.paper.dialog.DialogResponseView;
@@ -35,7 +36,7 @@ import java.util.function.Consumer;
  * Paper Dialog API screens for taking photos and managing them.
  *
  * <p>Two screens. The <b>capture</b> one sets up the shot: a name, color filter, photo
- * style and grid, with aspect ratio as a button that reopens the dialog so the grid options
+ * style, sky and grid, with aspect ratio as a button that reopens the dialog so the grid options
  * follow it. Confirming only <i>takes</i> the photo. Zoom is not among them — it is
  * adjusted by clicking the camera, where the preview shows the result, and a second
  * way to set it here only wrote that value back over the one being looked at.</p>
@@ -49,6 +50,7 @@ public final class CameraDialogs {
     private static final String INPUT_NAME = "photo_name";
     private static final String INPUT_FILTER = "filter";
     private static final String INPUT_STYLE = "style";
+    private static final String INPUT_SKY = "sky";
     private static final String INPUT_GRID = "grid";
     private static final String INPUT_RENAME = "new_name";
 
@@ -76,11 +78,12 @@ public final class CameraDialogs {
     // --- capture screen ---
 
     public void openCaptureDialog(Player player, Camera camera) {
-        openCaptureDialog(player, camera, camera.name(), camera.colorFilter(), camera.style());
+        openCaptureDialog(player, camera, camera.name(), camera.colorFilter(), camera.style(), camera.sky());
     }
 
     private void openCaptureDialog(Player player, Camera camera, String initialName,
-                                   ColorFilter initialFilter, PhotoStyle initialStyle) {
+                                   ColorFilter initialFilter, PhotoStyle initialStyle,
+                                   SkyOption initialSky) {
         Dialog dialog = Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(plugin.messages().get("dialog.title"))
                         .body(List.of(DialogBody.plainMessage(infoLine(camera))))
@@ -91,6 +94,8 @@ public final class CameraDialogs {
                                         plugin.messages().get("dialog.filter-label"), true),
                                 DialogInput.singleOption(INPUT_STYLE, 220, styleEntries(initialStyle),
                                         plugin.messages().get("dialog.style-label"), true),
+                                DialogInput.singleOption(INPUT_SKY, 220, skyEntries(initialSky),
+                                        plugin.messages().get("dialog.sky-label"), true),
                                 DialogInput.singleOption(INPUT_GRID, 220, gridEntries(camera),
                                         plugin.messages().get("dialog.grid-label"), true)))
                         .build())
@@ -263,6 +268,15 @@ public final class CameraDialogs {
         return entries;
     }
 
+    private List<SingleOptionDialogInput.OptionEntry> skyEntries(SkyOption initial) {
+        List<SingleOptionDialogInput.OptionEntry> entries = new ArrayList<>();
+        for (SkyOption sky : SkyOption.values()) {
+            entries.add(SingleOptionDialogInput.OptionEntry.create(
+                    sky.name(), plugin.messages().get("sky." + sky.name()), sky == initial));
+        }
+        return entries;
+    }
+
     private List<SingleOptionDialogInput.OptionEntry> gridEntries(Camera camera) {
         List<GridOption> options = GridLayouts.optionsFor(camera.aspectRatio());
         List<SingleOptionDialogInput.OptionEntry> entries = new ArrayList<>();
@@ -289,8 +303,8 @@ public final class CameraDialogs {
      */
     private void applyAndReopen(DialogResponseView view, Audience audience, Camera camera,
                                 Consumer<Camera> change) {
-        applyForm(view, audience, camera, change, (player, name, filter, style) ->
-                openCaptureDialog(player, camera, name, filter, style));
+        applyForm(view, audience, camera, change, (player, name, filter, style, sky) ->
+                openCaptureDialog(player, camera, name, filter, style, sky));
     }
 
     /**
@@ -300,7 +314,7 @@ public final class CameraDialogs {
     private void applyAndRun(DialogResponseView view, Audience audience, Camera camera,
                              Consumer<Player> next) {
         applyForm(view, audience, camera, target -> {
-        }, (player, name, filter, style) -> next.accept(player));
+        }, (player, name, filter, style, sky) -> next.accept(player));
     }
 
     private void applyForm(DialogResponseView view, Audience audience, Camera camera,
@@ -311,14 +325,16 @@ public final class CameraDialogs {
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
         ColorFilter filter = ColorFilter.fromString(view.getText(INPUT_FILTER), camera.colorFilter());
         PhotoStyle style = PhotoStyle.fromString(view.getText(INPUT_STYLE), camera.style());
+        SkyOption sky = SkyOption.fromString(view.getText(INPUT_SKY), camera.sky());
 
         plugin.runOnMain(() -> {
             var before = imageState(camera);
             change.accept(camera);
             camera.colorFilter(filter);
             camera.style(style);
+            camera.sky(sky);
             applyIfChanged(player, camera, before);
-            then.run(player, name, filter, style);
+            then.run(player, name, filter, style, sky);
         });
     }
 
@@ -327,7 +343,7 @@ public final class CameraDialogs {
      */
     private static List<Object> imageState(Camera camera) {
         return List.of(camera.aspectRatio(), camera.thirdsGuide(), camera.zoom(),
-                camera.colorFilter(), camera.style());
+                camera.colorFilter(), camera.style(), camera.sky());
     }
 
     /**
@@ -348,7 +364,7 @@ public final class CameraDialogs {
     }
 
     private interface FormAction {
-        void run(Player player, String name, ColorFilter filter, PhotoStyle style);
+        void run(Player player, String name, ColorFilter filter, PhotoStyle style, SkyOption sky);
     }
 
     private void onCapture(DialogResponseView view, Audience audience, Camera camera) {
@@ -358,12 +374,14 @@ public final class CameraDialogs {
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
         ColorFilter filter = ColorFilter.fromString(view.getText(INPUT_FILTER), camera.colorFilter());
         PhotoStyle style = PhotoStyle.fromString(view.getText(INPUT_STYLE), camera.style());
+        SkyOption sky = SkyOption.fromString(view.getText(INPUT_SKY), camera.sky());
         String gridLabel = view.getText(INPUT_GRID);
 
         plugin.runOnMain(() -> {
             var before = imageState(camera);
             camera.colorFilter(filter);
             camera.style(style);
+            camera.sky(sky);
             // The capture below renders the same frame; refreshing an unchanged preview
             // first would render it twice for one click.
             applyIfChanged(player, camera, before);

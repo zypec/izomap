@@ -27,7 +27,7 @@ T10 (çoklu preview altyapısı) ✔
 
 T30 (renk pipeline'ının parametrikleşmesi) ✔
  ├── T31 (kullanıcı tanımlı filtreler)
- ├── T32 (gökyüzü)
+ ├── T32 (gökyüzü) ✔
  ├── T33 (gelişmiş gölgelendirme)
  ├── T34 (biome tint)
  └── T36 (fotoğraf stilleri)
@@ -136,31 +136,6 @@ butonu hiçbir şeyi değiştirmediği hâlde bunu ödüyordu.
   Dikkat edilecek tek yer `ColorPipeline#blend`: ortalaması alınan kenar pikselleri
   zinciri gerçekten koşuyor, dolayısıyla zincir orada da ucuz kalmalı (ya da o piksel
   için de bir arama tablosu düşünülmeli).
-
----
-
-### T32 — Gökyüzü
-
-`[ ]` **P1** · Bağımlı: T30 ✔
-
-Şu an hiçbir bloğa çarpmayan ışın şeffaf piksel üretiyor; fotoğrafın üstü boş kalıyor.
-Gökyüzü eklenebilmeli.
-
-- Fotoğraf bazlı ayar (çeken oyuncu kontrol eder), Dialog'da seçenek olarak.
-- **Varsayılan: oyun saatiyle eşleşir** (çekim anındaki `World#getTime`).
-- Oyuncu istediği saati seçebilir (0-24000 tick veya 0-23 saat cinsinden; Dialog'da
-  saat seçimi daha anlaşılır).
-- Renk, saate göre bir tablodan gelir (`sky.yml` ya da `config.yml` altında):
-  şafak / gündüz / gün batımı / gece için renkler ve aralarında yumuşak geçiş.
-- **Palet kısıtı:** harita paletinde mavi tonları sınırlı (`WATER`, `COLOR_LIGHT_BLUE`,
-  `COLOR_BLUE`, `LAPIS` ailesi × 4 ton). Gökyüzü gradyanı bantlaşacaktır. Seçenekler:
-  (a) düz tek renk gökyüzü — temiz görünür, önerilen varsayılan;
-  (b) dikey gradyan + hafif dithering (Bayer 4×4) — daha yumuşak ama gürültülü.
-  İkisi de config'ten seçilebilir olsun.
-- Ayrıca "şeffaf" seçeneği korunmalı (bugünkü davranış) — fotoğrafı arka planı olmadan
-  asmak isteyenler için.
-- Hava durumu (yağmur/kar) etkisi opsiyonel, ikinci aşama.
-- Ayar `CaptureSpec`'e eklenir (T1), böylece yeniden render'da saat kaymaz.
 
 ---
 
@@ -370,6 +345,40 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T32 — Gökyüzü
+
+`[x]` **P1** · 2026-08-16 · Bağımlı: T30 ✔
+
+Hiçbir bloğa çarpmayan ışın artık gökyüzü rengiyle boyanabiliyor. Varsayılan hâlâ
+`NONE` (şeffaf): fotoğrafı arka planı olmadan asmak isteyen için o delik gerekli.
+
+**Soru ikiye bölündü.** Oyuncu Dialog'dan *hangi* gökyüzünü istediğini seçiyor
+(`SkyOption`: Şeffaf, Oyun saati, Şafak, Gündüz, Gün batımı, Gece), sunucu sahibi
+`config.yml` → `photo.sky` altında *nasıl* çizildiğini belirliyor (renk tablosu, gradyan,
+ufuk açılması, dithering). TODO'daki "düz renk mi gradyan mı" seçimi de böylece config'e
+düştü; ikisi de mümkün, varsayılan gradyan + dither.
+
+**Renk çekimde donuyor.** `WORLD` ilerleyen bir saati okuduğu için `specFor` onu o anda
+çözüp `CaptureSpec.skyArgb`'a yazıyor; fotoğraf çekildiği akşamı koruyor. Renk dört
+kareden dairesel interpolasyonla geliyor (şafak 23000, gündüz 6000, gün batımı 12500,
+gece 18000), şafak-öğle aralığı tick 0'ın üstünden geçiyor.
+
+**Palet kısıtı TODO'da öngörüldüğü gibi çıktı** ve dithering ile çözüldü: gerçek rengin
+iki yanındaki paletler 4×4 Bayer ile damalı karıştırılıyor. Maliyeti sıfıra yakın tutmak
+için satır başına 16 girişlik hücre önceden çözülüyor — gökyüzü pikseli boyamak tek dizi
+okuması. `photo.sky.dither: 0` bandı geri getirir (temiz ama bantlı).
+
+Gökyüzü render **sırasında** boyanıyor, stil geçişlerinden önce; böylece `SOFT`'un
+büyütmesi araziyi gökyüzüne karıştırıyor.
+
+Hava durumu etkisi (yağmur/kar) yapılmadı; TODO'da da ikinci aşama olarak işaretliydi.
+
+Dokunulanlar: yeni `SkyOption`, `Sky`; `CaptureSpec.skyArgb`, `RenderService`,
+`IsometricRenderer`, `Camera`, `CameraStorage`, `PhotoStorage`, `CameraDialogs`,
+`CameraHologram`, `config.yml`, `messages.yml`, `IZOMAP.md` §3.
+
+---
 
 ### T22 — Kamera başına fotoğraf limiti, izinle geçersiz kılınabilir
 

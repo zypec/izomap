@@ -21,6 +21,9 @@ import java.util.UUID;
  * @param zoom           zoom multiplier; the frame covers {@code frameHeight / zoom} blocks
  * @param colorFilter    color effect applied before the palette snap
  * @param style          how the pixels are drawn, as opposed to colored
+ * @param skyArgb        sky color frozen at capture, or {@code 0} for none. The colour
+ *                       is stored rather than the time, so a re-render neither drifts
+ *                       with the clock nor with a retuned palette
  * @param frameHeight    {@code photo.frame-height} at capture time
  * @param frameShift     {@code photo.frame-shift} at capture time
  * @param supersampling  {@code photo.supersampling} at capture time
@@ -37,6 +40,7 @@ public record CaptureSpec(
         float zoom,
         ColorFilter colorFilter,
         PhotoStyle style,
+        int skyArgb,
         double frameHeight,
         double frameShift,
         int supersampling,
