@@ -396,6 +396,49 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 
 ## Arşiv
 
+### T58 — Çerçevelerde piksel sanatı: desen, köşe ve PNG
+
+`[x]` **P1** · 2026-08-16 · İlgili: T53 ✔
+
+T53 çerçeveleri halkalarla getirdi ve "daha detaylı çerçeve de yazılabilsin" isteği geldi.
+Doğru cevap halkaları atmak değil, **üç yazımı tek çizim biçimine derlemek** oldu: her
+çerçeve bir **kenar şeridi** (`thickness × edgeLength`, satır 0 en dışta, kenar boyunca
+tekrarlanır) ve isteğe bağlı bir **köşe damgası** (`thickness × thickness`, dört köşeye
+aynalanır) hâline geliyor. Çizim rutini çerçevenin nasıl yazıldığını bilmiyor.
+
+| Yazım | Ne için |
+|---|---|
+| `rings` | Basit çerçeveler (değişmedi; şerit uzunluğu 1 olarak derleniyor) |
+| `edge` / `corner` + `palette` | Karakterle piksel sanatı: kenar boyunca **değişen** desen ve köşe süslemesi |
+| `texture` + `inset` | `frames/` altındaki PNG, nine-slice: sol üst kare köşe, üst kenar şeridi tekrarlanan kenar |
+
+- **Saydamlık** anlamlı: `.` (ya da `palette`'te tanımsız karakter, PNG'de alfa < 255)
+  fotoğrafı gösteriyor — köşesi kesik çerçeve böyle yapılıyor. Yarı saydam PNG pikselleri
+  saydam sayılıyor; palette alfa yok, karıştırmak rengi olmadığı bir şeye çevirirdi.
+- **`scale`**: bir sanat pikselinin kaç fotoğraf pikseli kaplayacağı. Sayı ya da **auto**
+  (varsayılan): kısa kenar 256 pikselde bir kademe, en çok 8×. Auto olmadan aynı çerçeve
+  1x1'de doğru, 16x9'da kıl gibi bir çizgi olurdu.
+- **Dikey kenarlar aynı şeridi devrik kullanıyor**, yani desen çerçevenin dört yanında
+  aynı yönde dönüyor ve yazan kişi aynı kenarı dört yönde çizmek zorunda kalmıyor.
+- Kırpma yönü netleşti: aşan derinlik **içeriden** kırpılıyor, en dıştaki satırlar
+  hayatta kalıyor — çerçeve gibi okunan taraf orası.
+- Varsayılan dosyaya iki sanat örneği girdi: `ROPE` (kenarda dönen örgü) ve `ORNATE`
+  (köşesi kesik, kenarında çıkıntılı altın). PNG örneği yorum satırı olarak duruyor;
+  varsayılan pakette ikili dosya yok.
+
+Doğrulama eksik girdide sessiz kalmıyor: eşit uzunlukta olmayan `edge` satırları, kare
+olmayan `corner`, okunamayan PNG ve geçersiz `inset` ayrı ayrı log'lanıyor
+(`log.frame-art-invalid`, `-corner-invalid`, `-texture-missing`, `-texture-inset`).
+
+11 test (`PhotoFramesTest`): halkalar, desen tekrarı ve köşeyi dönmesi, saydam pikselin
+fotoğrafı bırakması, köşe damgasının dört köşeye aynalanması, `scale`'in blok büyütmesi,
+auto ölçeğin fotoğraf boyunu izlemesi, kırpma ve kopyalama.
+
+Dokunulanlar: `PhotoFrames` (yeniden yazıldı), `PhotoFramesTest`, `frames.yml`,
+`messages.yml`, `IZOMAP.md` §6.
+
+---
+
 ### T53 — Çerçeveler ve asılı fotoğrafın sağ tık Dialog'u
 
 `[x]` **P1** · 2026-08-16 · Bağımlı: T54 ✔ · Açtığı: T56

@@ -1,9 +1,21 @@
 # ============================================================
 #  Izomap - Fotoğraf Çerçeveleri
 #
-#  Bir çerçeve, kenardan içeri doğru çizilen halkalardan oluşur: her halkanın bir
-#  rengi ve piksel cinsinden kalınlığı vardır. Üç halka zaten ahşap bir çerçeveye
-#  benziyor: dışta koyu bir kenar, ortada geniş gövde, içte ince koyu bir çizgi.
+#  Bir çerçeveyi ÜÇ ŞEKİLDE yazabilirsin; üçü de aynı çizim yoluna derlenir:
+#
+#  1) rings  — iç içe halkalar: renk + kalınlık. Basit çerçevelerin tamamı bu.
+#  2) edge / corner — KARAKTERLE PİKSEL SANATI. edge satırları kenar boyunca
+#     tekrarlanır (desen, çizgi, halat), corner ise dört köşeye çizilir (aynalanır).
+#     Halkaların yapamadığı her şey burada. Nokta (ya da palette'te tanımsız bir
+#     karakter) SAYDAM demektir: orada fotoğraf görünür.
+#  3) texture — frames/ klasöründeki bir PNG, "inset" değerinde nine-slice edilir:
+#     sol üst inset x inset kare KÖŞE, üst kenarda iki inset arasında kalan şerit
+#     TEKRARLANAN KENAR olur. Görsel düzenleyicide çizmek isteyenler için.
+#
+#  scale: bir sanat pikselinin kaç fotoğraf pikseli kaplayacağı. Sayı verebilirsin
+#  (scale: 2) ya da yazmazsan "auto" olur: fotoğraf büyüdükçe çerçeve de büyür
+#  (128 px kısa kenar -> 1x, 768 px -> 3x). Auto sayesinde aynı çerçeve 1x1'de de
+#  16x9'da da çerçeve gibi durur, kıl gibi bir çizgiye dönüşmez.
 #
 #  - Renkler harita paletine yuvarlanır (palette 244 renk var); yazdığın hex'in
 #    en yakın karşılığı kullanılır.
@@ -53,3 +65,43 @@ frames:
       - { color: "#4A4A4A", width: 2 }
       - { color: "#8C8C8C", width: 5 }
       - { color: "#5C5C5C", width: 2 }
+
+  # --- Piksel sanatı örnekleri (edge / corner) ---
+
+  # Halat: kenar boyunca dört pikselde bir dönen bir örgü. Halkalarla yapılamaz,
+  # çünkü desen kenar boyunca DEĞİŞİYOR.
+  ROPE:
+    palette:
+      a: "#C8A96A"
+      b: "#8A6B3A"
+    edge:
+      - "bbbb"
+      - "aabb"
+      - "bbbb"
+
+  # İşlemeli altın: köşeleri kesik, kenarında altı pikselde bir çıkıntı olan çerçeve.
+  # Köşedeki "." saydamdır: orada fotoğrafın kendi köşesi görünür.
+  ORNATE:
+    palette:
+      x: "#E5C34C"
+      o: "#8A6B1F"
+    edge:
+      - "oooooo"
+      - "xxxxxx"
+      - "xoxxox"
+      - "oooooo"
+    corner:
+      - "..oo"
+      - ".oxo"
+      - "oxxo"
+      - "oooo"
+
+  # --- PNG örneği (kapalı) ---
+  # Kendi çerçeveni bir görsel düzenleyicide çizmek istersen: PNG'yi
+  # plugins/Izomap/frames/ altına koy ve aşağıdaki bloğun başındaki # işaretlerini sil.
+  # inset, köşe karesinin kenarıdır; üst kenarda iki inset arasında kalan şerit
+  # tekrarlanır. Yarı saydam pikseller saydam sayılır (harita paletinde alfa yok).
+  # CUSTOM:
+  #   texture: "my-frame.png"
+  #   inset: 8
+  #   scale: auto

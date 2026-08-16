@@ -1004,15 +1004,32 @@ destek olarak kullanılır.
 > Adaş uyarısı: bu bölümdeki **çerçeve**, fotoğrafın kenarına çizilen süstür. Fotoğrafı
 > duvarda tutan `ItemFrame`'ler bir sonraki bölümde.
 
-Bir çerçeve, kenardan içeri doğru çizilen **halkalardan** oluşur: her halkanın rengi ve
-piksel kalınlığı vardır. Üç halka zaten ahşap bir çerçeveye benziyor (dışta koyu kenar,
-ortada geniş gövde, içte ince koyu çizgi) ve tarifi dört satır YAML tutuyor.
+Bir çerçeve **üç şekilde** yazılabilir; üçü de tek bir çizim biçimine derlenir: bir
+**kenar şeridi** (`thickness × edgeLength` piksel, satır 0 en dışta, kenar boyunca
+tekrarlanır) ve isteğe bağlı bir **köşe damgası** (`thickness × thickness`, dört köşeye
+aynalanır). Çizim rutini çerçevenin nasıl yazıldığını bilmiyor.
 
-**Neden PNG değil.** Plan PNG + nine-slice'tı; koda dökülünce karşılığı yalnızca köşe
-süslemesi çıktı. Fotoğraf 128 piksel de olabiliyor 2048 de, yani sanatın kenarlar boyunca
-zaten döşenmesi ya da esnetilmesi gerekiyor, üstelik kullandığı her renk girişte harita
-paletine yuvarlanıyor. Halkalar her boyuta **tanımı gereği** oturuyor. Köşe süslemesi
-isteyen sunucular için `texture` anahtarı sonradan `rings`'in yanına eklenebilir.
+| Yazım | Ne için | Nasıl derlenir |
+|---|---|---|
+| `rings` | Basit çerçevelerin tamamı: renk + kalınlık | Şerit uzunluğu 1 (her sütun aynı), köşe yok |
+| `edge` / `corner` | Desen ve köşe süslemesi; karakterle piksel sanatı + `palette` sözlüğü | Satırlar doğrudan şerit ve damga olur |
+| `texture` | Görsel düzenleyicide çizilmiş PNG (`frames/` altında) | `inset` değerinde nine-slice: sol üst kare köşe, üst kenardaki şerit tekrarlanan kenar |
+
+Halkalar kolay olanı kolay tutuyor; piksel sanatı halkaların **yapamadığını** yapıyor
+(kenar boyunca değişen desen — halat, çizgi, dama — ve köşe süslemesi); PNG ise sanatını
+metin olarak yazmak istemeyenler için kaçış kapısı. Üçü de aynı yere derlendiği için
+çizimde tek bir kod yolu var, üç değil.
+
+**Saydam sanat pikseli** (`.` ya da `palette`'te tanımsız karakter, PNG'de alfa < 255)
+fotoğrafı gösteriyor: köşesi kesik ya da organik bir çerçeve böyle yapılıyor. Yarı saydam
+PNG pikselleri saydam sayılıyor — palette alfa yok, karıştırmak rengi olmadığı bir şeye
+çevirirdi.
+
+**`scale`** bir sanat pikselinin kaç fotoğraf pikseli kaplayacağıdır; sayı verilebilir ya
+da yazılmazsa **auto** olur: kısa kenar 256 pikselde bir kademe (1x1 → 1×, 8x6 → 3×,
+16x9 → 4×, en çok 8×). Auto olmadan aynı çerçeve 1x1'de doğru, 16x9'da kıl gibi bir çizgi
+olurdu. Yalnızca dört sabit çerçeve için değil, kullanıcının yazdığı her çerçeve için
+geçerli.
 
 **Renkler yüklemede bir kez yuvarlanır.** Ön bellek piksel başına palet indisi tutuyor ve
 rengi **tam eşleşmeyle** arıyor; paletten olmayan bir çerçeve rengi dosyaya saydam delik
@@ -1023,7 +1040,8 @@ geçiyor — piksel başına değil, fotoğraf başına da değil, dosya başın
 Küçültmek daha güzel dururdu ama ya iç ölçüde yeniden render ya yeniden örnekleme ister;
 ön bellek görüntüyü tam boyda tuttuğu için üstüne basmak tek geçiş ve hiçbir yerde kalite
 kaybı yok. Toplam kalınlık kısa kenarın %20'siyle sınırlı (iki kenara bölününce %40);
-aşan halka kırpılıyor, böylece 4x2 için yazılmış bir çerçeve 1x1'de ince çıkıyor,
+aşan derinlik **içeriden** kırpılıyor, yani en dıştaki satırlar hayatta kalıyor — çerçeve
+gibi okunan taraf orası. Böylece 4x2 için yazılmış bir çerçeve 1x1'de sığ çıkıyor,
 reddedilmiyor.
 
 #### Gömülü mü, referans mı (`photo.frames.embed`)
