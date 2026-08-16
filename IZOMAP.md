@@ -215,7 +215,7 @@ aşamaları sırayla uygular:
 |---|---|---|
 | 1 | Temel renk | `BlockColorTable` → sunucunun `BlockData#getMapColor()` değeri. Stairs/slab/wall varyantları ve yeni bloklar dahil her şey otomatik doğru olur |
 | 2 | Gölgelendirme | Girilen yüz → parlaklık varyantı: üst `HIGH` (255), yan yüzler `NORMAL`/`LOW` (220/180), alt `LOWEST` (135). Vanilla'da bu fark yükseklikten gelir; izometrikte karşılığı yüz yönelimidir |
-| 3 | Filtre | `ColorFilter` (`ORIGINAL` dışındakiler) |
+| 3 | Filtre | `ColorFilter` — `filters.yml`'deki işlem zinciri |
 | 4 | Palete snap | `MapColorConverter#snap`, Bukkit `MapPalette` ile **aynı ağırlıklı (redmean)** mesafeyi kullanır (61 temel renk × 4 ton = 244 renk) |
 
 Haritada renksiz bloklar (cam, meşale, fidan…) `MapBaseColor.NONE` verir ve ışın
@@ -344,6 +344,37 @@ Diskteki eski `SOFT` değeri `FAST` olarak okunur.
 > rengini alıyordu (noktasal mozaik); bugünkü `photo.supersampling` onu ortalayıp
 > yumuşatıyor. Yani o görünümün bugünkü karşılığı geniş kadraj + `supersampling: 1`'dir,
 > render sonrası bir işlem değil.
+
+#### Renk filtreleri kullanıcı tanımlıdır (`filters.yml`)
+
+Filtre, rengin palete oturmadan önce geçirildiği **işlem zinciridir**; işlemler
+yazıldıkları sırayla uygulanır. Eskiden dört efekt bir enum'daydı, şimdi dosyadan
+geliyor ve sunucu sahibi kendi zincirini yazabiliyor.
+
+| İşlem | Ne yapar |
+|---|---|
+| `brightness` · `contrast` · `saturation` | çarpan; sırasıyla ölçekler, orta griden uzaklaştırır, renklilik |
+| `rgb-offset: {r,g,b}` | kanallara sabit ekler — bugünkü WARM/COOL tam olarak budur |
+| `grayscale` | `true`, ya da kendi luma katsayılarını veren bir harita |
+| `tint: {color, strength}` | rengi bir renge doğru çeker |
+| `invert` · `posterize` | ters çevirir · kanal başına kademeye yuvarlar |
+
+Diske yalnızca **kimlik** yazılır (`cameras.yml` → `color-filter`, `photos.yml` →
+`capture.color-filter`), dolayısıyla görünen adı değiştirmek kayıtlı kameraları
+etkilemez. Adlar `messages.yml` → `filter.<KİMLİK>` altında kalır — çeviri tek dosyada
+toplansın diye; karşılığı olmayan filtre ekranda kimliğiyle görünür.
+
+`ORIGINAL` bir dosya girdisi değil, **koddaki sabittir**: bilinmeyen kimliğin düştüğü
+yer, kameranın başladığı değer ve fotoğrafa dokunmadığı kesin olan tek filtre odur.
+Dosyada yeniden tanımlanırsa yok sayılır. Tanınmayan bir işlem satırı, filtreyi değil
+yalnızca kendini iptal eder ve log'a yazılır.
+
+**Maliyet değişmedi:** zincir render başına 244 kez (paletin tamamı) yorumlanıp tabloya
+katlanıyor, piksel başına hiç çalışmıyor. Uzun bir zincir yazmak render'ı yavaşlatmaz.
+Zincirin gerçekten piksel başına koştuğu tek yer `ColorPipeline#blend`, yani örnekleri
+birbirini tutmayan kenar pikselleri — görüntünün yüzde birkaçı.
+
+`/izocam reload` filtreleri de yeniden okur.
 
 #### Pipeline'ın kuyruğu bir tablodur
 
@@ -1096,6 +1127,7 @@ kontrol edip `0.25`'in üstündeyse log uyarısı verir.
 | Dosya | İçerik |
 |---|---|
 | `config.yml` | Ayarlar |
+| `filters.yml` | Renk filtresi tanımları (kimlik + işlem zinciri; adları `messages.yml`'de) |
 | `messages.yml` | MiniMessage mesajları (`prefix` + anahtar ağacı; oyuncuya gidenler **ve** konsol) |
 | `block-colors.yml` | Blok rengi override'ları (v2) |
 | `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, üçler kuralı, model/interaction/hologram entity UUID'leri, önizleme harita kimliği) |

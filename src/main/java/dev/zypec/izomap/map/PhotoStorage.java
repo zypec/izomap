@@ -121,7 +121,7 @@ public final class PhotoStorage extends YamlStorage {
         cfg.set(base + ".yaw", spec.yaw());
         cfg.set(base + ".pitch", spec.pitch());
         cfg.set(base + ".zoom", spec.zoom());
-        cfg.set(base + ".color-filter", spec.colorFilter().name());
+        cfg.set(base + ".color-filter", spec.colorFilter().id());
         cfg.set(base + ".style", spec.style().name());
         cfg.set(base + ".sky-argb", spec.skyArgb());
         cfg.set(base + ".frame-height", spec.frameHeight());
@@ -134,7 +134,7 @@ public final class PhotoStorage extends YamlStorage {
     /**
      * Reads a capture spec; {@code null} for records written before it existed.
      */
-    private static CaptureSpec readSpec(ConfigurationSection s) {
+    private CaptureSpec readSpec(ConfigurationSection s) {
         if (s == null) return null;
 
         var world = Ids.parse(s.getString("world"));
@@ -144,7 +144,7 @@ public final class PhotoStorage extends YamlStorage {
                 s.getDouble("x"), s.getDouble("y"), s.getDouble("z"),
                 (float) s.getDouble("yaw"), (float) s.getDouble("pitch"),
                 (float) s.getDouble("zoom", 1.0),
-                ColorFilter.fromString(s.getString("color-filter"), ColorFilter.ORIGINAL),
+                plugin.filters().byId(s.getString("color-filter"), ColorFilter.ORIGINAL),
                 PhotoStyle.fromString(s.getString("style"), PhotoStyle.SHARP),
                 s.getInt("sky-argb", 0),
                 s.getDouble("frame-height", 48.0), s.getDouble("frame-shift", 0.0),

@@ -111,8 +111,8 @@ public final class CameraDialogs {
         // Cycled rather than picked from a list: each is a handful of values, and a
         // button can show the one in force while a closed dropdown cannot.
         buttons.add(cycleButton(camera, "dialog.filter-button", "filter.",
-                camera.colorFilter().name(),
-                target -> target.colorFilter(next(ColorFilter.values(), target.colorFilter()))));
+                camera.colorFilter().id(),
+                target -> target.colorFilter(plugin.filters().next(target.colorFilter()))));
         buttons.add(cycleButton(camera, "dialog.style-button", "style.",
                 camera.style().name(),
                 target -> target.style(next(PhotoStyle.values(), target.style()))));
@@ -165,8 +165,8 @@ public final class CameraDialogs {
      */
     private ActionButton cycleButton(Camera camera, String labelKey, String valuePrefix,
                                      String valueName, Consumer<Camera> advance) {
-        var label = plugin.messages().get(labelKey,
-                Placeholder.component("value", plugin.messages().get(valuePrefix + valueName)));
+        var label = plugin.messages().get(labelKey, Placeholder.component("value",
+                plugin.messages().getOr(valuePrefix + valueName, valueName)));
         return button(label, (view, audience) -> applyAndReopen(view, audience, camera, advance));
     }
 

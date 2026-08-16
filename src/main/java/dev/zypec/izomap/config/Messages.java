@@ -66,6 +66,19 @@ public final class Messages {
     }
 
     /**
+     * The message at the given key, or plain {@code fallback} text when the file has no
+     * such key.
+     *
+     * <p>For names that come from a user-editable file: a filter somebody added to
+     * {@code filters.yml} has no message of its own until they write one, and showing
+     * its id reads better than announcing that a key is missing.</p>
+     */
+    public Component getOr(String key, String fallback, TagResolver... resolvers) {
+        var raw = messages.getString(key);
+        return raw != null ? miniMessage.deserialize(raw, resolvers) : Component.text(fallback);
+    }
+
+    /**
      * Resolves the message at the given key and returns it as a {@link Message}.
      *
      * @param key       translation key

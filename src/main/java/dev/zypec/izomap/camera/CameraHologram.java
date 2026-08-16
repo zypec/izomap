@@ -34,8 +34,8 @@ public final class CameraHologram {
                         Format.blocks(plugin.config().frameHeight(), camera.zoom())),
                 Placeholder.unparsed("yaw", Format.degrees(camera.camYaw())),
                 Placeholder.unparsed("pitch", Format.degrees(camera.camPitch())),
-                Placeholder.component("filter",
-                        plugin.messages().get("filter." + camera.colorFilter().name())),
+                Placeholder.component("filter", plugin.messages()
+                        .getOr("filter." + camera.colorFilter().id(), camera.colorFilter().id())),
                 Placeholder.component("style",
                         plugin.messages().get("style." + camera.style().name())),
                 Placeholder.component("sky",

@@ -163,6 +163,9 @@ public final class Camera {
         this.aspectRatio = aspectRatio;
     }
 
+    /**
+     * Held as a resolved filter rather than an id, so the render path never looks one up.
+     */
     public ColorFilter colorFilter() {
         return colorFilter;
     }

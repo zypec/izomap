@@ -1,0 +1,62 @@
+# ============================================================
+#  Izomap - Renk Filtreleri
+#
+#  Filtre, bir rengin harita paletine oturmadan ÖNCE geçirildiği işlem zinciridir.
+#  İşlemler yazıldıkları SIRAYLA uygulanır.
+#
+#  Anahtar (ORIGINAL, WARM ...) filtrenin kimliğidir ve diske yalnızca o yazılır:
+#  görünen adını değiştirmek kayıtlı kameraları etkilemez. Görünen adlar
+#  messages.yml -> filter.<KİMLİK> altındadır; orada karşılığı olmayan bir filtre
+#  ekranda kimliğiyle görünür.
+#
+#  ORIGINAL her hâlükârda vardır ve hiçbir şey yapmaz; silsen de geri gelir.
+#  Bilinmeyen bir kimlik ORIGINAL'a düşer.
+#
+#  MALİYET: filtre render başına 244 kez (paletin tamamı) yorumlanıp bir tabloya
+#  katlanır, piksel başına HİÇ çalışmaz. Yani uzun bir zincir yazmak render'ı
+#  yavaşlatmaz. Ayrıntı: IZOMAP.md -> "Pipeline'ın kuyruğu bir tablodur".
+#
+#  Kullanılabilir işlemler:
+#    - brightness: 1.2          # her kanalı çarpar (1'in üstü aydınlatır)
+#    - contrast: 1.15           # orta griden uzaklaştırır (1'in altı yaklaştırır)
+#    - saturation: 0.8          # renkliliği artırır/azaltır (0 = gri)
+#    - rgb-offset: {r: 25, g: 8, b: -20}   # kanallara sabit ekler/çıkarır
+#    - grayscale: true          # ya da {r: 0.299, g: 0.587, b: 0.114} ile katsayı ver
+#    - tint: {color: "#FFD9A0", strength: 0.25}   # rengi bir renge doğru çeker
+#    - invert: true
+#    - posterize: 6             # kanal başına kademe sayısı
+# ============================================================
+
+version: 1
+
+filters:
+  ORIGINAL:
+    ops: []
+
+  WARM:
+    ops:
+      - rgb-offset: {r: 25, g: 8, b: -20}
+
+  COOL:
+    ops:
+      - rgb-offset: {r: -20, g: 6, b: 25}
+
+  GRAYSCALE:
+    ops:
+      - grayscale: true
+
+  # Aşağıdakiler örnektir; silebilir ya da çoğaltabilirsin.
+  SEPIA:
+    ops:
+      - grayscale: true
+      - tint: {color: "#C0955F", strength: 0.55}
+
+  VIVID:
+    ops:
+      - saturation: 1.35
+      - contrast: 1.1
+
+  NOIR:
+    ops:
+      - grayscale: true
+      - contrast: 1.4

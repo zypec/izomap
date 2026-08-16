@@ -86,41 +86,6 @@ butonu hiçbir şeyi değiştirmediği hâlde bunu ödüyordu.
 
 ## P1 — Render ve görsel
 
-### T31 — Kullanıcı tanımlı renk filtreleri
-
-`[ ]` **P1** · Bağımlı: T30 ✔
-
-Şu an `ColorFilter` enum'ı 4 filtreyi hardcoded tutuyor (`ORIGINAL`, `WARM`, `COOL`,
-`GRAYSCALE`). Sunucu sahibi kendi filtresini ekleyebilmeli.
-
-- Yeni dosya: `filters.yml`. Her filtre: kimlik, görünen ad (MiniMessage), ve işlemler.
-- Desteklenecek işlem seti (basit ve YML'de ifade edilebilir olmalı):
-  - `brightness` (çarpan), `contrast`, `saturation`
-  - `rgb-offset: {r, g, b}` (bugünkü WARM/COOL bunun özel hâli)
-  - `grayscale: true` (luma katsayıları da ayarlanabilir)
-  - `tint: "#RRGGBB"` + `strength` (renk kaydırma)
-  - `invert: true`
-  - `posterize: <seviye>` — palet zaten 244 renk, ilginç sonuç verebilir
-- İşlemler sırayla uygulanır; sıra YML'deki liste sırasıdır.
-- Mevcut 4 filtre **varsayılan `filters.yml` içeriği** olarak taşınır; enum kaldırılır,
-  `ColorFilter` bir kayıt/registry sınıfına dönüşür. `cameras.yml`'deki mevcut
-  `color-filter: WARM` gibi değerler çalışmaya devam etmeli (geriye dönük uyumluluk).
-  Görünen adlar T44'te zaten `messages.yml` → `filter.<AD>` altına taşındı; `filters.yml`
-  gelince adın oradan mı yoksa `messages.yml`'den mi okunacağına karar verilecek
-  (öneri: filtre tanımı `filters.yml`'de, adı `messages.yml`'de kalsın — çeviri tek dosyada).
-- Bilinmeyen filtre kimliği → `ORIGINAL`'a düş + log uyarısı.
-- Dialog'daki filtre listesi `filters.yml`'den dinamik dolar.
-- `/izocam reload` filtreleri de yeniler.
-- **Performans: yol zaten hazır.** T30 filtreyi `ColorPipeline` kurulurken 256 girişli
-  bir `packedId → nihai ARGB` tablosuna katlıyor, yani filtrenin sıcak yoldaki maliyeti
-  şimdiden sıfır. Kullanıcı tanımlı zincirin de tek yapması gereken bu tabloyu
-  doldurmak; zincirin kendisi render başına 244 kez yorumlanır, piksel başına hiç.
-  Dikkat edilecek tek yer `ColorPipeline#blend`: ortalaması alınan kenar pikselleri
-  zinciri gerçekten koşuyor, dolayısıyla zincir orada da ucuz kalmalı (ya da o piksel
-  için de bir arama tablosu düşünülmeli).
-
----
-
 ### T33 — Gelişmiş gölgelendirme (detaylandırılmış)
 
 `[ ]` **P2** · Bağımlı: T30 ✔
@@ -239,6 +204,41 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T31 — Renk filtreleri `filters.yml`'ye taşındı
+
+`[x]` **P1** · 2026-08-16 · Bağımlı: T30 ✔
+
+`ColorFilter` enum'dan **işlem zinciri** taşıyan bir sınıfa dönüştü; zincirler
+`filters.yml`'den geliyor. Sekiz işlem var: `brightness`, `contrast`, `saturation`,
+`rgb-offset`, `grayscale`, `tint`, `invert`, `posterize`. Sıra dosyadaki sıradır.
+
+Mevcut dört filtre varsayılan dosyaya taşındı (WARM/COOL zaten `rgb-offset`'in özel
+hâliymiş) ve örnek olarak `SEPIA`, `VIVID`, `NOIR` eklendi. Dosyadaki sıra, çekim
+ekranındaki filtre butonunun döngü sırasıdır.
+
+TODO'daki "ad nerede dursun" sorusu önerildiği gibi çözüldü: **tanım `filters.yml`'de,
+ad `messages.yml`'de** — çeviri tek dosyada kalsın diye. Karşılığı olmayan filtre ekranda
+kimliğiyle görünüyor (`Messages#getOr`).
+
+`ORIGINAL` dosya girdisi değil koddaki sabit: bilinmeyen kimliğin düştüğü yer, kameranın
+başladığı değer ve fotoğrafa dokunmadığı kesin olan tek filtre o. Dosyada yeniden
+tanımlanırsa yok sayılıyor. Tanınmayan işlem satırı yalnızca kendini iptal ediyor.
+
+Diske yalnızca kimlik yazıldığı için eski `cameras.yml`/`photos.yml` kayıtları aynen
+çalışıyor. `/izocam reload` filtreleri de yeniliyor.
+
+Maliyet beklendiği gibi: zincir render başına 244 kez yorumlanıp tabloya katlanıyor,
+piksel başına hiç çalışmıyor.
+
+11 yeni test (`ColorOpTest`): her işlemin davranışı, kanal taşmaması ve zincir sırası.
+İlk koşuda kırmızı olan tek şey testin kendi aritmetiğiydi, kod doğruydu.
+
+Dokunulanlar: yeni `ColorOp`, `ColorFilters`, `filters.yml`; `ColorFilter` (yeniden
+yazıldı), `ColorPipeline`, `Izomap`, `Camera`, `CameraStorage`, `PhotoStorage`,
+`CameraDialogs`, `CameraHologram`, `Messages#getOr`, `messages.yml`, `IZOMAP.md` §3.
+
+---
 
 ### T47 — Tuff ailesinin rengi dokusuna çekildi
 

@@ -90,11 +90,16 @@ preview:
 # yazılır, dolayısıyla buradaki metni değiştirmek kayıtlı kameraları etkilemez.
 # Buradaki renk, Dialog'daki "Renk: <değer>" butonunda da kullanılır: değerin rengini
 # değiştirmek istersen adının başındaki etiketi değiştir.
+# Filtre TANIMLARI filters.yml'dedir; burada yalnızca görünen adları durur. Oraya yeni
+# bir filtre eklersen adını da buraya ekle; eklemezsen ekranda kimliğiyle görünür.
 filter:
   ORIGINAL: "<white>Orijinal"
   WARM: "<gold>Sıcak"
   COOL: "<aqua>Soğuk"
   GRAYSCALE: "<gray>Siyah-Beyaz"
+  SEPIA: "<#C0955F>Sepya"
+  VIVID: "<green>Canlı"
+  NOIR: "<dark_gray>Noir"
 
 # Gökyüzü seçenekleri; anahtar SkyOption sabitinin adıdır. Oyuncu HANGİ gökyüzünü
 # istediğini seçer, NASIL çizildiği config.yml -> photo.sky altındadır.
@@ -236,6 +241,8 @@ log:
   cameras-loaded: "<count> kamera yüklendi."
   photos-loaded: "<count> fotoğraf yüklendi."
   photos-migrated: "<count> fotoğraf <file> dosyasından alındı ve photos.yml'e taşındı. Eski dosya silinmedi; bir sorun çıkarsa oradan geri dönülebilir."
+  filters-loaded: "<count> renk filtresi yüklendi."
+  filter-unknown-op: "<file>: '<filter>' filtresindeki '<op>' işlemi tanınmadı, atlandı."
   block-colors-ready: "<count> blok için harita temel rengi hazır."
   # Olgunlaştıkça rengi değişen bloklar (buğday gibi); liste sunucuya sorularak bulunur.
   state-colors-ready: "<count> bloğun rengi büyüme durumuna göre değişiyor; her durumu ayrı okundu."

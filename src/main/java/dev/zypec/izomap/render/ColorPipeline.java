@@ -62,7 +62,7 @@ public final class ColorPipeline {
                 var rgb = base.rgb(shade);
                 paletteRgb[id] = rgb;
                 finalArgb[id] = 0xFF000000
-                        | (filter == ColorFilter.ORIGINAL ? rgb : converter.snap(filter.apply(rgb)));
+                        | (filter.isIdentity() ? rgb : converter.snap(filter.apply(rgb)));
             }
         }
     }
@@ -97,7 +97,7 @@ public final class ColorPipeline {
      */
     int blend(int r, int g, int b) {
         var rgb = (r << 16) | (g << 8) | b;
-        if (filter != ColorFilter.ORIGINAL) {
+        if (!filter.isIdentity()) {
             rgb = filter.apply(rgb);
         }
         return 0xFF000000 | converter.snap(rgb);

@@ -12,6 +12,7 @@ import dev.zypec.izomap.map.PhotoKeys;
 import dev.zypec.izomap.map.PhotoManager;
 import dev.zypec.izomap.place.PlacementManager;
 import dev.zypec.izomap.render.BlockColorTable;
+import dev.zypec.izomap.render.ColorFilters;
 import dev.zypec.izomap.render.PreviewManager;
 import dev.zypec.izomap.render.RenderService;
 import dev.zypec.izomap.ui.CameraDialogs;
@@ -37,6 +38,7 @@ public final class Izomap extends JavaPlugin {
             getServer().getAsyncScheduler().runNow(this, scheduled -> task.run());
 
     private ConfigManager configManager;
+    private ColorFilters colorFilters;
     private Messages messages;
     private CameraManager cameraManager;
     private RenderService renderService;
@@ -55,6 +57,7 @@ public final class Izomap extends JavaPlugin {
         var cameraKeys = new CameraKeys(this);
         this.cameraManager = new CameraManager(this, cameraKeys);
 
+        this.colorFilters = ColorFilters.load(this);
         var colorTable = BlockColorTable.load(this);
         this.renderService = new RenderService(this, colorTable);
         this.mapService = new MapService(this);
@@ -109,8 +112,9 @@ public final class Izomap extends JavaPlugin {
     public void reloadAll() {
         this.messages.reload();
         this.configManager.reload();
-        // Block colours are read from the server and from block-colors.yml, neither of
-        // which is consulted again during a render, so they have to be rebuilt here.
+        // Colours and filters are read once into tables that a render never consults
+        // again, so both have to be rebuilt here.
+        this.colorFilters = ColorFilters.load(this);
         if (renderService != null)
             renderService.reloadColors();
 
@@ -129,6 +133,10 @@ public final class Izomap extends JavaPlugin {
 
     public Executor asyncExecutor() {
         return asyncExecutor;
+    }
+
+    public ColorFilters filters() {
+        return colorFilters;
     }
 
     public ConfigManager config() {

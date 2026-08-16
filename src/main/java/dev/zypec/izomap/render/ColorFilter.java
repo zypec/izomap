@@ -1,63 +1,60 @@
 package dev.zypec.izomap.render;
 
-/**
- * Color effects applied to a capture. The effect runs on the shaded RGB before it
- * snaps to the map palette, so the result stays consistent with map colors.
- *
- * <p>Display names live under {@code filter.<NAME>} in {@code messages.yml}; only the
- * constant name is ever written to disk.</p>
- */
-public enum ColorFilter {
+import java.util.List;
 
-    ORIGINAL,
-    WARM,
-    COOL,
-    GRAYSCALE;
+/**
+ * A named chain of {@link ColorOp}s, applied to a colour before it snaps to the map
+ * palette.
+ *
+ * <p>Was an enum of four effects; the chains now come from {@code filters.yml} so a
+ * server owner can describe their own. Only the id is ever written to disk, so a filter
+ * keeps its cameras and photos across a rename of its display text.</p>
+ *
+ * <p>Display names stay in {@code messages.yml} under {@code filter.<ID>}, which keeps
+ * every translatable string in one file; a filter with no message there shows its id.</p>
+ */
+public final class ColorFilter {
 
     /**
-     * Applies the effect to a 0xRRGGBB color (no alpha).
+     * The filter that changes nothing. A constant rather than a file entry: it needs no
+     * configuration, it is what a camera starts on and what an unknown id falls back to,
+     * so the code should not have to look it up to be sure of having one.
+     */
+    public static final ColorFilter ORIGINAL = new ColorFilter("ORIGINAL", List.of());
+
+    private final String id;
+    private final List<ColorOp> ops;
+
+    public ColorFilter(String id, List<ColorOp> ops) {
+        this.id = id;
+        this.ops = List.copyOf(ops);
+    }
+
+    public String id() {
+        return id;
+    }
+
+    /**
+     * Whether this filter leaves colours alone, which lets the pipeline skip the snap
+     * that would otherwise follow it.
+     */
+    public boolean isIdentity() {
+        return ops.isEmpty();
+    }
+
+    /**
+     * Runs the chain over a 0xRRGGBB colour.
      */
     public int apply(int rgb) {
-        var r = (rgb >> 16) & 0xFF;
-        var g = (rgb >> 8) & 0xFF;
-        var b = rgb & 0xFF;
-        switch (this) {
-            case WARM -> {
-                r = clamp(r + 25);
-                g = clamp(g + 8);
-                b = clamp(b - 20);
-            }
-            case COOL -> {
-                r = clamp(r - 20);
-                g = clamp(g + 6);
-                b = clamp(b + 25);
-            }
-            case GRAYSCALE -> {
-                int y = clamp((int) Math.round(0.299 * r + 0.587 * g + 0.114 * b));
-                r = y;
-                g = y;
-                b = y;
-            }
-            case ORIGINAL -> {
-                return rgb;
-            }
+        var out = rgb;
+        for (var op : ops) {
+            out = op.apply(out);
         }
-        return (r << 16) | (g << 8) | b;
+        return out;
     }
 
-    public static ColorFilter fromString(String raw, ColorFilter fallback) {
-        if (raw == null) return fallback;
-
-        var trimmed = raw.trim();
-        for (var filter : values()) {
-            if (filter.name().equalsIgnoreCase(trimmed)) {
-                return filter;
-            }
-        }
-        return fallback;
-    }
-
-    private static int clamp(int value) {
-        return value < 0 ? 0 : Math.min(value, 255);
+    @Override
+    public String toString() {
+        return id;
     }
 }
