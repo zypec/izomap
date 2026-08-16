@@ -25,6 +25,9 @@ permissions:
   izomap.sky:
     description: "Tüm gökyüzü seçenekleri; tek seçenek için izomap.sky.<AD>"
     default: op
+  izomap.frame:
+    description: "Tüm çerçeveler; tek çerçeve için izomap.frame.<KIMLIK>"
+    default: op
   izomap.ratio:
     description: "Tüm en-boy oranları; tek oran için izomap.ratio.<AD>"
     default: true

@@ -42,7 +42,7 @@ T54 (permission ağacı) ✔
  ├── T55 (gök cisimleri)
  └── T56 (imza)
 
-T53 (çerçeveler — overlay aşaması + fotoğraf sağ tık Dialog'u)
+T53 (çerçeveler — overlay aşaması + fotoğraf sağ tık Dialog'u) ✔
  └── T56 (imza — aynı overlay aşamasını kullanır)
 
 Yayın öncesi kapı: T50 (performans testleri) + T51 (wiki + İngilizce config)
@@ -148,63 +148,9 @@ en çok değişecek olan onlar.
 
 ## P1 — Fotoğraf yönetimi ve yerleştirme
 
-### T53 — Çerçeveler ve asılı fotoğrafın sağ tık Dialog'u
-
-`[ ]` **P1** · 2026-08-16 · Bağımlı: T54 ✔
-
-Fotoğraflara çerçeve. Çeşitli çerçeveler olacak, oyuncu **asıldıktan sonra** da
-takabilecek, ve hangi çerçeveyi kimin kullanabileceği permission'a bağlı olacak.
-
-**Overlay aşaması (T56 ile ortak).** Çerçeve de imza da aynı şeyi yapıyor: `.izm`'deki
-piksellerin üstüne bir katman basmak. Tek bir *overlay* adımı yazılır, iki kaynağı olur.
-Sıra: `.izm` → çerçeve → imza → dilimleme → `MapView`.
-
-**Çerçeve dosyaları.** `plugins/Izomap/frames/<id>.png` + `frames.yml` (görünen ad,
-permission soneki, nine-slice kenar kalınlıkları). PNG yüklenince palete snap edilir ve
-**nine-slice** çizilir: dört köşe sabit, kenarlar tekrarlanır. Böylece tek çerçeve dosyası
-1x1'de de 4x2'de de doğru durur — ölçekleme yapılmaz, tekrar yapılır (piksel sanatı
-ölçeklenince bulanır).
-
-**Kadraj kararı:** çerçeve fotoğrafın **dış piksellerinin üstüne çizilir** (kırpar),
-fotoğrafı küçültmez. Küçültme daha güzel olurdu ama ya yeniden render ya yeniden örnekleme
-ister; `.izm` tam boy görüntüyü tuttuğu için üstüne basmak bedava. `frames.fit: shrink`
-sonra bir seçenek olarak eklenebilir.
-
-**Gömülü mü, referans mı** (`photo.frames.embed`, config'ten):
-
-- `false` (**önerilen varsayılan**) — fotoğraf kaydında yalnızca `frame: <id>` durur,
-  katman her yüklemede basılır. Çerçeve değiştirilebilir/kaldırılabilir. Maliyeti bir
-  piksel kopyası; `.izm` zaten okunuyor. Riski: dosya silinirse fotoğraf çerçevesiz
-  yüklenir ve log uyarır.
-- `true` — çerçeve pikselleri `.izm`'e işlenir, kayıtta `frame-embedded: <id>` durur.
-  Fotoğraf kendi kendine yeter, ama **değiştirilemez**; Dialog bunu açıkça yazar
-  ("Bu fotoğrafın çerçevesi gömülü, değiştirilemez"). Sunucu sahibi kalıcılık isterse
-  bunu seçer.
-
-Karar anı **çerçeve takıldığı an**dır: o anki ayar neyse fotoğraf onu taşır. Ayar sonradan
-değişse bile eski fotoğraflar olduğu gibi kalır (gömülü olan gömülü kalır).
-
-**Fotoğraf sağ tık Dialog'u.** Bugün asılı fotoğrafa sağ tık yalnızca **iptal ediliyor**
-(`PhotoFrameListener#onRotate`, haritanın dönmesini engellemek için). Oraya Dialog
-bağlanır:
-
-| Seçenek | Koşul |
-|---|---|
-| Yeniden çek (retake) | Sahibi ya da `izomap.admin`; fotoğrafın `capture` bloğu olmalı |
-| Çerçeve tak / değiştir / kaldır | `izomap.frame` + gömülü değilse |
-| İmza ekle (T56) | `izomap.signature` |
-| Adını değiştir | Sahibi |
-| Duvardan kaldır | Sahibi ya da `izomap.admin` |
-
-Sahibi olmayan ve `izomap.admin` tutmayan oyuncuya Dialog **açılmaz** ve sağ tık bugünkü
-gibi sessizce iptal edilir — herkesin duvardaki resme tıklayınca menü görmesi gürültü.
-
-**Açık sorular:** çerçeve seçim ekranında önizleme nasıl gösterilir (küçük bir örnek
-render mı, yalnızca ad mı); varsayılan pakette kaç çerçeve gelir ve nasıl görünürler.
-
 ### T56 — Fotoğrafa imza
 
-`[ ]` **P1** · 2026-08-16 · Bağımlı: T53 (overlay aşaması), T54 ✔
+`[ ]` **P1** · 2026-08-16 · Bağımlı: T53 ✔, T54 ✔
 
 `izomap.signature` tutan oyuncu fotoğrafın istediği köşesine kısa bir metin koyabilir.
 
@@ -449,6 +395,86 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T53 — Çerçeveler ve asılı fotoğrafın sağ tık Dialog'u
+
+`[x]` **P1** · 2026-08-16 · Bağımlı: T54 ✔ · Açtığı: T56
+
+Fotoğraflara çerçeve. Çeşitli çerçeveler olacak, oyuncu **asıldıktan sonra** da
+takabilecek, ve hangi çerçeveyi kimin kullanabileceği permission'a bağlı olacak.
+
+**Overlay aşaması (T56 ile ortak).** Çerçeve de imza da aynı şeyi yapıyor: `.izm`'deki
+piksellerin üstüne bir katman basmak. Tek bir *overlay* adımı yazılır, iki kaynağı olur.
+Sıra: `.izm` → çerçeve → imza → dilimleme → `MapView`.
+
+**Çerçeve dosyaları: PNG değil, halkalar.** Plan `frames/<id>.png` + nine-slice'tı;
+koda dökülünce karşılığının yalnızca **köşe süslemesi** olduğu görüldü. Fotoğraf 128
+piksel de olabiliyor 2048 de, yani sanatın kenar boyunca zaten döşenmesi ya da esnetilmesi
+gerekiyordu, üstelik kullandığı her renk girişte palete yuvarlanıyor. Bunun yerine
+`frames.yml` her çerçeveyi **halka listesi** olarak tarif ediyor (renk + piksel kalınlığı);
+halkalar her boyuta tanımı gereği oturuyor ve sunucu sahibi görsel düzenleyici açmadan
+çerçeve yazabiliyor. Köşe süslemesi isteyenler için `texture` anahtarı sonradan `rings`'in
+yanına eklenebilir.
+
+Varsayılan paket beş çerçeveyle geliyor: `WOOD`, `GOLD`, `BLACK`, `MAT` (paspartu),
+`STONE`.
+
+**Renkler yüklemede bir kez yuvarlanıyor.** Ön bellek piksel başına palet indisi tutuyor
+ve rengi tam eşleşmeyle arıyor; paletten olmayan bir çerçeve rengi dosyaya **saydam delik**
+olarak yazılırdı. Bu ölçüde ince ama sessiz bir hata olurdu.
+
+**Kadraj kararı:** çerçeve fotoğrafın **dış piksellerinin üstüne çizilir** (kırpar),
+fotoğrafı küçültmez. Küçültme daha güzel olurdu ama ya yeniden render ya yeniden örnekleme
+ister; `.izm` tam boy görüntüyü tuttuğu için üstüne basmak bedava. `frames.fit: shrink`
+sonra bir seçenek olarak eklenebilir.
+
+**Gömülü mü, referans mı** (`photo.frames.embed`, config'ten):
+
+- `false` (**önerilen varsayılan**) — fotoğraf kaydında yalnızca `frame: <id>` durur,
+  katman her yüklemede basılır. Çerçeve değiştirilebilir/kaldırılabilir. Maliyeti bir
+  piksel kopyası; `.izm` zaten okunuyor. Riski: dosya silinirse fotoğraf çerçevesiz
+  yüklenir ve log uyarır.
+- `true` — çerçeve pikselleri `.izm`'e işlenir, kayıtta `frame-embedded: <id>` durur.
+  Fotoğraf kendi kendine yeter, ama **değiştirilemez**; Dialog bunu açıkça yazar
+  ("Bu fotoğrafın çerçevesi gömülü, değiştirilemez"). Sunucu sahibi kalıcılık isterse
+  bunu seçer.
+
+Karar anı **çerçeve takıldığı an**dır: o anki ayar neyse fotoğraf onu taşır. Ayar sonradan
+değişse bile eski fotoğraflar olduğu gibi kalır (gömülü olan gömülü kalır).
+
+**Fotoğraf sağ tık Dialog'u.** Bugün asılı fotoğrafa sağ tık yalnızca **iptal ediliyor**
+(`PhotoFrameListener#onRotate`, haritanın dönmesini engellemek için). Oraya Dialog
+bağlanır:
+
+| Seçenek | Koşul |
+|---|---|
+| Yeniden çek (retake) | Sahibi ya da `izomap.admin`; fotoğrafın `capture` bloğu olmalı |
+| Çerçeve tak / değiştir / kaldır | `izomap.frame` + gömülü değilse |
+| İmza ekle (T56) | `izomap.signature` |
+| Adını değiştir | Sahibi |
+| Duvardan kaldır | Sahibi ya da `izomap.admin` |
+
+Sahibi olmayan ve `izomap.admin` tutmayan oyuncuya Dialog **açılmaz** ve sağ tık bugünkü
+gibi sessizce iptal edilir — herkesin duvardaki resme tıklayınca menü görmesi gürültü.
+
+**Yeniden çekme tuzağı.** Retake (ve ön bellek kaybından sonraki yeniden render) çerçevesiz
+bir görüntü üretiyor. Kayıt "gömülü" diyorsa çerçeve başka hiçbir yerde durmadığı için,
+"asla kaldırılamaz" denen çerçeve bir retake'te kaybolurdu. Çizim bu yüzden iki yöne
+ayrıldı: `baked` dosyaya giderken (gömülüyse), `framed` haritalara giderken (referanssa).
+İkisi birlikte çerçevenin tam olarak bir kez çizilmesini garantiliyor.
+
+6 yeni test (`PhotoFramesTest`): halkaların içe doğru sırası, dört kenarın da çizilmesi,
+içerinin dokunulmazlığı, kaynağın kopyalanması, kısa kenara göre kırpılma, çerçevesiz
+çağrının aynı nesneyi döndürmesi.
+
+**Açık kalan:** çerçeve seçim ekranında görsel önizleme yok, yalnızca ad var. Küçük bir
+örnek render (16x16 halka deseni) Dialog'a gömülebilir mi, denenmedi.
+
+Dokunulanlar: yeni `PhotoFrames`, `PhotoDialogs`, `PhotoFramesTest`, `frames.yml`;
+`Photo`, `PhotoStorage`, `PhotoManager`, `PhotoFrameListener`, `Izomap`, `ConfigManager`,
+`Permissions`, `paper-plugin.yml`, `config.yml`, `messages.yml`, `IZOMAP.md` §6-§7.
+
+---
 
 ### T54 — Permission ağacı: pahalı olan her seçenek izne bağlansın
 

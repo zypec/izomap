@@ -999,6 +999,68 @@ değiştirilmeden `null` dönülür. `placement.build-backing-wall` açıksa çe
 arkasındaki **boş** bloklara destek bloğu örülür; zaten dolu olan blok yerinde bırakılıp
 destek olarak kullanılır.
 
+### Süsleme çerçeveleri (`PhotoFrames`, `frames.yml`)
+
+> Adaş uyarısı: bu bölümdeki **çerçeve**, fotoğrafın kenarına çizilen süstür. Fotoğrafı
+> duvarda tutan `ItemFrame`'ler bir sonraki bölümde.
+
+Bir çerçeve, kenardan içeri doğru çizilen **halkalardan** oluşur: her halkanın rengi ve
+piksel kalınlığı vardır. Üç halka zaten ahşap bir çerçeveye benziyor (dışta koyu kenar,
+ortada geniş gövde, içte ince koyu çizgi) ve tarifi dört satır YAML tutuyor.
+
+**Neden PNG değil.** Plan PNG + nine-slice'tı; koda dökülünce karşılığı yalnızca köşe
+süslemesi çıktı. Fotoğraf 128 piksel de olabiliyor 2048 de, yani sanatın kenarlar boyunca
+zaten döşenmesi ya da esnetilmesi gerekiyor, üstelik kullandığı her renk girişte harita
+paletine yuvarlanıyor. Halkalar her boyuta **tanımı gereği** oturuyor. Köşe süslemesi
+isteyen sunucular için `texture` anahtarı sonradan `rings`'in yanına eklenebilir.
+
+**Renkler yüklemede bir kez yuvarlanır.** Ön bellek piksel başına palet indisi tutuyor ve
+rengi **tam eşleşmeyle** arıyor; paletten olmayan bir çerçeve rengi dosyaya saydam delik
+olarak yazılırdı. Her halkanın rengi bu yüzden yüklenirken `MapColorConverter#snap`'ten
+geçiyor — piksel başına değil, fotoğraf başına da değil, dosya başına bir kez.
+
+**Çerçeve fotoğrafın dış piksellerinin üstüne çizilir**, fotoğrafı içeri küçültmez.
+Küçültmek daha güzel dururdu ama ya iç ölçüde yeniden render ya yeniden örnekleme ister;
+ön bellek görüntüyü tam boyda tuttuğu için üstüne basmak tek geçiş ve hiçbir yerde kalite
+kaybı yok. Toplam kalınlık kısa kenarın %20'siyle sınırlı (iki kenara bölününce %40);
+aşan halka kırpılıyor, böylece 4x2 için yazılmış bir çerçeve 1x1'de ince çıkıyor,
+reddedilmiyor.
+
+#### Gömülü mü, referans mı (`photo.frames.embed`)
+
+| | `false` (varsayılan) | `true` |
+|---|---|---|
+| Kayıtta ne durur | `frame.id` | `frame.id` + `frame.embedded: true` |
+| Kenar ne zaman çizilir | Haritalara giderken, her seferinde | Bir kez, ön bellek dosyasına |
+| Değiştirilebilir mi | Evet | **Hayır** |
+| Maliyeti | Zaten okunan piksellerin üzerinden bir geçiş | Sıfır (dosyada hazır) |
+
+Karar **çerçeve takıldığı an** fotoğrafa donuyor: ayarı sonradan değiştirmek, gömülü
+çerçeveyle asılmış fotoğrafları geri döndürmüyor. Dialog gömülü çerçevede
+"değiştirilemez" yazıyor ve seçim ekranını hiç açmıyor.
+
+Çizim tek bir yerde iki yöne ayrılıyor: `PhotoManager#baked` çerçeveyi **dosyaya giderken**
+(gömülüyse), `#framed` **haritalara giderken** (referanssa) çiziyor. İkisi birlikte
+çerçevenin tam olarak bir kez çizilmesini garantiliyor. Bu ayrım yeniden çekmede
+(`retake`) ve ön bellek kaybından sonraki yeniden render'da da geçerli: yeni görüntü
+çerçevesiz gelir, `baked` onu geri işler — aksi halde "asla kaldırılamaz" denen bir
+çerçeve bir retake'te kaybolurdu.
+
+#### Duvardaki fotoğrafın ekranı (`ui/PhotoDialogs`)
+
+Asılı fotoğrafa **sağ tık** artık bir Dialog açıyor: yeniden çek / çerçeve tak /
+duvardan kaldır. Sağ tık zaten iptal ediliyordu (haritayı döndürmesin diye), o iptal
+duruyor; üstüne ekran geliyor.
+
+Ekran yalnızca **sahibine ve `izomap.admin`'e** açılıyor. Başkasının fotoğrafına sağ tık
+eskisi gibi hiçbir şey yapmıyor: herkese açık bir galeride her resmin menü açması gürültü
+olurdu ve yoldan geçenin o menüde yapabileceği bir şey yok. Olay iki el için de tetiklendiğinden
+`EquipmentSlot.HAND` süzülüyor, yoksa ekran iki kez açılırdı.
+
+Butonlar fotoğrafı **kimliğinden** çözüyor: ekran bir kopyadan çiziliyor ve arada bir
+retake ya da çerçeve değişimi kaydı değiştirmiş olabilir. İzin de tıklamada yeniden
+soruluyor, çünkü ekran uzun süre açık kalabilir.
+
 ### Çerçeve davranışı (`PhotoFrameListener`)
 
 Bir çerçeve kırıldığında (oyuncu/patlama/fizik) **tüm fotoğraf duvardan iner** ve hiçbir
@@ -1157,6 +1219,7 @@ Düğüm adlarının ve "ne neye izin verir" sorusunun tek yeri `Permissions` s�
 | `izomap.filter` / `izomap.filter.<KİMLİK>` | Tüm filtreler / tek filtre | `op` |
 | `izomap.sky` / `izomap.sky.<AD>` | Tüm gökyüzleri / tek gökyüzü | `op` |
 | `izomap.ratio` / `izomap.ratio.<AD>` | Tüm oranlar / tek oran | `true` |
+| `izomap.frame` / `izomap.frame.<KİMLİK>` | Tüm çerçeveler / tek çerçeve | `op` |
 | `izomap.max_map_tiles.<sayı>` | Bir fotoğrafın harita karesi sayısı | `settings.max-map-tiles` |
 
 **Alan mı, tek seçenek mi.** Listesi olan ayarlar iki kez sorulur: `izomap.filter`
@@ -1261,7 +1324,8 @@ kontrol edip `0.25`'in üstündeyse log uyarısı verir.
 | `block-colors.yml` | Blok rengi override'ları (v2) |
 | `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, üçler kuralı, model/interaction/hologram entity UUID'leri, önizleme harita kimliği) |
 | `photos.yml` | Fotoğraflar (ad, kamera, ızgara, `capture` bloğunda çekim parametreleri; asılıysa `placement` bloğunda harita id'leri, çerçeve UUID'leri ve çıpa koordinatı) |
-| `photos/<uuid>.izm` | Fotoğrafın çekilmiş görüntüsü (palet indeksi + Deflate); YML değil, ikili |
+| `photos/<uuid>.izm` | Fotoğrafın çekilmiş görüntüsü (palet indeksi + Deflate); YML değil, ikili. Çerçeve `embed: true` ile takıldıysa pikselleri de buradadır |
+| `frames.yml` | Süsleme çerçeveleri: halka renkleri ve kalınlıkları |
 | `exports/<ad>.png` | `/izocam export` çıktısı; eklenti hiç okumaz, yalnızca yazar |
 
 `YamlStorage` disk I/O'yu **daima** asenkron yapar; tek istisna `onDisable`'daki
@@ -1348,6 +1412,7 @@ Yeni bir sabit eklemek yalnızca yeni bir anahtar eklemeyi gerektirir.
 | `StylePassTest` | Stil geçişlerinin iki kuralı: paletten çıkmamak ve deliği renge ortalamamak |
 | `PermissionLimitTest` | İzin kuralları: config'i ezmesi, küçüğün kısıtlaması, en büyüğün kazanması, `unlimited`, reddedilmiş ve sayı olmayan düğümler |
 | `PermissionsTest` | Bedava varsayılanlar, alan düğümü ile tek seçenek düğümü, kare sayısına göre ızgara süzme, en küçük ızgaranın hep kalması |
+| `PhotoFramesTest` | Halkaların içe doğru çizilmesi, içerinin dokunulmazlığı, kaynağın kopyalanması, kısa kenara göre kırpılma |
 | `PhotoExporterTest` | Dosya adı oyuncu girdisidir: yol ayracı, baştaki nokta, uzunluk sınırı |
 | `GridAndSlicingTest` | Dilimlemenin karo sırası — yanlışı ancak duvara asınca görünür |
 | `FormatAndIdsTest` | Sayıların locale'den bağımsızlığı ve bozuk kimliğin `null` dönmesi |

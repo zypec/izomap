@@ -52,6 +52,10 @@ public final class PhotoStorage extends YamlStorage {
             cfg.set(base + ".name", p.name());
             cfg.set(base + ".camera", p.cameraName());
             cfg.set(base + ".grid", p.grid().label());
+            if (p.frameId() != null) {
+                cfg.set(base + ".frame.id", p.frameId());
+                cfg.set(base + ".frame.embedded", p.frameEmbedded());
+            }
             writeSpec(cfg, base + ".capture", p.spec());
             writePlacement(cfg, base + ".placement", p.placement());
         }
@@ -190,8 +194,11 @@ public final class PhotoStorage extends YamlStorage {
         if (owner == null || grid == null)
             return null;
 
+        var frame = s.getConfigurationSection("frame");
         return new Photo(id, owner, s.getString("name", "photo"), s.getString("camera", ""),
                 readSpec(s.getConfigurationSection("capture")), grid,
-                readPlacement(s.getConfigurationSection("placement")));
+                readPlacement(s.getConfigurationSection("placement")),
+                frame == null ? null : frame.getString("id"),
+                frame != null && frame.getBoolean("embedded", false));
     }
 }

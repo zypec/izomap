@@ -1,0 +1,55 @@
+# ============================================================
+#  Izomap - Fotoğraf Çerçeveleri
+#
+#  Bir çerçeve, kenardan içeri doğru çizilen halkalardan oluşur: her halkanın bir
+#  rengi ve piksel cinsinden kalınlığı vardır. Üç halka zaten ahşap bir çerçeveye
+#  benziyor: dışta koyu bir kenar, ortada geniş gövde, içte ince koyu bir çizgi.
+#
+#  - Renkler harita paletine yuvarlanır (palette 244 renk var); yazdığın hex'in
+#    en yakın karşılığı kullanılır.
+#  - Çerçeve fotoğrafın DIŞ piksellerinin ÜSTÜNE çizilir, fotoğrafı küçültmez.
+#  - Toplam kalınlık, kısa kenarın %20'sini geçemez (iki kenara bölününce %40);
+#    aşan halkalar kırpılır, böylece 1x1 fotoğrafta da kullanılabilir kalır.
+#  - Buradaki sıra, çerçeve seçme ekranındaki sıradır.
+#  - İzin: izomap.frame (hepsi) ya da izomap.frame.<KIMLIK> (tek çerçeve).
+#  - Görünen adlar messages.yml -> frame.<KIMLIK> altındadır; karşılığı olmayan
+#    çerçeve kimliğiyle görünür.
+#
+#  Sürüm alanı ileride göç gerekirse diye duruyor; şu an okunmuyor.
+# ============================================================
+
+version: 1
+
+frames:
+  # Ahşap: sıcak, kalın, klasik tablo çerçevesi.
+  WOOD:
+    rings:
+      - { color: "#2B1D0E", width: 2 }
+      - { color: "#7A5A32", width: 6 }
+      - { color: "#3B2A16", width: 2 }
+
+  # Altın: parlak gövde, koyu dış hat.
+  GOLD:
+    rings:
+      - { color: "#3B2A16", width: 2 }
+      - { color: "#E5C34C", width: 5 }
+      - { color: "#8A6B1F", width: 2 }
+
+  # Siyah: modern, ince, fotoğrafın önüne geçmez.
+  BLACK:
+    rings:
+      - { color: "#1A1A1A", width: 4 }
+
+  # Paspartu: beyaz iç kenar + ince koyu dış hat; belge/harita görünümü.
+  MAT:
+    rings:
+      - { color: "#2B2B2B", width: 1 }
+      - { color: "#E8E4DC", width: 7 }
+      - { color: "#9A9A9A", width: 1 }
+
+  # Taş: gri, ağır, kale duvarına asılan çerçeve.
+  STONE:
+    rings:
+      - { color: "#4A4A4A", width: 2 }
+      - { color: "#8C8C8C", width: 5 }
+      - { color: "#5C5C5C", width: 2 }

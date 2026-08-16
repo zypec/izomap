@@ -139,7 +139,7 @@ public final class PhotoManager {
 
             cache.read(photo.id(), photo.grid()).whenComplete((result, error) -> {
                 if (error == null && result != null) {
-                    plugin.runOnMain(() -> applyToMaps(photo, ImageSlicer.slice(result, photo.grid())));
+                    plugin.runOnMain(() -> applyToMaps(photo, ImageSlicer.slice(framed(photo, result), photo.grid())));
                 } else {
                     plugin.runOnMain(() -> reRenderFromSpec(photo));
                 }
@@ -177,9 +177,10 @@ public final class PhotoManager {
                         Placeholder.unparsed("reason", plugin.messages().reason(error)));
                 return;
             }
-            cache.write(photo.id(), grid, result);
+            var image = baked(photo, result);
+            cache.write(photo.id(), grid, image);
             plugin.runOnMain(() -> {
-                applyToMaps(photo, ImageSlicer.slice(result, grid));
+                applyToMaps(photo, ImageSlicer.slice(framed(photo, image), grid));
                 if (recovered) {
                     // Pin the parameters now, so the image stops following the camera
                     // from here on even if the cache is lost again.
@@ -411,12 +412,16 @@ public final class PhotoManager {
                 reportCaptureError(player, cameraName, error);
                 return;
             }
-            cache.write(photo.id(), grid, result);
+            // A re-render comes out unframed, and an embedded frame has nowhere else to
+            // live: without painting it back in, a retake would strip a frame the player
+            // was told could never be removed.
+            var image = baked(photo, result);
+            cache.write(photo.id(), grid, image);
             plugin.runOnMain(() -> {
                 var current = photos.get(photo.id());
                 if (current == null) return; // deleted while the render was running
 
-                applyToMaps(current, ImageSlicer.slice(result, grid));
+                applyToMaps(current, ImageSlicer.slice(framed(current, image), grid));
                 replace(current.withCapture(cameraName, spec));
                 plugin.messages().send(player, "map.photo-retaken",
                         Placeholder.unparsed("name", photo.name()),
@@ -683,6 +688,115 @@ public final class PhotoManager {
                                                      && p.name().equalsIgnoreCase(name));
     }
 
+    // --- frames ---
+
+    /**
+     * Puts a frame around a hanging photo, or takes the current one off when
+     * {@code frameId} is {@code null}. Main thread only.
+     *
+     * <p>Two ways to carry it, chosen by {@code photo.frames.embed} at the moment the
+     * frame goes on:</p>
+     *
+     * <ul>
+     *   <li><b>Referenced</b> (the default) — only the id is recorded, and the border is
+     *       drawn over the cached image every time it is put on the maps. One pass over
+     *       the pixels, and the frame can be changed or taken off later.</li>
+     *   <li><b>Embedded</b> — the border is written <i>into</i> the cached image. The
+     *       photo then needs nothing but its own file, and the frame is part of the
+     *       picture for good; nothing can undo it, which is the point.</li>
+     * </ul>
+     *
+     * <p>The choice is frozen per photo rather than read at drawing time, so flipping the
+     * setting later cannot go back and strip the frames off photos that were hung with
+     * one baked in.</p>
+     */
+    public void applyFrame(Player player, Photo photo, String frameId) {
+        if (!photo.frameEditable()) {
+            plugin.messages().send(player, "frame.locked");
+            return;
+        }
+        if (frameId == null) {
+            replace(photo.withFrame(null, false));
+            refreshMaps(photo.withFrame(null, false));
+            plugin.messages().send(player, "frame.removed",
+                    Placeholder.unparsed("name", photo.name()));
+            return;
+        }
+
+        var frame = plugin.frames().byId(frameId);
+        if (frame == null) {
+            plugin.messages().send(player, "frame.unknown", Placeholder.unparsed("frame", frameId));
+            return;
+        }
+        if (!Permissions.frame(player, frame.id())) {
+            plugin.messages().send(player, "frame.not-allowed",
+                    Placeholder.component("frame", frameName(frame.id())));
+            return;
+        }
+
+        if (!plugin.config().framesEmbed()) {
+            var framedPhoto = photo.withFrame(frame.id(), false);
+            replace(framedPhoto);
+            refreshMaps(framedPhoto);
+            announceFrame(player, framedPhoto, frame.id());
+            return;
+        }
+
+        // Embedding rewrites the cache, so the picture has to be fetched, drawn on and
+        // written back before the record may claim the frame is in it.
+        rawImage(photo).thenApply(image -> PhotoFrames.draw(image, frame))
+                .whenComplete((image, error) -> {
+                    if (error != null || image == null) {
+                        plugin.messages().warn("log.frame-failed",
+                                Placeholder.unparsed("name", photo.name()),
+                                Placeholder.unparsed("reason", plugin.messages().reason(error)));
+                        plugin.runOnMain(() -> plugin.messages().send(player, "frame.failed"));
+                        return;
+                    }
+                    cache.write(photo.id(), photo.grid(), image).whenComplete((ignored, writeError) ->
+                            plugin.runOnMain(() -> {
+                                var current = photos.get(photo.id());
+                                if (current == null) return; // deleted while it was drawn
+
+                                var framedPhoto = current.withFrame(frame.id(), true);
+                                replace(framedPhoto);
+                                applyToMaps(framedPhoto, ImageSlicer.slice(image, framedPhoto.grid()));
+                                announceFrame(player, framedPhoto, frame.id());
+                            }));
+                });
+    }
+
+    private void announceFrame(Player player, Photo photo, String frameId) {
+        plugin.messages().send(player, photo.frameEmbedded() ? "frame.applied-embedded" : "frame.applied",
+                Placeholder.unparsed("name", photo.name()),
+                Placeholder.component("frame", frameName(frameId)));
+    }
+
+    /**
+     * A frame's display name, falling back to its id.
+     */
+    public net.kyori.adventure.text.Component frameName(String frameId) {
+        return plugin.messages().getOr("frame." + frameId, frameId);
+    }
+
+    /**
+     * Redraws a hanging photo's maps from its image. Does nothing for one that hangs
+     * nowhere: its image is produced when it goes up. Main thread only.
+     */
+    private void refreshMaps(Photo photo) {
+        if (!photo.isPlaced()) return;
+
+        image(photo).whenComplete((image, error) -> {
+            if (error != null || image == null) {
+                plugin.messages().warn("log.photo-refresh-failed",
+                        Placeholder.unparsed("name", photo.name()),
+                        Placeholder.unparsed("reason", plugin.messages().reason(error)));
+                return;
+            }
+            plugin.runOnMain(() -> applyToMaps(photo, ImageSlicer.slice(image, photo.grid())));
+        });
+    }
+
     // --- image access ---
 
     /**
@@ -693,12 +807,46 @@ public final class PhotoManager {
      * were recorded whose cache file is also gone.</p>
      */
     public CompletableFuture<RenderResult> image(Photo photo) {
+        return rawImage(photo).thenApply(image -> framed(photo, image));
+    }
+
+    /**
+     * The image as it was captured, without the frame. What a reframe starts from, and
+     * what the cache holds unless the frame was embedded.
+     */
+    private CompletableFuture<RenderResult> rawImage(Photo photo) {
         return cache.read(photo.id(), photo.grid())
                 // A cache miss is expected, not exceptional; it decides the next step.
                 .handle((result, error) -> result)
                 .thenCompose(cached -> cached != null
                         ? CompletableFuture.completedFuture(cached)
                         : renderFromSpec(photo));
+    }
+
+    /**
+     * The image with the photo's frame drawn on, or the image itself when there is none
+     * to draw — including when the frame is already part of the cached pixels.
+     */
+    private RenderResult framed(Photo photo, RenderResult image) {
+        if (!photo.needsFrameDrawn())
+            return image;
+
+        return PhotoFrames.draw(image, plugin.frames().byId(photo.frameId()));
+    }
+
+    /**
+     * The image as it should be <b>written to the cache</b>: with the frame in it when
+     * the photo carries an embedded one, without it otherwise.
+     *
+     * <p>The mirror of {@link #framed}: between them, a frame is drawn exactly once —
+     * on the way into the file for an embedded frame, on the way out to the maps for a
+     * referenced one.</p>
+     */
+    private RenderResult baked(Photo photo, RenderResult image) {
+        if (!photo.frameEmbedded() || photo.frameId() == null)
+            return image;
+
+        return PhotoFrames.draw(image, plugin.frames().byId(photo.frameId()));
     }
 
     /**

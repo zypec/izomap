@@ -8,6 +8,7 @@ import dev.zypec.izomap.config.ConfigManager;
 import dev.zypec.izomap.config.Messages;
 import dev.zypec.izomap.map.MapService;
 import dev.zypec.izomap.map.PhotoFrameListener;
+import dev.zypec.izomap.map.PhotoFrames;
 import dev.zypec.izomap.map.PhotoKeys;
 import dev.zypec.izomap.map.PhotoManager;
 import dev.zypec.izomap.place.PlacementManager;
@@ -16,6 +17,7 @@ import dev.zypec.izomap.render.ColorFilters;
 import dev.zypec.izomap.render.PreviewManager;
 import dev.zypec.izomap.render.RenderService;
 import dev.zypec.izomap.ui.CameraDialogs;
+import dev.zypec.izomap.ui.PhotoDialogs;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.concurrent.Executor;
@@ -39,6 +41,7 @@ public final class Izomap extends JavaPlugin {
 
     private ConfigManager configManager;
     private ColorFilters colorFilters;
+    private PhotoFrames photoFrames;
     private Messages messages;
     private CameraManager cameraManager;
     private RenderService renderService;
@@ -58,6 +61,7 @@ public final class Izomap extends JavaPlugin {
         this.cameraManager = new CameraManager(this, cameraKeys);
 
         this.colorFilters = ColorFilters.load(this);
+        this.photoFrames = PhotoFrames.load(this);
         var colorTable = BlockColorTable.load(this);
         this.renderService = new RenderService(this, colorTable);
         this.mapService = new MapService(this);
@@ -68,6 +72,7 @@ public final class Izomap extends JavaPlugin {
         this.placementManager = new PlacementManager(this);
 
         var cameraDialogs = new CameraDialogs(this, cameraManager, photoManager);
+        var photoDialogs = new PhotoDialogs(this, photoManager, cameraManager);
 
         // Photos load from their own cache, but a lost cache falls back to the source
         // camera, so cameras still have to be there first.
@@ -76,7 +81,7 @@ public final class Izomap extends JavaPlugin {
         getServer().getPluginManager().registerEvents(
                 new CameraListener(this, cameraManager, cameraKeys, cameraDialogs), this);
         getServer().getPluginManager().registerEvents(
-                new PhotoFrameListener(this, photoManager, photoKeys), this);
+                new PhotoFrameListener(this, photoManager, photoKeys, photoDialogs), this);
         getServer().getPluginManager().registerEvents(previewManager, this);
         getServer().getPluginManager().registerEvents(placementManager, this);
         CameraCommand.register(this, cameraManager, renderService, mapService, photoManager, cameraDialogs);
@@ -115,6 +120,7 @@ public final class Izomap extends JavaPlugin {
         // Colours and filters are read once into tables that a render never consults
         // again, so both have to be rebuilt here.
         this.colorFilters = ColorFilters.load(this);
+        this.photoFrames = PhotoFrames.load(this);
         if (renderService != null)
             renderService.reloadColors();
 
@@ -137,6 +143,10 @@ public final class Izomap extends JavaPlugin {
 
     public ColorFilters filters() {
         return colorFilters;
+    }
+
+    public PhotoFrames frames() {
+        return photoFrames;
     }
 
     public ConfigManager config() {

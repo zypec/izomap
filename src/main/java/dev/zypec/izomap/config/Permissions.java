@@ -47,6 +47,7 @@ public final class Permissions {
     public static final String FILTER = "izomap.filter";
     public static final String SKY = "izomap.sky";
     public static final String RATIO = "izomap.ratio";
+    public static final String FRAME = "izomap.frame";
 
     /**
      * Numeric prefix for the map tiles one photo may cover. Deliberately not declared in
@@ -82,6 +83,14 @@ public final class Permissions {
 
     public static boolean ratio(Permissible who, AspectRatio ratio) {
         return allows(who, RATIO, ratio.name());
+    }
+
+    /**
+     * Frames have no free member: a photo without one is the unframed photo, so there is
+     * nothing a player who holds none of these is being kept from.
+     */
+    public static boolean frame(Permissible who, String frameId) {
+        return allows(who, FRAME, frameId);
     }
 
     /**

@@ -1,6 +1,7 @@
 package dev.zypec.izomap.map;
 
 import dev.zypec.izomap.Izomap;
+import dev.zypec.izomap.ui.PhotoDialogs;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemFrame;
@@ -12,6 +13,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.hanging.HangingBreakByEntityEvent;
 import org.bukkit.event.hanging.HangingBreakEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.inventory.EquipmentSlot;
 
 /**
  * Manages the item frames of placed photos: breaking or attacking any frame takes
@@ -35,11 +37,13 @@ public final class PhotoFrameListener implements Listener {
     private final Izomap plugin;
     private final PhotoManager photos;
     private final PhotoKeys keys;
+    private final PhotoDialogs dialogs;
 
-    public PhotoFrameListener(Izomap plugin, PhotoManager photos, PhotoKeys keys) {
+    public PhotoFrameListener(Izomap plugin, PhotoManager photos, PhotoKeys keys, PhotoDialogs dialogs) {
         this.plugin = plugin;
         this.photos = photos;
         this.keys = keys;
+        this.dialogs = dialogs;
     }
 
     // HangingBreakByEntityEvent extends HangingBreakEvent, so one handler covers both.
@@ -63,11 +67,29 @@ public final class PhotoFrameListener implements Listener {
             event.setCancelled(true);
     }
 
-    // Right click would rotate the map; block it on photo frames.
+    /**
+     * Right-clicking a photo opens its screen, for the owner and for admins. The click is
+     * cancelled either way: it would otherwise rotate the map and turn the picture.
+     *
+     * <p>Anyone else gets what they got before — the click stops, nothing opens. A menu
+     * appearing on every picture in a public gallery is noise, and there is nothing on it
+     * a passer-by is allowed to do.</p>
+     */
     @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
     public void onRotate(PlayerInteractEntityEvent event) {
-        if (event.getRightClicked() instanceof ItemFrame frame && isPhotoFrame(frame))
-            event.setCancelled(true);
+        if (!(event.getRightClicked() instanceof ItemFrame frame) || !isPhotoFrame(frame))
+            return;
+
+        event.setCancelled(true);
+        var photo = resolve(frame);
+        if (photo == null || !dialogs.mayOpen(event.getPlayer(), photo))
+            return;
+
+        // The event fires for both hands; opening on each would show the screen twice.
+        if (event.getHand() != EquipmentSlot.HAND)
+            return;
+
+        dialogs.openWallDialog(event.getPlayer(), photo);
     }
 
     /**

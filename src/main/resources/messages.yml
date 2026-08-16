@@ -92,6 +92,24 @@ preview:
 # değiştirmek istersen adının başındaki etiketi değiştir.
 # Filtre TANIMLARI filters.yml'dedir; burada yalnızca görünen adları durur. Oraya yeni
 # bir filtre eklersen adını da buraya ekle; eklemezsen ekranda kimliğiyle görünür.
+# Çerçeve adları; anahtar frames.yml'deki kimliktir. Karşılığı olmayan çerçeve
+# kimliğiyle görünür.
+frame:
+  WOOD: "<#7A5A32>Ahşap"
+  GOLD: "<#E5C34C>Altın"
+  BLACK: "<dark_gray>Siyah"
+  MAT: "<white>Paspartu"
+  STONE: "<gray>Taş"
+  # Çerçeve işlemlerinin sonuçları.
+  applied: "<prefix> <green>Çerçeve takıldı: <frame> <gray>(<name>)"
+  applied-embedded: "<prefix> <green>Çerçeve takıldı: <frame> <gray>(<name>) — bu çerçeve fotoğrafa işlendi, artık değiştirilemez."
+  removed: "<prefix> <green>Çerçeve kaldırıldı: <white><name></white>"
+  locked: "<prefix> <yellow>Bu fotoğrafın çerçevesi fotoğrafa işlenmiş; değiştirilemez."
+  unknown: "<prefix> <red>Böyle bir çerçeve yok: <white><frame></white>"
+  not-allowed: "<prefix> <red>Bu çerçeveyi kullanamazsın: <frame>"
+  none-allowed: "<prefix> <yellow>Kullanabileceğin bir çerçeve yok."
+  failed: "<prefix> <red>Çerçeve uygulanamadı. Ayrıntı için sunucu log'una bak."
+
 # Ayar adları; izin yetmediğinde hangi ayarın engellediğini söylemek için kullanılır.
 setting:
   style: "<white>Stil"
@@ -235,6 +253,23 @@ dialog:
   delete-title: "Fotoğrafı sil"
   delete-body: "<gray><white><name></white> kalıcı olarak silinecek: görüntüsü, çekim parametreleri ve asılıysa çerçeveleri. Geri alınamaz."
   delete-confirm: "✖ Sil"
+  # Duvardaki fotoğrafa sağ tıklayınca açılan ekran.
+  wall-title: "<white>Fotoğraf: <name>"
+  wall-body: "<gray>Kamera: <white><camera></white> · Izgara: <white><grid></white>"
+  wall-frame-none: "<gray>Çerçeve: <white>yok"
+  wall-frame-current: "<gray>Çerçeve: <frame>"
+  wall-frame-locked: "<gray>Çerçeve: <frame> <dark_gray>(fotoğrafa işlenmiş, değiştirilemez)"
+  wall-retake: "<yellow>Yeniden çek"
+  wall-frame: "<aqua>Çerçeve tak"
+  wall-frame-change: "<aqua>Çerçeveyi değiştir"
+  wall-take-down: "<red>Duvardan kaldır"
+  frame-title: "<white>Çerçeve seç"
+  frame-body: "<gray>Çerçeve fotoğrafın dış kenarına çizilir; istediğin zaman değiştirebilir ya da kaldırabilirsin."
+  frame-body-embed: "<gray>Bu sunucuda çerçeve fotoğrafa <white>işlenir</white>: taktıktan sonra değiştiremezsin."
+  frame-option: "<white><frame>"
+  frame-option-active: "<green>✔ <frame>"
+  frame-remove: "<red>Çerçeveyi kaldır"
+  frame-back: "<gray>Geri"
   delete-cancel: "Vazgeç"
 
 # ============================================================
@@ -251,6 +286,10 @@ log:
   # --- yükleme ---
   cameras-loaded: "<count> kamera yüklendi."
   photos-loaded: "<count> fotoğraf yüklendi."
+  frames-loaded: "<count> çerçeve yüklendi (frames.yml)."
+  frame-ring-invalid: "<frame> çerçevesinde geçersiz bir halka var (renk ya da kalınlık); o halka atlandı."
+  frame-failed: "<name> fotoğrafına çerçeve işlenemedi: <reason>"
+  photo-refresh-failed: "<name> fotoğrafının haritaları yenilenemedi: <reason>"
   filters-loaded: "<count> renk filtresi yüklendi."
   filter-unknown-op: "<file>: '<filter>' filtresindeki '<op>' işlemi tanınmadı, atlandı."
   block-colors-ready: "<count> blok için harita temel rengi hazır."

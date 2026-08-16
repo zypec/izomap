@@ -328,6 +328,21 @@ public final class ConfigManager {
                 Math.min(darkBelow, dimBelow));
     }
 
+    /**
+     * Whether a frame is painted into the photo's cached image rather than recorded as
+     * an id and drawn on the way to the maps.
+     *
+     * <p>Off by default: drawing costs one pass over pixels that are being read anyway,
+     * and it keeps the frame something the player can change or take off. On, the photo
+     * needs nothing but its own file and the frame is part of the picture for good.</p>
+     *
+     * <p>Read when a frame is put on, then frozen into the photo, so changing this later
+     * cannot strip the frames off photos that already have one baked in.</p>
+     */
+    public boolean framesEmbed() {
+        return cfg().getBoolean("photo.frames.embed", false);
+    }
+
     public String defaultAspectRatio() {
         return cfg().getString("photo.default-aspect-ratio", "RATIO_1_1");
     }

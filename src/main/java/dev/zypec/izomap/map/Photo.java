@@ -21,6 +21,9 @@ import java.util.UUID;
  *                   were recorded; those fall back to their camera's current settings
  * @param grid       grid the image is sliced onto
  * @param placement  where it hangs, or {@code null} while it is only in the list
+ * @param frameId    frame drawn around it, or {@code null} for none
+ * @param frameEmbedded whether that frame is already painted into the cached image, and
+ *                   therefore cannot be taken off again
  */
 public record Photo(
         UUID id,
@@ -29,7 +32,17 @@ public record Photo(
         String cameraName,
         CaptureSpec spec,
         GridOption grid,
-        Placement placement) {
+        Placement placement,
+        String frameId,
+        boolean frameEmbedded) {
+
+    /**
+     * A photo with no frame, which is how every one of them starts.
+     */
+    public Photo(UUID id, UUID owner, String name, String cameraName,
+                 CaptureSpec spec, GridOption grid, Placement placement) {
+        this(id, owner, name, cameraName, spec, grid, placement, null, false);
+    }
 
     /**
      * Short display id: the first 8 characters.
@@ -58,17 +71,40 @@ public record Photo(
      * retake may shoot from a different camera than the original.
      */
     public Photo withCapture(String cameraName, CaptureSpec spec) {
-        return new Photo(id, owner, name, cameraName, spec, grid, placement);
+        return new Photo(id, owner, name, cameraName, spec, grid, placement, frameId, frameEmbedded);
     }
 
     /**
      * Copy hanging somewhere else, or nowhere when {@code placement} is {@code null}.
      */
     public Photo withPlacement(Placement placement) {
-        return new Photo(id, owner, name, cameraName, spec, grid, placement);
+        return new Photo(id, owner, name, cameraName, spec, grid, placement, frameId, frameEmbedded);
     }
 
     public Photo withName(String name) {
-        return new Photo(id, owner, name, cameraName, spec, grid, placement);
+        return new Photo(id, owner, name, cameraName, spec, grid, placement, frameId, frameEmbedded);
+    }
+
+    /**
+     * Copy wearing a different frame. {@code embedded} says the pixels have been written
+     * into the cached image, which is what makes the choice final.
+     */
+    public Photo withFrame(String frameId, boolean embedded) {
+        return new Photo(id, owner, name, cameraName, spec, grid, placement, frameId, embedded);
+    }
+
+    /**
+     * Whether the frame can still be changed: an embedded one is part of the picture.
+     */
+    public boolean frameEditable() {
+        return !frameEmbedded;
+    }
+
+    /**
+     * Whether the image has to be drawn over before it goes onto the maps. An embedded
+     * frame is already in the pixels, so drawing it again would only cost time.
+     */
+    public boolean needsFrameDrawn() {
+        return frameId != null && !frameEmbedded;
     }
 }

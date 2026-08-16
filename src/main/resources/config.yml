@@ -204,6 +204,18 @@ photo:
     # birincisine çekilir.
     light-dim-below: 8
     light-dark-below: 4
+  # ÇERÇEVELER. Çerçeveler frames.yml'de tanımlıdır; buradaki tek soru, taktıktan sonra
+  # değiştirilebilir olup olmadıklarıdır.
+  frames:
+    # false (varsayılan): fotoğraf kaydında yalnızca çerçevenin kimliği durur, kenar
+    #   haritalara giderken çizilir. Maliyeti zaten okunan piksellerin üzerinden bir
+    #   geçiş; karşılığında çerçeve değiştirilebilir ve kaldırılabilir kalır.
+    # true: kenar fotoğrafın ön bellek dosyasına işlenir. Fotoğraf kendi dosyasından
+    #   başka hiçbir şeye ihtiyaç duymaz, ama çerçeve resmin parçası olur ve geri
+    #   alınamaz — istenen tam olarak buysa açılır.
+    # Ayar, çerçeve TAKILDIĞI anda fotoğrafa donar; sonradan değiştirmek, gömülü
+    # çerçeveyle asılmış fotoğrafları geri döndürmez.
+    embed: false
   # GÖKYÜZÜ. Hiçbir bloğa çarpmayan ışın normalde şeffaf piksel bırakır; gökyüzü
   # açıksa o pikseller boyanır. HANGİ gökyüzünü oyuncu Dialog'dan seçer (Şeffaf, Oyun
   # saati, Şafak, Gündüz, Gün batımı, Gece); buradakiler gökyüzünün NASIL çizildiğidir.
