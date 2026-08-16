@@ -3,6 +3,7 @@ package dev.zypec.izomap.map;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.render.CaptureSpec;
 import dev.zypec.izomap.render.ColorFilter;
+import dev.zypec.izomap.render.PhotoStyle;
 import dev.zypec.izomap.storage.YamlStorage;
 import dev.zypec.izomap.util.Ids;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -121,6 +122,7 @@ public final class PhotoStorage extends YamlStorage {
         cfg.set(base + ".pitch", spec.pitch());
         cfg.set(base + ".zoom", spec.zoom());
         cfg.set(base + ".color-filter", spec.colorFilter().name());
+        cfg.set(base + ".style", spec.style().name());
         cfg.set(base + ".frame-height", spec.frameHeight());
         cfg.set(base + ".frame-shift", spec.frameShift());
         cfg.set(base + ".supersampling", spec.supersampling());
@@ -142,6 +144,7 @@ public final class PhotoStorage extends YamlStorage {
                 (float) s.getDouble("yaw"), (float) s.getDouble("pitch"),
                 (float) s.getDouble("zoom", 1.0),
                 ColorFilter.fromString(s.getString("color-filter"), ColorFilter.ORIGINAL),
+                PhotoStyle.fromString(s.getString("style"), PhotoStyle.SHARP),
                 s.getDouble("frame-height", 48.0), s.getDouble("frame-shift", 0.0),
                 s.getInt("supersampling", 1), s.getInt("max-capture-area", 512),
                 s.getInt("render-depth", 64));

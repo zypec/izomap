@@ -20,6 +20,7 @@ import java.util.UUID;
  * @param pitch          view pitch, degrees (positive looks down)
  * @param zoom           zoom multiplier; the frame covers {@code frameHeight / zoom} blocks
  * @param colorFilter    color effect applied before the palette snap
+ * @param style          how the pixels are drawn, as opposed to colored
  * @param frameHeight    {@code photo.frame-height} at capture time
  * @param frameShift     {@code photo.frame-shift} at capture time
  * @param supersampling  {@code photo.supersampling} at capture time
@@ -35,6 +36,7 @@ public record CaptureSpec(
         float pitch,
         float zoom,
         ColorFilter colorFilter,
+        PhotoStyle style,
         double frameHeight,
         double frameShift,
         int supersampling,

@@ -270,7 +270,7 @@ Seçenekler:
 
 ### T36 — Fotoğraf stilleri (renk filtresinden ayrı)
 
-`[ ]` **P1** · Bağımlı: T30 ✔
+`[~]` **P1** · Bağımlı: T30 ✔ · prototip hazır, görsel karar bekliyor
 
 Eklentinin ilk sürümleri daha "yağlı boya" görünümlü fotoğraflar üretiyordu; şimdiki
 çıktı fazla keskin. Bu bir **stil** meselesi ve renk filtresinden ayrı bir eksen:
@@ -306,6 +306,20 @@ sonradan "boş fotoğraf" bug'ı olarak düzeltildi, görünümle ilgisi yok.)
   "boyanmış" etkisi bu ve bugünkünden **ucuz** (daha az ışın).
 - **(c) Render sonrası komşu harmanlama** — yumuşatma/medyan tek geçiş. Gücü ışın
   sayısından bağımsız ayarlanır, ama tam görüntü üzerinde ek bir geçiş demek.
+
+**Yapıldı (2026-08-16): üç mekanizma da prototiplendi.** `PhotoStyle` enum'ı olarak
+eklendi ve Dialog'dan seçiliyor: `SHARP` (bugünkü), `SOFT` (küçük render + büyütme),
+`GRAINY` (örnek saçılması), `BLENDED` (komşu harmanlama). Şiddetleri `config.yml` →
+`photo.style.{soft-scale, grain, blend}` altında, yani karşılaştırma sırasında yeniden
+derlemeden ayarlanabilir. Stil kamerada tutuluyor, `CaptureSpec`'e donuyor ve preview'da
+da görünüyor.
+
+**Sıradaki adım sende:** aynı manzarayı dört stille çek, hangisinin aradığın görünümü
+verdiğine bak. Karardan sonra kalan iş:
+- Kazanan mekanizma(lar) `styles.yml`'ye taşınır (aşağıdaki madde), gerisi atılır ya da
+  varsayılan olmayan stil olarak kalır.
+- Kombinasyon gerekirse (örn. SOFT + BLENDED) enum yerine işlem listesi şart olur —
+  `styles.yml` tasarımı bunu zaten öngörüyor.
 
 - Stil = render sonrası (ya da örnekleme sırasında) uygulanan bir işlem kümesi. Aday
   işlemler: komşu piksel harmanlama/yumuşatma, kenar yumuşatmayı azaltma, renk sayısını

@@ -228,6 +228,28 @@ public final class ConfigManager {
 
     // --- photo ---
 
+    /**
+     * How small {@code SOFT}'s image is rendered before being scaled back up. Below 1
+     * the whole photo softens, and the ray count falls with its square.
+     */
+    public double styleSoftScale() {
+        return clamp(cfg().getDouble("photo.style.soft-scale", 0.5), 0.1, 1.0);
+    }
+
+    /**
+     * How far a sample may stray inside its cell under {@code GRAINY}.
+     */
+    public double styleGrain() {
+        return clamp(cfg().getDouble("photo.style.grain", 1.0), 0.0, 1.0);
+    }
+
+    /**
+     * How far a pixel moves towards its neighbours under {@code BLENDED}.
+     */
+    public double styleBlend() {
+        return clamp(cfg().getDouble("photo.style.blend", 0.5), 0.0, 1.0);
+    }
+
     public String defaultAspectRatio() {
         return cfg().getString("photo.default-aspect-ratio", "RATIO_1_1");
     }

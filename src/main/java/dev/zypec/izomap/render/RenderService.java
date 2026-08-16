@@ -77,7 +77,7 @@ public final class RenderService {
         return new CaptureSpec(
                 world != null ? world.getUID() : null,
                 anchor.getX(), anchor.getY(), anchor.getZ(),
-                camera.camYaw(), camera.camPitch(), camera.zoom(), camera.colorFilter(),
+                camera.camYaw(), camera.camPitch(), camera.zoom(), camera.colorFilter(), camera.style(),
                 plugin.config().frameHeight(), plugin.config().frameShift(),
                 plugin.config().supersampling(), plugin.config().maxCaptureArea(),
                 plugin.config().renderDepth());
@@ -142,9 +142,18 @@ public final class RenderService {
         if (chunkKeys.size() > budget)
             return CompletableFuture.failedFuture(new CaptureTooLargeException(chunkKeys.size(), budget));
 
+        var style = spec.style();
+        // SOFT casts its rays over a smaller image and lets the scale-up do the
+        // blending, so the ray count falls with the square of the scale.
+        var scale = style.scalesDown() ? plugin.config().styleSoftScale() : 1.0;
+        var renderWidth = Math.max(1, (int) Math.round(widthPx * scale));
+        var renderHeight = Math.max(1, (int) Math.round(heightPx * scale));
+        var jitter = style == PhotoStyle.GRAINY ? plugin.config().styleGrain() : 0.0;
+        var blendStrength = style == PhotoStyle.BLENDED ? plugin.config().styleBlend() : 0.0;
+
         var geometry = new RenderGeometry(
                 planeCenter, right, up, direction, spanWidth, spanHeight, maxDistance,
-                eyeY, maxBackoff, widthPx, heightPx);
+                eyeY, maxBackoff, renderWidth, renderHeight);
         var pipeline = ColorPipeline.of(spec.colorFilter(), converter);
         var supersampling = spec.supersampling();
         var threads = plugin.config().renderThreads();
@@ -162,7 +171,10 @@ public final class RenderService {
             CompletableFuture<RenderResult> future = new CompletableFuture<>();
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                 try {
-                    var result = renderer.render(snapshot, geometry, pipeline, supersampling, executor, threads);
+                    var result = renderer.render(
+                            snapshot, geometry, pipeline, supersampling, jitter, executor, threads);
+                    result = StylePass.upscale(result, widthPx, heightPx, converter);
+                    result = StylePass.blend(result, blendStrength, converter);
                     if (timing) {
                         logTiming(geometry, snapshot, supersampling, requestedAt, capturedAt, System.nanoTime());
                     }

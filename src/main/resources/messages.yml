@@ -33,13 +33,13 @@ camera:
   # Kameranın üstünde duran hologram. Satırlar sırayla yazılır: bir satırı silmek onu
   # hologramdan kaldırır, listeyi tamamen boşaltmak hologramı boş bırakır (kapatmak
   # için config.yml -> camera.hologram.enabled kullan).
-  # Yer tutucular: <name> <owner> <ratio> <zoom> <blocks> <yaw> <pitch> <filter> <photos>
+  # Yer tutucular: <name> <owner> <ratio> <zoom> <blocks> <yaw> <pitch> <filter> <style> <photos>
   hologram:
     lines:
       - "<aqua><name>"
       - "<white><ratio> <gray>·</gray> <zoom>x <gray>(<blocks> blok)</gray>"
       - "<yellow>Yön <yaw>° <dark_gray>·</dark_gray> Eğim <pitch>°"
-      - "<gray><photos> fotoğraf · <filter>"
+      - "<gray><photos> fotoğraf · <filter> · <style>"
 
 # Canlı önizleme: kamera başına tek harita, birden çok izleyici, tek "editör".
 # Editör kamerayı tık ile ayarlayan kişidir; diğerleri yalnızca izler.
@@ -80,6 +80,15 @@ filter:
   WARM: "Sıcak"
   COOL: "Soğuk"
   GRAYSCALE: "Siyah-Beyaz"
+
+# Fotoğraf stili adları; anahtar PhotoStyle sabitinin adıdır. Stil, pikselin nasıl
+# oluştuğunu belirler — renk efektinden ayrı bir eksendir, ikisi birlikte uygulanır.
+# Şiddetleri config.yml -> photo.style altındadır.
+style:
+  SHARP: "Keskin"
+  SOFT: "Yumuşak"
+  GRAINY: "Taneli"
+  BLENDED: "Harmanlanmış"
 
 # Hayalet yerleştirme modu: fotoğraf asılmadan önce nereye asılacağı seçilir.
 placement:
@@ -143,6 +152,7 @@ dialog:
   info: "<gray>Kamera: <white><camera></white>  •  Oran: <white><ratio></white>  •  Zoom: <white><scale></white>x <dark_gray>(<blocks> blok)</dark_gray>  •  Yön: <white><yaw></white>°  •  Eğim: <white><pitch></white>°"
   name-label: "Fotoğraf adı"
   filter-label: "Renk efekti"
+  style-label: "Stil"
   grid-label: "Yerleşim (grid)"
   grid-option: "<grid> — <count> harita (<wpx>x<hpx>px)"
   capture-full: "Limit dolu (<limit>)"

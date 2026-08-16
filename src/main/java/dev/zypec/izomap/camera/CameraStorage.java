@@ -3,6 +3,7 @@ package dev.zypec.izomap.camera;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.render.AspectRatio;
 import dev.zypec.izomap.render.ColorFilter;
+import dev.zypec.izomap.render.PhotoStyle;
 import dev.zypec.izomap.storage.YamlStorage;
 import dev.zypec.izomap.util.Ids;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -66,6 +67,7 @@ public final class CameraStorage extends YamlStorage {
             cfg.set(base + ".zoom", c.zoom());
             cfg.set(base + ".aspect-ratio", c.aspectRatio().name());
             cfg.set(base + ".color-filter", c.colorFilter().name());
+            cfg.set(base + ".style", c.style().name());
             cfg.set(base + ".thirds-guide", c.thirdsGuide());
             cfg.set(base + ".preview-map-id", c.previewMapId());
         }
@@ -125,6 +127,7 @@ public final class CameraStorage extends YamlStorage {
         camera.zoom((float) s.getDouble("zoom", s.getDouble("scale", 1.0)));
         camera.aspectRatio(AspectRatio.fromString(s.getString("aspect-ratio"), AspectRatio.RATIO_1_1));
         camera.colorFilter(ColorFilter.fromString(s.getString("color-filter"), ColorFilter.ORIGINAL));
+        camera.style(PhotoStyle.fromString(s.getString("style"), PhotoStyle.SHARP));
         camera.thirdsGuide(s.getBoolean("thirds-guide", false));
         camera.previewMapId(s.getInt("preview-map-id", Camera.NO_PREVIEW_MAP));
         return camera;

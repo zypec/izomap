@@ -9,6 +9,7 @@ import dev.zypec.izomap.map.Photo;
 import dev.zypec.izomap.map.PhotoManager;
 import dev.zypec.izomap.render.AspectRatio;
 import dev.zypec.izomap.render.ColorFilter;
+import dev.zypec.izomap.render.PhotoStyle;
 import dev.zypec.izomap.util.Format;
 import io.papermc.paper.dialog.Dialog;
 import io.papermc.paper.dialog.DialogResponseView;
@@ -33,8 +34,8 @@ import java.util.function.Consumer;
 /**
  * Paper Dialog API screens for taking photos and managing them.
  *
- * <p>Two screens. The <b>capture</b> one sets up the shot: a name, color filter and
- * grid, with aspect ratio as a button that reopens the dialog so the grid options
+ * <p>Two screens. The <b>capture</b> one sets up the shot: a name, color filter, photo
+ * style and grid, with aspect ratio as a button that reopens the dialog so the grid options
  * follow it. Confirming only <i>takes</i> the photo. Zoom is not among them — it is
  * adjusted by clicking the camera, where the preview shows the result, and a second
  * way to set it here only wrote that value back over the one being looked at.</p>
@@ -47,6 +48,7 @@ public final class CameraDialogs {
 
     private static final String INPUT_NAME = "photo_name";
     private static final String INPUT_FILTER = "filter";
+    private static final String INPUT_STYLE = "style";
     private static final String INPUT_GRID = "grid";
     private static final String INPUT_RENAME = "new_name";
 
@@ -74,11 +76,11 @@ public final class CameraDialogs {
     // --- capture screen ---
 
     public void openCaptureDialog(Player player, Camera camera) {
-        openCaptureDialog(player, camera, camera.name(), camera.colorFilter());
+        openCaptureDialog(player, camera, camera.name(), camera.colorFilter(), camera.style());
     }
 
-    private void openCaptureDialog(Player player, Camera camera,
-                                   String initialName, ColorFilter initialFilter) {
+    private void openCaptureDialog(Player player, Camera camera, String initialName,
+                                   ColorFilter initialFilter, PhotoStyle initialStyle) {
         Dialog dialog = Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(plugin.messages().get("dialog.title"))
                         .body(List.of(DialogBody.plainMessage(infoLine(camera))))
@@ -87,6 +89,8 @@ public final class CameraDialogs {
                                         .initial(initialName).width(220).build(),
                                 DialogInput.singleOption(INPUT_FILTER, 220, filterEntries(initialFilter),
                                         plugin.messages().get("dialog.filter-label"), true),
+                                DialogInput.singleOption(INPUT_STYLE, 220, styleEntries(initialStyle),
+                                        plugin.messages().get("dialog.style-label"), true),
                                 DialogInput.singleOption(INPUT_GRID, 220, gridEntries(camera),
                                         plugin.messages().get("dialog.grid-label"), true)))
                         .build())
@@ -250,6 +254,15 @@ public final class CameraDialogs {
         return entries;
     }
 
+    private List<SingleOptionDialogInput.OptionEntry> styleEntries(PhotoStyle initial) {
+        List<SingleOptionDialogInput.OptionEntry> entries = new ArrayList<>();
+        for (PhotoStyle style : PhotoStyle.values()) {
+            entries.add(SingleOptionDialogInput.OptionEntry.create(
+                    style.name(), plugin.messages().get("style." + style.name()), style == initial));
+        }
+        return entries;
+    }
+
     private List<SingleOptionDialogInput.OptionEntry> gridEntries(Camera camera) {
         List<GridOption> options = GridLayouts.optionsFor(camera.aspectRatio());
         List<SingleOptionDialogInput.OptionEntry> entries = new ArrayList<>();
@@ -276,8 +289,8 @@ public final class CameraDialogs {
      */
     private void applyAndReopen(DialogResponseView view, Audience audience, Camera camera,
                                 Consumer<Camera> change) {
-        applyForm(view, audience, camera, change, (player, name, filter) ->
-                openCaptureDialog(player, camera, name, filter));
+        applyForm(view, audience, camera, change, (player, name, filter, style) ->
+                openCaptureDialog(player, camera, name, filter, style));
     }
 
     /**
@@ -287,7 +300,7 @@ public final class CameraDialogs {
     private void applyAndRun(DialogResponseView view, Audience audience, Camera camera,
                              Consumer<Player> next) {
         applyForm(view, audience, camera, target -> {
-        }, (player, name, filter) -> next.accept(player));
+        }, (player, name, filter, style) -> next.accept(player));
     }
 
     private void applyForm(DialogResponseView view, Audience audience, Camera camera,
@@ -297,13 +310,15 @@ public final class CameraDialogs {
         }
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
         ColorFilter filter = ColorFilter.fromString(view.getText(INPUT_FILTER), camera.colorFilter());
+        PhotoStyle style = PhotoStyle.fromString(view.getText(INPUT_STYLE), camera.style());
 
         plugin.runOnMain(() -> {
             var before = imageState(camera);
             change.accept(camera);
             camera.colorFilter(filter);
+            camera.style(style);
             applyIfChanged(player, camera, before);
-            then.run(player, name, filter);
+            then.run(player, name, filter, style);
         });
     }
 
@@ -311,7 +326,8 @@ public final class CameraDialogs {
      * Everything the previewed image depends on, as a value to compare against.
      */
     private static List<Object> imageState(Camera camera) {
-        return List.of(camera.aspectRatio(), camera.thirdsGuide(), camera.zoom(), camera.colorFilter());
+        return List.of(camera.aspectRatio(), camera.thirdsGuide(), camera.zoom(),
+                camera.colorFilter(), camera.style());
     }
 
     /**
@@ -332,7 +348,7 @@ public final class CameraDialogs {
     }
 
     private interface FormAction {
-        void run(Player player, String name, ColorFilter filter);
+        void run(Player player, String name, ColorFilter filter, PhotoStyle style);
     }
 
     private void onCapture(DialogResponseView view, Audience audience, Camera camera) {
@@ -341,11 +357,13 @@ public final class CameraDialogs {
         }
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
         ColorFilter filter = ColorFilter.fromString(view.getText(INPUT_FILTER), camera.colorFilter());
+        PhotoStyle style = PhotoStyle.fromString(view.getText(INPUT_STYLE), camera.style());
         String gridLabel = view.getText(INPUT_GRID);
 
         plugin.runOnMain(() -> {
             var before = imageState(camera);
             camera.colorFilter(filter);
+            camera.style(style);
             // The capture below renders the same frame; refreshing an unchanged preview
             // first would render it twice for one click.
             applyIfChanged(player, camera, before);

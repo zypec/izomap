@@ -2,6 +2,7 @@ package dev.zypec.izomap.camera;
 
 import dev.zypec.izomap.render.AspectRatio;
 import dev.zypec.izomap.render.ColorFilter;
+import dev.zypec.izomap.render.PhotoStyle;
 import org.bukkit.Location;
 
 import java.util.UUID;
@@ -43,6 +44,7 @@ public final class Camera {
 
     private AspectRatio aspectRatio;
     private ColorFilter colorFilter;
+    private PhotoStyle style;
 
     private boolean thirdsGuide;
 
@@ -62,6 +64,7 @@ public final class Camera {
         this.zoom = 1.0f;
         this.aspectRatio = AspectRatio.RATIO_1_1;
         this.colorFilter = ColorFilter.ORIGINAL;
+        this.style = PhotoStyle.SHARP;
         this.thirdsGuide = false;
     }
 
@@ -151,6 +154,14 @@ public final class Camera {
 
     public ColorFilter colorFilter() {
         return colorFilter;
+    }
+
+    public PhotoStyle style() {
+        return style;
+    }
+
+    public void style(PhotoStyle style) {
+        this.style = style;
     }
 
     public void colorFilter(ColorFilter colorFilter) {

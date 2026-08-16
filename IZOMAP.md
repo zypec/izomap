@@ -249,6 +249,41 @@ kurulur: `MapColorConverter#packedId` piksel → harita baytı dönüşümünü 
 `block-colors.yml` yalnızca **override** dosyasıdır; varsayılan tablo içermez. `version: 2`
 taşır, eski v1 dosyaları `.v1.bak` olarak yedeklenip yenilenir.
 
+### Fotoğraf stilleri (`PhotoStyle`, `StylePass`)
+
+**Stil pikselin nasıl oluştuğunu, filtre rengin nasıl kaydırıldığını belirler.** İki ayrı
+eksendir; bir fotoğraf her ikisinden birer tane taşır ve ikisi birlikte uygulanır. Stil
+kamerada tutulur (`cameras.yml` → `style`), çekimde `CaptureSpec`'e dondurulur
+(`photos.yml` → `capture.style`), dolayısıyla retake aynı stille tekrarlanır.
+
+**Neden var.** Eklentinin ilk sürümü daha yumuşak, "yağlı boya" fotoğraflar üretiyordu ve
+sebebi hiçbir zaman bir efekt değildi: o sürümün ışın yürüyüşü sabit adımla (0.25 blok)
+nokta örnekliyor ve ilk katı örneği alıyordu, yani ışının yalnızca **köşesinden** geçtiği
+her blok rastgele kaçırılıyordu. Köşe kesme tam olarak siluetlerde ve yüzey eklerinde
+olur; her kenar bu yüzden düzensiz kırılıyordu. Yerine gelen tam DDA hiçbir bloğu
+kaçırmaz — bugünkü sert, afiş gibi düz görünüm oradan gelir. Stiller o düzensizliği
+bug'ı geri koymadan, kontrollü biçimde üretir.
+
+| Stil | Mekanizma | Maliyet |
+|---|---|---|
+| `SHARP` | Yok; tam DDA olduğu gibi | Referans |
+| `SOFT` | `photo.style.soft-scale` oranında küçük render + bilinear büyütme | **Ucuz**: ışın sayısı oranın karesiyle azalır |
+| `GRAINY` | Örnekler kendi hücresi içinde saçılır (`photo.style.grain`) | Ek maliyet yok |
+| `BLENDED` | Biten görüntüde tek geçiş komşu harmanlama (`photo.style.blend`) | Tam görüntü üzerinde bir geçiş |
+
+`StylePass`'in iki geçişi de **palete geri snap'ler**. Aksi halde haritanın saklayamayacağı
+renkler kalırdı; ön bellek zaten palet baytı yazdığı için ilk yeniden başlatmada
+kaybolurlardı. Saydamlık ortalamaya girmez, çünkü palette yarı saydamlık yoktur: piksel ya
+renktir ya deliktir. İki geçiş de yalnızca renkli komşuları tartar ve deliği çoğunlukla
+karara bağlar.
+
+`SOFT` render boyutunu değiştirdiği için `RenderGeometry` küçük boyutla kurulur ve
+büyütme render'dan **sonra** yapılır; ışın sayısı gerçekten düşer, sonra piksel çoğaltılır.
+
+> **Not.** Bu hâliyle stiller kod içinde sabit bir enum'dur. Kullanıcı tanımlı stiller
+> (`styles.yml`) T36'nın ikinci yarısıdır ve T31'in `filters.yml`'iyle birlikte
+> tasarlanacaktır; hangi mekanizmanın aranan görünümü verdiği önce gözle kararlaştırılır.
+
 #### Pipeline'ın kuyruğu bir tablodur
 
 Bir ışın her zaman bir palet girdisine düşer ve palet yalnızca 244 renktir. Bu yüzden
@@ -902,7 +937,7 @@ toplanır ve değerler mantıklı aralıklara clamp'lenir.
 |---|---|
 | `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `render-timing`, `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player`, `max-photos-per-camera` |
 | `camera` | `display-type`, `model-material`, `item-display-transform`, `interaction-size` (0.1-3.0), `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `move-step` (0.05-16.0), `default-pitch` (-90..90), `edit-lock-seconds` (1-3600), `model-rotation.{x,y,z}`, `hologram.{enabled, offset-y (-4..8), view-range (0.1-10), billboard, background}` |
-| `photo` | `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
+| `photo` | `style.soft-scale`, `style.grain`, `style.blend`, `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
 | `placement` | `distance`, `invisible-frames`, `build-backing-wall`, `backing-material`, `timeout-seconds` (5-600) |
 
 **Geriye dönük uyumluluk:** `photo.region-size` → `frame-height`,

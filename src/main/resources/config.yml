@@ -76,9 +76,9 @@ camera:
   model-scale: 1.0
   # Yaw/Pitch ayar adımı (derece).
   angle-step: 15.0
-  # Hareket modlarında (Hareket(x)/Hareket(y)) her tıkın kamerayı kaç blok
-  # taşıyacağı. Hareket(x) kameranın bakış yönünün yatay izdüşümünde ileri/geri,
-  # Hareket(y) dikey olarak yukarı/aşağı taşır. Aralık: 0.05-16.0.
+  # Hareket modunda her tıkın kamerayı kaç blok taşıyacağı. Yön OYUNCUNUN bakış
+  # vektörüdür: sağ tık baktığı yöne, sol tık zıt yöne. Bakış pitch'i de taşıdığı
+  # için yükseklik ayrı bir moda gerek kalmadan gelir. Aralık: 0.05-16.0.
   move-step: 1.0
   # Yeni kurulan kameranın dikey açısı (derece, pozitif = aşağı bakış).
   # 30 klasik izometrik açıdır. Ortografik projeksiyonda ışınlar paralel olduğu
@@ -144,6 +144,23 @@ photo:
   # KENAR YUMUŞATMA: piksel başına NxN ışın gönderilip ortalaması alınır.
   # 1 = kapalı (en hızlı), 2 = önerilen, 3-4 = daha temiz kenar, N² kat maliyet.
   supersampling: 2
+  # FOTOĞRAF STİLİ ayarları. Stil, pikselin nasıl oluştuğunu belirler; renk efektinden
+  # (filtre) ayrı bir eksendir ve ikisi aynı fotoğrafa birlikte uygulanır.
+  # Stili oyuncu Dialog'dan seçer; buradakiler her stilin şiddetidir.
+  #
+  # Neden var: eklentinin ilk sürümü ışınları sabit adımla örneklüyor ve ışının
+  # yalnızca köşesinden geçtiği blokları rastgele kaçırıyordu. Kenarlar bu yüzden
+  # düzensiz kırılıyor, sonuç "yağlı boya" gibi duruyordu. Bugünkü yürüyüş hiçbir bloğu
+  # kaçırmıyor — keskinlik oradan geliyor. Aşağıdaki stiller o düzensizliği bilerek ve
+  # kontrollü biçimde üretir.
+  style:
+    # SOFT: görüntü bu oranda küçük render edilip büyütülür. Küçük değer = daha yumuşak.
+    # Ayrıca UCUZDUR: ışın sayısı bu oranın karesiyle azalır (0.5 → dörtte bir ışın).
+    soft-scale: 0.5
+    # GRAINY: örneklerin kendi hücresi içinde saçılma miktarı. 0 = düzenli ızgara.
+    grain: 1.0
+    # BLENDED: bitmiş görüntüde her pikselin komşularına doğru kayma miktarı.
+    blend: 0.5
 
 placement:
   # Fotoğraf duvarının oyuncunun kaç blok önüne kurulacağı. Hayalet önizleme de bu
