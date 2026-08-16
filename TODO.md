@@ -17,7 +17,7 @@
 
 ```
 T21 (fotoğraf listesi + hayalet yerleştirme UI'ı) ✔
- └── T22 (kamera başına fotoğraf limiti + permission)
+ └── T22 (kamera başına fotoğraf limiti + permission) ✔
 
 T20 (retake komutu) ✔
 T6 (hologram) ✔
@@ -68,27 +68,6 @@ verilebilmeli.
 ---
 
 ## P1 — Fotoğraf yönetimi ve yerleştirme
-
-### T22 — Kamera başına fotoğraf limiti + permission ile bypass
-
-`[ ]` **P1** · Bağımlı: T21 ✔
-
-- Config: `settings.max-photos-per-camera` (varsayılan öneri: 5).
-- Permission ile geçersiz kılma: **`izomap.max_photos_by_camera.<sayı>`**
-- **Kural:** permission varsa config değeri **tamamen** yok sayılır — permission'daki
-  sayı config'tekinden küçük olsa bile geçerlidir (kısıtlamak da mümkün olsun diye).
-- Birden fazla `izomap.max_photos_by_camera.<n>` verilmişse **en büyüğü** geçerli olur
-  (izinlerin toplanabilir olması beklenen davranıştır; aksi hâlde grup mirası sürprizli
-  olur).
-- `izomap.max_photos_by_camera.0` → hiç fotoğraf çekemez.
-  `izomap.max_photos_by_camera.-1` → sınırsız (ya da ayrı bir
-  `izomap.max_photos_by_camera.unlimited` izni; uygulama sırasında biri seçilecek).
-- Wildcard izinler (`izomap.*`) bu deseni yanlışlıkla eşleştirmemeli; okuma
-  `Player#getEffectivePermissions` üzerinden önek eşlemesiyle yapılacak.
-- Limit dolduğunda Dialog'daki "Fotoğraf Çek" butonu pasif görünür ve mesaj verir.
-- `settings.max-cameras-per-player` için de aynı desen uygulanabilir (T3'e ek, opsiyonel).
-
----
 
 ### T24 — Dialog geçişlerinde bekleme geri bildirimi
 
@@ -350,6 +329,33 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T22 — Kamera başına fotoğraf limiti, izinle geçersiz kılınabilir
+
+`[x]` **P1** · 2026-08-16 · Bağımlı: T21 ✔
+
+`settings.max-photos-per-camera` (varsayılan 5) eklendi ve `izomap.max_photos_by_camera.<sayı>`
+ile geçersiz kılınıyor. Aynı desen kameralara da uygulandı
+(`izomap.max_cameras_by_player.<sayı>`), okuma ortak `config/PermissionLimit`'ten geçiyor.
+
+Kurallar TODO'daki gibi: izin varsa config **tamamen** yok sayılır (küçük sayı da
+geçerli, kısıtlamak mümkün olsun diye), birden çoksa **en büyüğü** kazanır (izinler
+gruplardan toplanır), `.0` → hiç, `.unlimited` → sınırsız. `-1` yerine `unlimited`
+seçildi: eksi işaretli düğümler bazı izin eklentilerinde tırnaklama gerektiriyor ve
+"en büyüğü kazanır" kuralıyla eksi sayı okurken kafa karıştırıcı.
+
+Joker güvenliği: düğümler `paper-plugin.yml`'de **bilerek tanımsız**. Joker (`izomap.*`)
+tanımlı düğümlerin üzerine açıldığı için tanımlamak, joker taşıyan herkese oraya
+yazdığımız sayıyı vermek olurdu. Okuma `getEffectivePermissions()` önek eşlemesiyle.
+
+Limit dolunca Dialog'un çekim butonu `dialog.capture-full`'a dönüyor ve tıklanınca mesaj
+veriyor; asıl kontrol `PhotoManager#capture`'ın içinde, buton onun etrafından dolaşamıyor.
+
+Dokunulanlar: yeni `config/PermissionLimit`, `ConfigManager`, `PhotoManager`,
+`CameraManager`, `CameraDialogs`, `CameraListener`, `CameraCommand`, `config.yml`,
+`messages.yml` (`photo.limit-reached`, `dialog.capture-full`), `IZOMAP.md` §7.
+
+---
 
 ### T37 — Renk tablosu wiki ile denetlendi, blok durumu renge girdi
 

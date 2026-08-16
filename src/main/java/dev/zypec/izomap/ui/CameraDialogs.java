@@ -90,12 +90,12 @@ public final class CameraDialogs {
                                 DialogInput.singleOption(INPUT_GRID, 220, gridEntries(camera),
                                         plugin.messages().get("dialog.grid-label"), true)))
                         .build())
-                .type(DialogType.multiAction(captureButtons(camera), cancelButton(), 2)));
+                .type(DialogType.multiAction(captureButtons(player, camera), cancelButton(), 2)));
 
         player.showDialog(dialog);
     }
 
-    private List<ActionButton> captureButtons(Camera camera) {
+    private List<ActionButton> captureButtons(Player viewer, Camera camera) {
         List<ActionButton> buttons = new ArrayList<>();
         for (AspectRatio ratio : AspectRatio.values()) {
             boolean current = ratio == camera.aspectRatio();
@@ -112,7 +112,12 @@ public final class CameraDialogs {
                         Placeholder.unparsed("count", String.valueOf(
                                 photoManager.countFor(camera.owner(), camera.name())))),
                 (view, audience) -> applyAndRun(view, audience, camera, player -> openPhotoList(player, camera))));
-        buttons.add(button(plugin.messages().get("dialog.capture"),
+
+        // A full camera keeps the button, so the row does not reshuffle, but says what
+        // it would do instead of doing it.
+        var full = photoManager.atLimit(viewer, camera);
+        buttons.add(button(plugin.messages().get(full ? "dialog.capture-full" : "dialog.capture",
+                        Placeholder.unparsed("limit", String.valueOf(photoManager.limitFor(viewer)))),
                 (view, audience) -> onCapture(view, audience, camera)));
         return buttons;
     }

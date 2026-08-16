@@ -110,6 +110,8 @@ photo:
   export-failed: "<prefix> <red>Fotoğraf dışa aktarılamadı. Ayrıntı için sunucu log'una bak."
   ratio-set: "<prefix> <green>En-boy oranı ayarlandı: <white><ratio></white>"
   invalid-ratio: "<prefix> <red>Geçersiz en-boy oranı. Seçenekler: 1:1, 16:9, 4:3"
+  # Limit kamera başınadır ve asılı olmayan fotoğrafları da sayar.
+  limit-reached: "<prefix> <red>Bu kamerayla en fazla <limit> fotoğrafın olabilir. <gray>Yenisini çekmek için listeden birini sil."
 
 map:
   invalid-grid: "<prefix> <red>Bu en-boy oranı için geçersiz grid. <gray><ratio> için seçenekler: <white><grids></white></gray>"
@@ -143,6 +145,7 @@ dialog:
   filter-label: "Renk efekti"
   grid-label: "Yerleşim (grid)"
   grid-option: "<grid> — <count> harita (<wpx>x<hpx>px)"
+  capture-full: "Limit dolu (<limit>)"
   ratio-button: "Oran: <ratio>"
   ratio-button-active: "Oran: <ratio> ✔"
   # Üçler kuralı: yalnızca önizlemeye çizilen 3x3 kadraj kılavuzu, fotoğrafa girmez.

@@ -859,6 +859,36 @@ Ad, oran, grid ve fotoğraf kimliği argümanlarının tamamı tab-complete'lidi
 **İzinler:** `paper-plugin.yml` içinde tanımlıdır — `izomap.camera` (tüm komutlar,
 `default: true`), `izomap.admin` (yalnızca `reload`, `default: op`).
 
+### Sayısal limit izinleri (`config/PermissionLimit`)
+
+İki config limiti izinle geçersiz kılınabilir:
+
+| İzin öneki | Geçersiz kıldığı |
+|---|---|
+| `izomap.max_photos_by_camera.<sayı>` | `settings.max-photos-per-camera` |
+| `izomap.max_cameras_by_player.<sayı>` | `settings.max-cameras-per-player` |
+
+Kurallar:
+
+- İzin varsa config değeri **tamamen** yok sayılır; izindeki sayı daha küçük olsa bile
+  geçerlidir. Aksi halde bir grubu genel sınırın **altında** tutmanın yolu olmazdı.
+- Birden çok izin varsa **en büyüğü** kazanır. İzinler gruplardan toplanır; küçüğü almak
+  cömert bir gruba girmeyi cezaya çevirirdi.
+- `…​.0` → hiç yapamaz. `…​.unlimited` → sınırsız (kodda `PermissionLimit.UNLIMITED`).
+- Sayı olmayan sonekler sessizce atlanır: aynı önekin altındaki başka bir eklentinin
+  izni olabilir, bizim hatamız değil.
+
+**Bu düğümler `paper-plugin.yml`'de bilerek tanımlı değildir.** `izomap.*` gibi bir
+joker tanımlı düğümlerin üzerine açılır; tanımlasaydık joker taşıyan herkese oraya
+yazdığımız sayıyı vermiş olurduk. Okuma `Player#getEffectivePermissions()` üzerinden
+önek eşlemesiyle yapılır, yani yalnızca gerçekten atanmış düğümler sayılır.
+
+Fotoğraf limiti **kamera başınadır** ve asılı olmayan fotoğrafları da sayar: bir fotoğraf
+duvarda olsa da olmasa da vardır. Limit dolduğunda Dialog'un çekim butonu
+`dialog.capture-full` etiketine döner ve tıklanınca çekmek yerine mesaj verir; asıl
+kontrol `PhotoManager#capture`'ın içindedir, böylece hiçbir yol butonun etrafından
+dolaşamaz.
+
 ---
 
 ## 8. Yapılandırma ve veri
@@ -870,7 +900,7 @@ toplanır ve değerler mantıklı aralıklara clamp'lenir.
 
 | Bölüm | Anahtarlar |
 |---|---|
-| `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `render-timing`, `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player` |
+| `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `render-timing`, `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player`, `max-photos-per-camera` |
 | `camera` | `display-type`, `model-material`, `item-display-transform`, `interaction-size` (0.1-3.0), `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `move-step` (0.05-16.0), `default-pitch` (-90..90), `edit-lock-seconds` (1-3600), `model-rotation.{x,y,z}`, `hologram.{enabled, offset-y (-4..8), view-range (0.1-10), billboard, background}` |
 | `photo` | `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
 | `placement` | `distance`, `invisible-frames`, `build-backing-wall`, `backing-material`, `timeout-seconds` (5-600) |

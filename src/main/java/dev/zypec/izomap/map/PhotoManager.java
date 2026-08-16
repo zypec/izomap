@@ -3,6 +3,7 @@ package dev.zypec.izomap.map;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.camera.Camera;
 import dev.zypec.izomap.camera.CameraManager;
+import dev.zypec.izomap.config.PermissionLimit;
 import dev.zypec.izomap.render.CaptureTooLargeException;
 import dev.zypec.izomap.render.RenderResult;
 import dev.zypec.izomap.render.RenderService;
@@ -34,6 +35,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * only {@link #delete} throws it away.</p>
  */
 public final class PhotoManager {
+
+    /**
+     * Permission prefix that overrides {@code settings.max-photos-per-camera}.
+     */
+    private static final String PHOTO_LIMIT_PERMISSION = "izomap.max_photos_by_camera";
 
     private final Izomap plugin;
     private final CameraManager cameraManager;
@@ -207,6 +213,12 @@ public final class PhotoManager {
      * up in the world; that is {@link #place}'s job. Must be started on the main thread.
      */
     public void capture(Player player, Camera camera, String name, GridOption grid) {
+        // Checked here rather than only at the button, so no path can shoot past it.
+        if (atLimit(player, camera)) {
+            plugin.messages().send(player, "photo.limit-reached",
+                    Placeholder.unparsed("limit", String.valueOf(limitFor(player))));
+            return;
+        }
         plugin.messages().send(player, "photo.capturing");
         var start = System.currentTimeMillis();
 
@@ -625,6 +637,27 @@ public final class PhotoManager {
                 .filter(p -> p.owner().equals(owner) && p.cameraName().equalsIgnoreCase(cameraName))
                 .sorted(java.util.Comparator.comparing(Photo::name, String.CASE_INSENSITIVE_ORDER))
                 .toList();
+    }
+
+    /**
+     * How many photos this player may keep per camera: their permission when they hold
+     * one, the configured limit otherwise, or {@link PermissionLimit#UNLIMITED}.
+     */
+    public int limitFor(Player player) {
+        return PermissionLimit.resolve(player, PHOTO_LIMIT_PERMISSION,
+                plugin.config().maxPhotosPerCamera());
+    }
+
+    /**
+     * Whether this camera has no room for another photo.
+     *
+     * <p>The count is per camera and includes photos that hang nowhere: a photo exists
+     * whether or not it is on a wall, and the limit is on how many a camera keeps, not
+     * on how much wall they cover.</p>
+     */
+    public boolean atLimit(Player player, Camera camera) {
+        return !PermissionLimit.allows(limitFor(player),
+                countFor(player.getUniqueId(), camera.name()));
     }
 
     /**

@@ -146,7 +146,7 @@ public final class CameraListener implements Listener {
         var camera = manager.create(player, defaultName(player), anchor);
         if (camera == null) {
             plugin.messages().send(player, "camera.limit-reached",
-                    Placeholder.unparsed("limit", String.valueOf(plugin.config().maxCamerasPerPlayer())));
+                    Placeholder.unparsed("limit", String.valueOf(manager.cameraLimitFor(player))));
             return;
         }
 

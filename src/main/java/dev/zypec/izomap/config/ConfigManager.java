@@ -104,6 +104,10 @@ public final class ConfigManager {
         return cfg().getInt("settings.max-cameras-per-player", 5);
     }
 
+    public int maxPhotosPerCamera() {
+        return cfg().getInt("settings.max-photos-per-camera", 5);
+    }
+
     // --- camera ---
 
     public String displayType() {

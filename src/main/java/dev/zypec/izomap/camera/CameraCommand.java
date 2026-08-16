@@ -178,7 +178,7 @@ public final class CameraCommand {
         var camera = manager.create(player, name, anchor);
         if (camera == null) {
             plugin.messages().send(player, "camera.limit-reached",
-                    Placeholder.unparsed("limit", String.valueOf(plugin.config().maxCamerasPerPlayer())));
+                    Placeholder.unparsed("limit", String.valueOf(manager.cameraLimitFor(player))));
             return 0;
         }
         plugin.messages().send(player, "camera.created", Placeholder.unparsed("name", name));

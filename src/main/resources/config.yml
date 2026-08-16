@@ -37,7 +37,18 @@ settings:
   # fotoğraf çekmek dünyayı büyütmemelidir.
   generate-missing-chunks: false
   # Bir oyuncunun aynı anda sahip olabileceği maksimum kamera sayısı.
+  # İzinle geçersiz kılınabilir: izomap.max_cameras_by_player.<sayı>
   max-cameras-per-player: 5
+  # Bir kamerayla çekilebilecek maksimum fotoğraf sayısı (asılı olsun olmasın).
+  # İzinle geçersiz kılınabilir: izomap.max_photos_by_camera.<sayı>
+  #
+  # İzin varsa buradaki değer TAMAMEN yok sayılır — izindeki sayı daha küçük olsa bile
+  # geçerlidir, böylece bir grubu genel sınırın altında tutmak da mümkün olur.
+  # Birden çok izin varsa EN BÜYÜĞÜ geçerlidir (izinler gruplardan toplandığı için
+  # küçüğü almak, cömert bir gruba girmeyi cezaya çevirirdi).
+  # izomap.max_photos_by_camera.0 → hiç çekemez.
+  # izomap.max_photos_by_camera.unlimited → sınırsız.
+  max-photos-per-camera: 5
 
 camera:
   # Kamera modeli tipi: ITEM_DISPLAY veya BLOCK_DISPLAY

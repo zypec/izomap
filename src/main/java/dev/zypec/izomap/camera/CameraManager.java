@@ -1,6 +1,7 @@
 package dev.zypec.izomap.camera;
 
 import dev.zypec.izomap.Izomap;
+import dev.zypec.izomap.config.PermissionLimit;
 import dev.zypec.izomap.render.AspectRatio;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -49,6 +50,11 @@ public final class CameraManager {
      * Largest click box, so a grown one does not swallow its surroundings.
      */
     private static final double MAX_INTERACTION = 3.0;
+
+    /**
+     * Permission prefix that overrides {@code settings.max-cameras-per-player}.
+     */
+    private static final String CAMERA_LIMIT_PERMISSION = "izomap.max_cameras_by_player";
 
     private final Izomap plugin;
     private final CameraKeys keys;
@@ -151,11 +157,20 @@ public final class CameraManager {
     // --- creation and removal ---
 
     /**
+     * How many cameras this player may own: their permission when they hold one, the
+     * configured limit otherwise, or {@link PermissionLimit#UNLIMITED}.
+     */
+    public int cameraLimitFor(Player player) {
+        return PermissionLimit.resolve(player, CAMERA_LIMIT_PERMISSION,
+                plugin.config().maxCamerasPerPlayer());
+    }
+
+    /**
      * Creates a camera with its display and interaction entities at the given
      * location, or returns {@code null} when the owner is at their limit.
      */
     public Camera create(Player owner, String name, Location anchor) {
-        if (ownedCount(owner.getUniqueId()) >= plugin.config().maxCamerasPerPlayer()) {
+        if (!PermissionLimit.allows(cameraLimitFor(owner), ownedCount(owner.getUniqueId()))) {
             return null;
         }
 
