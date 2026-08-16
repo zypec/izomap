@@ -20,7 +20,30 @@
 
 version: 2
 
+#  DİKKAT: vanilla'nın temel rengi her zaman bloğa BENZEMEZ. Renk tablosu bloğun
+#  dokusundan üretilmiş bir ortalama değil, elle atanmış bir değerdir; bazı bloklarda
+#  ikisi ayrışır. En bilineni tuff ailesi: on dört tuff bloğunun tamamı (ve kiraz
+#  kütüğü) TERRACOTTA_GRAY (#392923) bildirir — neredeyse siyaha yakın bir kahve —
+#  oysa tuff dokusu açık gri-yeşildir. Fotoğrafta vanilla haritayla birebir aynı çıkar,
+#  ama bloğa bakan göze yanlış gelir. Düzeltmek istersen aşağıdaki satırları aç:
+#  dokunun ortalamasına en yakın temel renkler DEEPSLATE (#646464) ve STONE (#707070).
+
 overrides:
+  # Tuff ailesi: vanilla TERRACOTTA_GRAY der, doku açık gri-yeşildir.
+  # TUFF: DEEPSLATE
+  # TUFF_SLAB: DEEPSLATE
+  # TUFF_STAIRS: DEEPSLATE
+  # TUFF_WALL: DEEPSLATE
+  # POLISHED_TUFF: DEEPSLATE
+  # POLISHED_TUFF_SLAB: DEEPSLATE
+  # POLISHED_TUFF_STAIRS: DEEPSLATE
+  # POLISHED_TUFF_WALL: DEEPSLATE
+  # CHISELED_TUFF: DEEPSLATE
+  # TUFF_BRICKS: DEEPSLATE
+  # TUFF_BRICK_SLAB: DEEPSLATE
+  # TUFF_BRICK_STAIRS: DEEPSLATE
+  # TUFF_BRICK_WALL: DEEPSLATE
+  # CHISELED_TUFF_BRICKS: DEEPSLATE
   # Örnek: cam blokları haritada renksizdir; görünmelerini istersen:
   # GLASS: QUARTZ
   # Örnek: suyu daha koyu göstermek:

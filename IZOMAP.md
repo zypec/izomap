@@ -249,6 +249,15 @@ kurulur: `MapColorConverter#packedId` piksel → harita baytı dönüşümünü 
 `block-colors.yml` yalnızca **override** dosyasıdır; varsayılan tablo içermez. `version: 2`
 taşır, eski v1 dosyaları `.v1.bak` olarak yedeklenip yenilenir.
 
+> **Vanilla'nın temel rengi her zaman bloğa benzemez.** Tablo bloğun dokusundan
+> üretilmiş bir ortalama değil, Mojang'ın elle atadığı bir değerdir; bazı bloklarda ikisi
+> ayrışır. En belirgini tuff ailesi: on dört tuff bloğunun tamamı (ve kiraz kütüğü/odunu)
+> `TERRACOTTA_GRAY` (#392923) bildirir — siyaha yakın bir kahve — oysa tuff dokusu açık
+> gri-yeşildir. Fotoğraf vanilla haritayla **birebir aynı** çıkar, ama bloğa bakan göze
+> yanlış gelir. Bu bir hata değil, tercihtir: eklenti vanilla'yı taklit eder. Ayrışmayı
+> kapatmak isteyen `block-colors.yml`'den override eder; dosyada tuff satırları yorum
+> olarak hazır bekler (dokuya en yakın temel renkler `DEEPSLATE` ve `STONE`).
+
 **`/izocam reload` tabloyu da yeniler.** Renkler sunucudan ve bu dosyadan **bir kez**
 okunup `IsometricRenderer`'a veriliyordu; render sırasında hiçbiri tekrar sorulmadığı için
 düzenlenen bir override ancak sunucu yeniden başlayınca görünüyordu. Reload artık tabloyu
