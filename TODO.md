@@ -46,24 +46,7 @@ T37 (temel renk tablosunun wiki ile denetimi) ✔
 
 ## P1 — Kamera ve etkileşim
 
-### T7 — Item ile çağrılan kamerayı envantere geri alma
-
-`[ ]` **P1**
-
-Kamera `/izocam item` ile alınan eşya kullanılarak yerleştirildiyse, sökülünce eşya geri
-verilebilmeli.
-
-**Senaryolar:**
-- `Camera` kaydına `placedFromItem: true/false` eklenir (komutla oluşturulanlar `false`).
-- Geri alma yolu: Shift + sol tık zaten Dialog açıyor, sol/sağ tık ayar yapıyor →
-  çakışmayan bir yol gerekiyor. Öneri: `/izocam pickup <ad>` komutu **ve** Dialog'a
-  "Kamerayı Topla" butonu. (Tuş kombinasyonu tüketmeden, keşfedilebilir kalır.)
-- Envanter doluysa eşya yere düşürülür ve oyuncuya bildirilir.
-- Kamera silinir; hologramı (T6) ve preview'ı (T10/T12) `CameraManager#forget` üzerinden zaten temizleniyor.
-- Kameraya ait çekilmiş ama yerleştirilmemiş fotoğraflar (T21) ne olacak? → Kamera
-  toplanınca fotoğraflar da silinir; oyuncuya onay sorulur (Dialog).
-- Komutla oluşturulmuş kamerada `pickup` çalışır ama eşya **verilmez**, sadece silinir
-  (ya da mesajla reddedilir — uygulama sırasında karar).
+*(Şu an açık madde yok.)*
 
 ---
 
@@ -345,6 +328,34 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T7 — Kamerayı eşya olarak geri alma
+
+`[x]` **P1** · 2026-08-16
+
+`cameras.yml`'ye `from-item` eklendi; eşyayla yerleştirilen kamera sökülünce eşya geri
+veriliyor. Komutla oluşturulanlarda eşya **uydurulmuyor** (TODO'daki iki seçenekten bu
+seçildi): `pickup` yine çalışıyor, sadece eşya vermiyor ve mesaj bunu söylüyor. Reddetmek
+yerine bunu seçmenin sebebi, reddetmenin oyuncuya kamerayı sökmenin ikinci bir yolunu
+aratmak olması.
+
+Giriş yolları TODO'daki öneriyle aynı: Dialog'da "Kamerayı Topla" butonu **ve**
+`/izocam pickup <ad>`. İkisi de aynı onay ekranına çıkıyor; komut, silinecek fotoğraf
+yoksa onayı atlıyor.
+
+Fotoğraflar kamerayla birlikte siliniyor (TODO'daki karar): fotoğraf geldiği kameranın
+adını taşıyor ve retake onun üzerinden çekiyor, kamerası gitmiş fotoğraf yeniden
+çekilemeyen bir resim olurdu. Onay ekranı kaç fotoğrafın gideceğini söylüyor.
+
+Envanter doluysa eşya ayağa düşürülüp bildiriliyor. Bu arada aynı kusur `/izocam item`
+yolunda da varmış: `addItem` sığmayanı geri döndürüyor ve dönüş yok sayıldığı için eşya
+sessizce yok oluyordu — `giveOrDrop` ikisini de kapattı.
+
+Dokunulanlar: `Camera`, `CameraStorage`, `CameraManager` (`pickup`, `giveOrDrop`,
+`create(..., fromItem)`), `CameraListener`, `CameraCommand`, `CameraDialogs`,
+`PhotoManager#removeAllTakenWith`, `messages.yml`, `IZOMAP.md` §4 ve §7.
+
+---
 
 ### T32 — Gökyüzü
 
