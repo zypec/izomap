@@ -69,6 +69,7 @@ Aynı mantığın birden çok pakette kopyalanması yerine tek bir yerden gelir:
 |---|---|
 | `util.Ids#parse` | `String` → `UUID`; bozuk/eksik değerde `null`. YML kaydı, PDC etiketi ve `.izm` dosya adı aynı yoldan geçer |
 | `util.Failures#unwrap` | Future zincirinin sardığı `CompletionException`'ı açar; hem `instanceof` kontrolleri hem log metni içindekine bakmak zorunda |
+| `util.Format` | Açı, zoom, blok ve koordinat biçimleri; hologram, durum satırı ve Dialog aynı kamerayı anlattığı için format tek yerden gelmeli (daima `Locale.ROOT`) |
 | `Izomap#runOnMain` | Ana thread'e dönüş (`getGlobalRegionScheduler`) |
 | `Izomap#asyncExecutor` | `CompletableFuture` zincirlerinin kullandığı asenkron `Executor` |
 
@@ -399,7 +400,7 @@ Dünyada zaten kalmış yetimler için `/izocam cleanup`, oyuncunun bulunduğu d
 |---|---|
 | Sağ tık | Aktif özelliği **artır** |
 | Sol tık (attack) | Aktif özelliği **azalt** |
-| Shift + sağ tık | Aktif özelliği değiştir (YAW → PITCH → ZOOM → MOVE_X → MOVE_Y → …) |
+| Shift + sağ tık | Aktif özelliği değiştir (YAW → PITCH → ZOOM → MOVE → …) |
 | Shift + sol tık | Fotoğraf Dialog'unu aç |
 | Kamera eşyasıyla bloğa sağ tık | O konuma yeni kamera kur (eşya harcanır) |
 
@@ -411,22 +412,26 @@ Yaw/Pitch `camera.angle-step` kadar değişir. **Zoom çarpımsaldır**: her tı
 oransal olarak aynı kalır. Action bar'da çarpanın yanında kadrajın kaç blok kapsadığı da
 yazar — asıl merak edilen odur.
 
-### Hareket modları
+### Hareket modu
 
-`MOVE_X` ve `MOVE_Y`, kamerayı komut yazmadan yerinde kaydırır; adım
-`camera.move-step` (varsayılan 1.0 blok).
+`MOVE`, kamerayı komut yazmadan yerinde kaydırır; adım `camera.move-step`
+(varsayılan 1.0 blok). Sağ tık **oyuncunun baktığı yöne**, sol tık zıt yöne taşır.
 
-- **`MOVE_X`** kameranın bakış yönünün **yatay izdüşümü** boyunca ileri/geri taşır.
-  Dünya eksenleri yerine bakış yönü seçildi: kadrajı "biraz daha yaklaştır" isteği
-  neredeyse her zaman bakılan yönde ileri gitmek demektir, hangi eksene denk geldiğini
-  oyuncunun hesaplaması gerekmez. Yön vektörü `(-sin(yaw), 0, cos(yaw))`.
-- **`MOVE_Y`** dikey taşır ve dünya sınırlarına clamp'lenir.
-- İkisi de `CameraManager#reposition` kullanır: display + interaction entity birlikte
-  taşınır, ama **disk yazımı yapılmaz**. Yazma, her etkileşimin sonundaki ortak
-  `applyAndPersist` adımında bir kez olur — kayıt tüm koleksiyonu serialize ettiği için
-  tık başına iki yazma boşa maliyetti.
-- Durum satırında hareket modlarının "değeri" kameranın vardığı konumdur
-  (`MOVE_X` → `x, z`, `MOVE_Y` → `y`).
+Yön **oyuncunun** bakış vektörüdür, kameranınki değil: oyuncu kamerayı ayarlarken ona
+bakıyordur, dolayısıyla "biraz ileri it / geri çek" jesti düşünmeden çalışır. Vektör
+pitch'i de taşıdığı için yükseklik aynı özellikten gelir.
+
+Eskiden iki ayrı özellik vardı: `MOVE_X` kameranın bakış yönünün yatay izdüşümünde
+ileri/geri, `MOVE_Y` dikeyde. Bir noktaya varmak için ikisi arasında shift + sağ tıkla
+gidip gelmek ve hareketi eksenlerine ayırmak gerekiyordu; nişan alma bunu tek özelliğe
+indirdi.
+
+- `CameraManager#reposition` kullanılır: display + interaction entity birlikte taşınır,
+  ama **disk yazımı yapılmaz**. Yazma, her etkileşimin sonundaki ortak `applyAndPersist`
+  adımında bir kez olur — kayıt tüm koleksiyonu serialize ettiği için tık başına iki
+  yazma boşa maliyetti.
+- Dünya sınırlarına clamp'lenir; sınırın dışına taşan entity tuhaf davranır.
+- Durum satırında hareketin "değeri" kameranın vardığı konumdur (`x, y, z`).
 
 ### Zoom ile model boyutu ayrıdır
 
@@ -619,8 +624,8 @@ kalır. Silme yalnızca Dialog'daki ✖ ile (onay ister) ya da `remove all photo
 
 ### Dialog butonu yalnızca gerçekten değişince render eder
 
-Çekim ekranındaki her buton formdan geçer (`CameraDialogs#applyForm`): girilen ad, zoom
-ve filtre okunur, butonun kendi değişikliği uygulanır, sonra bir sonraki adıma geçilir.
+Çekim ekranındaki her buton formdan geçer (`CameraDialogs#applyForm`): girilen ad ve
+filtre okunur, butonun kendi değişikliği uygulanır, sonra bir sonraki adıma geçilir.
 Bu yol eskiden **koşulsuz** olarak kamerayı kaydedip önizlemeyi yeniden render ediyordu —
 "Fotoğraflar" gibi yalnızca başka bir ekrana geçen butonlarda bile. Render bu eklentinin
 en pahalı işi (kadrajın kapsadığı chunk'lar ana thread'de kopyalanır), dolayısıyla yeni
@@ -630,10 +635,19 @@ buydu.
 Artık görüntüyü etkileyen dört alanın (en-boy oranı, üçler kılavuzu, zoom, filtre)
 öncesi ve sonrası karşılaştırılır; **hiçbiri değişmediyse ne kayıt ne render** yapılır.
 
-Zoom açılır listesi yalnızca hazır değerler taşır, tık ile ayarlanmış bir kamera ise
-ikisinin arasında durur ve liste en yakınını seçili gösterir. O değeri geri yazmak her
-buton basışını bir değişiklik hâline getirirdi, bu yüzden **dokunulmamış liste cevapsız
-sayılır**: seçili değer "en yakın hazır değer"e eşitse zoom'a hiç dokunulmaz.
+### Zoom Dialog'da ayarlanmaz
+
+Zoom **yalnızca kameraya tıklayarak** ayarlanır. Dialog'daki açılır liste kaldırıldı:
+zoom'un iki ayarlama yolu olması, oyuncunun preview'da tık ile bulduğu değerin Dialog'daki
+herhangi bir butona basınca listedeki en yakın hazır değere geri yazılması demekti —
+sessiz bir veri kaybı. Üstelik sonucu gösteren yer preview, Dialog değil.
+
+Bilgi satırı (`dialog.info`) buna karşılık genişledi: kamera adı, oran, zoom (+ kaç blok),
+yön ve eğim. Ayar yeri değil, ne çekileceğinin özeti.
+
+Sayı biçimleri `util/Format`'tadır: hologram, durum satırı ve Dialog aynı kamerayı
+anlatır, format string'lerini ayrı tutmak birinin 45 derken diğerinin 45.0 demesiyle
+biter.
 
 ### Hayalet önizleme (`place/PlacementManager`)
 

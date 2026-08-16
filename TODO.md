@@ -46,25 +46,6 @@ T37 (temel renk tablosunun wiki ile denetimi)
 
 ## P1 — Kamera ve etkileşim
 
-### T9 — Move tek bir özellik olsun, oyuncunun bakışına göre hareket etsin
-
-`[ ]` **P1** · T4'ü gözden geçirir
-
-Bugün `EditProperty` iki ayrı taşıma özelliği taşıyor: `MOVE_X` (kameranın yaw'ı boyunca
-ileri/geri) ve `MOVE_Y` (dikey). İkisi arasında dolaşmak için shift + sağ tık gerekiyor ve
-kamerayı istenen yere getirmek zahmetli.
-
-- İkisi tek bir `MOVE` sabitine indirilecek (`EditProperty.java`), `CameraListener#adjust`
-  içindeki iki `case` tek bir dala inecek.
-- Yön **oyuncunun bakış vektörü** olacak: sağ tık = oyuncunun baktığı yöne, sol tık = zıt
-  yöne, adım yine `settings.move-step`. Bakış vektörü pitch'i de içerdiği için dikey
-  hareket ayrı bir özelliğe gerek kalmadan gelir.
-- `clampToWorld` korunacak: dünya sınırının dışına taşan kamera tuhaf davranıyor.
-- `messages.yml` → `preview.property.MOVE_X` / `MOVE_Y` tek bir `MOVE` anahtarına inecek;
-  `cameras.yml`'de kayıtlı eski değerler (`MOVE_X`, `MOVE_Y`) okunurken `MOVE`'a düşecek.
-
----
-
 ### T7 — Item ile çağrılan kamerayı envantere geri alma
 
 `[ ]` **P1**
@@ -139,25 +120,6 @@ butonu hiçbir şeyi değiştirmediği hâlde bunu ödüyordu.
   hazır olunca asıl ekranla değiştirilir.
 - Ara ekran her geçişte değil yalnızca gerçekten yavaş olanlarda açılmalı; yoksa hızlı
   geçişlerde bir kare titreme olarak görünür.
-
----
-
-### T27 — Capture dialog'unda zoom kaldırılsın, bilgi satırı genişlesin
-
-`[ ]` **P1**
-
-Zoom hem preview'da tık ile (`EditProperty.ZOOM`) hem de Dialog'daki açılır listeden
-ayarlanıyor; ikinci yol gereksiz ve preview'daki değeri geri yazarak şaşırtıyor.
-
-- `CameraDialogs`'tan `INPUT_ZOOM` girdisi, `ZOOM_PRESETS`, `zoomEntries` ve `nearestZoom`
-  kaldırılacak; `applyForm`/`onCapture` artık zoom yazmayacak (kameranın mevcut değeri
-  aynen kullanılır).
-- `messages.yml` → `dialog.scale-label` kaldırılacak.
-- `dialog.info` satırına yaw ve pitch eklenecek: bugün yalnızca `<camera> <ratio> <scale>`
-  var (`CameraDialogs.java:394`), `<yaw>` ve `<pitch>` yer tutucuları eklenecek. Zoom bilgi
-  satırında **kalacak** — kaldırılan ayar, gösterge değil.
-- Hologram (T6) zaten aynı bilgiyi gösteriyor; iki yerde aynı formatı kullanmak için
-  biçimlendirme ortak bir yardımcıya alınabilir.
 
 ---
 
@@ -398,6 +360,44 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T27 — Dialog'dan zoom kaldırıldı, bilgi satırı genişledi
+
+`[x]` **P1** · 2026-08-16
+
+Zoom'un iki ayarlama yolu vardı ve ikincisi birincisini bozuyordu: preview'da tık ile
+bulunan değer, Dialog'daki herhangi bir butona basınca açılır listedeki en yakın hazır
+değere geri yazılıyordu. Liste kaldırıldı; zoom yalnızca kameraya tıklayarak ayarlanıyor,
+sonucu gösteren yer zaten preview.
+
+Bilgi satırı buna karşılık genişledi: kamera adı, oran, zoom (+ kaç blok), yön, eğim.
+Sayı biçimleri `util/Format`'a alındı — hologram, durum satırı ve Dialog aynı kamerayı
+anlatıyor, ayrı format string'leri birinin 45 diğerinin 45.0 demesiyle biterdi.
+
+Dokunulanlar: `CameraDialogs`, `CameraHologram`, `CameraStatus`, yeni `util/Format`,
+`messages.yml` (`dialog.info` genişledi, `dialog.scale-label` silindi), `IZOMAP.md` §6.
+
+---
+
+### T9 — Move tek özelliğe indi, oyuncunun bakışına bağlandı
+
+`[x]` **P1** · 2026-08-16 · T4'ü gözden geçirdi
+
+`MOVE_X` (kameranın yaw'ı boyunca yatay) ve `MOVE_Y` (dikey) tek bir `MOVE` oldu. Yön
+artık **oyuncunun** bakış vektörü: sağ tık baktığı yöne, sol tık zıt yöne. Vektör pitch'i
+taşıdığı için yükseklik aynı özellikten geliyor ve ayrı bir dikey mod gerekmiyor.
+
+Gerekçe: oyuncu kamerayı ayarlarken zaten ona bakıyor, dolayısıyla "biraz ileri it"
+jesti düşünmeden çalışıyor. Eskiden bir noktaya varmak için iki mod arasında shift + sağ
+tıkla gidip gelmek ve hareketi eksenlerine ayırmak gerekiyordu.
+
+`editProperty` zaten `transient` (diske yazılmıyor), o yüzden geriye dönük veri sorunu
+çıkmadı. Durum satırının hareket değeri artık `x, y, z`.
+
+Dokunulanlar: `EditProperty`, `CameraListener`, `CameraStatus`, `messages.yml`
+(`preview.property.MOVE`, `preview.value-position`), `IZOMAP.md` §4.
+
+---
 
 ### T26 — Boş elle sağ tık onayı: işaretçi eşya sol ele kondu
 

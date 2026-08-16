@@ -65,15 +65,13 @@ preview:
   entry-active: "<yellow><bold><label> <value></bold></yellow>"
   value-angle: "<deg>°"
   value-zoom: "<zoom>x <gray>(<blocks> blok)</gray>"
-  value-position-xz: "<x>, <z>"
-  value-position-y: "<y>"
+  value-position: "<x>, <y>, <z>"
   # Etiketler EditProperty adlarına göre aranır; eksik anahtar action bar'da görünür.
   property:
     YAW: "Yön"
     PITCH: "Eğim"
     ZOOM: "Zoom"
-    MOVE_X: "Hareket(x)"
-    MOVE_Y: "Hareket(y)"
+    MOVE: "Hareket"
 
 # Renk efekti adları; anahtar ColorFilter sabitinin adıdır. Diske yalnızca sabit adı
 # yazılır, dolayısıyla buradaki metni değiştirmek kayıtlı kameraları etkilemez.
@@ -138,9 +136,10 @@ map:
 
 dialog:
   title: "<gradient:#5e60ce:#48bfe3>Izomap Fotoğraf</gradient>"
-  info: "<gray>Kamera: <white><camera></white>  •  Oran: <white><ratio></white>  •  Zoom: <white><scale></white>x"
+  # Kameranın o anki ayarları; hepsi kameraya tıklayarak değiştirilir, buradan değil.
+  # Yer tutucular: <camera> <ratio> <scale> <blocks> <yaw> <pitch>
+  info: "<gray>Kamera: <white><camera></white>  •  Oran: <white><ratio></white>  •  Zoom: <white><scale></white>x <dark_gray>(<blocks> blok)</dark_gray>  •  Yön: <white><yaw></white>°  •  Eğim: <white><pitch></white>°"
   name-label: "Fotoğraf adı"
-  scale-label: "Yakınlaştırma (kadraj genişliği)"
   filter-label: "Renk efekti"
   grid-label: "Yerleşim (grid)"
   grid-option: "<grid> — <count> harita (<wpx>x<hpx>px)"

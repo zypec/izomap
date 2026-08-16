@@ -172,13 +172,15 @@ public final class CameraListener implements Listener {
                 double step = plugin.config().zoomStep();
                 camera.zoom((float) (direction > 0 ? camera.zoom() * step : camera.zoom() / step));
             }
-            case MOVE_X -> {
-                double step = direction * plugin.config().moveStep();
-                double yaw = Math.toRadians(camera.camYaw());
-                manager.reposition(camera, camera.anchor().add(-Math.sin(yaw) * step, 0.0, Math.cos(yaw) * step));
+            // Along the player's line of sight, not the camera's: they are looking at
+            // the camera while they move it, so pushing it away and pulling it back is
+            // the gesture that needs no thinking. Pitch rides along, which is what
+            // retires the separate vertical property.
+            case MOVE -> {
+                var step = player.getEyeLocation().getDirection()
+                        .multiply(direction * plugin.config().moveStep());
+                manager.reposition(camera, clampToWorld(camera.anchor().add(step)));
             }
-            case MOVE_Y -> manager.reposition(camera,
-                    clampToWorld(camera.anchor().add(0.0, direction * plugin.config().moveStep(), 0.0)));
         }
         manager.applyAndPersist(camera);
         plugin.preview().refresh(player, camera);

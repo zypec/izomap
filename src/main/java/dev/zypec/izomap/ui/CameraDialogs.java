@@ -9,6 +9,7 @@ import dev.zypec.izomap.map.Photo;
 import dev.zypec.izomap.map.PhotoManager;
 import dev.zypec.izomap.render.AspectRatio;
 import dev.zypec.izomap.render.ColorFilter;
+import dev.zypec.izomap.util.Format;
 import io.papermc.paper.dialog.Dialog;
 import io.papermc.paper.dialog.DialogResponseView;
 import io.papermc.paper.registry.data.dialog.ActionButton;
@@ -26,16 +27,17 @@ import org.bukkit.entity.Player;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.UUID;
 import java.util.function.Consumer;
 
 /**
  * Paper Dialog API screens for taking photos and managing them.
  *
- * <p>Two screens. The <b>capture</b> one sets up the shot: a name, zoom, color filter
- * and grid, with aspect ratio as a button that reopens the dialog so the grid options
- * follow it. Confirming only <i>takes</i> the photo.</p>
+ * <p>Two screens. The <b>capture</b> one sets up the shot: a name, color filter and
+ * grid, with aspect ratio as a button that reopens the dialog so the grid options
+ * follow it. Confirming only <i>takes</i> the photo. Zoom is not among them — it is
+ * adjusted by clicking the camera, where the preview shows the result, and a second
+ * way to set it here only wrote that value back over the one being looked at.</p>
  *
  * <p>The <b>list</b> screen is what the photo goes into, one row per photo:
  * rename, hang or take down, delete, retake. Hanging leaves the dialog and hands over
@@ -44,7 +46,6 @@ import java.util.function.Consumer;
 public final class CameraDialogs {
 
     private static final String INPUT_NAME = "photo_name";
-    private static final String INPUT_ZOOM = "zoom";
     private static final String INPUT_FILTER = "filter";
     private static final String INPUT_GRID = "grid";
     private static final String INPUT_RENAME = "new_name";
@@ -60,10 +61,6 @@ public final class CameraDialogs {
      */
     private static final int MAX_LIST_ROWS = 10;
 
-    // Widely shot to close up; the frame covers frame-height / zoom blocks.
-    private static final float[] ZOOM_PRESETS =
-            {0.05f, 0.1f, 0.25f, 0.5f, 0.75f, 1.0f, 1.5f, 2.0f, 3.0f, 4.0f};
-
     private final Izomap plugin;
     private final CameraManager cameraManager;
     private final PhotoManager photoManager;
@@ -77,19 +74,17 @@ public final class CameraDialogs {
     // --- capture screen ---
 
     public void openCaptureDialog(Player player, Camera camera) {
-        openCaptureDialog(player, camera, camera.name(), camera.zoom(), camera.colorFilter());
+        openCaptureDialog(player, camera, camera.name(), camera.colorFilter());
     }
 
     private void openCaptureDialog(Player player, Camera camera,
-                                   String initialName, float initialZoom, ColorFilter initialFilter) {
+                                   String initialName, ColorFilter initialFilter) {
         Dialog dialog = Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(plugin.messages().get("dialog.title"))
                         .body(List.of(DialogBody.plainMessage(infoLine(camera))))
                         .inputs(List.of(
                                 DialogInput.text(INPUT_NAME, plugin.messages().get("dialog.name-label"))
                                         .initial(initialName).width(220).build(),
-                                DialogInput.singleOption(INPUT_ZOOM, 220, zoomEntries(initialZoom),
-                                        plugin.messages().get("dialog.scale-label"), true),
                                 DialogInput.singleOption(INPUT_FILTER, 220, filterEntries(initialFilter),
                                         plugin.messages().get("dialog.filter-label"), true),
                                 DialogInput.singleOption(INPUT_GRID, 220, gridEntries(camera),
@@ -241,20 +236,6 @@ public final class CameraDialogs {
 
     // --- inputs ---
 
-    private List<SingleOptionDialogInput.OptionEntry> zoomEntries(float initial) {
-        float nearest = nearestZoom(initial);
-        List<SingleOptionDialogInput.OptionEntry> entries = new ArrayList<>();
-        for (float value : ZOOM_PRESETS) {
-            String id = String.format(Locale.ROOT, "%.2f", value);
-            // The label also states the covered area, e.g. "0.25x - 192 blok".
-            String label = String.format(Locale.ROOT, "%sx - %.0f blok",
-                    id, plugin.config().frameHeight() / value);
-            entries.add(SingleOptionDialogInput.OptionEntry.create(
-                    id, Component.text(label), value == nearest));
-        }
-        return entries;
-    }
-
     private List<SingleOptionDialogInput.OptionEntry> filterEntries(ColorFilter initial) {
         List<SingleOptionDialogInput.OptionEntry> entries = new ArrayList<>();
         for (ColorFilter filter : ColorFilter.values()) {
@@ -290,8 +271,8 @@ public final class CameraDialogs {
      */
     private void applyAndReopen(DialogResponseView view, Audience audience, Camera camera,
                                 Consumer<Camera> change) {
-        applyForm(view, audience, camera, change, (player, name, zoom, filter) ->
-                openCaptureDialog(player, camera, name, zoom, filter));
+        applyForm(view, audience, camera, change, (player, name, filter) ->
+                openCaptureDialog(player, camera, name, filter));
     }
 
     /**
@@ -301,7 +282,7 @@ public final class CameraDialogs {
     private void applyAndRun(DialogResponseView view, Audience audience, Camera camera,
                              Consumer<Player> next) {
         applyForm(view, audience, camera, target -> {
-        }, (player, name, zoom, filter) -> next.accept(player));
+        }, (player, name, filter) -> next.accept(player));
     }
 
     private void applyForm(DialogResponseView view, Audience audience, Camera camera,
@@ -310,18 +291,14 @@ public final class CameraDialogs {
             return;
         }
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
-        Float zoom = pickedZoom(view, camera);
         ColorFilter filter = ColorFilter.fromString(view.getText(INPUT_FILTER), camera.colorFilter());
 
         plugin.runOnMain(() -> {
             var before = imageState(camera);
             change.accept(camera);
-            if (zoom != null) {
-                camera.zoom(zoom);
-            }
             camera.colorFilter(filter);
             applyIfChanged(player, camera, before);
-            then.run(player, name, camera.zoom(), filter);
+            then.run(player, name, filter);
         });
     }
 
@@ -349,24 +326,8 @@ public final class CameraDialogs {
         plugin.preview().refresh(player, camera);
     }
 
-    /**
-     * The zoom the player picked, or {@code null} when they left the dropdown alone.
-     *
-     * <p>The list only holds presets, so a camera zoomed by clicking sits between two
-     * of them and opens with the nearest one selected. Writing that back would snap the
-     * zoom on every button press and count as a change, so an untouched dropdown is
-     * read as no answer at all.</p>
-     */
-    private Float pickedZoom(DialogResponseView view, Camera camera) {
-        var zoom = parseFloat(view.getText(INPUT_ZOOM));
-        if (zoom == null || zoom == nearestZoom(camera.zoom()))
-            return null;
-
-        return zoom;
-    }
-
     private interface FormAction {
-        void run(Player player, String name, float zoom, ColorFilter filter);
+        void run(Player player, String name, ColorFilter filter);
     }
 
     private void onCapture(DialogResponseView view, Audience audience, Camera camera) {
@@ -374,15 +335,11 @@ public final class CameraDialogs {
             return;
         }
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
-        Float zoom = pickedZoom(view, camera);
         ColorFilter filter = ColorFilter.fromString(view.getText(INPUT_FILTER), camera.colorFilter());
         String gridLabel = view.getText(INPUT_GRID);
 
         plugin.runOnMain(() -> {
             var before = imageState(camera);
-            if (zoom != null) {
-                camera.zoom(zoom);
-            }
             camera.colorFilter(filter);
             // The capture below renders the same frame; refreshing an unchanged preview
             // first would render it twice for one click.
@@ -434,33 +391,23 @@ public final class CameraDialogs {
         return ActionButton.builder(plugin.messages().get("dialog.cancel")).build();
     }
 
+    /**
+     * What the shot is set to, for a screen that no longer lets any of it be edited:
+     * zoom and the angles are all adjusted by clicking the camera.
+     */
     private Component infoLine(Camera camera) {
         return plugin.messages().get("dialog.info",
                 Placeholder.unparsed("camera", camera.name()),
                 Placeholder.unparsed("ratio", camera.aspectRatio().label()),
-                Placeholder.unparsed("scale", String.format(Locale.ROOT, "%.2f", camera.zoom())));
+                Placeholder.unparsed("scale", Format.zoom(camera.zoom())),
+                Placeholder.unparsed("blocks",
+                        Format.blocks(plugin.config().frameHeight(), camera.zoom())),
+                Placeholder.unparsed("yaw", Format.degrees(camera.camYaw())),
+                Placeholder.unparsed("pitch", Format.degrees(camera.camPitch())));
     }
 
     private static String valueOr(String value, String fallback) {
         return (value == null || value.isBlank()) ? fallback : value;
     }
 
-    private static float nearestZoom(float zoom) {
-        var best = ZOOM_PRESETS[0];
-        for (float value : ZOOM_PRESETS) {
-            if (Math.abs(value - zoom) < Math.abs(best - zoom)) {
-                best = value;
-            }
-        }
-        return best;
-    }
-
-    private static Float parseFloat(String raw) {
-        if (raw == null) return null;
-        try {
-            return Float.parseFloat(raw.trim());
-        } catch (NumberFormatException ex) {
-            return null;
-        }
-    }
 }

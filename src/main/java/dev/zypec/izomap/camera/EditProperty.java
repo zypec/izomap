@@ -9,13 +9,11 @@ public enum EditProperty {
     PITCH,
     ZOOM,
     /**
-     * Moves along the horizontal projection of the view direction: forward/back.
+     * Moves the camera along the line the <b>player</b> is looking down, which carries
+     * height with it: one property covers every direction, and where the camera ends up
+     * is aimed rather than assembled from separate axes.
      */
-    MOVE_X,
-    /**
-     * Moves straight up and down.
-     */
-    MOVE_Y;
+    MOVE;
 
     /**
      * Returns the next property, wrapping around.

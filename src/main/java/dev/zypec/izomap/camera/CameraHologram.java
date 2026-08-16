@@ -1,12 +1,11 @@
 package dev.zypec.izomap.camera;
 
 import dev.zypec.izomap.Izomap;
+import dev.zypec.izomap.util.Format;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
-
-import java.util.Locale;
 
 /**
  * Builds the text floating above a camera.
@@ -28,11 +27,11 @@ public final class CameraHologram {
                 Placeholder.unparsed("name", camera.name()),
                 Placeholder.unparsed("owner", ownerName(camera)),
                 Placeholder.unparsed("ratio", camera.aspectRatio().label()),
-                Placeholder.unparsed("zoom", String.format(Locale.ROOT, "%.2f", camera.zoom())),
-                Placeholder.unparsed("blocks", String.format(Locale.ROOT, "%.0f",
-                        plugin.config().frameHeight() / camera.zoom())),
-                Placeholder.unparsed("yaw", String.format(Locale.ROOT, "%.0f", camera.camYaw())),
-                Placeholder.unparsed("pitch", String.format(Locale.ROOT, "%.0f", camera.camPitch())),
+                Placeholder.unparsed("zoom", Format.zoom(camera.zoom())),
+                Placeholder.unparsed("blocks",
+                        Format.blocks(plugin.config().frameHeight(), camera.zoom())),
+                Placeholder.unparsed("yaw", Format.degrees(camera.camYaw())),
+                Placeholder.unparsed("pitch", Format.degrees(camera.camPitch())),
                 Placeholder.component("filter",
                         plugin.messages().get("filter." + camera.colorFilter().name())),
                 Placeholder.unparsed("photos", String.valueOf(photoCount)));
