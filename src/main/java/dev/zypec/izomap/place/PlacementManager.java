@@ -8,8 +8,12 @@ import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Color;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.block.BlockFace;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.MultipleFacing;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Player;
@@ -28,12 +32,16 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.util.Transformation;
+import org.joml.AxisAngle4f;
+import org.joml.Vector3f;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Stream;
 
 /**
  * Ghost preview for hanging a photo: a grid of {@link BlockDisplay}s that follows the
@@ -42,6 +50,26 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>Placement used to happen the instant the dialog was confirmed, wherever the player
  * happened to be looking. Now they line the photo up first and commit with a click, so
  * a misjudged spot costs nothing.</p>
+ *
+ * <h2>Two layers, because two different things get built</h2>
+ *
+ * <p>Hanging a photo puts up at most two things per tile: the item frame itself, and —
+ * only where nothing is there to hang it on — a backing block behind it. The preview
+ * shows them separately.</p>
+ *
+ * <ul>
+ *   <li><b>Frame layer.</b> One thin pane per tile, standing in the frame cell and
+ *       pushed flush against the wall face, so it sits where the map will. Panes are
+ *       given the connections along the wall's own axis, which makes each one span its
+ *       full block and the grid read as one continuous sheet. Always shown: it is the
+ *       photo, and it is what the player is actually aiming.</li>
+ *   <li><b>Backing layer.</b> A full block behind a tile, shown <b>only for the cells
+ *       that would really be filled in</b> — {@code build-backing-wall} on and that
+ *       block empty. Hanging on a wall the player built themselves promises no blocks,
+ *       so it shows none; previously this layer was the only thing drawn and it stood
+ *       in the frame cell, which made every placement look like it would bury the
+ *       wall.</li>
+ * </ul>
  *
  * <h2>Only that player sees it</h2>
  *
@@ -90,6 +118,23 @@ public final class PlacementManager implements Listener {
     private static final Color VALID = Color.fromRGB(0x55FF55);
     private static final Color BLOCKED = Color.fromRGB(0xFF5555);
 
+    /**
+     * Stand-in for the item frame. A pane is the thinnest full-height, full-width block
+     * model there is, and a stained one still reads as a surface once the glow outlines
+     * it; plain glass would be an outline around nothing.
+     */
+    private static final Material FRAME_MATERIAL = Material.WHITE_STAINED_GLASS_PANE;
+
+    /**
+     * How far the pane is pushed towards the wall, in blocks.
+     *
+     * <p>A pane's model straddles the block centre at 7/16..9/16, and a map frame hangs
+     * in the outermost 1/16. Shifting by 6.5/16 lands the pane in 13.5/16..15.5/16:
+     * where the map will be, with half a pixel of daylight left so its face and the
+     * wall's do not fight over the same plane.</p>
+     */
+    private static final float FRAME_OFFSET = 6.5f / 16f;
+
     private final Izomap plugin;
     /**
      * Marks the offhand item as ours, so it can be told apart from a real one.
@@ -111,7 +156,20 @@ public final class PlacementManager implements Listener {
     private static final class Session {
         private final UUID photoId;
         private final GridOption grid;
-        private final List<BlockDisplay> ghosts = new ArrayList<>();
+        /**
+         * One pane per tile, in row-major order, standing where the frame will.
+         */
+        private final List<BlockDisplay> frames = new ArrayList<>();
+        /**
+         * One block per tile behind its frame, in the same order — empty when
+         * {@code build-backing-wall} is off and nothing would ever be built.
+         */
+        private final List<BlockDisplay> backings = new ArrayList<>();
+        /**
+         * Which backing ghosts the player is currently being shown, so a hide or show
+         * packet only goes out when the answer changes.
+         */
+        private final boolean[] backingShown;
         private final long expiresAt;
         /**
          * What the offhand held before the marker took its place.
@@ -123,6 +181,7 @@ public final class PlacementManager implements Listener {
         private Session(UUID photoId, GridOption grid, long expiresAt, ItemStack offhand) {
             this.photoId = photoId;
             this.grid = grid;
+            this.backingShown = new boolean[grid.tileCount()];
             this.expiresAt = expiresAt;
             this.offhand = offhand;
         }
@@ -230,10 +289,11 @@ public final class PlacementManager implements Listener {
     private void discard(UUID playerId, Session session) {
         if (session == null) return;
 
-        for (var ghost : session.ghosts)
+        for (var ghost : ghosts(session))
             ghost.remove();
 
-        session.ghosts.clear();
+        session.frames.clear();
+        session.backings.clear();
 
         var player = plugin.getServer().getPlayer(playerId);
         if (player != null)
@@ -252,60 +312,149 @@ public final class PlacementManager implements Listener {
     // --- ghosts ---
 
     private void spawnGhosts(Player player, Session session) {
-        var material = ghostMaterial();
-        var blockData = material.createBlockData();
+        var forward = session.area.forward();
+        var paneData = paneFacing(forward);
+        var flush = flushWithWall(forward);
+        var backingData = backingMaterial().createBlockData();
+        var buildsBacking = plugin.config().buildBackingWall();
         var color = session.fits ? VALID : BLOCKED;
 
         for (var row = 0; row < session.grid.rows(); row++) {
             for (var col = 0; col < session.grid.cols(); col++) {
                 var block = session.area.frameBlock(session.grid, col, row);
-                var ghost = block.getWorld().spawn(block.getLocation(), BlockDisplay.class, e -> {
-                    e.setBlock(blockData);
-                    e.setVisibleByDefault(false);
-                    // Nothing here is worth keeping; a crash must not leave a wall behind.
-                    e.setPersistent(false);
-                    e.setGlowing(true);
-                    e.setGlowColorOverride(color);
-                    // Full brightness, so the outline reads the same at night as at noon.
-                    e.setBrightness(new Display.Brightness(15, 15));
-                    e.setTeleportDuration(TELEPORT_DURATION_TICKS);
-                });
-                player.showEntity(plugin, ghost);
-                session.ghosts.add(ghost);
+                var frame = spawnGhost(block.getLocation(), paneData, color);
+                frame.setTransformation(flush);
+                player.showEntity(plugin, frame);
+                session.frames.add(frame);
+
+                // Shown by refreshBackings below, and only where one would be built.
+                if (buildsBacking)
+                    session.backings.add(spawnGhost(
+                            block.getRelative(forward).getLocation(), backingData, color));
             }
         }
+        refreshBackings(player, session);
+    }
+
+    private BlockDisplay spawnGhost(Location location, BlockData blockData, Color color) {
+        return location.getWorld().spawn(location, BlockDisplay.class, e -> {
+            e.setBlock(blockData);
+            e.setVisibleByDefault(false);
+            // Nothing here is worth keeping; a crash must not leave a wall behind.
+            e.setPersistent(false);
+            e.setGlowing(true);
+            e.setGlowColorOverride(color);
+            // Full brightness, so the outline reads the same at night as at noon.
+            e.setBrightness(new Display.Brightness(15, 15));
+            e.setTeleportDuration(TELEPORT_DURATION_TICKS);
+        });
     }
 
     /**
      * Moves the ghosts onto the area and recolors them, both only when something
-     * actually changed.
+     * actually changed, then re-decides which backing blocks are still promised.
      */
-    private void updateGhosts(Session session, PlacementArea area, boolean fits) {
+    private void updateGhosts(Player player, Session session, PlacementArea area, boolean fits) {
         if (!area.equals(session.area)) {
+            // Turning to another wall turns the panes with it; walking keeps them as is.
+            var turned = area.forward() != session.area.forward();
+            var paneData = turned ? paneFacing(area.forward()) : null;
+            var flush = turned ? flushWithWall(area.forward()) : null;
+
             var index = 0;
             for (var row = 0; row < session.grid.rows(); row++) {
                 for (var col = 0; col < session.grid.cols(); col++) {
-                    session.ghosts.get(index++).teleport(area.frameBlock(session.grid, col, row).getLocation());
+                    var block = area.frameBlock(session.grid, col, row);
+                    var frame = session.frames.get(index);
+                    frame.teleport(block.getLocation());
+                    if (turned) {
+                        frame.setBlock(paneData);
+                        frame.setTransformation(flush);
+                    }
+                    if (!session.backings.isEmpty())
+                        session.backings.get(index)
+                                .teleport(block.getRelative(area.forward()).getLocation());
+
+                    index++;
                 }
             }
             session.area = area;
         }
         if (fits != session.fits) {
             var color = fits ? VALID : BLOCKED;
-            for (var ghost : session.ghosts)
+            for (var ghost : ghosts(session))
                 ghost.setGlowColorOverride(color);
 
             session.fits = fits;
         }
+        refreshBackings(player, session);
+    }
+
+    /**
+     * Shows a backing ghost exactly where one would be built and hides it everywhere
+     * else, so the preview never promises a block it will not place.
+     *
+     * <p>Re-read every update rather than only after the player moves: the wall behind
+     * the grid is someone else's to change, and a cell that fills in while they aim
+     * should stop advertising a block.</p>
+     */
+    private void refreshBackings(Player player, Session session) {
+        if (session.backings.isEmpty()) return;
+
+        var index = 0;
+        for (var row = 0; row < session.grid.rows(); row++) {
+            for (var col = 0; col < session.grid.cols(); col++) {
+                var needed = session.area.frameBlock(session.grid, col, row)
+                        .getRelative(session.area.forward()).isEmpty();
+                if (needed != session.backingShown[index]) {
+                    session.backingShown[index] = needed;
+                    if (needed) {
+                        player.showEntity(plugin, session.backings.get(index));
+                    } else {
+                        player.hideEntity(plugin, session.backings.get(index));
+                    }
+                }
+                index++;
+            }
+        }
+    }
+
+    private static Iterable<BlockDisplay> ghosts(Session session) {
+        return () -> Stream.concat(session.frames.stream(), session.backings.stream()).iterator();
     }
 
     /**
      * Falls back to a bright block when {@code placement.backing-material} is not one:
-     * the ghost is the only thing the player is judging, so it has to be visible.
+     * a ghost that cannot be seen tells the player nothing.
      */
-    private Material ghostMaterial() {
+    private Material backingMaterial() {
         var material = Material.matchMaterial(plugin.config().backingMaterial());
         return (material != null && material.isBlock()) ? material : Material.WHITE_CONCRETE;
+    }
+
+    /**
+     * A pane connected along the wall's own axis, which is what makes it span its whole
+     * block instead of standing up as the stub an unconnected pane renders as.
+     */
+    private static BlockData paneFacing(BlockFace forward) {
+        var pane = (MultipleFacing) FRAME_MATERIAL.createBlockData();
+        var alongWall = (forward == BlockFace.NORTH || forward == BlockFace.SOUTH)
+                ? new BlockFace[]{BlockFace.EAST, BlockFace.WEST}
+                : new BlockFace[]{BlockFace.NORTH, BlockFace.SOUTH};
+        for (var face : alongWall)
+            pane.setFace(face, true);
+
+        return pane;
+    }
+
+    /**
+     * Pushes the pane from the middle of its block onto the wall face the frame will
+     * hang on. Displays are not rotated, so the shift is along a world axis.
+     */
+    private static Transformation flushWithWall(BlockFace forward) {
+        var offset = new Vector3f(forward.getModX(), forward.getModY(), forward.getModZ())
+                .mul(FRAME_OFFSET);
+        return new Transformation(offset, new AxisAngle4f(), new Vector3f(1, 1, 1), new AxisAngle4f());
     }
 
     // --- the offhand marker ---
@@ -362,7 +511,7 @@ public final class PlacementManager implements Listener {
                 continue;
             }
             var area = PlacementArea.inFrontOf(player, plugin.config().placementDistance());
-            updateGhosts(session, area, area.fits(session.grid, plugin.config().buildBackingWall()));
+            updateGhosts(player, session, area, area.fits(session.grid, plugin.config().buildBackingWall()));
             if (ticks % STATUS_EVERY == 0) {
                 showStatus(player, session);
             }

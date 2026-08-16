@@ -256,7 +256,8 @@ placement:
   # asılabilir; hayalet önizleme uygun olmayan yerde kırmızı yanar.
   build-backing-wall: true
   # Destek bloğu materyali (çerçeve arkasında, oyuncuya görünmez).
-  # Hayalet önizlemenin blokları da bundan alınır; blok değilse WHITE_CONCRETE kullanılır.
+  # Hayalet önizlemenin destek katmanı da bundan çizilir — ama yalnızca gerçekten blok
+  # örülecek hücrelerde; blok değilse WHITE_CONCRETE kullanılır.
   backing-material: STONE
   # Hayalet önizleme, oyuncu onaylamazsa kaç saniye sonra kendiliğinden iptal olur.
   # Aralık: 5-600.

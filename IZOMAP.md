@@ -945,13 +945,40 @@ boyunda `BlockDisplay` entity'leri oyuncunun bakışını takip eder ve yerleşi
 **yeşil**, değilse **kırmızı** parlar (`Display#setGlowColorOverride`; scoreboard takımı
 gerekmez).
 
+#### İki katman, çünkü asılırken iki ayrı şey kurulur
+
+Bir fotoğraf asıldığında karo başına en çok iki şey doğar: **item frame**, ve yalnızca
+arkası boşsa **destek bloğu**. Önizleme ikisini ayrı gösterir.
+
+| Katman | Ne | Nerede | Ne zaman |
+|---|---|---|---|
+| Çerçeve | `WHITE_STAINED_GLASS_PANE` — ince, tam yükseklik | Çerçeve hücresi, duvara yapışık | Daima |
+| Destek | `placement.backing-material` — tam blok | Çerçevenin bir blok arkası | Yalnızca o hücrede **gerçekten** blok örülecekse |
+
+- **Cam paneli duvarın kendi eksenine bağlanır** (`MultipleFacing`): bağlantısız bir
+  panel ortada ince bir direk olarak çizilir, bağlanınca bloğu baştan sona kaplar ve
+  ızgara tek bir yüzey gibi okunur. Oyuncu başka bir duvara döndüğünde `forward`
+  değiştiği için panel verisi ve dönüşümü yenilenir; sadece yürümek onları değiştirmez.
+- **Panel duvara yapıştırılır**: model blok ortasında 7/16..9/16 arasındadır, harita ise
+  en dıştaki 1/16'da asılıdır. `Transformation` ile `forward` yönünde 6,5/16 kaydırılır —
+  panel 13,5/16..15,5/16'ya oturur, yani haritanın geleceği yere; kalan yarım piksel iki
+  yüzeyin aynı düzlemde titremesini (z-fighting) önler. Display'ler döndürülmediği için
+  kaydırma dünya eksenindedir.
+- **Destek katmanı boş söz vermez.** Eskiden çizilen tek katman buydu ve üstelik çerçeve
+  hücresinde duruyordu; oyuncu kendi ördüğü duvara asarken bile önizleme duvarı
+  gömecekmiş gibi görünüyordu. Artık hücre hücre `isEmpty()` bakılır ve
+  `showEntity`/`hideEntity` yalnızca cevap değiştiğinde gönderilir. `build-backing-wall`
+  kapalıyken hiç doğmaz. Kontrol her güncellemede tekrarlanır (yalnızca alan
+  değiştiğinde değil): arkadaki duvarı başkası da örebilir.
+
 - **Yalnızca o oyuncuya görünür.** Paper'da gerçek clientside entity API'si yok;
   `setVisibleByDefault(false)` + `Player#showEntity` pratikte aynı sonucu verir.
   Hayaletler **kalıcı değildir** (`setPersistent(false)`): çöken bir sunucu duvar dolusu
   havada asılı blok bırakmamalı.
 - **Hareket iki tick'te bir güncellenir** ve ızgara zaten tam bloklara oturduğu için
   çoğu tick hiçbir şey değiştirmez; yalnızca alan gerçekten değiştiğinde teleport atılır
-  (16×9 ızgara 144 entity demek, her tick hepsini oynatmak boşuna paket olurdu).
+  (16×9 ızgara iki katmanla 288 entity demek, her tick hepsini oynatmak boşuna paket
+  olurdu).
   `setTeleportDuration` sıçramayı yumuşatır.
 - **Uygunluk** `PlacementArea#fits`: çerçeve blokları her hâlükârda boş olmalı;
   `build-backing-wall` **kapalıysa** ayrıca her çerçevenin arkasında katı bir blok

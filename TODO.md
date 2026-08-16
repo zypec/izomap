@@ -396,6 +396,18 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 
 ## Arşiv
 
+### T59 — Yerleştirme önizlemesi iki katman olsun
+
+`[x]` **P2** · 2026-08-16 · İlgili: T21 ✔
+
+Hayalet önizleme tek katmandı ve o katman **destek bloğuydu**: çerçeve hücrelerinde tam
+bloklar duruyordu. Kendi ördüğü duvara fotoğraf asan oyuncu, hiç örülmeyecek bir duvarın
+önizlemesine bakıyordu.
+
+Katman ikiye ayrıldı: **çerçeve katmanı** (duvara yapıştırılmış ince cam paneli, daima)
+ve **destek katmanı** (tam blok, yalnızca o hücrede gerçekten blok örülecekse). Ayrıntı
+`IZOMAP.md` §"Hayalet önizleme"de.
+
 ### T58 — Çerçevelerde piksel sanatı: desen, köşe ve PNG
 
 `[x]` **P1** · 2026-08-16 · İlgili: T53 ✔
