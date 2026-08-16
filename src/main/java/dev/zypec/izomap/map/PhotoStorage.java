@@ -4,6 +4,7 @@ import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.render.CaptureSpec;
 import dev.zypec.izomap.render.ColorFilter;
 import dev.zypec.izomap.render.PhotoStyle;
+import dev.zypec.izomap.render.ShadingSpec;
 import dev.zypec.izomap.storage.YamlStorage;
 import dev.zypec.izomap.util.Ids;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -124,11 +125,30 @@ public final class PhotoStorage extends YamlStorage {
         cfg.set(base + ".color-filter", spec.colorFilter().id());
         cfg.set(base + ".style", spec.style().name());
         cfg.set(base + ".sky-argb", spec.skyArgb());
+        cfg.set(base + ".shading.sun-shadow", spec.shading().sunShadow());
+        cfg.set(base + ".shading.sun-yaw", spec.shading().sunYaw());
+        cfg.set(base + ".shading.sun-pitch", spec.shading().sunPitch());
+        cfg.set(base + ".shading.shadow-distance", spec.shading().shadowDistance());
+        cfg.set(base + ".shading.ambient-occlusion", spec.shading().ambientOcclusion());
         cfg.set(base + ".frame-height", spec.frameHeight());
         cfg.set(base + ".frame-shift", spec.frameShift());
         cfg.set(base + ".supersampling", spec.supersampling());
         cfg.set(base + ".max-capture-area", spec.maxCaptureArea());
         cfg.set(base + ".render-depth", spec.renderDepth());
+    }
+
+    /**
+     * Reads the shading; photos written before it existed had none.
+     */
+    private static ShadingSpec readShading(ConfigurationSection s) {
+        if (s == null) return ShadingSpec.NONE;
+
+        return new ShadingSpec(
+                s.getBoolean("sun-shadow", false),
+                (float) s.getDouble("sun-yaw", 135.0),
+                (float) s.getDouble("sun-pitch", 60.0),
+                s.getInt("shadow-distance", 24),
+                s.getBoolean("ambient-occlusion", false));
     }
 
     /**
@@ -147,6 +167,7 @@ public final class PhotoStorage extends YamlStorage {
                 plugin.filters().byId(s.getString("color-filter"), ColorFilter.ORIGINAL),
                 PhotoStyle.fromString(s.getString("style"), PhotoStyle.SHARP),
                 s.getInt("sky-argb", 0),
+                readShading(s.getConfigurationSection("shading")),
                 s.getDouble("frame-height", 48.0), s.getDouble("frame-shift", 0.0),
                 s.getInt("supersampling", 1), s.getInt("max-capture-area", 512),
                 s.getInt("render-depth", 64));

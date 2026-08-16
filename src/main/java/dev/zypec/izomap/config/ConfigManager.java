@@ -1,6 +1,7 @@
 package dev.zypec.izomap.config;
 
 import dev.zypec.izomap.Izomap;
+import dev.zypec.izomap.render.ShadingSpec;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.configuration.file.FileConfiguration;
 
@@ -301,6 +302,19 @@ public final class ConfigManager {
         } catch (NumberFormatException ex) {
             return fallback;
         }
+    }
+
+    /**
+     * What may darken a surface beyond the face it shows. Both techniques default off:
+     * they change the picture, so they are the server's taste rather than a default.
+     */
+    public ShadingSpec shading() {
+        return new ShadingSpec(
+                cfg().getBoolean("photo.shading.sun-shadow", false),
+                (float) cfg().getDouble("photo.shading.sun-yaw", 135.0),
+                (float) clamp(cfg().getDouble("photo.shading.sun-pitch", 60.0), 1.0, 89.0),
+                clamp(cfg().getInt("photo.shading.shadow-distance", 24), 1, 256),
+                cfg().getBoolean("photo.shading.ambient-occlusion", false));
     }
 
     public String defaultAspectRatio() {

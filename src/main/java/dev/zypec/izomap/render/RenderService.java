@@ -91,6 +91,7 @@ public final class RenderService {
                 anchor.getX(), anchor.getY(), anchor.getZ(),
                 camera.camYaw(), camera.camPitch(), camera.zoom(), camera.colorFilter(), camera.style(),
                 skyArgbFor(camera.sky(), world),
+                plugin.config().shading(),
                 plugin.config().frameHeight(), plugin.config().frameShift(),
                 plugin.config().supersampling(), plugin.config().maxCaptureArea(),
                 plugin.config().renderDepth());
@@ -191,6 +192,10 @@ public final class RenderService {
         var scale = style.scalesDown() ? plugin.config().styleFastScale() : 1.0;
         var renderWidth = Math.max(1, (int) Math.round(widthPx * scale));
         var renderHeight = Math.max(1, (int) Math.round(heightPx * scale));
+        // The sun vector is the view direction of something looking down from the sun,
+        // reversed: a surface looks up towards it.
+        var toSun = directionFrom(spec.shading().sunYaw(), spec.shading().sunPitch()).multiply(-1.0);
+        var shading = Shading.of(spec.shading(), toSun.getX(), toSun.getY(), toSun.getZ());
         var sky = spec.skyArgb() == 0
                 ? Sky.NONE
                 : Sky.of(spec.skyArgb() & 0xFFFFFF, plugin.config().skyGradient(),
@@ -221,7 +226,8 @@ public final class RenderService {
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                 try {
                     var result = walker.render(
-                            snapshot, geometry, pipeline, sky, supersampling, progress, executor, threads);
+                            snapshot, geometry, pipeline, sky, shading, supersampling,
+                            progress, executor, threads);
                     result = StylePass.upscale(result, widthPx, heightPx, converter);
                     if (timing) {
                         logTiming(geometry, snapshot, supersampling, requestedAt, capturedAt, System.nanoTime());

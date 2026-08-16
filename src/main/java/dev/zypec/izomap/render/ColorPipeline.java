@@ -37,6 +37,22 @@ public final class ColorPipeline {
             Shade.LOW,    // SIDE_Z
     };
 
+    /**
+     * The four shades from darkest to brightest, which is not their declaration order.
+     */
+    private static final Shade[] BY_BRIGHTNESS = {Shade.LOWEST, Shade.LOW, Shade.NORMAL, Shade.HIGH};
+
+    /**
+     * Where each shade sits on {@link #BY_BRIGHTNESS}, indexed by its own ordinal.
+     */
+    private static final int[] LADDER_INDEX = new int[Shade.values().length];
+
+    static {
+        for (var i = 0; i < BY_BRIGHTNESS.length; i++) {
+            LADDER_INDEX[BY_BRIGHTNESS[i].ordinal()] = i;
+        }
+    }
+
     private final ColorFilter filter;
     private final MapColorConverter converter;
 
@@ -72,10 +88,24 @@ public final class ColorPipeline {
     }
 
     /**
-     * Map byte of a hit: its base color at the brightness the entered face takes.
+     * Map byte of a hit: its base color at the brightness the entered face takes, less
+     * whatever the shading took off it.
      */
     int packedIdOf(RayHit hit) {
-        return hit.base.packedId(SHADE_BY_FACE[hit.face.ordinal()]) & 0xFF;
+        return hit.base.packedId(darker(SHADE_BY_FACE[hit.face.ordinal()], hit.darken)) & 0xFF;
+    }
+
+    /**
+     * The shade {@code steps} below this one, stopping at the darkest.
+     *
+     * <p>There are four and no more, so a technique that wanted a tenth of a step has
+     * nowhere to put it; see {@link ShadingSpec}.</p>
+     */
+    private static Shade darker(Shade shade, int steps) {
+        if (steps <= 0) return shade;
+
+        var index = LADDER_INDEX[shade.ordinal()] - steps;
+        return BY_BRIGHTNESS[Math.max(0, index)];
     }
 
     /**

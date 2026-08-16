@@ -24,6 +24,7 @@ import java.util.UUID;
  * @param skyArgb        sky color frozen at capture, or {@code 0} for none. The colour
  *                       is stored rather than the time, so a re-render neither drifts
  *                       with the clock nor with a retuned palette
+ * @param shading        what darkens a surface beyond its own face, at capture time
  * @param frameHeight    {@code photo.frame-height} at capture time
  * @param frameShift     {@code photo.frame-shift} at capture time
  * @param supersampling  {@code photo.supersampling} at capture time
@@ -41,6 +42,7 @@ public record CaptureSpec(
         ColorFilter colorFilter,
         PhotoStyle style,
         int skyArgb,
+        ShadingSpec shading,
         double frameHeight,
         double frameShift,
         int supersampling,

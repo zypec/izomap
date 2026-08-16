@@ -36,4 +36,10 @@ final class RayHit {
     MapBaseColor base;
 
     Face face;
+
+    /**
+     * How many brightness steps down the face's own shade the surface goes, from the
+     * sun shadow and the neighbours around it. Zero is the plain face brightness.
+     */
+    int darken;
 }

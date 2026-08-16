@@ -397,6 +397,44 @@ girdiği pikseller, görüntünün yüzde birkaçı.
 > çıkıyordu. Bu sıra sayesinde çıktı, pipeline öncesi renderer'ınkiyle **bit birebir
 > aynıdır**; hızlanma tamamen tekrarlanan işin kaldırılmasından gelir.
 
+### Gelişmiş gölgelendirme (`Shading`, `ShadingSpec`)
+
+Bir yüzeyin parlaklığı normalde yalnızca ışının girdiği yüzden gelir. İki teknik buna
+komşuları ve güneşi katar; **ikisi de varsayılan kapalı** (`photo.shading`).
+
+**Temel kısıt palettir:** renk başına dört parlaklık var, "biraz daha koyu" diye bir şey
+yok. Her teknik yüzeyi bir sonraki tona indirir ya da indirmez; gradyan üretmek paletten
+çıkmak demek olurdu ve harita onu saklayamazdı. İkisi birden en fazla iki ton indirir.
+
+- **Güneş gölgesi** (`sun-shadow`): isabet noktasından güneşe doğru **isabet başına**
+  ikinci bir ışın (adım başına değil), aynı DDA ile, `shadow-distance` bloğa kadar.
+  Görsel kazancı en yüksek olan bu: kapalıyken duvar ile önündeki zemin aynı parlaklıkta
+  çıkıyor ve kadrajda ışığın nereden geldiğini söyleyen hiçbir şey olmuyor. Güneş yönü
+  oyun saatine değil `sun-yaw`/`sun-pitch`'e bağlı — sabit açı daha "render" gibi durur
+  ve aynı manzaranın iki çekimi birbirini tutar.
+- **Ambient occlusion** (`ambient-occlusion`): isabet başına dört snapshot okuması, hiç
+  ışın yok. Yüzeyin önündeki hücrenin dört komşusuna bakar; üçü doluysa bir ton indirir.
+  Üç eşiği bilerek: iki komşu, yüzeyin boyunca uzanan bir duvar demektir ve her binanın
+  yarısını koyulaştırırdı.
+
+**Ölçüm** (512×512, 2× örnekleme, tek thread, sentetik arazi — mutlak süre değil
+**oranlar** anlamlıdır; ölçüm sunucusuz, proxy tabanlı sahte chunk'larla yapıldı ve
+blok okuması gerçekte daha ucuzdur):
+
+| Ayar | Süre | Fark |
+|---|---|---|
+| kapalı | 2047 ms | — |
+| yalnız AO | 2193 ms | **+7%** |
+| yalnız güneş gölgesi | 2277 ms | **+11%** |
+| ikisi birden | 2441 ms | **+19%** |
+
+Kendi sunucunda gerçek sayıyı görmek için `settings.render-timing: true`; log ışın
+yürüyüşünü chunk kopyalamadan ayrı yazar.
+
+> **Ölçüm sırasında çıkan bir kazanç.** Sıcak döngü blok adımı başına `Material#isAir()`
+> çağırıyordu; Paper'da bu çağrı blok **registry'sine** gidiyor (`asBlockType()`).
+> Kontrol zaten gereksizdi — renk tablosu hava için de `NONE` döndürüyor — ve kaldırıldı.
+
 ### Performans referansı
 
 Render'a yeni bir aşama eklemek (gökyüzü, güneş gölgesi, AO, biome tint) sıcak döngüye

@@ -86,48 +86,40 @@ butonu hiçbir şeyi değiştirmediği hâlde bunu ödüyordu.
 
 ## P1 — Render ve görsel
 
-### T33 — Gelişmiş gölgelendirme (detaylandırılmış)
+### T33 — Gelişmiş gölgelendirme
 
-`[ ]` **P2** · Bağımlı: T30 ✔
+`[~]` **P2** · 2026-08-16 · 1 ve 2 yapıldı; 3 ve 5 açık
 
-`IZOMAP.md`'de "gölge/AO — palet 4 tonla sınırlı olduğu için kazancı şüpheli" diye
-geçmişti. Detay:
+**Yapılan (TODO'nun önerdiği çift).** `Shading` + `ShadingSpec` eklendi, ikisi de
+varsayılan kapalı, ayrı ayrı açılıyor:
 
-**Bugün ne var:** Işının çarptığı yüzün yönüne göre 4 vanilla tonundan biri seçiliyor
-(üst 255, yan 220/180, alt 135). Yani gölgelendirme tamamen yerel — komşu bloklara,
-güneşe veya ışığa bakmıyor.
+- **Güneş gölgesi** — isabet başına ikinci bir ışın, aynı DDA ile, `shadow-distance`
+  bloğa kadar. Güneş yönü sabit (`sun-yaw`/`sun-pitch`), oyun saatine bağlanmadı:
+  sabit açı daha "render" gibi duruyor ve aynı manzaranın iki çekimi birbirini tutuyor.
+- **Ambient occlusion** — isabet başına dört snapshot okuması. Yüzeyin önündeki hücrenin
+  dört komşusundan üçü doluysa bir ton iner. Eşik üç: iki komşu yüzey boyunca uzanan bir
+  duvar demek ve her binanın yarısını koyulaştırırdı.
 
-**Temel kısıt:** Harita paleti her temel renk için **yalnızca 4 parlaklık** sunuyor.
-Ara tonlar üretilemez; "biraz daha koyu" diye bir şey yok, bir sonraki tona atlarsın.
-Bu yüzden aşağıdaki tekniklerin hepsi *ton seçimini* etkiler, sürekli bir gölge üretmez.
+Ton merdiveni `ColorPipeline`'da: dört parlaklık ordinal sırasında değil, parlaklık
+sırasında dizilip basamak basamak iniliyor. `RayHit` bir `darken` alanı taşıyor.
 
-**Değerlendirilecek teknikler (artan maliyet sırasıyla):**
+**Ölçüm** (512×512, 2× örnekleme, tek thread, sentetik arazi; sunucusuz koşturulduğu için
+mutlak değil oransal): kapalı 2047 ms · AO +7% · güneş gölgesi +11% · ikisi +19%.
+`IZOMAP.md` §3'e tabloyla yazıldı. Ölçüm düzeneği geçiciydi, commit edilmedi.
 
-1. **Güneş ışını gölgesi (sert gölge).** İsabet noktasından güneş yönüne ikinci bir ışın
-   at; bir bloğa çarpıyorsa piksel bir ton koyulaşsın. Maliyet: piksel başına ~2× ışın.
-   Görsel kazanç en yüksek olan bu. Güneş yönü oyun saatinden (T32 ile aynı kaynak) ya
-   da sabit bir izometrik açıdan alınabilir; sabit açı daha "render" gibi durur.
-2. **Ambient occlusion (AO).** İsabet eden bloğun komşu 3 hücresine bakıp (klasik voxel
-   AO'su) köşelerde bir ton koyulaştırma. Maliyet düşük (snapshot'ta komşu okuma),
-   etkisi ince ama derinlik hissini belirgin artırır.
-3. **Blok ışık seviyesi.** `ChunkSnapshot#getBlockEmittedLight` / `getBlockSkyLight`
-   zaten kopyada mevcut — **ancak** şu an snapshot'lar `getChunkSnapshot(false, false, false)`
-   ile yani **ışık verisi olmadan** alınıyor; ışık istenirse bu çağrı değişmeli ve
-   kopyalama maliyeti artar. Karanlık mağaraların koyu, meşale çevresinin aydınlık
-   çıkması bu sayede olur. Gece çekimlerinde asıl fark yaratan madde budur.
-4. **Yükseklik bazlı ton (vanilla harita davranışı).** Vanilla üstten bakışta komşu
-   sütunun yüksekliğine göre ton seçer. İzometrikte karşılığı zaten yüz yönelimi;
-   ek olarak uygulamak muhtemelen görüntüyü bozar. **Düşük öncelik / muhtemelen hayır.**
-5. **Dithering ile ara ton.** 4 ton kısıtını aşmak için iki komşu ton arasında ordered
-   dithering. Uzaktan yumuşak, yakından gürültülü görünür. Süpersampling ile birlikte
-   kullanıldığında hangi sonucu verdiği denenmeden bilinemez. **Deneysel.**
+**Yan kazanç:** ölçüm sırasında sıcak döngünün blok adımı başına `Material#isAir()`
+çağırdığı ve bunun Paper'da blok **registry'sine** gittiği görüldü. Kontrol zaten
+gereksizdi (renk tablosu hava için de `NONE` döndürüyor), kaldırıldı.
 
-**Karar önerisi:** 1 ve 2 birlikte uygulanırsa görsel sıçrama en büyüğü olur; 3, gece/iç
-mekân çekimleri için ayrı bir config anahtarıyla (ve kopyalama maliyeti belgelenerek)
-gelmeli. Hepsi tek tek açılıp kapanabilmeli, hepsi varsayılan **kapalı** başlamalı ve
-her biri için performans farkı ölçülüp `IZOMAP.md`'ye yazılmalı.
-
----
+**Açık kalanlar:**
+- **3. Blok ışık seviyesi.** Gece/iç mekân çekimlerinde asıl farkı yaratacak olan bu, ama
+  snapshot şu an `getChunkSnapshot(false, false, false)` ile **ışıksız** alınıyor; ışık
+  istenirse çağrı değişmeli ve kopyalama maliyeti artar. Kendi config anahtarıyla ve
+  kopyalama maliyeti ölçülerek gelmeli.
+- **5. Ton arası dithering.** Deneysel; süpersamplingle birlikte nasıl durduğu
+  denenmeden bilinemez.
+- 4 (yükseklik bazlı ton) değerlendirildi ve **hayır**: izometrikte karşılığı zaten yüz
+  yönelimi, üstüne eklemek görüntüyü bozar.
 
 ### T34 — Biome tint
 

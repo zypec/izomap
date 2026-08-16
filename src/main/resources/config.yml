@@ -158,6 +158,31 @@ photo:
   # KENAR YUMUŞATMA: piksel başına NxN ışın gönderilip ortalaması alınır.
   # 1 = kapalı (en hızlı), 2 = önerilen, 3-4 = daha temiz kenar, N² kat maliyet.
   supersampling: 2
+  # GÖLGELENDİRME. Bugün bir yüzeyin parlaklığı yalnızca ışının girdiği yüzden gelir
+  # (üst 255, yan 220/180, alt 135). Aşağıdakiler buna komşuları ve güneşi katar.
+  #
+  # ÖNEMLİ: harita paletinde renk başına yalnızca DÖRT parlaklık var. "Biraz daha koyu"
+  # diye bir şey yok; her teknik yüzeyi bir sonraki tona indirir ya da indirmez.
+  # İkisi de varsayılan KAPALI: görüntüyü değiştirirler, yani sunucunun zevkidir.
+  # Maliyetleri IZOMAP.md -> "Gelişmiş gölgelendirme" başlığında ölçülmüş hâlde.
+  shading:
+    # Isabet noktasından güneşe doğru ikinci bir ışın atar; yolda blok varsa yüzey bir
+    # ton koyulaşır. Görsel kazancı en yüksek olan bu: kapalıyken duvar ile önündeki
+    # zemin aynı parlaklıkta çıkıyor ve kadrajda ışığın nereden geldiğini söyleyen
+    # hiçbir şey olmuyor. Maliyeti de en yüksek olan bu (isabet başına ikinci ışın).
+    sun-shadow: false
+    # Güneşin yönü ve ufuktan yüksekliği (derece). Oyun saatine bağlamak yerine sabit
+    # tutuluyor: sabit açı daha "render" gibi durur ve aynı manzaranın iki çekimi
+    # birbirini tutar. Aralık: pitch 1-89.
+    sun-yaw: 135.0
+    sun-pitch: 60.0
+    # Gölge ışınının pes etmeden önce kat ettiği mesafe (blok). Küçük değer ucuzdur ama
+    # uzak bir kulenin gölgesi yere düşmez. Aralık: 1-256.
+    shadow-distance: 24
+    # Yüzeyin önü komşularıyla kapatılmışsa bir ton koyulaşır (iç köşeler). Işın atmaz,
+    # isabet başına dört blok okur. Etkisi ince ama iç köşeleri köşe gibi gösteren şey
+    # budur; kapalıyken düz rengin içinde bir kıvrım gibi durur.
+    ambient-occlusion: false
   # GÖKYÜZÜ. Hiçbir bloğa çarpmayan ışın normalde şeffaf piksel bırakır; gökyüzü
   # açıksa o pikseller boyanır. HANGİ gökyüzünü oyuncu Dialog'dan seçer (Şeffaf, Oyun
   # saati, Şafak, Gündüz, Gün batımı, Gece); buradakiler gökyüzünün NASIL çizildiğidir.

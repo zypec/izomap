@@ -29,6 +29,7 @@ public final class IsometricRenderer {
      *
      * @param sky           color for rays that reach nothing; {@link Sky#NONE} leaves
      *                      them transparent
+     * @param shading       what may darken a surface beyond its own face
      * @param progress      told as each row finishes, or {@code null} when nobody is
      *                      watching the capture
      * @param supersampling antialiasing rays per pixel (NxN); 1 disables it
@@ -36,8 +37,8 @@ public final class IsometricRenderer {
      * @param threads       how many bands, and therefore threads, to use
      */
     public RenderResult render(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
-                               Sky sky, int supersampling, CaptureProgress progress,
-                               Executor executor, int threads) {
+                               Sky sky, Shading shading, int supersampling,
+                               CaptureProgress progress, Executor executor, int threads) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
         final var argb = new int[w * h];
@@ -47,7 +48,7 @@ public final class IsometricRenderer {
 
         var bands = Math.max(1, Math.min(threads, h));
         if (bands == 1) {
-            renderBand(snapshot, geo, pipeline, sky, samples, progress, argb, 0, h);
+            renderBand(snapshot, geo, pipeline, sky, shading, samples, progress, argb, 0, h);
             return new RenderResult(w, h, argb);
         }
 
@@ -58,9 +59,9 @@ public final class IsometricRenderer {
             final int from = band * rowsPerBand;
             final int to = Math.min(h, from + rowsPerBand);
             pending[band] = CompletableFuture.runAsync(
-                    () -> renderBand(snapshot, geo, pipeline, sky, samples, progress, argb, from, to), executor);
+                    () -> renderBand(snapshot, geo, pipeline, sky, shading, samples, progress, argb, from, to), executor);
         }
-        renderBand(snapshot, geo, pipeline, sky, samples, progress, argb, (bands - 1) * rowsPerBand, h);
+        renderBand(snapshot, geo, pipeline, sky, shading, samples, progress, argb, (bands - 1) * rowsPerBand, h);
         CompletableFuture.allOf(pending).join();
 
         return new RenderResult(w, h, argb);
@@ -70,7 +71,7 @@ public final class IsometricRenderer {
      * Renders the row range {@code [yFrom, yTo)}.
      */
     private void renderBand(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
-                            Sky sky, int samples, CaptureProgress progress,
+                            Sky sky, Shading shading, int samples, CaptureProgress progress,
                             int[] argb, int yFrom, int yTo) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
@@ -126,7 +127,7 @@ public final class IsometricRenderer {
 
                         // View distance is measured from the camera plane, so a
                         // pulled-back ray walks the extra distance too.
-                        marchRay(snapshot, ox, oy, oz, dx, dy, dz, maxDist + backoff, hit);
+                        marchRay(snapshot, shading, ox, oy, oz, dx, dy, dz, maxDist + backoff, hit);
                         if (!hit.hit)
                             continue;
 
@@ -169,7 +170,7 @@ public final class IsometricRenderer {
      * axis ({@code tMax}), step along the smallest one. That axis is also the face
      * the ray entered through.</p>
      */
-    private void marchRay(WorldSnapshot snapshot,
+    private void marchRay(WorldSnapshot snapshot, Shading shading,
                           double ox, double oy, double oz,
                           double dx, double dy, double dz,
                           double maxDist, RayHit out) {
@@ -205,23 +206,25 @@ public final class IsometricRenderer {
         while (true) {
             if (y >= snapshot.minY() && y < snapshot.maxY()) {
                 var material = snapshot.materialAt(x, y, z);
-                if (!material.isAir()) {
-                    var base = colorTable.baseColorOf(material);
-                    // Colorless on maps (glass, torches, saplings): continue like vanilla.
-                    if (base != MapBaseColor.NONE) {
-                        // Crops and the like wear a different color as they grow, and
-                        // only they are worth reading a whole block state for.
-                        if (colorTable.variesByState(material)) {
-                            var data = snapshot.blockDataAt(x, y, z);
-                            if (data != null)
-                                base = colorTable.baseColorOf(material, data);
-                        }
-                        out.hit = true;
-                        out.material = material;
-                        out.base = base;
-                        out.face = face;
-                        return;
+                // Air is not checked separately: the table answers NONE for it too, and
+                // Material#isAir goes through the block registry, which is a poor thing
+                // to ask once per block of every ray.
+                var base = colorTable.baseColorOf(material);
+                // Colorless on maps (glass, torches, saplings): continue like vanilla.
+                if (base != MapBaseColor.NONE) {
+                    // Crops and the like wear a different color as they grow, and only
+                    // they are worth reading a whole block state for.
+                    if (colorTable.variesByState(material)) {
+                        var data = snapshot.blockDataAt(x, y, z);
+                        if (data != null)
+                            base = colorTable.baseColorOf(material, data);
                     }
+                    out.hit = true;
+                    out.material = material;
+                    out.base = base;
+                    out.face = face;
+                    out.darken = shading.stepsAt(snapshot, colorTable, x, y, z, face);
+                    return;
                 }
             } else if ((y >= snapshot.maxY() && stepY >= 0) || (y < snapshot.minY() && stepY <= 0)) {
                 // Left the world and will not come back.
