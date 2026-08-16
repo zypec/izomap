@@ -394,6 +394,19 @@ public final class PhotoManager {
     }
 
     /**
+     * Throws away every photo taken with one camera and returns how many. Used when the
+     * camera itself goes: a photo names the camera it came from, and a retake needs it,
+     * so an orphaned photo would be a picture nothing can reshoot. Main thread only.
+     */
+    public int removeAllTakenWith(UUID owner, String cameraName) {
+        var taken = takenWith(owner, cameraName);
+        for (var photo : taken) {
+            delete(photo);
+        }
+        return taken.size();
+    }
+
+    /**
      * Takes down the record of every photo of the owner whose frames are gone from the
      * world, and returns how many. The photos themselves survive as unplaced ones: the
      * wall is what went missing, not the picture. Main thread only.

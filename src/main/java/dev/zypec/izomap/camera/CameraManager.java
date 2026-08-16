@@ -170,6 +170,14 @@ public final class CameraManager {
      * location, or returns {@code null} when the owner is at their limit.
      */
     public Camera create(Player owner, String name, Location anchor) {
+        return create(owner, name, anchor, false);
+    }
+
+    /**
+     * @param fromItem whether a camera item was consumed to place it, and therefore
+     *                 whether one comes back on pickup
+     */
+    public Camera create(Player owner, String name, Location anchor, boolean fromItem) {
         if (!PermissionLimit.allows(cameraLimitFor(owner), ownedCount(owner.getUniqueId()))) {
             return null;
         }
@@ -179,6 +187,7 @@ public final class CameraManager {
         var interaction = spawnInteraction(world, anchor);
 
         var camera = new Camera(UUID.randomUUID(), owner.getUniqueId(), name, anchor);
+        camera.placedFromItem(fromItem);
         camera.displayEntityId(display.getUniqueId());
         camera.interactionEntityId(interaction.getUniqueId());
         // Face the player's yaw at the configured downward pitch. Copying the player's
@@ -196,6 +205,55 @@ public final class CameraManager {
         applyTransform(camera);
         persistAsync();
         return camera;
+    }
+
+    /**
+     * What a pickup did, so the caller can say so.
+     *
+     * @param photos       photos thrown away with the camera
+     * @param itemReturned whether a camera item was handed back at all
+     * @param dropped      whether it had to go on the ground for want of room
+     */
+    public record Pickup(int photos, boolean itemReturned, boolean dropped) {
+    }
+
+    /**
+     * Takes the camera out of the world and gives its item back.
+     *
+     * <p>The item only comes back when the camera was put down with one; a camera made
+     * by command never had an item to return, and inventing one would turn a command
+     * into an item source.</p>
+     *
+     * <p>Its photos go with it. A photo names the camera it came from and a retake
+     * shoots through it, so a photo left behind is a picture nothing can take
+     * again. Main thread only.</p>
+     */
+    public Pickup pickup(Player player, Camera camera) {
+        var photos = plugin.photos().removeAllTakenWith(camera.owner(), camera.name());
+        var dropped = false;
+        if (camera.placedFromItem()) {
+            dropped = giveOrDrop(player, createCameraItem());
+        }
+        remove(camera);
+        return new Pickup(photos, camera.placedFromItem(), dropped);
+    }
+
+    /**
+     * Puts the item in the player's inventory, or on the ground at their feet when
+     * there is no room. Returns whether it was dropped.
+     *
+     * <p>{@code addItem} keeps what does not fit rather than failing, and a caller that
+     * ignores the leftovers silently destroys the item.</p>
+     */
+    public boolean giveOrDrop(Player player, ItemStack item) {
+        var leftover = player.getInventory().addItem(item);
+        if (leftover.isEmpty())
+            return false;
+
+        for (var rest : leftover.values()) {
+            player.getWorld().dropItemNaturally(player.getLocation(), rest);
+        }
+        return true;
     }
 
     public void remove(Camera camera) {

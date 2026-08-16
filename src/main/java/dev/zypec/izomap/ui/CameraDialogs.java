@@ -122,6 +122,10 @@ public final class CameraDialogs {
                                 photoManager.countFor(camera.owner(), camera.name())))),
                 (view, audience) -> applyAndRun(view, audience, camera, player -> openPhotoList(player, camera))));
 
+        buttons.add(button(plugin.messages().get("dialog.pickup-button"),
+                (view, audience) -> applyAndRun(view, audience, camera,
+                        player -> openPickupDialog(player, camera))));
+
         // A full camera keeps the button, so the row does not reshuffle, but says what
         // it would do instead of doing it.
         var full = photoManager.atLimit(viewer, camera);
@@ -197,6 +201,45 @@ public final class CameraDialogs {
             return;
         }
         plugin.placement().start(player, photo);
+    }
+
+    /**
+     * Asks before taking a camera back, since its photos go with it.
+     *
+     * <p>Reached from the capture screen and from {@code /izocam pickup}; the command
+     * skips it when there is nothing to lose.</p>
+     */
+    public void openPickupDialog(Player player, Camera camera) {
+        var photos = photoManager.countFor(camera.owner(), camera.name());
+        Dialog dialog = Dialog.create(builder -> builder.empty()
+                .base(DialogBase.builder(plugin.messages().get("dialog.pickup-title"))
+                        .body(List.of(DialogBody.plainMessage(plugin.messages().get(
+                                photos > 0 ? "dialog.pickup-body" : "dialog.pickup-body-empty",
+                                Placeholder.unparsed("name", camera.name()),
+                                Placeholder.unparsed("count", String.valueOf(photos))))))
+                        .build())
+                .type(DialogType.multiAction(List.of(
+                        button(plugin.messages().get("dialog.pickup-confirm"),
+                                (view, audience) -> onPlayer(audience, p -> pickUp(p, camera))),
+                        button(plugin.messages().get("dialog.pickup-cancel"),
+                                (view, audience) -> onPlayer(audience,
+                                        p -> openCaptureDialog(p, camera)))), cancelButton(), 2)));
+
+        player.showDialog(dialog);
+    }
+
+    /**
+     * Takes the camera back and reports what became of it. Main thread only.
+     */
+    public void pickUp(Player player, Camera camera) {
+        var result = cameraManager.pickup(player, camera);
+        plugin.messages().send(player,
+                result.itemReturned() ? "camera.picked-up" : "camera.picked-up-no-item",
+                Placeholder.unparsed("name", camera.name()),
+                Placeholder.unparsed("count", String.valueOf(result.photos())));
+        if (result.dropped()) {
+            plugin.messages().send(player, "camera.item-dropped");
+        }
     }
 
     private void openRenameDialog(Player player, Camera camera, Photo photo) {

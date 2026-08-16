@@ -143,7 +143,7 @@ public final class CameraListener implements Listener {
         anchor.setYaw(player.getLocation().getYaw());
         anchor.setPitch(0.0f);
 
-        var camera = manager.create(player, defaultName(player), anchor);
+        var camera = manager.create(player, defaultName(player), anchor, true);
         if (camera == null) {
             plugin.messages().send(player, "camera.limit-reached",
                     Placeholder.unparsed("limit", String.valueOf(manager.cameraLimitFor(player))));

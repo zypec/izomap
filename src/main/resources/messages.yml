@@ -20,6 +20,10 @@ camera:
   not-found: "<prefix> <red>Kamera bulunamadı."
   limit-reached: "<prefix> <red>Maksimum kamera sayısına ulaştın (<limit>)."
   given-item: "<prefix> <green>Kamera yerleştirme eşyası envanterine eklendi."
+  item-dropped: "<prefix> <yellow>Envanterin dolu; kamera eşyası yere düştü."
+  # <count> = kamerayla birlikte silinen fotoğraf sayısı.
+  picked-up: "<prefix> <green>Kamera toplandı: <white><name></white> <gray>(eşya geri verildi, <count> fotoğrafı silindi)"
+  picked-up-no-item: "<prefix> <yellow>Kamera söküldü: <white><name></white> <gray>(komutla oluşturulduğu için geri verilecek eşyası yok; <count> fotoğrafı silindi)"
   name-taken: "<prefix> <red>Bu isimde bir kameran zaten var: <white><name></white>"
   list-header: "<prefix> <gray>Kameralar (<count>):"
   list-entry: "<prefix> <dark_gray>› <white><name></white> <gray>(<ratio>, zoom <scale>x)"
@@ -168,6 +172,12 @@ dialog:
   grid-label: "Yerleşim (grid)"
   grid-option: "<grid> — <count> harita (<wpx>x<hpx>px)"
   capture-full: "Limit dolu (<limit>)"
+  pickup-button: "Kamerayı Topla"
+  pickup-title: "<gradient:#5e60ce:#48bfe3>Kamerayı Topla</gradient>"
+  pickup-body: "<white><name></white> sökülecek ve bu kamerayla çekilmiş <white><count></white> fotoğraf da silinecek. Fotoğraflar kameralarına bağlıdır; kamera gidince yeniden çekilemezler."
+  pickup-body-empty: "<white><name></white> sökülecek ve yerleştirme eşyası envanterine geri verilecek."
+  pickup-confirm: "Topla"
+  pickup-cancel: "Vazgeç"
   ratio-button: "Oran: <ratio>"
   ratio-button-active: "Oran: <ratio> ✔"
   # Üçler kuralı: yalnızca önizlemeye çizilen 3x3 kadraj kılavuzu, fotoğrafa girmez.

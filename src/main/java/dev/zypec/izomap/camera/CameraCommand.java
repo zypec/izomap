@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
  *   <li>{@code remove <name> | all} – removes cameras or photos.</li>
  *   <li>{@code list cameras | photos} – lists cameras or photos.</li>
  *   <li>{@code item} – gives the camera placement item.</li>
+ *   <li>{@code pickup <name>} – takes a camera back, item and all.</li>
  *   <li>{@code ratio <name> <ratio>} – sets the aspect ratio.</li>
  *   <li>{@code maps <name> <grid>} – puts the map items in the inventory.</li>
  *   <li>{@code preview <name> | stop} – watches a camera's live view, or stops.</li>
@@ -109,6 +110,10 @@ public final class CameraCommand {
                         .then(Commands.literal("photos").executes(this::listPhotos)))
                 .then(Commands.literal("item")
                         .executes(this::giveItem))
+                .then(Commands.literal("pickup")
+                        .then(Commands.argument("name", StringArgumentType.word())
+                                .suggests(this::suggestOwnedNames)
+                                .executes(this::pickup)))
                 .then(Commands.literal("ratio")
                         .then(Commands.argument("name", StringArgumentType.word())
                                 .suggests(this::suggestOwnedNames)
@@ -271,8 +276,25 @@ public final class CameraCommand {
     private int giveItem(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         var player = requirePlayer(ctx);
 
-        player.getInventory().addItem(manager.createCameraItem());
+        if (manager.giveOrDrop(player, manager.createCameraItem())) {
+            plugin.messages().send(player, "camera.item-dropped");
+        }
         plugin.messages().send(player, "camera.given-item");
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * Takes a camera back, asking first when photos would go with it.
+     */
+    private int pickup(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+        var camera = camera(ctx, player);
+
+        if (photoManager.countFor(camera.owner(), camera.name()) > 0) {
+            dialogs.openPickupDialog(player, camera);
+        } else {
+            dialogs.pickUp(player, camera);
+        }
         return Command.SINGLE_SUCCESS;
     }
 

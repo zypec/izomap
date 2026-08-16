@@ -47,6 +47,7 @@ public final class Camera {
     private ColorFilter colorFilter;
     private PhotoStyle style;
     private SkyOption sky;
+    private boolean placedFromItem;
 
     private boolean thirdsGuide;
 
@@ -173,6 +174,18 @@ public final class Camera {
 
     public void sky(SkyOption sky) {
         this.sky = sky;
+    }
+
+    /**
+     * Whether this camera was put down with a camera item, and therefore has one to
+     * give back when it is picked up. Cameras made by command have none.
+     */
+    public boolean placedFromItem() {
+        return placedFromItem;
+    }
+
+    public void placedFromItem(boolean placedFromItem) {
+        this.placedFromItem = placedFromItem;
     }
 
     public void colorFilter(ColorFilter colorFilter) {

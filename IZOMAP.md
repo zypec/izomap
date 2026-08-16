@@ -516,6 +516,26 @@ indirdi.
 - Dünya sınırlarına clamp'lenir; sınırın dışına taşan entity tuhaf davranır.
 - Durum satırında hareketin "değeri" kameranın vardığı konumdur (`x, y, z`).
 
+### Kamerayı toplama (`pickup`)
+
+`/izocam item` ile alınan eşyayla yerleştirilen kamera sökülünce eşya geri verilir.
+Bunun için kamerada `placedFromItem` bayrağı tutulur (`cameras.yml` → `from-item`);
+komutla oluşturulan kameralarda `false`'tur ve **eşya uydurulmaz** — aksi halde bir komut
+eşya kaynağına dönerdi. O kameralarda `pickup` yine çalışır, sadece eşya vermez ve mesaj
+bunu söyler.
+
+**Fotoğraflar kamerayla birlikte gider.** Bir fotoğraf geldiği kameranın adını taşır ve
+retake onun üzerinden çeker; kamerası silinmiş bir fotoğraf, yeniden çekilemeyen bir
+resimdir. Bu yüzden toplama işlemi onay ister: Dialog'daki "Kamerayı Topla" butonu ve
+`/izocam pickup <ad>` aynı onay ekranına çıkar. Komut, silinecek fotoğraf yoksa onayı
+atlar — kaybedilecek bir şey yokken soru sormak gürültüdür.
+
+İki giriş yolu da `CameraManager#pickup`'a çıkar: fotoğraflar silinir, eşya verilir,
+kamera `remove` ile kaldırılır (hologram ve preview zaten `forget` üzerinden temizlenir).
+Envanter doluysa eşya oyuncunun ayağına düşürülür ve söylenir; `addItem` sığmayanı geri
+döndürdüğü için, dönüşü yok saymak eşyayı sessizce yok etmek olurdu. Aynı hata
+`/izocam item` yolunda da vardı, o da bu düzeltmeyle kapandı.
+
 ### Zoom ile model boyutu ayrıdır
 
 Sık karıştırılan nokta: `zoom` fotoğrafın kadrajıdır, `camera.model-scale` ise dünyada
@@ -909,6 +929,7 @@ yazar. Görüntü `PhotoManager#image` üzerinden gelir: **önce ön bellek, olm
 | `preview <ad>` | Kameranın canlı önizlemesini izleyici olarak açar |
 | `preview stop` | Açık önizlemeyi kapatır (editör de izleyici de) |
 | `open <ad>` | Fotoğraf Dialog'unu açar |
+| `pickup <ad>` | Kamerayı söker; eşyayla yerleştirildiyse eşyayı geri verir |
 | `unplace <id>` | Kısa kimlikle (ilk 8 karakter) fotoğrafı duvardan **indirir**; fotoğraf listede kalır |
 | `retake <id> [kamera]` | Fotoğrafı yeniden çeker; kamera verilmezse fotoğrafın kendi kaynağı kullanılır |
 | `cancel` | Açık hayalet yerleştirmeyi iptal eder |
