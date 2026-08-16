@@ -18,10 +18,20 @@ repositories {
     maven("https://repo.papermc.io/repository/maven-public/")
 }
 
+// Testler eklentinin Bukkit'e dokunan tiplerini de görmeli (örn. Player arayüzü);
+// paperweight sunucuyu compileOnly'ye koyduğu için test yolu ondan devralır.
+configurations.testImplementation {
+    extendsFrom(configurations.compileOnly.get())
+}
+
 dependencies {
     // Paper 26.2 dev bundle. 26.1+ itibarıyla sunucu jar'ları obfuscate edilmediği
     // için ayrıca reobf/remap adımı gerekmez; Mojang-mapped çıktı doğrudan üretilir.
     paperweight.paperDevBundle("26.2.build.+")
+
+    testImplementation(platform("org.junit:junit-bom:5.11.4"))
+    testImplementation("org.junit.jupiter:junit-jupiter")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks {
@@ -41,5 +51,13 @@ tasks {
 
     javadoc {
         options.encoding = "UTF-8"
+    }
+
+    test {
+        useJUnitPlatform()
+        testLogging {
+            events("failed")
+            showStandardStreams = false
+        }
     }
 }

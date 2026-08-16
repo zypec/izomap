@@ -16,12 +16,19 @@ public final class Ids {
 
     /**
      * The UUID the text spells, or {@code null} when it is absent or malformed.
+     *
+     * <p>Only the canonical form counts. {@link UUID#fromString} accepts groups of any
+     * length, so a truncated identifier parses happily into a <b>different</b> UUID —
+     * a corrupted record would then bind to somebody else's camera instead of being
+     * skipped, which is the one outcome this class exists to prevent. Comparing the
+     * result back against the text is what rules that out.</p>
      */
     public static UUID parse(String raw) {
         if (raw == null) return null;
 
         try {
-            return UUID.fromString(raw);
+            var id = UUID.fromString(raw);
+            return id.toString().equalsIgnoreCase(raw) ? id : null;
         } catch (IllegalArgumentException ex) {
             return null;
         }

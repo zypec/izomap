@@ -1084,6 +1084,32 @@ Yeni bir sabit eklemek yalnızca yeni bir anahtar eklemeyi gerektirir.
 
 ---
 
+## 9.5 Testler
+
+`./gradlew test` — JUnit 5, `src/test/java`. Sunucu ayağa kaldırılmaz; test edilen her
+şey saf hesaptır. Paper sınıfları yine de test yolundadır (`testImplementation`,
+`compileOnly`'den devralır), bu sayede `Player` gibi arayüzler kullanılabiliyor —
+`PermissionLimitTest` tek metoda cevap veren bir `Proxy` ile oyuncuyu taklit ediyor.
+
+| Test | Neyi koruyor |
+|---|---|
+| `MapColorConverterTest` | Ön belleğin tur testi: 244 palet renginin tamamı renk → bayt → renk yolundan kayıpsız dönmeli. Bozulursa fotoğraflar yeniden başlatmadan sonra sessizce yanlış gelir |
+| `SkyTest` | Saat çemberi: dört karenin kendi rengi, şafak-öğle aralığının tick 0 üstünden geçmesi, dithering hücresinin 4 pikselde tekrarı, her gökyüzü pikselinin palette olması |
+| `StylePassTest` | Stil geçişlerinin iki kuralı: paletten çıkmamak ve deliği renge ortalamamak |
+| `PermissionLimitTest` | İzin kuralları: config'i ezmesi, küçüğün kısıtlaması, en büyüğün kazanması, `unlimited`, reddedilmiş ve sayı olmayan düğümler |
+| `PhotoExporterTest` | Dosya adı oyuncu girdisidir: yol ayracı, baştaki nokta, uzunluk sınırı |
+| `GridAndSlicingTest` | Dilimlemenin karo sırası — yanlışı ancak duvara asınca görünür |
+| `FormatAndIdsTest` | Sayıların locale'den bağımsızlığı ve bozuk kimliğin `null` dönmesi |
+
+**İlk turda bulunan iki şey** (testin işini yaptığı yer): `Ids.parse` kırpılmış bir
+kimliği reddetmiyordu — `UUID.fromString` grup uzunluğu doğrulamadığı için **başka bir**
+UUID'ye çözülüyordu, yani bozuk bir kayıt atlanmak yerine yabancı bir kameraya
+bağlanabilirdi. Artık kanonik forma geri karşılaştırılıyor. İkincisi zararsız çıktı ve
+teste not düşüldü: `sanitize("   ")` boşlukları alt çizgiye çevirdiği için "photo"
+yedeğine düşmüyor, ama oraya zaten boş istek ulaşmıyor.
+
+---
+
 ## 10. Bilinen açıklar ve yol haritası
 
 Planlanan işlerin tamamı ayrı bir dosyada tutulur: **[TODO.md](TODO.md)**. Maddelere
@@ -1094,7 +1120,6 @@ kullanılır.
 
 | Konu | Madde |
 |---|---|
-| Birim test yok | T41 |
 
 ---
 

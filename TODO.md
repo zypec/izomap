@@ -295,27 +295,6 @@ verdiğine bak. Karardan sonra kalan iş:
 
 ## P2 — Teknik borç
 
-### T41 — İlk birim testleri
-
-`[ ]` **P2**
-
-Sunucu gerektirmeyen saf hesap sınıfları test edilebilir:
-`MapColorConverter#snap` (bilinen renk → bilinen palet girişi), `ImageSlicer#slice`
-(karo sınırları ve sıra), `GridOption#parse`, `AspectRatio#fromLabel`,
-`ColorFilter#apply` (T31 sonrası filtre zinciri), `WorldSnapshot#key/chunkX/chunkZ`
-(negatif koordinatlar dahil), `Camera` clamp'leri (zoom/pitch sınırları, yaw normalize),
-`PhotoExporter#sanitize` (path traversal, geçersiz karakter, boş ad, uzunluk sınırı).
-
-**Önce altyapı gerekiyor:** `build.gradle.kts` içinde ne JUnit bağımlılığı ne de
-`test` görevi var (`./gradlew build` → `compileTestJava NO-SOURCE`). İlk iş
-`testImplementation(platform("org.junit:junit-bom:…"))` + `junit-jupiter` eklemek ve
-`tasks.test { useJUnitPlatform() }` yazmak.
-
-İlk aday hazır: T1'de `MapColorConverter#packedId`/`#argbOf` için yazılan tur testi
-(244 palet renginin tamamı + şeffaflık + palet dışı renk) tek seferlik bir betikti,
-kalıcı teste çevrilmeli — ön bellek formatının sessizce bozulmasını yakalayacak tek şey
-budur. Aynı testin `.izm` başlık/kesik dosya senaryolarını da kapsaması mantıklı.
-
 ### T42 — Kamera paylaşımı / başkasının kamerasını görüntüleme
 
 `[ ]` **P2**
@@ -328,6 +307,33 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T41 — İlk birim testleri
+
+`[x]` **P2** · 2026-08-16
+
+Altyapı kuruldu (`junit-bom:5.11.4` + `useJUnitPlatform()`), ayrıca `testImplementation`
+`compileOnly`'den devralıyor: Paper sınıfları test yolunda olduğu için `Player` gibi
+arayüzler kullanılabiliyor. `PermissionLimitTest` oyuncuyu tek metoda cevap veren bir
+`Proxy` ile taklit ediyor — mock kütüphanesi eklemeye gerek kalmadı.
+
+**40 test, 7 sınıf.** TODO'da sayılan adayların çoğu kapsandı; ayrıca son commit'lerde
+gelen `Sky`, `StylePass` ve `PermissionLimit` de baştan test edildi. Kapsanmayanlar
+`Camera` clamp'leri ve `.izm` başlık/kesik dosya senaryoları — ikincisi `PhotoCache`
+diske yazdığı için geçici dizin gerektiriyor, ayrı bir madde olmayı hak ediyor.
+
+**İlk turda iki bulgu çıktı:**
+- `Ids.parse` kırpılmış kimliği reddetmiyordu. `UUID.fromString` grup uzunluğu
+  doğrulamıyor, dolayısıyla bir karakteri eksik kimlik **başka bir** UUID'ye çözülüyordu:
+  bozuk kayıt atlanmak yerine yabancı bir kameraya bağlanabilirdi. Kanonik forma geri
+  karşılaştırma eklendi.
+- `sanitize("   ")` "photo" yedeğine düşmüyor, "___" veriyor. Zararsız çıktı (boş istek
+  zaten `resolve`'da yakalanıyor, oraya ulaşmıyor); teste not olarak yazıldı.
+
+Dokunulanlar: `build.gradle.kts`, `src/test/java/...` (7 sınıf), `util/Ids`,
+`IZOMAP.md` §9.5.
+
+---
 
 ### T7 — Kamerayı eşya olarak geri alma
 
