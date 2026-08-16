@@ -4,15 +4,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The style passes touch every pixel of a finished photo, and two of their rules are
- * easy to break without anything looking obviously wrong: they must not leave colours
- * the map cannot store, and they must not average a hole into a colour, since the
- * palette has no translucency to average with.
+ * The scale-up touches every pixel of a FAST photo, and two of its rules are easy to
+ * break without anything looking obviously wrong: it must not leave colours the map
+ * cannot store, and it must not average a hole into a colour, since the palette has no
+ * translucency to average with.
  */
 class StylePassTest {
 
@@ -27,8 +26,6 @@ class StylePassTest {
     private static int palette(MapBaseColor base) {
         return 0xFF000000 | base.rgb(MapBaseColor.Shade.NORMAL);
     }
-
-    // --- upscale ---
 
     @Test
     @DisplayName("upscaling to the same size returns the image untouched")
@@ -87,60 +84,20 @@ class StylePassTest {
         assertTrue(distinct.size() > 2, "the seam should gain colours between the two, got " + distinct.size());
     }
 
-    // --- blend ---
-
     @Test
-    @DisplayName("blending at zero strength returns the image untouched")
-    void blendIsIdentityAtZero() {
-        var image = filled(8, 8, palette(MapBaseColor.GRASS));
-        assertSame(image, StylePass.blend(image, 0.0, converter));
-    }
-
-    @Test
-    @DisplayName("blending leaves holes as holes")
-    void blendKeepsHoles() {
-        var pixels = new int[4 * 4];
-        java.util.Arrays.fill(pixels, palette(MapBaseColor.GRASS));
-        pixels[5] = 0;
-
-        var result = StylePass.blend(new RenderResult(4, 4, pixels), 1.0, converter);
-        assertEquals(0, result.argb()[5], "a hole was filled in by its neighbours");
-    }
-
-    @Test
-    @DisplayName("a lone pixel is pulled towards its neighbours")
-    void blendSoftensAnOutlier() {
-        var background = palette(MapBaseColor.SNOW);
-        var pixels = new int[5 * 5];
-        java.util.Arrays.fill(pixels, background);
-        var outlier = palette(MapBaseColor.COLOR_BLACK);
-        pixels[2 * 5 + 2] = outlier;
-
-        var result = StylePass.blend(new RenderResult(5, 5, pixels), 1.0, converter);
-        var blended = result.argb()[2 * 5 + 2];
-
-        assertNotEquals(outlier, blended, "the outlier was left alone");
-        assertTrue(luma(blended) > luma(outlier), "the outlier should have moved towards the light neighbours");
-    }
-
-    @Test
-    @DisplayName("blending never leaves a colour off the palette")
-    void blendStaysOnThePalette() {
+    @DisplayName("a scaled up photo never leaves a colour off the palette")
+    void upscaleStaysOnThePalette() {
         var pixels = new int[6 * 6];
         for (var i = 0; i < pixels.length; i++) {
             pixels[i] = i % 3 == 0 ? palette(MapBaseColor.WATER)
                     : i % 3 == 1 ? palette(MapBaseColor.SAND)
                     : palette(MapBaseColor.COLOR_RED);
         }
-        var result = StylePass.blend(new RenderResult(6, 6, pixels), 0.7, converter);
+        var result = StylePass.upscale(new RenderResult(6, 6, pixels), 24, 24, converter);
 
         for (var pixel : result.argb()) {
             assertEquals(pixel, converter.argbOf(converter.packedId(pixel)),
-                    "blending produced a colour a map cannot store");
+                    "scaling produced a colour a map cannot store");
         }
-    }
-
-    private static int luma(int argb) {
-        return ((argb >> 16) & 0xFF) + ((argb >> 8) & 0xFF) + (argb & 0xFF);
     }
 }

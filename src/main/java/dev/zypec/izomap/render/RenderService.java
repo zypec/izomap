@@ -166,13 +166,11 @@ public final class RenderService {
             return CompletableFuture.failedFuture(new CaptureTooLargeException(chunkKeys.size(), budget));
 
         var style = spec.style();
-        // SOFT casts its rays over a smaller image and lets the scale-up do the
-        // blending, so the ray count falls with the square of the scale.
-        var scale = style.scalesDown() ? plugin.config().styleSoftScale() : 1.0;
+        // FAST casts its rays over a smaller image and lets the scale-up fill the rest,
+        // so the ray count falls with the square of the scale.
+        var scale = style.scalesDown() ? plugin.config().styleFastScale() : 1.0;
         var renderWidth = Math.max(1, (int) Math.round(widthPx * scale));
         var renderHeight = Math.max(1, (int) Math.round(heightPx * scale));
-        var jitter = style == PhotoStyle.GRAINY ? plugin.config().styleGrain() : 0.0;
-        var blendStrength = style == PhotoStyle.BLENDED ? plugin.config().styleBlend() : 0.0;
         var sky = spec.skyArgb() == 0
                 ? Sky.NONE
                 : Sky.of(spec.skyArgb() & 0xFFFFFF, plugin.config().skyGradient(),
@@ -200,9 +198,8 @@ public final class RenderService {
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                 try {
                     var result = renderer.render(
-                            snapshot, geometry, pipeline, sky, supersampling, jitter, executor, threads);
+                            snapshot, geometry, pipeline, sky, supersampling, executor, threads);
                     result = StylePass.upscale(result, widthPx, heightPx, converter);
-                    result = StylePass.blend(result, blendStrength, converter);
                     if (timing) {
                         logTiming(geometry, snapshot, supersampling, requestedAt, capturedAt, System.nanoTime());
                     }

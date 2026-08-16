@@ -96,14 +96,11 @@ sky:
   DUSK: "Gün batımı"
   NIGHT: "Gece"
 
-# Fotoğraf stili adları; anahtar PhotoStyle sabitinin adıdır. Stil, pikselin nasıl
-# oluştuğunu belirler — renk efektinden ayrı bir eksendir, ikisi birlikte uygulanır.
-# Şiddetleri config.yml -> photo.style altındadır.
+# Çekim stili adları; anahtar PhotoStyle sabitinin adıdır. Stil, fotoğrafın ne kadarının
+# gerçekten ışınla çizildiğini belirler; şiddeti config.yml -> photo.style altındadır.
 style:
   SHARP: "Keskin"
-  SOFT: "Yumuşak"
-  GRAINY: "Taneli"
-  BLENDED: "Harmanlanmış"
+  FAST: "Hızlı (daha ucuz, daha yumuşak)"
 
 # Hayalet yerleştirme modu: fotoğraf asılmadan önce nereye asılacağı seçilir.
 placement:

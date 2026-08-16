@@ -29,8 +29,7 @@ T30 (renk pipeline'ının parametrikleşmesi) ✔
  ├── T31 (kullanıcı tanımlı filtreler)
  ├── T32 (gökyüzü) ✔
  ├── T33 (gelişmiş gölgelendirme)
- ├── T34 (biome tint)
- └── T36 (fotoğraf stilleri)
+ └── T34 (biome tint)
 
 T37 (temel renk tablosunun wiki ile denetimi) ✔
  └── T35 (ot bloklarının rengi)
@@ -226,73 +225,6 @@ Seçenekler:
 
 ---
 
-### T36 — Fotoğraf stilleri (renk filtresinden ayrı)
-
-`[~]` **P1** · Bağımlı: T30 ✔ · prototip hazır, görsel karar bekliyor
-
-Eklentinin ilk sürümleri daha "yağlı boya" görünümlü fotoğraflar üretiyordu; şimdiki
-çıktı fazla keskin. Bu bir **stil** meselesi ve renk filtresinden ayrı bir eksen:
-stil pikselin nasıl oluştuğunu, filtre rengin nasıl kaydırıldığını belirler. İkisi bir
-fotoğrafa aynı anda uygulanabilmeli.
-
-**Ne değiştiği bulundu (2026-08-16).** Tek bir commit: `08ecea1` *(Rework the render
-frame/chunk system and camera zoom semantics)*, yani ikinci commit. İlk commit
-(`b0773c1`) "yağlı boya" sürümüdür. O commit'te ışın yürüyüşü **aynı anda iki** yönden
-değişti:
-
-1. **Sabit adımlı ray-march → tam DDA.** Eskisi ışını `photo.step-size` (0.25 blok)
-   aralıklarla nokta örnekliyor ve ilk hava olmayan örneği alıyordu. Işının yalnızca
-   köşesinden geçtiği — yani kat ettiği yol adımdan kısa olan — her blok **rastgele
-   kaçırılıyordu**. Köşe kesme tam olarak blok kenarlarında ve yüzey eklerinde olur,
-   dolayısıyla her siluet ve her ek düzensiz biçimde kırılıyordu. Amanatides-Woo hiçbir
-   bloğu kaçırmaz: bugün her kenar tam ve kesintisiz.
-2. **Piksel başına 1 ışın → NxN örnekleme + ortalama.** Bu, ters yönde çalışır: kenarları
-   *yumuşatır*. Yani bugünün kenarları yumuşatma anlamında daha yumuşak ama **yeri kesin**;
-   eskininki sert ama düzensizdi.
-
-Sonuç: aranan "yağlı boya" niteliği bilinçli bir efekt değil, **yaklaşık örnekleyicinin
-düzensizliğiydi**. Geri getirmenin yolu bug'ı geri koymak değil, o düzensizliği kontrollü
-biçimde üretmek. (Eski sürümde ışınlar ayrıca `maxDist/2` kadar geriden başlıyordu; o
-sonradan "boş fotoğraf" bug'ı olarak düzeltildi, görünümle ilgisi yok.)
-
-**Aday mekanizmalar** (biri seçilip prototiplenecek, ölçüt görsel):
-- **(a) Örnek titretme (jitter)** — her örneğin piksel içi konumunu rastgele kaydır.
-  Kenarlar temiz rampa yerine noktalı karışıma döner; eski artefakta en yakın olan bu.
-  Ek maliyet yok, ışın sayısı aynı. Ama düz yüzeylerin içini değiştirmez, etkisi ince.
-- **(b) Izgara çözünürlüğünün altında render + büyütme** — örn. ×0.5 render edip
-  bilinear büyüt, sonra palete snap'le. Her blok yüzü komşusuna karışır; en güçlü
-  "boyanmış" etkisi bu ve bugünkünden **ucuz** (daha az ışın).
-- **(c) Render sonrası komşu harmanlama** — yumuşatma/medyan tek geçiş. Gücü ışın
-  sayısından bağımsız ayarlanır, ama tam görüntü üzerinde ek bir geçiş demek.
-
-**Yapıldı (2026-08-16): üç mekanizma da prototiplendi.** `PhotoStyle` enum'ı olarak
-eklendi ve Dialog'dan seçiliyor: `SHARP` (bugünkü), `SOFT` (küçük render + büyütme),
-`GRAINY` (örnek saçılması), `BLENDED` (komşu harmanlama). Şiddetleri `config.yml` →
-`photo.style.{soft-scale, grain, blend}` altında, yani karşılaştırma sırasında yeniden
-derlemeden ayarlanabilir. Stil kamerada tutuluyor, `CaptureSpec`'e donuyor ve preview'da
-da görünüyor.
-
-**Sıradaki adım sende:** aynı manzarayı dört stille çek, hangisinin aradığın görünümü
-verdiğine bak. Karardan sonra kalan iş:
-- Kazanan mekanizma(lar) `styles.yml`'ye taşınır (aşağıdaki madde), gerisi atılır ya da
-  varsayılan olmayan stil olarak kalır.
-- Kombinasyon gerekirse (örn. SOFT + BLENDED) enum yerine işlem listesi şart olur —
-  `styles.yml` tasarımı bunu zaten öngörüyor.
-
-- Stil = render sonrası (ya da örnekleme sırasında) uygulanan bir işlem kümesi. Aday
-  işlemler: komşu piksel harmanlama/yumuşatma, kenar yumuşatmayı azaltma, renk sayısını
-  düşürme (palet zaten 244), hafif bulanıklık, doku gürültüsü.
-- Konfigüre edilebilir olacak: `styles.yml`, T31'in `filters.yml` deseniyle aynı
-  (kimlik + görünen ad `messages.yml`'de + işlem listesi). İkisi birlikte tasarlanmalı ki
-  iki ayrı ama benzer mekanizma çıkmasın.
-- Oyuncu stili Dialog'dan seçer; `CaptureSpec`'e `style` alanı eklenir ve `photos.yml`'e
-  yazılır (retake aynı stille tekrarlanmalı).
-- Performans: filtre 244 girişli tabloya katlanıyor, stil **katlanamaz** — komşu piksellere
-  bakan bir işlem piksel başına çalışır. Maliyeti ölçülecek; gerekirse stil yalnızca son
-  görüntü üzerinde tek geçişte uygulanır.
-
----
-
 ## P2 — Teknik borç
 
 ### T42 — Kamera paylaşımı / başkasının kamerasını görüntüleme
@@ -307,6 +239,47 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T36 — "Yağlı boya" görünümü: sebebi bulundu, stiller elendi
+
+`[x]` **P1** · 2026-08-16 · Bağımlı: T30 ✔
+
+**Sonuç: aranan görünüm render'da değil kadrajda.** Karşılaştırmalı ekran görüntüleri
+(eski ve yeni sürüm, aynı ada) ölçüldü: aynı beyaz saray eskide ~68 px, yenide ~181 px
+genişliğinde, tuval ise yalnızca 1.25 kat büyük. Yani yeni fotoğraf blok başına kabaca
+**iki kat fazla piksel** harcıyor.
+
+Kanıt suda: her iki görüntüde de su tamamen düz ve aynı. Dünyanın tek tip olduğu yerde
+iki sürüm birebir aynı çıkıyor; yalnızca çeşitli olan yerlerde ayrışıyorlar. Demek ki
+renklendirme değişmemiş, değişen bir pikselin içine kaç farklı blok düştüğü. Blok başına
+2-3 piksel → komşu blok tipleri ince bir mozaiğe dönüşüp doku gibi okunuyor. Blok başına
+8-10 piksel → her yüz tek renkli geniş bir alan, afiş gibi.
+
+İkinci etken örnekleme: eski sürümde piksel başına tek ışın vardı, yani her piksel tek
+bir bloğun **saf** palet rengini alıyordu (noktasal mozaik). Bugünkü `supersampling: 2`
+tam da o mozaiği ortalayıp yumuşatıyor.
+
+**Önceki teori (git geçmişinden çıkarılan "köşe kaçıran örnekleyicinin düzensizliği")
+yanlıştı** ve ona dayanan üç stil de yanlış yöndeydi: `SOFT`, `GRAINY`, `BLENDED`
+üçü de bulanıklaştırıyordu, oysa aranan görünüm daha *az* yumuşatmadan geliyor. Oyunda
+denendi, hiçbiri fark yaratmadı — düz bir yeşil alanı bulanıklaştırınca düz yeşil kalıyor.
+
+**Yapılan:** `GRAINY` ve `BLENDED` kaldırıldı. `SOFT` bağımsız faydası olduğu için kaldı
+ve adı `FAST` oldu: daha az ışın attığı için ucuz, karşılığında yumuşak. Artık bir efekt
+değil, bir maliyet ayarı — açıklaması da öyle yazıldı. Diskteki eski `SOFT` değeri ve
+`photo.style.soft-scale` anahtarı okunmaya devam ediyor.
+
+**Bugün o görünümü isteyen ne yapmalı:** kamerayı uzaklaştırıp kadrajı genişletsin
+(zoom düşük, `frame-height` yüksek) ve `photo.supersampling: 1` yapsın. Kod gerekmiyor.
+
+**Açık kalan fikir:** `supersampling` şu an sunucu geneli. Fotoğraf başına seçilebilir
+olsaydı "noktasal mozaik / yumuşak" gerçek bir stil ekseni olurdu — bulanıklık değil,
+örnek sayısı. `CaptureSpec` zaten alanı taşıyor; tek eksik kameradan gelmesi.
+
+Dokunulanlar: `PhotoStyle`, `StylePass`, `IsometricRenderer`, `RenderService`,
+`ConfigManager`, `config.yml`, `messages.yml`, `StylePassTest`, `IZOMAP.md` §3.
+
+---
 
 ### T41 — İlk birim testleri
 

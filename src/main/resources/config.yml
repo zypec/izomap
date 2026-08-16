@@ -165,23 +165,13 @@ photo:
     # Değer, bir pikselin gerçek renkten kaç kanal basamağı sapabileceğidir.
     # 0 = kapalı (temiz ama bantlı). Aralık: 0-128.
     dither: 24.0
-  # FOTOĞRAF STİLİ ayarları. Stil, pikselin nasıl oluştuğunu belirler; renk efektinden
-  # (filtre) ayrı bir eksendir ve ikisi aynı fotoğrafa birlikte uygulanır.
-  # Stili oyuncu Dialog'dan seçer; buradakiler her stilin şiddetidir.
-  #
-  # Neden var: eklentinin ilk sürümü ışınları sabit adımla örneklüyor ve ışının
-  # yalnızca köşesinden geçtiği blokları rastgele kaçırıyordu. Kenarlar bu yüzden
-  # düzensiz kırılıyor, sonuç "yağlı boya" gibi duruyordu. Bugünkü yürüyüş hiçbir bloğu
-  # kaçırmıyor — keskinlik oradan geliyor. Aşağıdaki stiller o düzensizliği bilerek ve
-  # kontrollü biçimde üretir.
+  # ÇEKİM MALİYETİ. Stil, fotoğrafın ne kadarının gerçekten ışınla çizildiğini belirler;
+  # oyuncu Dialog'dan seçer. "Keskin" her piksel için ışın atar, "Hızlı" görüntüyü küçük
+  # çizip büyütür — ışın sayısı aşağıdaki oranın KARESİYLE azalır (0.5 -> dörtte bir).
+  # Karşılığında görüntü o oranda yumuşar; bu bir efekt değil, atılmayan ışınların bedeli.
+  # Büyük ızgaralarda (4x3 ve üstü) işe yarar.
   style:
-    # SOFT: görüntü bu oranda küçük render edilip büyütülür. Küçük değer = daha yumuşak.
-    # Ayrıca UCUZDUR: ışın sayısı bu oranın karesiyle azalır (0.5 → dörtte bir ışın).
-    soft-scale: 0.5
-    # GRAINY: örneklerin kendi hücresi içinde saçılma miktarı. 0 = düzenli ızgara.
-    grain: 1.0
-    # BLENDED: bitmiş görüntüde her pikselin komşularına doğru kayma miktarı.
-    blend: 0.5
+    fast-scale: 0.5
 
 placement:
   # Fotoğraf duvarının oyuncunun kaç blok önüne kurulacağı. Hayalet önizleme de bu

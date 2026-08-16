@@ -1,15 +1,15 @@
 package dev.zypec.izomap.render;
 
 /**
- * The image-wide half of a {@link PhotoStyle}: what happens to the finished pixels.
+ * Scales a {@link PhotoStyle#FAST} render up to the size the photo really is.
  *
- * <p>Both passes end by snapping back to the map palette. Anything else would leave
- * colors the maps cannot store, and the cache writes palette bytes, so a color off the
- * palette would be lost on the first restart anyway.</p>
+ * <p>It ends by snapping back to the map palette. Anything else would leave colors the
+ * maps cannot store, and the cache writes palette bytes, so a color off the palette
+ * would be lost on the first restart anyway.</p>
  *
  * <p>Transparency is a state, not a value to average towards: the palette has no
- * translucency, so a pixel is either a color or a hole. Both passes weigh only the
- * neighbours that have a color and decide the hole by majority.</p>
+ * translucency, so a pixel is either a color or a hole. Only neighbours that have a
+ * color are weighed, and the hole is decided by majority.</p>
  */
 public final class StylePass {
 
@@ -19,9 +19,9 @@ public final class StylePass {
     /**
      * Scales a smaller render up to the photo's real size, blending as it goes.
      *
-     * <p>Bilinear on purpose: the softness is the point. Every source pixel spreads
-     * across the block boundaries around it, which is the closest thing here to a
-     * brush stroke.</p>
+     * <p>Bilinear rather than nearest: a photo assembled from repeated pixels reads as
+     * a mistake, while a blended one reads as a softer photo. The softness is the cost
+     * of the rays that were not cast, not a look being aimed at.</p>
      */
     public static RenderResult upscale(RenderResult small, int width, int height,
                                        MapColorConverter converter) {
@@ -68,58 +68,6 @@ public final class StylePass {
     }
 
     /**
-     * Blends every pixel towards its four neighbours.
-     *
-     * <p>Reads from a copy, so a blended pixel cannot feed the next one and smear the
-     * image along the scan order.</p>
-     *
-     * @param strength how far towards the neighbourhood a pixel moves, 0 to 1
-     */
-    public static RenderResult blend(RenderResult image, double strength,
-                                     MapColorConverter converter) {
-        if (strength <= 0.0)
-            return image;
-
-        var width = image.width();
-        var height = image.height();
-        var source = image.argb();
-        var out = new int[source.length];
-        var mix = Math.min(1.0, strength);
-
-        for (var y = 0; y < height; y++) {
-            for (var x = 0; x < width; x++) {
-                var self = source[y * width + x];
-                if ((self >>> 24) == 0) {
-                    out[y * width + x] = 0; // a hole stays a hole
-                    continue;
-                }
-                // The pixel itself weighs as much as its four neighbours together, so
-                // full strength softens rather than dissolves.
-                double r = ((self >> 16) & 0xFF) * 4.0;
-                double g = ((self >> 8) & 0xFF) * 4.0;
-                double b = (self & 0xFF) * 4.0;
-                var weight = 4.0;
-
-                for (var side = 0; side < 4; side++) {
-                    var nx = x + (side == 0 ? -1 : side == 1 ? 1 : 0);
-                    var ny = y + (side == 2 ? -1 : side == 3 ? 1 : 0);
-                    var argb = at(source, width, height, nx, ny);
-                    if ((argb >>> 24) == 0) continue;
-
-                    r += (argb >> 16) & 0xFF;
-                    g += (argb >> 8) & 0xFF;
-                    b += (argb >> 0) & 0xFF;
-                    weight += 1.0;
-                }
-
-                var blended = mixToward(self, r / weight, g / weight, b / weight, mix);
-                out[y * width + x] = 0xFF000000 | converter.snap(blended);
-            }
-        }
-        return new RenderResult(width, height, out);
-    }
-
-    /**
      * Clamped edge sampling: past the border the nearest pixel stands in, so the frame
      * does not darken or dissolve along its own edge.
      */
@@ -140,15 +88,6 @@ public final class StylePass {
 
         var rgb = (round(r / solid) << 16) | (round(g / solid) << 8) | round(b / solid);
         return 0xFF000000 | converter.snap(rgb);
-    }
-
-    private static int mixToward(int argb, double r, double g, double b, double mix) {
-        var sr = (argb >> 16) & 0xFF;
-        var sg = (argb >> 8) & 0xFF;
-        var sb = argb & 0xFF;
-        return (round(sr + (r - sr) * mix) << 16)
-               | (round(sg + (g - sg) * mix) << 8)
-               | round(sb + (b - sb) * mix);
     }
 
     private static int round(double value) {

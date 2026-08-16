@@ -2,7 +2,6 @@ package dev.zypec.izomap.render;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
-import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * Pure compute engine that walks orthographic rays over a {@link WorldSnapshot}.
@@ -31,14 +30,11 @@ public final class IsometricRenderer {
      * @param sky           color for rays that reach nothing; {@link Sky#NONE} leaves
      *                      them transparent
      * @param supersampling antialiasing rays per pixel (NxN); 1 disables it
-     * @param jitter        how far a sample may stray inside its own cell, 0 to 1;
-     *                      0 keeps the regular grid
      * @param executor      pool the row bands are dispatched to
      * @param threads       how many bands, and therefore threads, to use
      */
     public RenderResult render(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
-                               Sky sky, int supersampling, double jitter,
-                               Executor executor, int threads) {
+                               Sky sky, int supersampling, Executor executor, int threads) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
         final var argb = new int[w * h];
@@ -46,7 +42,7 @@ public final class IsometricRenderer {
 
         var bands = Math.max(1, Math.min(threads, h));
         if (bands == 1) {
-            renderBand(snapshot, geo, pipeline, sky, samples, jitter, argb, 0, h);
+            renderBand(snapshot, geo, pipeline, sky, samples, argb, 0, h);
             return new RenderResult(w, h, argb);
         }
 
@@ -57,9 +53,9 @@ public final class IsometricRenderer {
             final int from = band * rowsPerBand;
             final int to = Math.min(h, from + rowsPerBand);
             pending[band] = CompletableFuture.runAsync(
-                    () -> renderBand(snapshot, geo, pipeline, sky, samples, jitter, argb, from, to), executor);
+                    () -> renderBand(snapshot, geo, pipeline, sky, samples, argb, from, to), executor);
         }
-        renderBand(snapshot, geo, pipeline, sky, samples, jitter, argb, (bands - 1) * rowsPerBand, h);
+        renderBand(snapshot, geo, pipeline, sky, samples, argb, (bands - 1) * rowsPerBand, h);
         CompletableFuture.allOf(pending).join();
 
         return new RenderResult(w, h, argb);
@@ -69,7 +65,7 @@ public final class IsometricRenderer {
      * Renders the row range {@code [yFrom, yTo)}.
      */
     private void renderBand(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
-                            Sky sky, int samples, double jitter, int[] argb, int yFrom, int yTo) {
+                            Sky sky, int samples, int[] argb, int yFrom, int yTo) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
 
@@ -88,9 +84,6 @@ public final class IsometricRenderer {
         final var climbPerBlock = -dy;
         final var total = samples * samples;
         final var hit = new RayHit();
-        // Bands run on their own threads, so each keeps its own generator; the pattern
-        // is meant to be irregular, not repeatable.
-        final var random = jitter > 0.0 ? ThreadLocalRandom.current() : null;
 
         for (var py = yFrom; py < yTo; py++) {
             for (var px = 0; px < w; px++) {
@@ -99,9 +92,9 @@ public final class IsometricRenderer {
                 var uniform = true;
 
                 for (var sy = 0; sy < samples; sy++) {
-                    var v = (0.5 - (py + (sy + offset(random, jitter)) / samples) / h) * spanH;
+                    var v = (0.5 - (py + (sy + 0.5) / samples) / h) * spanH;
                     for (var sx = 0; sx < samples; sx++) {
-                        var u = ((px + (sx + offset(random, jitter)) / samples) / w - 0.5) * spanW;
+                        var u = ((px + (sx + 0.5) / samples) / w - 0.5) * spanW;
 
                         var ox = cx + rx * u + ux * v;
                         var oy = cy + ry * u + uy * v;
@@ -247,14 +240,6 @@ public final class IsometricRenderer {
                 return;
             }
         }
-    }
-
-    /**
-     * Where a sample sits inside its cell: the centre, or somewhere around it once the
-     * style asks for scatter.
-     */
-    private static double offset(ThreadLocalRandom random, double jitter) {
-        return random == null ? 0.5 : 0.5 + (random.nextDouble() - 0.5) * jitter;
     }
 
     /**
