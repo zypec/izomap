@@ -27,7 +27,9 @@ import java.util.Locale;
  * and right-clicking a block with the camera item places a new camera.
  *
  * <p>Every gesture on a camera first claims its editor seat, since all of them change
- * shared camera state; a player who cannot get the seat becomes a watcher instead.</p>
+ * shared camera state; a player who cannot get the seat becomes a watcher instead.
+ * The gesture itself is only carried out once the player is already watching the
+ * camera — see {@link #openedPreview(Player, Camera)}.</p>
  */
 public final class CameraListener implements Listener {
 
@@ -61,6 +63,7 @@ public final class CameraListener implements Listener {
         event.setCancelled(true);
         var player = event.getPlayer();
         if (!plugin.preview().claimEditor(player, camera)) return;
+        if (openedPreview(player, camera)) return;
 
         if (player.isSneaking()) {
             camera.editProperty(camera.editProperty().next());
@@ -82,6 +85,7 @@ public final class CameraListener implements Listener {
 
         event.setCancelled(true);
         if (!plugin.preview().claimEditor(player, camera)) return;
+        if (openedPreview(player, camera)) return;
 
         // Sneaking opens the capture dialog instead of lowering the property.
         if (player.isSneaking()) {
@@ -160,6 +164,28 @@ public final class CameraListener implements Listener {
             plugin.messages().send(player, "preview.started",
                     Placeholder.unparsed("camera", camera.name()));
         }
+    }
+
+    /**
+     * Opens the live view when the player is not watching this camera yet, and reports
+     * whether the click was spent doing so.
+     *
+     * <p>The first click on a camera only opens the preview. Acting on it as well moved
+     * the camera before its owner could see what they were moving: whichever property
+     * the last session left active jumped a step the moment the map appeared.</p>
+     *
+     * <p>A player who cannot get a preview — offhand full — keeps editing on the first
+     * click, since for them no click would ever be the second one.</p>
+     */
+    private boolean openedPreview(Player player, Camera camera) {
+        if (plugin.preview().join(player, camera) != PreviewManager.JoinResult.JOINED)
+            return false;
+
+        plugin.preview().refresh(camera);
+        plugin.messages().send(player, "preview.started",
+                Placeholder.unparsed("camera", camera.name()));
+        plugin.preview().showStatus(camera, player);
+        return true;
     }
 
     private void adjust(Camera camera, int direction, Player player) {

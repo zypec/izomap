@@ -5,7 +5,7 @@
 > güncellenir. Elle düzenlenmesi beklenmez; yeni bir istek varsa sohbette söylenir,
 > belgeye buradan yansıtılır.
 >
-> Son güncelleme: 2026-08-10 · Sürüm: 1.0.0 · Durum: FAZ 1-5 tamamlandı, cilalama aşamasında.
+> Son güncelleme: 2026-08-16 · Sürüm: 1.0.0 · Durum: FAZ 1-5 tamamlandı, cilalama aşamasında.
 
 ---
 
@@ -591,6 +591,18 @@ Dünyada zaten kalmış yetimler için `/izocam cleanup`, oyuncunun bulunduğu d
 
 İlk dört satır **editör koltuğunu** ister; koltuk başkasındaysa etkileşim yalnızca
 izleyici yapar (bkz. [§5](#5-canlı-önizleme)).
+
+### İlk tık yalnızca önizlemeyi açar
+
+Kamerayı henüz izlemeyen bir oyuncunun ilk etkileşimi **sadece canlı önizlemeyi başlatır**;
+özellik ne artar, ne azalır, ne değişir, Dialog da açılmaz. Eskiden aynı tık hem önizlemeyi
+açıyor hem jesti uyguluyordu: oyuncu kadrajı görmeden, önceki oturumdan kalan aktif özellik
+(çoğu zaman yaw) bir adım kayıyordu. İkinci tıktan itibaren tablo normal işler.
+
+Bu kural **önizleme gerçekten açıldığında** geçerlidir. Offhand'i dolu olduğu için haritayı
+alamayan oyuncu ilk tıkta da düzenler — aksi halde onun için hiçbir tık "ikinci tık" olmazdı.
+Kamera eşyayla kurulduğunda önizleme zaten kurulum anında açıldığından, o kameraya yapılan
+ilk tık doğrudan düzenler.
 
 Yaw/Pitch `camera.angle-step` kadar değişir. **Zoom çarpımsaldır**: her tık
 `camera.zoom-step` ile çarpar/böler, böylece 0.02x–16x aralığının her yerinde adım

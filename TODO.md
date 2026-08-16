@@ -197,6 +197,26 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 
 ## Arşiv
 
+### T48 — İlk tık kamerayı düzenlemeden yalnızca önizlemeyi açıyor
+
+`[x]` **P0** · 2026-08-16
+
+Kamerayı henüz izlemeyen bir oyuncunun ilk tıkı hem önizlemeyi açıyor hem jesti
+uyguluyordu: harita elde belirdiği anda, önceki oturumdan kalan aktif özellik (çoğu
+zaman yaw) bir adım kaymış oluyordu. Oyuncu kadrajı görmeden kamera değişiyordu.
+
+`CameraListener`, koltuğu aldıktan sonra `openedPreview` ile önce katılmayı deniyor;
+`JOINED` dönerse tık orada bitiyor (render + `preview.started` + durum satırı) ve
+artır/azalt/özellik değiştir/Dialog çalışmıyor. İkinci tıktan itibaren tablo normal.
+
+Kural yalnızca önizleme **gerçekten açıldığında** işliyor: offhand'i dolu olan oyuncu
+ilk tıkta da düzenliyor, çünkü onun için hiçbir tık ikinci tık olmazdı. Eşyayla kurulan
+kamera önizlemeyi kurulum anında açtığından, ona yapılan ilk tık doğrudan düzenliyor.
+
+Dokunulanlar: `CameraListener`, `IZOMAP.md` §4.
+
+---
+
 ### T31 — Renk filtreleri `filters.yml`'ye taşındı
 
 `[x]` **P1** · 2026-08-16 · Bağımlı: T30 ✔
