@@ -5,7 +5,7 @@
 > güncellenir. Maddelere kimlikleriyle (T1, T2 …) referans verilir; kimlikler kalıcıdır,
 > tamamlanan maddeler silinmez, arşiv bölümüne taşınır.
 >
-> Son güncelleme: 2026-08-15
+> Son güncelleme: 2026-08-16
 
 **Öncelik:** `P0` = başkalarını bloke ediyor / bug · `P1` = asıl istenen özellikler ·
 `P2` = iyileştirme, teknik borç
