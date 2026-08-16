@@ -36,6 +36,14 @@ settings:
   # Hiç üretilmemiş chunk'lar çekim için üretilsin mi? Varsayılan kapalı:
   # fotoğraf çekmek dünyayı büyütmemelidir.
   generate-missing-chunks: false
+  # Vanilla'nın harita rengi her zaman bloğa benzemez: renk dokudan üretilmiş bir
+  # ortalama değil, elle atanmış bir değerdir. En belirgin örnek tuff ailesi — on dört
+  # tuff bloğunun tamamı TERRACOTTA_GRAY (#392923, siyaha yakın kahve) bildirir, oysa
+  # tuff dokusunun ortalaması #6C6D66 (açık gri-yeşil). Bu ayar açıkken o bloklar
+  # dokusuna en yakın temel renge çekilir (tuff -> DEEPSLATE).
+  # Kapatırsan fotoğraf vanilla haritayla birebir aynı olur, bu kusur dahil.
+  # block-colors.yml her iki durumda da son sözü söyler.
+  correct-vanilla-colors: true
   # Bir oyuncunun aynı anda sahip olabileceği maksimum kamera sayısı.
   # İzinle geçersiz kılınabilir: izomap.max_cameras_by_player.<sayı>
   max-cameras-per-player: 5

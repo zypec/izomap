@@ -239,6 +239,8 @@ log:
   block-colors-ready: "<count> blok için harita temel rengi hazır."
   # Olgunlaştıkça rengi değişen bloklar (buğday gibi); liste sunucuya sorularak bulunur.
   state-colors-ready: "<count> bloğun rengi büyüme durumuna göre değişiyor; her durumu ayrı okundu."
+  # Vanilla'nın bloğa benzemeyen renkleri (settings.correct-vanilla-colors).
+  block-colors-corrected: "<count> bloğun harita rengi dokusuna daha yakın olanla değiştirildi."
   block-colors-overridden: "<count> blok rengi override edildi."
   camera-world-missing: "Kamera '<camera>' atlandı: dünya yüklü değil (<world>)."
 

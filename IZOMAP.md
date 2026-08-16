@@ -249,14 +249,33 @@ kurulur: `MapColorConverter#packedId` piksel → harita baytı dönüşümünü 
 `block-colors.yml` yalnızca **override** dosyasıdır; varsayılan tablo içermez. `version: 2`
 taşır, eski v1 dosyaları `.v1.bak` olarak yedeklenip yenilenir.
 
-> **Vanilla'nın temel rengi her zaman bloğa benzemez.** Tablo bloğun dokusundan
-> üretilmiş bir ortalama değil, Mojang'ın elle atadığı bir değerdir; bazı bloklarda ikisi
-> ayrışır. En belirgini tuff ailesi: on dört tuff bloğunun tamamı (ve kiraz kütüğü/odunu)
-> `TERRACOTTA_GRAY` (#392923) bildirir — siyaha yakın bir kahve — oysa tuff dokusu açık
-> gri-yeşildir. Fotoğraf vanilla haritayla **birebir aynı** çıkar, ama bloğa bakan göze
-> yanlış gelir. Bu bir hata değil, tercihtir: eklenti vanilla'yı taklit eder. Ayrışmayı
-> kapatmak isteyen `block-colors.yml`'den override eder; dosyada tuff satırları yorum
-> olarak hazır bekler (dokuya en yakın temel renkler `DEEPSLATE` ve `STONE`).
+#### Vanilla'nın bloğa benzemeyen renkleri
+
+Temel renk, bloğun dokusundan üretilmiş bir ortalama değil, **elle atanmış** bir
+değerdir; birkaç blokta ikisi ayrışır. En belirgini tuff ailesiydi: on dört tuff
+bloğunun tamamı `TERRACOTTA_GRAY` (#392923, siyaha yakın kahve) bildiriyor, oysa
+`tuff.png` ortalaması **#6C6D66** (açık gri-yeşil). Tuff'tan yapılmış bir kule
+fotoğrafta pas rengi çıkıyordu.
+
+`BlockColorTable.CORRECTIONS` bunları değiştirir ve seçim **ölçülmüştür**: istemci
+jar'ından doku ortalaması alınıp palete uzaklıklar hesaplanmıştır.
+
+| Blok | Doku ortalaması | Vanilla | En yakın adaylar | Seçilen |
+|---|---|---|---|---|
+| `tuff` | #6C6D66 | TERRACOTTA_GRAY | STONE (11) · DEEPSLATE (12) | `DEEPSLATE` |
+| `tuff_bricks` | #62665F | TERRACOTTA_GRAY | DEEPSLATE (6) · TERRACOTTA_CYAN (15) | `DEEPSLATE` |
+
+Düz tuff'ta iki aday neredeyse berabere; beraberliği fotoğrafın işi bozar: tuff
+kullanan hemen her yapıda taş, cobblestone ve andesite de vardır ve `STONE` vermek
+tuff'ı onlardan **ayırt edilemez** kılardı. Deepslate ile çakışmak daha ucuz, çünkü
+ikisi aynı yüzeyde nadiren bulunur.
+
+Ölçüm sırasında kiraz kütüğü de kontrol edildi ve vanilla'nın seçimi **doğru** çıktı
+(#36212C, `TERRACOTTA_GRAY`'e uzaklık 12) — o yüzden listede yok.
+
+Düzeltme `settings.correct-vanilla-colors: false` ile kapatılır; kapalıyken fotoğraf
+vanilla haritayla birebir aynıdır, bu kusur dahil. Sıra: vanilla → düzeltme → 
+`block-colors.yml`, yani sunucu sahibi her ikisini de ezer.
 
 **`/izocam reload` tabloyu da yeniler.** Renkler sunucudan ve bu dosyadan **bir kez**
 okunup `IsometricRenderer`'a veriliyordu; render sırasında hiçbiri tekrar sorulmadığı için

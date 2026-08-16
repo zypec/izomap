@@ -33,6 +33,19 @@ import java.util.Map;
  * <p>The ray walk pays for this only where it applies: the extra state lookup happens
  * on a hit, and only for the handful of materials that came back varying.</p>
  *
+ * <h2>The handful vanilla gets wrong</h2>
+ *
+ * <p>A base colour is assigned by hand, not derived from the block's texture, and for a
+ * few blocks the two disagree badly enough to look like a bug in this plugin. Tuff is
+ * the case that prompted this: all fourteen tuff blocks report {@code TERRACOTTA_GRAY}
+ * (#392923, a near-black brown) against a texture averaging #6C6D66, a light grey-green.
+ * A photo of a tuff tower came out the colour of rust.</p>
+ *
+ * <p>{@link #CORRECTIONS} replaces those, measured rather than guessed: each entry is
+ * the palette colour nearest the texture's own average. It can be switched off with
+ * {@code settings.correct-vanilla-colors} by anyone who wants a photo to match a vanilla
+ * map exactly, wart and all, and {@code block-colors.yml} still wins over both.</p>
+ *
  * <p>{@code block-colors.yml} exists only for overrides.</p>
  *
  * <p>The table is read-only once loaded, so render threads may use it.</p>
@@ -44,6 +57,33 @@ public final class BlockColorTable {
      * File format version; older files are backed up and replaced.
      */
     private static final int FILE_VERSION = 2;
+
+    /**
+     * Blocks whose vanilla map colour does not resemble them, and what to use instead.
+     *
+     * <p>Tuff averages #6C6D66 and its bricks #62665F. {@code DEEPSLATE} (#646464) is
+     * nearest to the bricks by a distance of 6 and within one unit of nearest for the
+     * plain block, where {@code STONE} (#707070) ties it. Deepslate wins the tie on
+     * what a photo is for: tuff sits next to stone, cobblestone and andesite in almost
+     * every build that uses it, and giving it {@code STONE} would erase the wall it was
+     * chosen to distinguish. Colliding with deepslate instead costs less, since the two
+     * rarely share a surface.</p>
+     */
+    private static final Map<Material, MapBaseColor> CORRECTIONS = Map.ofEntries(
+            Map.entry(Material.TUFF, MapBaseColor.DEEPSLATE),
+            Map.entry(Material.TUFF_SLAB, MapBaseColor.DEEPSLATE),
+            Map.entry(Material.TUFF_STAIRS, MapBaseColor.DEEPSLATE),
+            Map.entry(Material.TUFF_WALL, MapBaseColor.DEEPSLATE),
+            Map.entry(Material.POLISHED_TUFF, MapBaseColor.DEEPSLATE),
+            Map.entry(Material.POLISHED_TUFF_SLAB, MapBaseColor.DEEPSLATE),
+            Map.entry(Material.POLISHED_TUFF_STAIRS, MapBaseColor.DEEPSLATE),
+            Map.entry(Material.POLISHED_TUFF_WALL, MapBaseColor.DEEPSLATE),
+            Map.entry(Material.CHISELED_TUFF, MapBaseColor.DEEPSLATE),
+            Map.entry(Material.TUFF_BRICKS, MapBaseColor.DEEPSLATE),
+            Map.entry(Material.TUFF_BRICK_SLAB, MapBaseColor.DEEPSLATE),
+            Map.entry(Material.TUFF_BRICK_STAIRS, MapBaseColor.DEEPSLATE),
+            Map.entry(Material.TUFF_BRICK_WALL, MapBaseColor.DEEPSLATE),
+            Map.entry(Material.CHISELED_TUFF_BRICKS, MapBaseColor.DEEPSLATE));
 
     private final Map<Material, MapBaseColor> colors = new EnumMap<>(Material.class);
     /**
@@ -67,6 +107,9 @@ public final class BlockColorTable {
     public static BlockColorTable load(Izomap plugin) {
         var table = new BlockColorTable();
         table.readFromServer(plugin);
+        if (plugin.config().correctVanillaColors())
+            table.applyCorrections(plugin);
+
         table.applyOverrides(plugin, loadFile(plugin));
         plugin.messages().info("log.block-colors-ready",
                 Placeholder.unparsed("count", String.valueOf(table.colors.size())));
@@ -179,6 +222,29 @@ public final class BlockColorTable {
 
         unknown++;
         return nearestBase(rgb);
+    }
+
+    /**
+     * Replaces the colours vanilla assigns to blocks it does not resemble.
+     *
+     * <p>Applied before {@code block-colors.yml}, so a server owner overrides the
+     * correction as easily as the original.</p>
+     */
+    private void applyCorrections(Izomap plugin) {
+        var applied = 0;
+        for (var entry : CORRECTIONS.entrySet()) {
+            // A material this build does not know is not an error; the list outlives
+            // the versions it was written against.
+            if (!colors.containsKey(entry.getKey())) continue;
+
+            colors.put(entry.getKey(), entry.getValue());
+            byAge.remove(entry.getKey());
+            applied++;
+        }
+        if (applied > 0) {
+            plugin.messages().info("log.block-colors-corrected",
+                    Placeholder.unparsed("count", String.valueOf(applied)));
+        }
     }
 
     /**

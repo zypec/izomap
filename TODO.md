@@ -240,6 +240,43 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 
 ## Arşiv
 
+### T47 — Tuff ailesinin rengi dokusuna çekildi
+
+`[x]` **P1** · 2026-08-16
+
+Tuff'tan yapılmış kuleler fotoğrafta pas rengi çıkıyordu. Denetim sırasıyla:
+
+1. **Palet doğru.** Sunucunun kendi `MapColor` sınıfı jar'dan çıkarılıp tabloyla
+   karşılaştırıldı: 62 girdinin tamamı id ve renk olarak birebir aynı.
+2. **Suç vanilla'da.** `Blocks` sınıfının bytecode'u tarandı: on dört tuff bloğunun
+   tamamı `MapColor.TERRACOTTA_GRAY` (#392923) bildiriyor.
+3. **Ne kadar yanlış olduğu ölçüldü.** İstemci jar'ından doku alınıp ortalaması
+   hesaplandı: `tuff` #6C6D66, `tuff_bricks` #62665F. Vanilla'nın verdiği renk siyaha
+   yakın bir kahve, doku ise açık gri-yeşil.
+
+`BlockColorTable.CORRECTIONS` eklendi: tuff ailesi → `DEEPSLATE`. Düz tuff'ta `STONE`
+(11) ile `DEEPSLATE` (12) neredeyse berabere; beraberlik fotoğrafın işine göre bozuldu —
+tuff kullanan hemen her yapıda taş/cobblestone/andesite de var ve `STONE` vermek tuff'ı
+onlardan ayırt edilemez kılardı. Tuğlada `DEEPSLATE` zaten açık ara (6).
+
+Düzeltme **kodda**, dosyada değil: `block-colors.yml` çoğu sunucuda zaten diskte
+olduğundan varsayılan dosyayı değiştirmek onlara ulaşmazdı. Sıra vanilla → düzeltme →
+`block-colors.yml`. `settings.correct-vanilla-colors: false` ile kapatılır ve kapalıyken
+fotoğraf vanilla haritayla birebir aynı olur.
+
+Kiraz kütüğü de ölçüldü ve vanilla'nın seçimi doğru çıktı (#36212C, uzaklık 12); listeye
+alınmadı.
+
+**Yan bulgu:** şikâyete konu render'daki genel kahverengi/sepya ton tuff'tan değil,
+kamerada açık olan **WARM renk filtresinden** geliyordu. Ölçümle doğrulandı: çimen
+`COLOR_YELLOW`'a, `TERRACOTTA_GRAY` ise `TERRACOTTA_RED`'e kayıyor — render'daki baskın
+renkler tam olarak bunlar.
+
+Dokunulanlar: `BlockColorTable`, `ConfigManager`, `config.yml`, `messages.yml`,
+`block-colors.yml`, `IZOMAP.md` §3.
+
+---
+
 ### T46 — Çekim ekranı yeniden düzenlendi, çekim yüzdesi geldi, create preview açıyor
 
 `[x]` **P1** · 2026-08-16

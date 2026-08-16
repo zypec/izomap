@@ -100,6 +100,14 @@ public final class ConfigManager {
         return cfg().getBoolean("settings.generate-missing-chunks", false);
     }
 
+    /**
+     * Whether the few blocks whose vanilla map colour does not resemble them are
+     * corrected. Off makes a photo match a vanilla map exactly, tuff included.
+     */
+    public boolean correctVanillaColors() {
+        return cfg().getBoolean("settings.correct-vanilla-colors", true);
+    }
+
     public int maxCamerasPerPlayer() {
         return cfg().getInt("settings.max-cameras-per-player", 5);
     }
