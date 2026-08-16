@@ -72,6 +72,8 @@ public final class CameraStorage extends YamlStorage {
             cfg.set(base + ".sky", c.sky().name());
             cfg.set(base + ".from-item", c.placedFromItem());
             cfg.set(base + ".thirds-guide", c.thirdsGuide());
+            cfg.set(base + ".focus-enabled", c.focusEnabled());
+            cfg.set(base + ".focus-distance", c.focusDistance());
             cfg.set(base + ".preview-map-id", c.previewMapId());
         }
         return cfg;
@@ -133,6 +135,8 @@ public final class CameraStorage extends YamlStorage {
         camera.sky(SkyOption.fromString(s.getString("sky"), SkyOption.NONE));
         camera.placedFromItem(s.getBoolean("from-item", false));
         camera.thirdsGuide(s.getBoolean("thirds-guide", false));
+        camera.focusEnabled(s.getBoolean("focus-enabled", false));
+        camera.focusDistance((float) s.getDouble("focus-distance", 0.0));
         camera.previewMapId(s.getInt("preview-map-id", Camera.NO_PREVIEW_MAP));
         return camera;
     }

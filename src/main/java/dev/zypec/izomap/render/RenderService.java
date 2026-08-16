@@ -92,9 +92,49 @@ public final class RenderService {
                 camera.camYaw(), camera.camPitch(), camera.zoom(), camera.colorFilter(), camera.style(),
                 skyArgbFor(camera.sky(), world),
                 plugin.config().shading(),
+                plugin.config().focus(camera.focusEnabled(), camera.focusDistance()),
                 plugin.config().frameHeight(), plugin.config().frameShift(),
                 plugin.config().supersampling(), plugin.config().maxCaptureArea(),
                 plugin.config().renderDepth());
+    }
+
+    /**
+     * The distances the focus slider may pick from for this camera, and where it should
+     * sit before the player has moved it.
+     *
+     * <p>Both come from the same geometry the capture uses, so the slider cannot offer a
+     * distance the rays never travel. Reads the world, so main thread only.</p>
+     */
+    public FocusRange focusRange(Camera camera) {
+        var area = plugin.config().maxCaptureArea();
+        var anchor = camera.anchor();
+        var world = anchor.getWorld();
+        if (world == null)
+            return new FocusRange(area / 2.0, area);
+
+        var direction = directionFrom(camera.camYaw(), camera.camPitch());
+        var up = basisFrom(direction)[1];
+        var spanHeight = plugin.config().frameHeight() / camera.zoom();
+        var frameShift = plugin.config().frameShift();
+        var eyeY = anchor.getY();
+        var floorY = floorReference(world, anchor, eyeY) - plugin.config().renderDepth();
+        var climb = -direction.getY();
+        var limit = rayDistance(eyeY, floorY, climb, up.getY(), spanHeight, frameShift, area);
+
+        // What the centre of the frame is aimed at: where its ray meets the reference
+        // ground. A level camera has no such point, so the middle of the range stands in.
+        var suggested = climb > 1.0e-6
+                ? Math.min((eyeY - floorY) / climb, limit)
+                : limit / 2.0;
+        return new FocusRange(Math.max(1.0, suggested), Math.max(1.0, limit));
+    }
+
+    /**
+     * Where a camera's focus may be put: {@code suggested} is the ground its frame is
+     * centred on, {@code limit} the furthest its rays reach. Both in blocks from the
+     * camera plane.
+     */
+    public record FocusRange(double suggested, double limit) {
     }
 
     /**
@@ -167,11 +207,8 @@ public final class RenderService {
         // to reach the target floor. `right` is always horizontal, so the frame's
         // vertical extent comes from `up` alone.
         var climb = -direction.getY();
-        var topAboveEye = Math.max(0.0, (0.5 + frameShift) * spanHeight * up.getY());
         var floorY = floorReference(world, anchor, eyeY) - spec.renderDepth();
-        var maxDistance = climb > 1.0e-6
-                ? Math.min((eyeY + topAboveEye - floorY) / climb, captureArea)
-                : captureArea;
+        var maxDistance = rayDistance(eyeY, floorY, climb, up.getY(), spanHeight, frameShift, captureArea);
 
         // The part of the frame below the camera is lifted to its horizontal plane by
         // backoff, see RenderGeometry.
@@ -206,6 +243,7 @@ public final class RenderService {
                 planeCenter, right, up, direction, spanWidth, spanHeight, maxDistance,
                 eyeY, maxBackoff, renderWidth, renderHeight);
         var pipeline = ColorPipeline.of(spec.colorFilter(), converter);
+        var focus = spec.focus();
         var supersampling = spec.supersampling();
         var threads = plugin.config().renderThreads();
         var executor = workers(threads);
@@ -226,8 +264,13 @@ public final class RenderService {
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                 try {
                     var result = walker.render(
-                            snapshot, geometry, pipeline, sky, shading, supersampling,
+                            snapshot, geometry, pipeline, sky, shading, supersampling, focus.draws(),
                             progress, executor, threads);
+                    // Before the scale-up, where the depth buffer still lines up with the
+                    // pixels. The radius is a ratio of image height, so a FAST render
+                    // blurs a smaller image by a smaller radius and the scale-up puts
+                    // both back; applying it afterwards would mean stretching the depth.
+                    result = FocusPass.apply(result, focus, spanHeight, converter, executor, threads);
                     result = StylePass.upscale(result, widthPx, heightPx, converter);
                     if (timing) {
                         logTiming(geometry, snapshot, supersampling, requestedAt, capturedAt, System.nanoTime());
@@ -348,6 +391,20 @@ public final class RenderService {
      */
     private static double floorReference(World world, Location anchor, double eyeY) {
         return Math.min(eyeY, Math.min(world.getSeaLevel(), world.getHighestBlockYAt(anchor)));
+    }
+
+    /**
+     * How far the rays travel: what the ray at the top edge of the frame needs to reach
+     * the target floor, bounded by {@code settings.max-capture-area}. A camera that does
+     * not look down has no such ray and takes the bound.
+     */
+    private static double rayDistance(double eyeY, double floorY, double climb, double upY,
+                                      double spanHeight, double frameShift, double captureArea) {
+        if (climb <= 1.0e-6)
+            return captureArea;
+
+        var topAboveEye = Math.max(0.0, (0.5 + frameShift) * spanHeight * upY);
+        return Math.min((eyeY + topAboveEye - floorY) / climb, captureArea);
     }
 
     /**

@@ -19,6 +19,9 @@ permissions:
   izomap.style.sharp:
     description: "Keskin stil (her piksel için ışın); hızlı stil izin istemez"
     default: op
+  izomap.focus:
+    description: "Alan derinliği (odak): görüntü üzerinde ikinci bir geçiş"
+    default: op
   izomap.filter:
     description: "Tüm renk filtreleri; tek filtre için izomap.filter.<KIMLIK>"
     default: op

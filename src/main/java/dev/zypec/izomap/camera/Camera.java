@@ -52,6 +52,14 @@ public final class Camera {
 
     private boolean thirdsGuide;
 
+    /**
+     * Depth of field. Off until the player asks for it, and then a distance in blocks
+     * from the camera plane; {@code 0} means it has never been set and the capture
+     * screen should offer the ground the frame is aimed at instead.
+     */
+    private boolean focusEnabled;
+    private float focusDistance;
+
     /** Id of the reused preview map, or {@link #NO_PREVIEW_MAP}. */
     private int previewMapId = NO_PREVIEW_MAP;
 
@@ -211,6 +219,30 @@ public final class Camera {
 
     public void thirdsGuide(boolean thirdsGuide) {
         this.thirdsGuide = thirdsGuide;
+    }
+
+    /**
+     * Whether this camera blurs what is not at {@link #focusDistance()}. Unlike the
+     * thirds guide, this one is part of the picture and goes into every capture.
+     */
+    public boolean focusEnabled() {
+        return focusEnabled;
+    }
+
+    public void focusEnabled(boolean focusEnabled) {
+        this.focusEnabled = focusEnabled;
+    }
+
+    /**
+     * Distance from the camera plane that stays sharp, in blocks. {@code 0} is "not
+     * chosen yet", not "focus on the lens".
+     */
+    public float focusDistance() {
+        return focusDistance;
+    }
+
+    public void focusDistance(float focusDistance) {
+        this.focusDistance = Math.max(0.0f, focusDistance);
     }
 
     /**

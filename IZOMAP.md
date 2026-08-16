@@ -397,6 +397,87 @@ girdiği pikseller, görüntünün yüzde birkaçı.
 > çıkıyordu. Bu sıra sayesinde çıktı, pipeline öncesi renderer'ınkiyle **bit birebir
 > aynıdır**; hızlanma tamamen tekrarlanan işin kaldırılmasından gelir.
 
+### Alan derinliği (`FocusPass`, `FocusSpec`)
+
+Oyuncu bir **odak uzaklığı** seçer (blok, kamera düzleminden); o uzaklıktaki her şey net
+kalır, ondan uzaklaşan her şey bulanıklaşır. Varsayılan kapalı, `izomap.focus` iznine
+bağlı, kamerada tutulur (`cameras.yml` → `focus-enabled` / `focus-distance`) ve çekimde
+`CaptureSpec`'e donar.
+
+> **Ortada mercek yok.** Ortografik projeksiyonda ışınlar paraleldir; diyafram olmadığı
+> için gerçek bir karışıklık dairesi (circle of confusion) de yoktur. Bu **simüle edilen**
+> değil **seçilen** bir görünümdür: eğimli kamerada tilt-shift (minyatür) etkisi, yatay
+> kamerada özneyi arka planından ayırma. Config yorumlarında da fizik gibi anlatılmaz.
+
+**Derinlik bedavaya gelir.** DDA yürüyüşü zaten `t`'yi (ışının kat ettiği mesafe) tutuyor
+— ne zaman pes edeceğini ondan biliyor. `RayHit` artık onu da taşıyor; geri çekilen ışın
+için `t − backoff` yazılır, böylece sayı her piksel için **kamera düzleminden** ölçülmüş
+olur. Derinlik dizisi yalnızca efekt açıkken ayrılır (fotoğraf boyunda `float[]`, yani
+görüntünün kendisi kadar yer). Süpersamplingde piksel derinliği isabet eden örneklerin
+ortalamasıdır; gökyüzüne düşen piksel `RenderResult.SKY_DEPTH` alır.
+
+#### Toplamak, ama saçmanın kuralıyla
+
+Bulanıklık aslında bir **saçılmadır**: her yüzey kendi bulanıklığı kadar büyük bir disk
+saçar, piksel de kendisine ulaşan disklerin toplamıdır. Bu boyutlarda saçılma yazılamaz,
+o yüzden geçiş **toplar** (gather) — ama saçmanın kuralını korur:
+
+> Bu pikselin **önündeki** bir komşu, ancak kendi bulanıklık diski buraya yetişiyorsa
+> katkı verir.
+
+Klasik hatayı önleyen tam olarak bu kuraldır: net duran bir özne arkasındaki bulanık
+zemine **bulaşmaz**, buna karşılık bulanık bir ön plan kapattığı şeyin üstüne düzgünce
+taşar. Arkadaki komşular koşulsuz kabul edilir, çünkü zaten merkez pikselin kendi diski
+içindedirler.
+
+#### Disk taranmaz, örneklenir
+
+Tam disk piksel başına r² okuma demektir ve fotoğraf boyunda r onlarca pikseldir — 2048
+piksellik bir render milyarlarca okumaya çıkardı. Disk bunun yerine **altın açı
+spiralinde** sabit sayıda noktadan örneklenir (`photo.focus.samples`), yani maliyet
+piksel başına sabittir ve **oyuncunun sürüklediği slider değil**, yalnızca bu sayı
+maliyeti oynatır. Örnekler birim disk üzerinde **on altı dönüşte** önceden hesaplanır
+(4×4 karodaki her konum için biri): piksel başına döndürmek piksel başına iki
+trigonometrik çağrı olurdu, hiç döndürmemek ise aynı spirali her bulanık bölgeye
+damgalardı.
+
+#### Palet, yine
+
+Ortalama palette olmayan renkler üretir; doğrudan snap etmek yumuşak geçişi birkaç geniş
+banda çevirir — gökyüzünün derdinin aynısı, çözümü de aynısı: snap öncesi 4×4 sıralı
+dither (`photo.focus.dither`). İki kısayol bu geçişin kenarını temiz tutar:
+
+- **Net piksel geçişe hiç girmez.** Yarıçapı 1 pikselin altındaysa piksel olduğu gibi
+  kopyalanır: palet üzerinde, dithersiz, bedava.
+- **Tek renkten oluşan bulanıklık o renk kalır.** Toplanan örneklerin hepsi aynıysa
+  ortalama alınmaz. Alınsaydı dither düz bir duvarın yarısını yandaki palet girdisine
+  kaydırıp **bulanıklaştıracak hiçbir şeyi olmayan** yüzeyi beneklerdi.
+
+Aynı sebeple dokunulmayan bir gökyüzü parçası da olduğu gibi bırakılır: zaten dither'lı
+bir gradyanı ortalayıp yeniden snap'lemek dither'ı söküp bandı geri verirdi.
+
+#### Sıra: yürüyüş → odak → stil büyütmesi
+
+Geçiş `StylePass.upscale`'den **önce**, derinliğin hâlâ pikselle hizalı olduğu yerde
+koşar. Yarıçap görüntü yüksekliğinin oranı olduğu için `FAST` küçük görüntüyü küçük
+yarıçapla bulanıklaştırır, büyütme ikisini birden geri getirir; sonradan uygulamak
+derinlik dizisini de esnetmeyi gerektirirdi.
+
+#### Ölçüm
+
+2048×1152, 24 örnek, 4 thread (Apple Silicon, JDK 25; sentetik görüntü, sunucusuz):
+
+| Görüntü | Süre |
+|---|---:|
+| Arazi benzeri (geniş düz alanlar, kadrajın üçte biri odakta) | 254-273 ms |
+| En kötü hâl: her piksel odak dışı, hiçbir komşu diğerine benzemiyor | 411 ms |
+| Aynı, 8 / 48 / 96 örnek | 273 / 635 / 1086 ms |
+| Önizleme 128×128, tek thread, 48 örnek | ~13 ms |
+
+Geçiş baştan sona **asenkron havuzda** koşar; ana thread'e hiç dokunmaz. Örnek sayısı
+maliyeti neredeyse doğrusal oynatır, çünkü hem toplama hem de sonundaki palet araması
+örnek başına ödenir. Sunucu üstündeki karşılığı T50'de ölçülecek.
+
 ### Gelişmiş gölgelendirme (`Shading`, `ShadingSpec`)
 
 Bir yüzeyin parlaklığı normalde yalnızca ışının girdiği yüzden gelir. Üç teknik buna
@@ -891,8 +972,31 @@ oluşur. Butonlar benzer olanlar aynı satıra düşecek sırayla verilir:
 |---|---|
 | 1 | En-boy oranları (3 tane) |
 | 2 | Renk · Stil · Gökyüzü |
-| 3 | Üçler kuralı · Fotoğraflar · Fotoğraf Çek |
-| 4 | Kamerayı Topla · Ayarları Sıfırla |
+| 3 | Odak · Üçler kuralı · Fotoğraflar |
+| 4 | Fotoğraf Çek · Kamerayı Topla · Ayarları Sıfırla |
+
+(Odak butonu `izomap.focus` izni olmayana gösterilmez ve satırlar bir yukarı kayar.)
+
+#### Odak slider'ı
+
+Odak açıkken ekrana üçüncü bir giriş alanı gelir: `DialogInput.numberRange`, yani
+gerçek bir slider. İki tasarım kararı:
+
+- **Yalnızca efekt açıkken görünür.** Hiçbir şeyi oynatmayan bir slider, oyuncunun
+  sormaya karar vermeden önce cevaplamak zorunda kaldığı bir sorudur.
+- **Üst sınırı bu kameranın kendi ışın mesafesidir** (`RenderService#focusRange`), sabit
+  bir sayı değil. Böylece slider'ın her yeri fotoğrafın gerçekten içerebileceği bir şeyi
+  gösterir; zoom'lanmış bir karede tüm gezinme birkaç düzine bloğu kapsar ve odak özneyi
+  atlamak yerine blok blok kayar.
+
+İlk açılışta odak **kadrajın nişan aldığı zemine** kurulur: merkez ışının referans
+zeminle buluştuğu nokta. Sıfırdan başlasaydı odak düzlemi merceğin üstünde olur ve
+fotoğrafın tamamı bulanık çıkardı — bu, anlatılması gereken bir efekt değil, bozuk bir
+render gibi okunur.
+
+**Slider'ın değeri canlı gelmez.** Dialog'un sunucuya sürekli bir kanalı yoktur; değer
+ancak bir butona basıldığında `DialogResponseView#getFloat` ile okunur. Yani odak, formun
+geri kalanıyla birlikte **bir sonraki tıkta** taşınır ve önizleme o an yenilenir.
 
 **Renk, stil ve gökyüzü açılır liste değil, döngü butonudur.** Her biri bir avuç değer
 taşıyor ve buton yürürlükteki değeri **gösterebiliyor**, kapalı bir açılır liste
@@ -921,8 +1025,10 @@ en pahalı işi (kadrajın kapsadığı chunk'lar ana thread'de kopyalanır), do
 ekran o kopyalamanın arkasında açılıyordu; fotoğraf listesinin geç açılmasının sebebi
 buydu.
 
-Artık görüntüyü etkileyen dört alanın (en-boy oranı, üçler kılavuzu, zoom, filtre)
-öncesi ve sonrası karşılaştırılır; **hiçbiri değişmediyse ne kayıt ne render** yapılır.
+Artık görüntüyü etkileyen alanların (en-boy oranı, üçler kılavuzu, zoom, filtre, stil,
+gökyüzü, odak ve odak uzaklığı) öncesi ve sonrası karşılaştırılır; **hiçbiri
+değişmediyse ne kayıt ne render** yapılır. Slider bu listede olmasaydı sürüklenen odak
+sessizce kaydedilir ama önizlemeye hiç yansımazdı.
 
 ### Zoom Dialog'da ayarlanmaz
 
@@ -1261,6 +1367,7 @@ Düğüm adlarının ve "ne neye izin verir" sorusunun tek yeri `Permissions` s�
 | `izomap.admin` | Başkasının kamerası/fotoğrafı, `reload`, `cleanup` | `op` |
 | `izomap.export` | `/izocam export` (diske PNG yazar) | `op` |
 | `izomap.style.sharp` | `SHARP` stil | `op` |
+| `izomap.focus` | Alan derinliği (odak) | `op` |
 | `izomap.filter` / `izomap.filter.<KİMLİK>` | Tüm filtreler / tek filtre | `op` |
 | `izomap.sky` / `izomap.sky.<AD>` | Tüm gökyüzleri / tek gökyüzü | `op` |
 | `izomap.ratio` / `izomap.ratio.<AD>` | Tüm oranlar / tek oran | `true` |
@@ -1273,7 +1380,9 @@ Böylece bir sunucu ekibine alanın tamamını, herkese tek bir seçeneği vereb
 ihtiyaç için iki sistem yazmak gerekmez.
 
 **Her ayarın en ucuz değeri bedavadır.** `ORIGINAL` filtre, `NONE` gökyüzü ve `FAST`
-stil hiçbir düğüm istemez. Hiçbir izni olmayan oyuncu yine fotoğraf çekebilir: izinler
+stil hiçbir düğüm istemez. Alan derinliğinin bedava üyesi yoktur, çünkü bedava olanı
+zaten "efekt yok"tur: `izomap.focus` taşımayan oyuncu, eklentinin hep çektiği baştan
+sona net fotoğrafı çeker ve bir şeyden alıkonmuş olmaz. Hiçbir izni olmayan oyuncu yine fotoğraf çekebilir: izinler
 fotoğrafın **ne kadar pahalıya** çıkabileceğine karar verir, çekilip çekilemeyeceğine
 değil. Yeni kamera `SHARP` ile başladığı için, izni olmayan oyuncunun kurduğu kamera
 kurulurken `FAST`'e çekilir — aksi halde oyuncuya kendi çekiminin reddedileceği bir
@@ -1345,7 +1454,7 @@ toplanır ve değerler mantıklı aralıklara clamp'lenir.
 |---|---|
 | `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `render-timing`, `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player`, `max-photos-per-camera`, `max-map-tiles` (1-4096), `correct-vanilla-colors` |
 | `camera` | `display-type`, `model-material`, `item-display-transform`, `interaction-size` (0.1-3.0), `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `move-step` (0.05-16.0), `default-pitch` (-90..90), `edit-lock-seconds` (1-3600), `model-rotation.{x,y,z}`, `hologram.{enabled, offset-y (-4..8), view-range (0.1-10), billboard, background}` |
-| `photo` | `sky.colors.*`, `sky.gradient`, `sky.horizon-blend`, `sky.dither`, `style.fast-scale`, `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
+| `photo` | `sky.colors.*`, `sky.gradient`, `sky.horizon-blend`, `sky.dither`, `focus.{range (0.02-8), max-radius (0-0.05), samples (4-128), dither (0-128)}`, `style.fast-scale`, `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
 | `placement` | `distance`, `invisible-frames`, `build-backing-wall`, `backing-material`, `timeout-seconds` (5-600) |
 
 **Geriye dönük uyumluluk yok, bilerek.** Eklenti yayınlanmadığı için okunacak eski kurulum
@@ -1367,7 +1476,7 @@ kontrol edip `0.25`'in üstündeyse log uyarısı verir.
 | `filters.yml` | Renk filtresi tanımları (kimlik + işlem zinciri; adları `messages.yml`'de) |
 | `messages.yml` | MiniMessage mesajları (`prefix` + anahtar ağacı; oyuncuya gidenler **ve** konsol) |
 | `block-colors.yml` | Blok rengi override'ları (v2) |
-| `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, üçler kuralı, model/interaction/hologram entity UUID'leri, önizleme harita kimliği) |
+| `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, üçler kuralı, odak, model/interaction/hologram entity UUID'leri, önizleme harita kimliği) |
 | `photos.yml` | Fotoğraflar (ad, kamera, ızgara, `capture` bloğunda çekim parametreleri; asılıysa `placement` bloğunda harita id'leri, çerçeve UUID'leri ve çıpa koordinatı) |
 | `photos/<uuid>.izm` | Fotoğrafın çekilmiş görüntüsü (palet indeksi + Deflate); YML değil, ikili. Çerçeve `embed: true` ile takıldıysa pikselleri de buradadır |
 | `frames.yml` | Süsleme çerçeveleri: halka renkleri ve kalınlıkları |

@@ -33,23 +33,27 @@ public final class IsometricRenderer {
      * @param progress      told as each row finishes, or {@code null} when nobody is
      *                      watching the capture
      * @param supersampling antialiasing rays per pixel (NxN); 1 disables it
+     * @param withDepth     whether to record how far each pixel is, for {@link FocusPass}
      * @param executor      pool the row bands are dispatched to
      * @param threads       how many bands, and therefore threads, to use
      */
     public RenderResult render(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
-                               Sky sky, Shading shading, int supersampling,
+                               Sky sky, Shading shading, int supersampling, boolean withDepth,
                                CaptureProgress progress, Executor executor, int threads) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
         final var argb = new int[w * h];
+        // Only allocated when something is going to read it: at photo sizes this is as
+        // large as the image itself.
+        final var depth = withDepth ? new float[w * h] : null;
         final var samples = Math.max(1, supersampling);
         if (progress != null)
             progress.expect(h);
 
         var bands = Math.max(1, Math.min(threads, h));
         if (bands == 1) {
-            renderBand(snapshot, geo, pipeline, sky, shading, samples, progress, argb, 0, h);
-            return new RenderResult(w, h, argb);
+            renderBand(snapshot, geo, pipeline, sky, shading, samples, progress, argb, depth, 0, h);
+            return new RenderResult(w, h, argb, depth);
         }
 
         // The last band runs on the calling thread.
@@ -59,12 +63,12 @@ public final class IsometricRenderer {
             final int from = band * rowsPerBand;
             final int to = Math.min(h, from + rowsPerBand);
             pending[band] = CompletableFuture.runAsync(
-                    () -> renderBand(snapshot, geo, pipeline, sky, shading, samples, progress, argb, from, to), executor);
+                    () -> renderBand(snapshot, geo, pipeline, sky, shading, samples, progress, argb, depth, from, to), executor);
         }
-        renderBand(snapshot, geo, pipeline, sky, shading, samples, progress, argb, (bands - 1) * rowsPerBand, h);
+        renderBand(snapshot, geo, pipeline, sky, shading, samples, progress, argb, depth, (bands - 1) * rowsPerBand, h);
         CompletableFuture.allOf(pending).join();
 
-        return new RenderResult(w, h, argb);
+        return new RenderResult(w, h, argb, depth);
     }
 
     /**
@@ -72,7 +76,7 @@ public final class IsometricRenderer {
      */
     private void renderBand(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
                             Sky sky, Shading shading, int samples, CaptureProgress progress,
-                            int[] argb, int yFrom, int yTo) {
+                            int[] argb, float[] depth, int yFrom, int yTo) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
 
@@ -95,6 +99,7 @@ public final class IsometricRenderer {
         for (var py = yFrom; py < yTo; py++) {
             for (var px = 0; px < w; px++) {
                 int hits = 0, sumR = 0, sumG = 0, sumB = 0;
+                var sumDistance = 0.0;
                 var firstId = 0;
                 var uniform = true;
 
@@ -138,6 +143,9 @@ public final class IsometricRenderer {
                             uniform = false;
                         }
                         hits++;
+                        // Measured from the camera plane, not from where this ray began:
+                        // a pulled-back ray walked its backoff before reaching it.
+                        sumDistance += hit.distance - backoff;
                         var rgb = pipeline.paletteRgbOf(id);
                         sumR += (rgb >> 16) & 0xFF;
                         sumG += (rgb >> 8) & 0xFF;
@@ -149,6 +157,9 @@ public final class IsometricRenderer {
                 // is either terrain or whatever lies beyond it.
                 if (hits * 2 < total) {
                     argb[py * w + px] = sky.argbAt(px, py);
+                    if (depth != null) {
+                        depth[py * w + px] = RenderResult.SKY_DEPTH;
+                    }
                     continue;
                 }
                 // Samples that all agreed left the color on the palette, so the finished
@@ -156,6 +167,9 @@ public final class IsometricRenderer {
                 argb[py * w + px] = uniform
                         ? pipeline.argbOf(firstId)
                         : pipeline.blend(sumR / hits, sumG / hits, sumB / hits);
+                if (depth != null) {
+                    depth[py * w + px] = (float) (sumDistance / hits);
+                }
             }
             if (progress != null)
                 progress.advance();
@@ -223,6 +237,7 @@ public final class IsometricRenderer {
                     out.material = material;
                     out.base = base;
                     out.face = face;
+                    out.distance = t;
                     out.darken = shading.stepsAt(snapshot, colorTable, x, y, z, face, stepX, stepZ);
                     return;
                 }

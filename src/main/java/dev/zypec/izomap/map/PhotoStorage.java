@@ -3,6 +3,7 @@ package dev.zypec.izomap.map;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.render.CaptureSpec;
 import dev.zypec.izomap.render.ColorFilter;
+import dev.zypec.izomap.render.FocusSpec;
 import dev.zypec.izomap.render.PhotoStyle;
 import dev.zypec.izomap.render.ShadingSpec;
 import dev.zypec.izomap.storage.YamlStorage;
@@ -113,6 +114,12 @@ public final class PhotoStorage extends YamlStorage {
         cfg.set(base + ".shading.block-light", spec.shading().blockLight());
         cfg.set(base + ".shading.light-dim-below", spec.shading().dimBelow());
         cfg.set(base + ".shading.light-dark-below", spec.shading().darkBelow());
+        cfg.set(base + ".focus.enabled", spec.focus().enabled());
+        cfg.set(base + ".focus.distance", spec.focus().distance());
+        cfg.set(base + ".focus.range", spec.focus().rangeRatio());
+        cfg.set(base + ".focus.max-radius", spec.focus().maxRadius());
+        cfg.set(base + ".focus.samples", spec.focus().samples());
+        cfg.set(base + ".focus.dither", spec.focus().dither());
         cfg.set(base + ".frame-height", spec.frameHeight());
         cfg.set(base + ".frame-shift", spec.frameShift());
         cfg.set(base + ".supersampling", spec.supersampling());
@@ -138,6 +145,21 @@ public final class PhotoStorage extends YamlStorage {
     }
 
     /**
+     * Reads the focus; a photo taken with none has the whole frame sharp.
+     */
+    private static FocusSpec readFocus(ConfigurationSection s) {
+        if (s == null || !s.getBoolean("enabled", false))
+            return FocusSpec.NONE;
+
+        return new FocusSpec(true,
+                s.getDouble("distance", 0.0),
+                s.getDouble("range", 0.5),
+                s.getDouble("max-radius", 0.015),
+                s.getInt("samples", 24),
+                s.getDouble("dither", 24.0));
+    }
+
+    /**
      * Reads a capture spec; {@code null} for records written before it existed.
      */
     private CaptureSpec readSpec(ConfigurationSection s) {
@@ -154,6 +176,7 @@ public final class PhotoStorage extends YamlStorage {
                 PhotoStyle.fromString(s.getString("style"), PhotoStyle.SHARP),
                 s.getInt("sky-argb", 0),
                 readShading(s.getConfigurationSection("shading")),
+                readFocus(s.getConfigurationSection("focus")),
                 s.getDouble("frame-height", 48.0), s.getDouble("frame-shift", 0.0),
                 s.getInt("supersampling", 1), s.getInt("max-capture-area", 512),
                 s.getInt("render-depth", 64));

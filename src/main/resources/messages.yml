@@ -32,6 +32,9 @@ camera:
   # Ortografik projeksiyonda ışınlar paraleldir: yatay bakan bir kamera arazi
   # yüzeyini göremez, yalnızca gökyüzü ile toprak kesitini görür.
   shallow-pitch: "<prefix> <yellow>Kamera neredeyse yatay bakıyor (<pitch>°). İzometrik bir kare için eğimi <white>20-45°</white> arasına al; aksi halde fotoğrafın yarısı gökyüzü, yarısı toprak kesiti olur."
+  # Yalnızca izomap.focus izni olan ve odağı henüz açmamış oyuncuya, yukarıdaki
+  # uyarının ardından gönderilir.
+  shallow-pitch-focus: "<prefix> <gray>Bu kadraj derinliği en çok belli eden kadraj: çekim ekranındaki <white>Odak</white> düğmesiyle bir uzaklığı net bırakıp gerisini bulanıklaştırabilirsin."
   item-name: "<gradient:#5e60ce:#48bfe3>Izomap Kamerası</gradient>"
   item-lore:
     - "<gray>Bir bloğa <white>sağ tık</white> ile kamera yerleştir."
@@ -116,6 +119,11 @@ setting:
   filter: "<white>Renk filtresi"
   sky: "<white>Gökyüzü"
   ratio: "<white>En-boy oranı"
+  focus: "<white>Alan derinliği"
+
+# setting.focus'un değeri; izinsiz çekim reddedilirken "Alan derinliği: Açık" yazar.
+focus:
+  on: "<green>Açık"
 
 filter:
   ORIGINAL: "<white>Orijinal"
@@ -225,6 +233,12 @@ dialog:
   pickup-cancel: "Vazgeç"
   ratio-button: "<gray>Oran: <ratio>"
   ratio-button-active: "<bold><white>Oran: <ratio> ✔</white></bold>"
+  # ALAN DERİNLİĞİ. Üçler kuralının aksine bu fotoğrafa GİRER: açıkken slider'daki
+  # uzaklık net kalır, gerisi bulanıklaşır. Slider yalnızca efekt açıkken görünür ve
+  # değeri, dialog'da bir düğmeye basıldığında sunucuya ulaşır (canlı kanal yoktur).
+  focus-button: "Odak: <gray>Kapalı"
+  focus-button-active: "Odak: <green>Açık ✔"
+  focus-label: "Odak uzaklığı (blok)"
   # Üçler kuralı: yalnızca önizlemeye çizilen 3x3 kadraj kılavuzu, fotoğrafa girmez.
   thirds-button: "Üçler kuralı: <gray>Kapalı"
   thirds-button-active: "Üçler kuralı: <green>Açık ✔"

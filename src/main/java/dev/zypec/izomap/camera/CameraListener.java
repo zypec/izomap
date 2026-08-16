@@ -1,6 +1,7 @@
 package dev.zypec.izomap.camera;
 
 import dev.zypec.izomap.Izomap;
+import dev.zypec.izomap.config.Permissions;
 import dev.zypec.izomap.render.PreviewManager;
 import dev.zypec.izomap.ui.CameraDialogs;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -197,6 +198,13 @@ public final class CameraListener implements Listener {
                     plugin.messages().send(player, "camera.shallow-pitch",
                             Placeholder.unparsed("pitch",
                                     String.format(Locale.ROOT, "%.0f", camera.camPitch())));
+                    // A level camera is where the isometric frame falls apart and where
+                    // depth is most worth using deliberately, so the way out is offered
+                    // next to the warning — but only to somebody who has it and is not
+                    // already using it.
+                    if (!camera.focusEnabled() && Permissions.focus(player)) {
+                        plugin.messages().send(player, "camera.shallow-pitch-focus");
+                    }
                 }
             }
             // Zoom steps multiplicatively so each tick changes it by the same

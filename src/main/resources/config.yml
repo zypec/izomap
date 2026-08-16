@@ -204,6 +204,33 @@ photo:
     # birincisine çekilir.
     light-dim-below: 8
     light-dark-below: 4
+  # ALAN DERİNLİĞİ (odak). Oyuncu çekim ekranından açar ve slider ile odak uzaklığını
+  # (blok) seçer; odaktaki uzaklık net kalır, ondan uzaklaşan her şey bulanıklaşır.
+  # İzin: izomap.focus. Kapalıyken hiçbir maliyeti yoktur.
+  #
+  # ÖNEMLİ: projeksiyon ortografiktir, yani ortada mercek YOKTUR. Bu gerçek bir bokeh
+  # simülasyonu değil, seçilmiş bir görünümdür (eğimli kamerada "tilt-shift", yatay
+  # kamerada özneyi arka planından ayırma). Aşağıdaki değerler efektin fiziği değil,
+  # sunucunun ona izin verdiği ölçüdür.
+  focus:
+    # NETLİK BANDININ DERİNLİĞİ: odaktan ne kadar uzaklaşınca bulanıklık tavana vurur.
+    # Blok değil, KADRAJ YÜKSEKLİĞİNİN ORANI olarak verilir (0.5 = yarım kadraj boyu),
+    # böylece zoom'la birlikte kendiliğinden ölçeklenir. Küçük değer = ince odak bandı,
+    # güçlü ayrışma. Aralık: 0.02-8.0.
+    range: 0.5
+    # EN GENİŞ BULANIKLIK YARIÇAPI, görüntü YÜKSEKLİĞİNİN oranı olarak (0.015 = 1152px
+    # bir fotoğrafta ~17 piksel). Piksel yerine oran: aynı çekim 128px'lik önizlemede de
+    # 2048px'lik fotoğrafta da aynı görünsün. 0 = efekt kapalı. Aralık: 0.0-0.05.
+    max-radius: 0.015
+    # MALİYET AYARI. Bulanıklık diski her piksel için bu kadar noktadan örneklenir;
+    # maliyet yarıçapla değil, YALNIZCA bu sayıyla artar (piksel başına sabit iş).
+    # Az örnek = disk üzerinde noktacıklar görünür, çok örnek = daha pürüzsüz ve pahalı.
+    # Aralık: 4-128.
+    samples: 24
+    # DITHERING, gökyüzündekiyle aynı sebep: bulanıklık ara tonlar üretir, palette 244
+    # renk vardır ve doğrudan snap edilirse yumuşak geçiş bantlaşır. Değer, bir pikselin
+    # gerçek renkten kaç kanal basamağı sapabileceğidir. 0 = kapalı. Aralık: 0-128.
+    dither: 24.0
   # ÇERÇEVELER. Çerçeveler frames.yml'de tanımlıdır; buradaki tek soru, taktıktan sonra
   # değiştirilebilir olup olmadıklarıdır.
   frames:

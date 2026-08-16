@@ -42,6 +42,8 @@ public final class Permissions {
     public static final String EXPORT = "izomap.export";
     /** The expensive style; {@code FAST} is free. */
     public static final String STYLE_SHARP = "izomap.style.sharp";
+    /** Depth of field: a second pass over every pixel of the image. */
+    public static final String FOCUS = "izomap.focus";
 
     /** Area nodes; a single option is {@code <area>.<NAME>}. */
     public static final String FILTER = "izomap.filter";
@@ -71,6 +73,14 @@ public final class Permissions {
      */
     public static boolean style(Permissible who, PhotoStyle style) {
         return style != PhotoStyle.SHARP || who.hasPermission(STYLE_SHARP);
+    }
+
+    /**
+     * Depth of field has no free member: sharp everywhere is the photo this plugin has
+     * always taken, so a player without this is not being kept from anything.
+     */
+    public static boolean focus(Permissible who) {
+        return who.hasPermission(FOCUS);
     }
 
     public static boolean filter(Permissible who, ColorFilter filter) {

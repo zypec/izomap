@@ -42,4 +42,12 @@ final class RayHit {
      * sun shadow and the neighbours around it. Zero is the plain face brightness.
      */
     int darken;
+
+    /**
+     * How far the ray travelled to reach the surface, in blocks, measured from where it
+     * started. The walk keeps that number anyway to know when to give up, so depth of
+     * field costs it nothing; a ray that was pulled back has its backoff subtracted by
+     * the caller, which is what turns this into a distance from the camera plane.
+     */
+    double distance;
 }

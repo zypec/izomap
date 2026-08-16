@@ -52,6 +52,13 @@ public final class CameraDialogs {
     private static final String INPUT_NAME = "photo_name";
     private static final String INPUT_GRID = "grid";
     private static final String INPUT_RENAME = "new_name";
+    private static final String INPUT_FOCUS = "focus";
+
+    /**
+     * How the focus slider prints itself: the label, then the value. Minecraft fills the
+     * two {@code %s} itself, so this is a format and not a message.
+     */
+    private static final String FOCUS_FORMAT = "%s: %s";
 
     /**
      * Buttons per row on the capture screen: the ratios, the three look settings and
@@ -88,18 +95,49 @@ public final class CameraDialogs {
 
     private void openCaptureDialog(Player player, Camera camera, String initialName) {
         var width = plugin.config().dialogBodyWidth();
+        List<DialogInput> inputs = new ArrayList<>();
+        inputs.add(DialogInput.text(INPUT_NAME, plugin.messages().get("dialog.name-label"))
+                .initial(initialName).width(width).build());
+        inputs.add(DialogInput.singleOption(INPUT_GRID, width, gridEntries(player, camera),
+                plugin.messages().get("dialog.grid-label"), true));
+        // Only while the effect is on: a slider that moves nothing is a question the
+        // player has to answer before they have decided to ask it.
+        if (camera.focusEnabled()) {
+            inputs.add(focusInput(camera, width));
+        }
+
         Dialog dialog = Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(plugin.messages().get("dialog.title"))
                         .body(List.of(DialogBody.plainMessage(infoLine(camera), width)))
-                        .inputs(List.of(
-                                DialogInput.text(INPUT_NAME, plugin.messages().get("dialog.name-label"))
-                                        .initial(initialName).width(width).build(),
-                                DialogInput.singleOption(INPUT_GRID, width, gridEntries(player, camera),
-                                        plugin.messages().get("dialog.grid-label"), true)))
+                        .inputs(inputs)
                         .build())
                 .type(DialogType.multiAction(captureButtons(player, camera), cancelButton(), COLUMNS)));
 
         player.showDialog(dialog);
+    }
+
+    /**
+     * The focus slider, in blocks from the camera.
+     *
+     * <p>Its far end is this camera's own ray distance rather than a fixed number, so
+     * every part of the slider points at something the photo can actually contain: on a
+     * zoomed-in shot the whole travel covers a few dozen blocks, and dragging it moves
+     * the focus a block at a time instead of skipping over the subject.</p>
+     *
+     * <p>The value only reaches the server when a button is pressed — the dialog has no
+     * live channel — so the focus moves on the next click, together with everything else
+     * on the form.</p>
+     */
+    private DialogInput focusInput(Camera camera, int width) {
+        var range = plugin.render().focusRange(camera);
+        var initial = camera.focusDistance() > 0.0f ? camera.focusDistance() : range.suggested();
+        return DialogInput.numberRange(INPUT_FOCUS, plugin.messages().get("dialog.focus-label"),
+                        1.0f, (float) Math.ceil(range.limit()))
+                .width(width)
+                .labelFormat(FOCUS_FORMAT)
+                .initial((float) Math.min(initial, range.limit()))
+                .step(1.0f)
+                .build();
     }
 
     /**
@@ -136,6 +174,15 @@ public final class CameraDialogs {
                     target -> target.sky(after(skies, target.sky()))));
         }
 
+        // Shown to a camera that already has it on even without the permission, for the
+        // same reason the cycled settings are: an effect nobody can see is an effect
+        // nobody can take off, and every capture would keep paying for it.
+        if (Permissions.focus(viewer) || camera.focusEnabled()) {
+            buttons.add(button(plugin.messages().get(
+                            camera.focusEnabled() ? "dialog.focus-button-active" : "dialog.focus-button"),
+                    (view, audience) -> applyAndReopen(view, audience, camera, this::toggleFocus)));
+        }
+
         buttons.add(button(plugin.messages().get(
                         camera.thirdsGuide() ? "dialog.thirds-button-active" : "dialog.thirds-button"),
                 (view, audience) -> applyAndReopen(view, audience, camera,
@@ -159,6 +206,23 @@ public final class CameraDialogs {
                 (view, audience) -> applyAndRun(view, audience, camera,
                         player -> resetAiming(player, camera))));
         return buttons;
+    }
+
+    /**
+     * Turns depth of field on or off, giving it somewhere to focus the first time.
+     *
+     * <p>A camera switched on with no distance yet would put its focus plane at the lens
+     * and blur the entire photo, which reads as a broken render rather than an effect it
+     * has to be told about. It starts on the ground the frame is aimed at instead — the
+     * subject, on nearly every shot — and the slider takes it from there. Main thread
+     * only: the suggestion reads the world.</p>
+     */
+    private void toggleFocus(Camera camera) {
+        var enabled = !camera.focusEnabled();
+        camera.focusEnabled(enabled);
+        if (enabled && camera.focusDistance() <= 0.0f) {
+            camera.focusDistance((float) plugin.render().focusRange(camera).suggested());
+        }
     }
 
     private List<ActionButton> ratioButtons(Player viewer, Camera camera) {
@@ -438,9 +502,14 @@ public final class CameraDialogs {
             return;
         }
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
+        // Null whenever the slider is not on the screen, which is whenever focus is off.
+        Float focus = view.getFloat(INPUT_FOCUS);
 
         plugin.runOnMain(() -> {
             var before = imageState(camera);
+            if (focus != null) {
+                camera.focusDistance(focus);
+            }
             change.accept(camera);
             applyIfChanged(player, camera, before);
             then.run(player, name);
@@ -452,7 +521,8 @@ public final class CameraDialogs {
      */
     private static List<Object> imageState(Camera camera) {
         return List.of(camera.aspectRatio(), camera.thirdsGuide(), camera.zoom(),
-                camera.colorFilter(), camera.style(), camera.sky());
+                camera.colorFilter(), camera.style(), camera.sky(),
+                camera.focusEnabled(), camera.focusDistance());
     }
 
     /**
@@ -482,8 +552,17 @@ public final class CameraDialogs {
         }
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
         String gridLabel = view.getText(INPUT_GRID);
+        Float focus = view.getFloat(INPUT_FOCUS);
 
         plugin.runOnMain(() -> {
+            // Taking the photo does not go through the form, so the slider has to be read
+            // here too: dragging it and pressing capture straight away would otherwise
+            // shoot the distance it was left at last time. No preview refresh — the photo
+            // being taken is the answer.
+            if (focus != null && focus != camera.focusDistance()) {
+                camera.focusDistance(focus);
+                cameraManager.applyAndPersist(camera);
+            }
 
             GridOption grid = GridOption.parse(gridLabel);
             if (grid == null || !GridLayouts.isValid(camera.aspectRatio(), grid)) {

@@ -40,7 +40,8 @@ T49 (kısmi kaplama / karıştırma aşaması)
 T54 (permission ağacı) ✔
  ├── T53 (çerçeveler)
  ├── T55 (gök cisimleri)
- └── T56 (imza)
+ ├── T56 (imza)
+ └── T60 (alan derinliği) ✔
 
 T53 (çerçeveler — overlay aşaması + fotoğraf sağ tık Dialog'u) ✔
  └── T56 (imza — aynı overlay aşamasını kullanır)
@@ -84,10 +85,15 @@ aynı sunucu, oyuncu sayısı 1.
 | 10 | Aynı anda 3 kamera 3 oyuncu tarafından düzenlenirken | Havuzun ve editör koltuğunun gerçek yük altındaki hâli |
 | 11 | Yükleme: 20 asılı fotoğrafla sunucu açılışı | `.izm` ön belleğinin açılışa maliyeti |
 | 12 | Chunk yükleme: yüklü / diskten / üretilmemiş bölge | `load-missing-chunks` ve `generate-missing-chunks` etkisi |
+| 13 | Odak kapalı / açık, `focus.samples` 8 / 24 / 48 (sabit 4x2) | T60 çevrimdışı ölçüldü (2048×1152'de 0,25-0,41 s); sunucudaki karşılığı ve `samples` varsayılanının doğruluğu |
 
 **Çıktı:** her senaryo için kopyalama ms / yürüyüş ms / TPS düşüşü tablosu, ardından üç
 karar: (a) `max-capture-area` varsayılanı doğru mu, (b) hangi ızgara ve ss değerleri
 permission'a bağlanacak (T54), (c) varsayılan `render-threads` ve `style` ne olmalı.
+
+**Not (2026-08-16):** senaryo 13 T60 ile geldi. Odak geçişi ışın yürüyüşünden sonra,
+aynı havuzda koşuyor ve `render-timing`'in "render" sütununa dahil; ayrı okunmak
+isteniyorsa ölçüm sırasında bir tur odak kapalı çekilmesi yeterli.
 
 **Ayrıca bakılacak:** ana thread'i 50 ms'in üzerinde tutan tek bir aşama kalmamalı; bu
 sınırı aşan senaryo varsa yayın öncesi ya bölünür ya varsayılan dışına atılır.
@@ -395,6 +401,50 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T60 — Alan derinliği: odak slider'ı ve bokeh
+
+`[x]` **P1** · 2026-08-16 · İlgili: T50 (senaryo 13), T54 ✔
+
+**Soru (oyuncu):** kameranın yatay baktığı fotoğraflarda UI'a bir slider koyup, o
+uzaklıktaki şey net kalsın, arkası bulanıklaşsın olur mu?
+
+**Cevap: olur, ve derinlik bedavaya geliyordu.** DDA yürüyüşü `t`'yi zaten tutuyor —
+ne zaman pes edeceğini ondan biliyor — yani ışın tarafında `RayHit`'e bir alan eklemek
+dışında hiçbir ek iş yok. Bulanıklık render sonrası tek geçiş: `FocusPass`.
+
+**Yatayla sınırlanmadı.** Öneri yalnızca yatay kameralar içindi ama yatay kamera, `IZOMAP.md`
+"Eğim uyarısı"nın zaten uyardığı durum: ortografik ışınlarda kadrajın üstü gökyüzü, altı
+toprak kesiti olur ve odak bunu düzeltmez, yalnızca yumuşatır. Buna karşılık eğimli
+izometrik karede derinlik ekranda düzgün bir gradyan gibi ilerler — tilt-shift'in klasik
+olarak en iyi durduğu yer orasıdır. Efekt her eğimde açılabiliyor; yatay kamerada
+`camera.shallow-pitch` uyarısının ardından `camera.shallow-pitch-focus` ile hatırlatılıyor
+(yalnızca izni olana ve odağı henüz açmamış olana).
+
+**Yapılanlar.** `FocusSpec` + `FocusPass`, varsayılan kapalı, `izomap.focus` iznine bağlı,
+`CaptureSpec`'e donuyor. Slider `DialogInput.numberRange` (Paper 26.2), yalnızca efekt
+açıkken çiziliyor ve üst sınırı kameranın kendi ışın mesafesi. İlk açılışta odak,
+kadrajın nişan aldığı zemine kuruluyor (`RenderService#focusRange`); sıfırdan başlasa
+fotoğrafın tamamı bulanık çıkar ve bozuk render gibi okunurdu.
+
+**Üç karar, hepsi `IZOMAP.md` §3'te:**
+
+1. **Toplama, saçmanın kuralıyla.** Öndeki komşu ancak kendi bulanıklık diski buraya
+   yetişiyorsa katkı verir; net bir özne arkasındaki bulanık zemine bulaşmaz.
+2. **Disk taranmaz, altın açı spiralinde örneklenir.** Maliyet piksel başına sabit ve
+   yalnızca `photo.focus.samples` ile oynuyor — oyuncunun sürüklediği slider'la değil.
+   Tam disk 2048 pikselde milyarlarca okuma olurdu.
+3. **Dither + iki kısayol.** Net piksel geçişe hiç girmiyor; tek renkten oluşan bulanıklık
+   ortalanmıyor (yoksa dither düz bir duvarı beneklerdi); dokunulmamış gökyüzü olduğu
+   gibi bırakılıyor (yoksa kendi dither'ı sökülüp bantlaşırdı).
+
+**Ölçüm** (2048×1152, 24 örnek, 4 thread, sentetik, sunucusuz): arazi benzeri 254-273 ms,
+en kötü hâl 411 ms, önizleme (128×128, tek thread) ~13 ms. Tamamı asenkron havuzda; ana
+thread'e hiç dokunmuyor. Sunucudaki karşılığı T50 senaryo 13'te ölçülecek.
+
+**Açık kalan:** `photo.focus.samples` varsayılanı 24. Yüksek yarıçapta 24 örnek seyrek
+kalıyor ve yüksek kontrastlı ince desende disk üzerinde bir doku görünebiliyor; 48'e
+çıkarmak maliyeti ~%50 artırıyor. Gerçek arazide sorun görünmedi, T50'de karara bağlanacak.
 
 ### T59 — Yerleştirme önizlemesi iki katman olsun
 

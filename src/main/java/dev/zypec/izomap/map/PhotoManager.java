@@ -314,6 +314,9 @@ public final class PhotoManager {
         if (!Permissions.ratio(player, camera.aspectRatio()))
             return deny(player, "ratio", camera.aspectRatio().label());
 
+        if (camera.focusEnabled() && !Permissions.focus(player))
+            return deny(player, "focus", "on");
+
         if (!Permissions.grid(player, grid, plugin.config().maxMapTiles())) {
             plugin.messages().send(player, "photo.grid-not-allowed",
                     Placeholder.unparsed("grid", grid.label()),

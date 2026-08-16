@@ -1,6 +1,7 @@
 package dev.zypec.izomap.config;
 
 import dev.zypec.izomap.Izomap;
+import dev.zypec.izomap.render.FocusSpec;
 import dev.zypec.izomap.render.ShadingSpec;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -326,6 +327,27 @@ public final class ConfigManager {
                 cfg().getBoolean("photo.shading.block-light", false),
                 dimBelow,
                 Math.min(darkBelow, dimBelow));
+    }
+
+    /**
+     * Depth of field for a camera, with the server's shape of it and the player's two
+     * choices — whether it is on, and what distance stays sharp.
+     *
+     * <p>The projection has no lens, so none of this is derived from optics: the numbers
+     * below are what the effect is allowed to look like and cost, and the server owns
+     * them. The player owns only where the sharp band sits. A distance of zero means the
+     * camera has one to choose yet; the capture screen fills it from the geometry.</p>
+     */
+    public FocusSpec focus(boolean enabled, double distance) {
+        if (!enabled)
+            return FocusSpec.NONE;
+
+        return new FocusSpec(true,
+                Math.max(0.0, distance),
+                clamp(cfg().getDouble("photo.focus.range", 0.5), 0.02, 8.0),
+                clamp(cfg().getDouble("photo.focus.max-radius", 0.015), 0.0, 0.05),
+                clamp(cfg().getInt("photo.focus.samples", 24), 4, 128),
+                clamp(cfg().getDouble("photo.focus.dither", 24.0), 0.0, 128.0));
     }
 
     /**
