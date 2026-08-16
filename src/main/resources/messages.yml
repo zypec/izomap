@@ -22,6 +22,7 @@ camera:
   given-item: "<prefix> <green>Kamera yerleştirme eşyası envanterine eklendi."
   item-dropped: "<prefix> <yellow>Envanterin dolu; kamera eşyası yere düştü."
   # <count> = kamerayla birlikte silinen fotoğraf sayısı.
+  reset: "<prefix> <yellow>Kameranın nişanı sıfırlandı: <white><name></white> <gray>(zoom, yön ve eğim varsayılana döndü)"
   picked-up: "<prefix> <green>Kamera toplandı: <white><name></white> <gray>(eşya geri verildi, <count> fotoğrafı silindi)"
   picked-up-no-item: "<prefix> <yellow>Kamera söküldü: <white><name></white> <gray>(komutla oluşturulduğu için geri verilecek eşyası yok; <count> fotoğrafı silindi)"
   name-taken: "<prefix> <red>Bu isimde bir kameran zaten var: <white><name></white>"
@@ -41,7 +42,8 @@ camera:
   #                <sky> <photos>
   hologram:
     # Yalnızca çekim sürerken, yapılandırılmış satırların ALTINA eklenir.
-    capturing: "<gold>◉ Fotoğraf çekiliyor…"
+    # <percent> ve <bar> burada da kullanılabilir.
+    capturing: "<gold>◉ Fotoğraf çekiliyor <bar> %<percent>"
     lines:
       - "<aqua><name>"
       - "<white><ratio> <gray>·</gray> <zoom>x <gray>(<blocks> blok)</gray>"
@@ -68,7 +70,9 @@ preview:
   # yenilenmesi bir tık kadar sürmez; işareti olmayınca tık boşa gitmiş gibi görünür.
   actionbar-rendering: "<entries><dark_gray>  ·  </dark_gray><yellow>⟳ Güncelleniyor</yellow>"
   # Fotoğraf çekimi sürerken; preview render'ından uzun sürer ve satırı o kapar.
-  actionbar-capturing: "<entries><dark_gray>  ·  </dark_gray><gold><bold>◉ Fotoğraf çekiliyor</bold></gold>"
+  # <percent> = tamamlanan yüzde, <bar> = 10 kutuluk çubuk. İkisi de ışın yürüyüşünü
+  # sayar; chunk kopyalama ondan önce gelir ve o sırada değer 0'da bekler.
+  actionbar-capturing: "<entries><dark_gray>  ·  </dark_gray><gold><bold>◉ Çekiliyor <bar> %<percent></bold></gold>"
   actionbar-separator: "<dark_gray>  ·  </dark_gray>"
   entry: "<gray><label> <white><value></white></gray>"
   entry-active: "<yellow><bold><label> <value></bold></yellow>"
@@ -84,27 +88,29 @@ preview:
 
 # Renk efekti adları; anahtar ColorFilter sabitinin adıdır. Diske yalnızca sabit adı
 # yazılır, dolayısıyla buradaki metni değiştirmek kayıtlı kameraları etkilemez.
+# Buradaki renk, Dialog'daki "Renk: <değer>" butonunda da kullanılır: değerin rengini
+# değiştirmek istersen adının başındaki etiketi değiştir.
 filter:
-  ORIGINAL: "Orijinal"
-  WARM: "Sıcak"
-  COOL: "Soğuk"
-  GRAYSCALE: "Siyah-Beyaz"
+  ORIGINAL: "<white>Orijinal"
+  WARM: "<gold>Sıcak"
+  COOL: "<aqua>Soğuk"
+  GRAYSCALE: "<gray>Siyah-Beyaz"
 
 # Gökyüzü seçenekleri; anahtar SkyOption sabitinin adıdır. Oyuncu HANGİ gökyüzünü
 # istediğini seçer, NASIL çizildiği config.yml -> photo.sky altındadır.
 sky:
-  NONE: "Şeffaf"
-  WORLD: "Oyun saati"
-  DAWN: "Şafak"
-  DAY: "Gündüz"
-  DUSK: "Gün batımı"
-  NIGHT: "Gece"
+  NONE: "<gray>Şeffaf"
+  WORLD: "<white>Oyun saati"
+  DAWN: "<#FF9E6B>Şafak"
+  DAY: "<aqua>Gündüz"
+  DUSK: "<#FF7A4D>Gün batımı"
+  NIGHT: "<blue>Gece"
 
 # Çekim stili adları; anahtar PhotoStyle sabitinin adıdır. Stil, fotoğrafın ne kadarının
 # gerçekten ışınla çizildiğini belirler; şiddeti config.yml -> photo.style altındadır.
 style:
-  SHARP: "Keskin"
-  FAST: "Hızlı (daha ucuz, daha yumuşak)"
+  SHARP: "<white>Keskin"
+  FAST: "<yellow>Hızlı"
 
 # Hayalet yerleştirme modu: fotoğraf asılmadan önce nereye asılacağı seçilir.
 placement:
@@ -167,25 +173,29 @@ dialog:
   # Yer tutucular: <camera> <ratio> <scale> <blocks> <yaw> <pitch>
   info: "<gray>Kamera: <white><camera></white>  •  Oran: <white><ratio></white>  •  Zoom: <white><scale></white>x <dark_gray>(<blocks> blok)</dark_gray>  •  Yön: <white><yaw></white>°  •  Eğim: <white><pitch></white>°"
   name-label: "Fotoğraf adı"
-  filter-label: "Renk efekti"
-  style-label: "Stil"
-  sky-label: "Gökyüzü"
   grid-label: "Yerleşim (grid)"
+  # Ayar butonları: tıklayınca sıradaki değere geçer. <value>, ilgili değerin
+  # filter./style./sky. altındaki adıdır ve rengini oradan alır.
+  filter-button: "Renk: <value>"
+  style-button: "Stil: <value>"
+  sky-button: "Gökyüzü: <value>"
   grid-option: "<grid> — <count> harita (<wpx>x<hpx>px)"
-  capture-full: "Limit dolu (<limit>)"
-  pickup-button: "Kamerayı Topla"
+  capture-full: "<red>Limit dolu (<limit>)"
+  pickup-button: "<red>Kamerayı Topla"
+  # Yalnızca tık ile ayarlananları geri alır: zoom, yön, eğim.
+  reset-button: "<red>Ayarları Sıfırla"
   pickup-title: "<gradient:#5e60ce:#48bfe3>Kamerayı Topla</gradient>"
   pickup-body: "<white><name></white> sökülecek ve bu kamerayla çekilmiş <white><count></white> fotoğraf da silinecek. Fotoğraflar kameralarına bağlıdır; kamera gidince yeniden çekilemezler."
   pickup-body-empty: "<white><name></white> sökülecek ve yerleştirme eşyası envanterine geri verilecek."
   pickup-confirm: "Topla"
   pickup-cancel: "Vazgeç"
-  ratio-button: "Oran: <ratio>"
-  ratio-button-active: "Oran: <ratio> ✔"
+  ratio-button: "<gray>Oran: <ratio>"
+  ratio-button-active: "<bold><white>Oran: <ratio> ✔</white></bold>"
   # Üçler kuralı: yalnızca önizlemeye çizilen 3x3 kadraj kılavuzu, fotoğrafa girmez.
-  thirds-button: "Üçler kuralı: Kapalı"
-  thirds-button-active: "Üçler kuralı: Açık ✔"
+  thirds-button: "Üçler kuralı: <gray>Kapalı"
+  thirds-button-active: "Üçler kuralı: <green>Açık ✔"
   # Çekim yapar ama duvara asmaz; asma işi Fotoğraflar listesinden yapılır.
-  capture: "Fotoğraf Çek"
+  capture: "<bold><green>Fotoğraf Çek</green></bold>"
   photos-button: "Fotoğraflar (<count>)"
   cancel: "İptal"
 

@@ -48,11 +48,14 @@ import java.util.function.Consumer;
 public final class CameraDialogs {
 
     private static final String INPUT_NAME = "photo_name";
-    private static final String INPUT_FILTER = "filter";
-    private static final String INPUT_STYLE = "style";
-    private static final String INPUT_SKY = "sky";
     private static final String INPUT_GRID = "grid";
     private static final String INPUT_RENAME = "new_name";
+
+    /**
+     * Buttons per row on the capture screen: the ratios, the three look settings and
+     * the three actions each come to three, so the grid reads as rows of like things.
+     */
+    private static final int COLUMNS = 3;
 
     /**
      * A row is four buttons wide, so the list flows one photo per row.
@@ -78,41 +81,45 @@ public final class CameraDialogs {
     // --- capture screen ---
 
     public void openCaptureDialog(Player player, Camera camera) {
-        openCaptureDialog(player, camera, camera.name(), camera.colorFilter(), camera.style(), camera.sky());
+        openCaptureDialog(player, camera, camera.name());
     }
 
-    private void openCaptureDialog(Player player, Camera camera, String initialName,
-                                   ColorFilter initialFilter, PhotoStyle initialStyle,
-                                   SkyOption initialSky) {
+    private void openCaptureDialog(Player player, Camera camera, String initialName) {
+        var width = plugin.config().dialogBodyWidth();
         Dialog dialog = Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(plugin.messages().get("dialog.title"))
-                        .body(List.of(DialogBody.plainMessage(infoLine(camera))))
+                        .body(List.of(DialogBody.plainMessage(infoLine(camera), width)))
                         .inputs(List.of(
                                 DialogInput.text(INPUT_NAME, plugin.messages().get("dialog.name-label"))
-                                        .initial(initialName).width(220).build(),
-                                DialogInput.singleOption(INPUT_FILTER, 220, filterEntries(initialFilter),
-                                        plugin.messages().get("dialog.filter-label"), true),
-                                DialogInput.singleOption(INPUT_STYLE, 220, styleEntries(initialStyle),
-                                        plugin.messages().get("dialog.style-label"), true),
-                                DialogInput.singleOption(INPUT_SKY, 220, skyEntries(initialSky),
-                                        plugin.messages().get("dialog.sky-label"), true),
-                                DialogInput.singleOption(INPUT_GRID, 220, gridEntries(camera),
+                                        .initial(initialName).width(width).build(),
+                                DialogInput.singleOption(INPUT_GRID, width, gridEntries(camera),
                                         plugin.messages().get("dialog.grid-label"), true)))
                         .build())
-                .type(DialogType.multiAction(captureButtons(player, camera), cancelButton(), 2)));
+                .type(DialogType.multiAction(captureButtons(player, camera), cancelButton(), COLUMNS)));
 
         player.showDialog(dialog);
     }
 
+    /**
+     * The capture screen's buttons, in the order the three-column grid lays them out:
+     * the aspect ratios, then what the shot looks like, then what to do with it, and
+     * the two that undo a camera last.
+     */
     private List<ActionButton> captureButtons(Player viewer, Camera camera) {
-        List<ActionButton> buttons = new ArrayList<>();
-        for (AspectRatio ratio : AspectRatio.values()) {
-            boolean current = ratio == camera.aspectRatio();
-            Component label = plugin.messages().get(current ? "dialog.ratio-button-active" : "dialog.ratio-button",
-                    Placeholder.unparsed("ratio", ratio.label()));
-            buttons.add(button(label, (view, audience) ->
-                    applyAndReopen(view, audience, camera, target -> target.aspectRatio(ratio))));
-        }
+        List<ActionButton> buttons = new ArrayList<>(ratioButtons(camera));
+
+        // Cycled rather than picked from a list: each is a handful of values, and a
+        // button can show the one in force while a closed dropdown cannot.
+        buttons.add(cycleButton(camera, "dialog.filter-button", "filter.",
+                camera.colorFilter().name(),
+                target -> target.colorFilter(next(ColorFilter.values(), target.colorFilter()))));
+        buttons.add(cycleButton(camera, "dialog.style-button", "style.",
+                camera.style().name(),
+                target -> target.style(next(PhotoStyle.values(), target.style()))));
+        buttons.add(cycleButton(camera, "dialog.sky-button", "sky.",
+                camera.sky().name(),
+                target -> target.sky(next(SkyOption.values(), target.sky()))));
+
         buttons.add(button(plugin.messages().get(
                         camera.thirdsGuide() ? "dialog.thirds-button-active" : "dialog.thirds-button"),
                 (view, audience) -> applyAndReopen(view, audience, camera,
@@ -122,18 +129,72 @@ public final class CameraDialogs {
                                 photoManager.countFor(camera.owner(), camera.name())))),
                 (view, audience) -> applyAndRun(view, audience, camera, player -> openPhotoList(player, camera))));
 
-        buttons.add(button(plugin.messages().get("dialog.pickup-button"),
-                (view, audience) -> applyAndRun(view, audience, camera,
-                        player -> openPickupDialog(player, camera))));
-
         // A full camera keeps the button, so the row does not reshuffle, but says what
         // it would do instead of doing it.
         var full = photoManager.atLimit(viewer, camera);
         buttons.add(button(plugin.messages().get(full ? "dialog.capture-full" : "dialog.capture",
                         Placeholder.unparsed("limit", String.valueOf(photoManager.limitFor(viewer)))),
                 (view, audience) -> onCapture(view, audience, camera)));
+
+        buttons.add(button(plugin.messages().get("dialog.pickup-button"),
+                (view, audience) -> applyAndRun(view, audience, camera,
+                        player -> openPickupDialog(player, camera))));
+        buttons.add(button(plugin.messages().get("dialog.reset-button"),
+                (view, audience) -> applyAndRun(view, audience, camera,
+                        player -> resetAiming(player, camera))));
         return buttons;
     }
+
+    private List<ActionButton> ratioButtons(Camera camera) {
+        List<ActionButton> buttons = new ArrayList<>();
+        for (AspectRatio ratio : AspectRatio.values()) {
+            var current = ratio == camera.aspectRatio();
+            var label = plugin.messages().get(current ? "dialog.ratio-button-active" : "dialog.ratio-button",
+                    Placeholder.unparsed("ratio", ratio.label()));
+            buttons.add(button(label, (view, audience) ->
+                    applyAndReopen(view, audience, camera, target -> target.aspectRatio(ratio))));
+        }
+        return buttons;
+    }
+
+    /**
+     * A button that shows a setting's current value and moves to the next on click.
+     *
+     * <p>The value's own colour comes from its display message ({@code filter.WARM} and
+     * friends), so a server owner recolours a setting where they rename it.</p>
+     */
+    private ActionButton cycleButton(Camera camera, String labelKey, String valuePrefix,
+                                     String valueName, Consumer<Camera> advance) {
+        var label = plugin.messages().get(labelKey,
+                Placeholder.component("value", plugin.messages().get(valuePrefix + valueName)));
+        return button(label, (view, audience) -> applyAndReopen(view, audience, camera, advance));
+    }
+
+    /**
+     * The next constant, wrapping at the end.
+     */
+    private static <T extends Enum<T>> T next(T[] values, T current) {
+        return values[(current.ordinal() + 1) % values.length];
+    }
+
+    /**
+     * Puts the aiming back where a new camera starts: pointing the way the player is
+     * facing, at the configured pitch, unzoomed.
+     *
+     * <p>Only what a click adjusts is reset. The ratio, colour, style and sky are picked
+     * deliberately and are one click from being changed back, so throwing them away too
+     * would make this button the more destructive one. Main thread only.</p>
+     */
+    private void resetAiming(Player player, Camera camera) {
+        camera.camYaw(player.getLocation().getYaw());
+        camera.camPitch((float) plugin.config().defaultPitch());
+        camera.zoom(1.0f);
+        cameraManager.applyAndPersist(camera);
+        plugin.preview().refresh(player, camera);
+        plugin.messages().send(player, "camera.reset", Placeholder.unparsed("name", camera.name()));
+        openCaptureDialog(player, camera);
+    }
+
 
     // --- list screen ---
 
@@ -293,33 +354,6 @@ public final class CameraDialogs {
 
     // --- inputs ---
 
-    private List<SingleOptionDialogInput.OptionEntry> filterEntries(ColorFilter initial) {
-        List<SingleOptionDialogInput.OptionEntry> entries = new ArrayList<>();
-        for (ColorFilter filter : ColorFilter.values()) {
-            entries.add(SingleOptionDialogInput.OptionEntry.create(
-                    filter.name(), plugin.messages().get("filter." + filter.name()), filter == initial));
-        }
-        return entries;
-    }
-
-    private List<SingleOptionDialogInput.OptionEntry> styleEntries(PhotoStyle initial) {
-        List<SingleOptionDialogInput.OptionEntry> entries = new ArrayList<>();
-        for (PhotoStyle style : PhotoStyle.values()) {
-            entries.add(SingleOptionDialogInput.OptionEntry.create(
-                    style.name(), plugin.messages().get("style." + style.name()), style == initial));
-        }
-        return entries;
-    }
-
-    private List<SingleOptionDialogInput.OptionEntry> skyEntries(SkyOption initial) {
-        List<SingleOptionDialogInput.OptionEntry> entries = new ArrayList<>();
-        for (SkyOption sky : SkyOption.values()) {
-            entries.add(SingleOptionDialogInput.OptionEntry.create(
-                    sky.name(), plugin.messages().get("sky." + sky.name()), sky == initial));
-        }
-        return entries;
-    }
-
     private List<SingleOptionDialogInput.OptionEntry> gridEntries(Camera camera) {
         List<GridOption> options = GridLayouts.optionsFor(camera.aspectRatio());
         List<SingleOptionDialogInput.OptionEntry> entries = new ArrayList<>();
@@ -346,8 +380,8 @@ public final class CameraDialogs {
      */
     private void applyAndReopen(DialogResponseView view, Audience audience, Camera camera,
                                 Consumer<Camera> change) {
-        applyForm(view, audience, camera, change, (player, name, filter, style, sky) ->
-                openCaptureDialog(player, camera, name, filter, style, sky));
+        applyForm(view, audience, camera, change, (player, name) ->
+                openCaptureDialog(player, camera, name));
     }
 
     /**
@@ -357,7 +391,7 @@ public final class CameraDialogs {
     private void applyAndRun(DialogResponseView view, Audience audience, Camera camera,
                              Consumer<Player> next) {
         applyForm(view, audience, camera, target -> {
-        }, (player, name, filter, style, sky) -> next.accept(player));
+        }, (player, name) -> next.accept(player));
     }
 
     private void applyForm(DialogResponseView view, Audience audience, Camera camera,
@@ -366,18 +400,12 @@ public final class CameraDialogs {
             return;
         }
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
-        ColorFilter filter = ColorFilter.fromString(view.getText(INPUT_FILTER), camera.colorFilter());
-        PhotoStyle style = PhotoStyle.fromString(view.getText(INPUT_STYLE), camera.style());
-        SkyOption sky = SkyOption.fromString(view.getText(INPUT_SKY), camera.sky());
 
         plugin.runOnMain(() -> {
             var before = imageState(camera);
             change.accept(camera);
-            camera.colorFilter(filter);
-            camera.style(style);
-            camera.sky(sky);
             applyIfChanged(player, camera, before);
-            then.run(player, name, filter, style, sky);
+            then.run(player, name);
         });
     }
 
@@ -407,7 +435,7 @@ public final class CameraDialogs {
     }
 
     private interface FormAction {
-        void run(Player player, String name, ColorFilter filter, PhotoStyle style, SkyOption sky);
+        void run(Player player, String name);
     }
 
     private void onCapture(DialogResponseView view, Audience audience, Camera camera) {
@@ -415,19 +443,9 @@ public final class CameraDialogs {
             return;
         }
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
-        ColorFilter filter = ColorFilter.fromString(view.getText(INPUT_FILTER), camera.colorFilter());
-        PhotoStyle style = PhotoStyle.fromString(view.getText(INPUT_STYLE), camera.style());
-        SkyOption sky = SkyOption.fromString(view.getText(INPUT_SKY), camera.sky());
         String gridLabel = view.getText(INPUT_GRID);
 
         plugin.runOnMain(() -> {
-            var before = imageState(camera);
-            camera.colorFilter(filter);
-            camera.style(style);
-            camera.sky(sky);
-            // The capture below renders the same frame; refreshing an unchanged preview
-            // first would render it twice for one click.
-            applyIfChanged(player, camera, before);
 
             GridOption grid = GridOption.parse(gridLabel);
             if (grid == null || !GridLayouts.isValid(camera.aspectRatio(), grid)) {

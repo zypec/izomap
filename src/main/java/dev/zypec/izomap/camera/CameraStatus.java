@@ -47,7 +47,11 @@ public final class CameraStatus {
         var key = camera.capturing() ? "preview.actionbar-capturing"
                 : rendering ? "preview.actionbar-rendering"
                 : "preview.actionbar";
-        return plugin.messages().get(key, Placeholder.component("entries", entries));
+        var progress = camera.captureProgress();
+        return plugin.messages().get(key,
+                Placeholder.component("entries", entries),
+                Placeholder.unparsed("percent", progress != null ? String.valueOf(progress.percent()) : "0"),
+                Placeholder.unparsed("bar", progress != null ? progress.bar() : ""));
     }
 
     private static Component entry(Izomap plugin, Camera camera, EditProperty property) {

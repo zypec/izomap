@@ -1,6 +1,7 @@
 package dev.zypec.izomap.camera;
 
 import dev.zypec.izomap.render.AspectRatio;
+import dev.zypec.izomap.render.CaptureProgress;
 import dev.zypec.izomap.render.ColorFilter;
 import dev.zypec.izomap.render.PhotoStyle;
 import dev.zypec.izomap.render.SkyOption;
@@ -57,10 +58,11 @@ public final class Camera {
     /** Not persisted: which property the owner is currently adjusting. */
     private transient EditProperty editProperty = EditProperty.YAW;
     /**
-     * Whether a capture is running on this camera right now. Runtime only: a shutter
-     * that was open when the server stopped is not open when it starts again.
+     * How far the capture running on this camera has come, or {@code null} when none
+     * is. Runtime only: a shutter that was open when the server stopped is not open
+     * when it starts again.
      */
-    private transient boolean capturing;
+    private transient CaptureProgress captureProgress;
 
     public Camera(UUID id, UUID owner, String name, Location anchor) {
         this.id = id;
@@ -221,11 +223,15 @@ public final class Camera {
     }
 
     public boolean capturing() {
-        return capturing;
+        return captureProgress != null;
     }
 
-    public void capturing(boolean capturing) {
-        this.capturing = capturing;
+    public CaptureProgress captureProgress() {
+        return captureProgress;
+    }
+
+    public void captureProgress(CaptureProgress captureProgress) {
+        this.captureProgress = captureProgress;
     }
 
     public EditProperty editProperty() {

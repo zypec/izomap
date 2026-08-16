@@ -45,8 +45,11 @@ public final class CameraHologram {
         // Appended rather than offered as a placeholder: the line only exists while the
         // shutter is open, and a placeholder would leave a blank row the rest of the time.
         if (camera.capturing()) {
+            var progress = camera.captureProgress();
             lines = new ArrayList<>(lines);
-            lines.add(plugin.messages().get("camera.hologram.capturing"));
+            lines.add(plugin.messages().get("camera.hologram.capturing",
+                    Placeholder.unparsed("percent", String.valueOf(progress.percent())),
+                    Placeholder.unparsed("bar", progress.bar())));
         }
         return Component.join(JoinConfiguration.newlines(), lines);
     }

@@ -226,6 +226,18 @@ public final class ConfigManager {
         return cfg().getString("camera.hologram.background", "default");
     }
 
+    // --- dialog ---
+
+    /**
+     * How wide the capture screen's body and inputs are drawn.
+     *
+     * <p>The info line names the camera and lists five settings, which wraps to three
+     * rows at the vanilla width and reads badly. Minecraft accepts up to 1024.</p>
+     */
+    public int dialogBodyWidth() {
+        return clamp(cfg().getInt("dialog.body-width", 380), 100, 1024);
+    }
+
     // --- photo ---
 
     /**

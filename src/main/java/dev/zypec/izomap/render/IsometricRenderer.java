@@ -29,20 +29,25 @@ public final class IsometricRenderer {
      *
      * @param sky           color for rays that reach nothing; {@link Sky#NONE} leaves
      *                      them transparent
+     * @param progress      told as each row finishes, or {@code null} when nobody is
+     *                      watching the capture
      * @param supersampling antialiasing rays per pixel (NxN); 1 disables it
      * @param executor      pool the row bands are dispatched to
      * @param threads       how many bands, and therefore threads, to use
      */
     public RenderResult render(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
-                               Sky sky, int supersampling, Executor executor, int threads) {
+                               Sky sky, int supersampling, CaptureProgress progress,
+                               Executor executor, int threads) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
         final var argb = new int[w * h];
         final var samples = Math.max(1, supersampling);
+        if (progress != null)
+            progress.expect(h);
 
         var bands = Math.max(1, Math.min(threads, h));
         if (bands == 1) {
-            renderBand(snapshot, geo, pipeline, sky, samples, argb, 0, h);
+            renderBand(snapshot, geo, pipeline, sky, samples, progress, argb, 0, h);
             return new RenderResult(w, h, argb);
         }
 
@@ -53,9 +58,9 @@ public final class IsometricRenderer {
             final int from = band * rowsPerBand;
             final int to = Math.min(h, from + rowsPerBand);
             pending[band] = CompletableFuture.runAsync(
-                    () -> renderBand(snapshot, geo, pipeline, sky, samples, argb, from, to), executor);
+                    () -> renderBand(snapshot, geo, pipeline, sky, samples, progress, argb, from, to), executor);
         }
-        renderBand(snapshot, geo, pipeline, sky, samples, argb, (bands - 1) * rowsPerBand, h);
+        renderBand(snapshot, geo, pipeline, sky, samples, progress, argb, (bands - 1) * rowsPerBand, h);
         CompletableFuture.allOf(pending).join();
 
         return new RenderResult(w, h, argb);
@@ -65,7 +70,8 @@ public final class IsometricRenderer {
      * Renders the row range {@code [yFrom, yTo)}.
      */
     private void renderBand(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
-                            Sky sky, int samples, int[] argb, int yFrom, int yTo) {
+                            Sky sky, int samples, CaptureProgress progress,
+                            int[] argb, int yFrom, int yTo) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
 
@@ -150,6 +156,8 @@ public final class IsometricRenderer {
                         ? pipeline.argbOf(firstId)
                         : pipeline.blend(sumR / hits, sumG / hits, sumB / hits);
             }
+            if (progress != null)
+                progress.advance();
         }
     }
 

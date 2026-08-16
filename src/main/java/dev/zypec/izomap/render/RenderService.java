@@ -131,6 +131,14 @@ public final class RenderService {
      * those dimensions. Must be called on the main thread.
      */
     public CompletableFuture<RenderResult> capture(CaptureSpec spec, int widthPx, int heightPx) {
+        return capture(spec, widthPx, heightPx, null);
+    }
+
+    /**
+     * The same, reporting how far the ray walk has come as it goes.
+     */
+    public CompletableFuture<RenderResult> capture(CaptureSpec spec, int widthPx, int heightPx,
+                                                   CaptureProgress progress) {
         var world = spec.worldId() != null ? plugin.getServer().getWorld(spec.worldId()) : null;
         if (world == null)
             return CompletableFuture.failedFuture(new IllegalStateException("Camera world is not loaded."));
@@ -213,7 +221,7 @@ public final class RenderService {
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                 try {
                     var result = walker.render(
-                            snapshot, geometry, pipeline, sky, supersampling, executor, threads);
+                            snapshot, geometry, pipeline, sky, supersampling, progress, executor, threads);
                     result = StylePass.upscale(result, widthPx, heightPx, converter);
                     if (timing) {
                         logTiming(geometry, snapshot, supersampling, requestedAt, capturedAt, System.nanoTime());

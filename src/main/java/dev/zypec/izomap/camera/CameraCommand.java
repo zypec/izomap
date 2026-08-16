@@ -196,6 +196,10 @@ public final class CameraCommand {
             return 0;
         }
         plugin.messages().send(player, "camera.created", Placeholder.unparsed("name", name));
+        // Straight into the preview: a camera that was just placed is about to be aimed,
+        // and asking for one more command before anything is visible is a step for
+        // nothing. A full offhand is not an error here, only a preview that waits.
+        startPreview(player, camera, false);
         return Command.SINGLE_SUCCESS;
     }
 
@@ -393,17 +397,29 @@ public final class CameraCommand {
      */
     private int previewStart(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         var player = requirePlayer(ctx);
-        var camera = camera(ctx, player);
+        startPreview(player, camera(ctx, player), true);
+        return Command.SINGLE_SUCCESS;
+    }
 
+    /**
+     * Puts the player in front of the camera's live view.
+     *
+     * @param explicit whether the player asked for the preview itself; when they only
+     *                 placed a camera, a full offhand is not worth a complaint
+     */
+    private void startPreview(Player player, Camera camera, boolean explicit) {
         switch (plugin.preview().join(player, camera)) {
             case JOINED -> {
                 plugin.preview().refresh(camera);
                 plugin.messages().send(player, "preview.started", Placeholder.unparsed("camera", camera.name()));
             }
-            case ALREADY -> plugin.messages().send(player, "preview.already");
-            case OFFHAND_FULL -> plugin.messages().send(player, "preview.offhand-full");
+            case ALREADY -> {
+                if (explicit) plugin.messages().send(player, "preview.already");
+            }
+            case OFFHAND_FULL -> {
+                if (explicit) plugin.messages().send(player, "preview.offhand-full");
+            }
         }
-        return Command.SINGLE_SUCCESS;
     }
 
     private int previewStop(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {

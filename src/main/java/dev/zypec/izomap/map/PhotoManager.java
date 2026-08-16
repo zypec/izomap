@@ -4,10 +4,12 @@ import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.camera.Camera;
 import dev.zypec.izomap.camera.CameraManager;
 import dev.zypec.izomap.config.PermissionLimit;
+import dev.zypec.izomap.render.CaptureProgress;
 import dev.zypec.izomap.render.CaptureTooLargeException;
 import dev.zypec.izomap.render.RenderResult;
 import dev.zypec.izomap.render.RenderService;
 import dev.zypec.izomap.util.Failures;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
@@ -41,6 +43,12 @@ public final class PhotoManager {
      */
     private static final String PHOTO_LIMIT_PERMISSION = "izomap.max_photos_by_camera";
 
+    /**
+     * How often a running capture repaints its percentage. Fast enough to look alive,
+     * slow enough that the hologram is not rewritten every tick.
+     */
+    private static final long PROGRESS_PERIOD_TICKS = 10L;
+
     private final Izomap plugin;
     private final CameraManager cameraManager;
     private final RenderService renderService;
@@ -52,6 +60,12 @@ public final class PhotoManager {
     private final PhotoExporter exporter;
 
     private final Map<UUID, Photo> photos = new ConcurrentHashMap<>();
+
+    /**
+     * Cameras with a shutter open, mapped to whoever pressed it.
+     */
+    private final Map<UUID, UUID> watched = new ConcurrentHashMap<>();
+    private ScheduledTask progressTask;
 
     /**
      * Whether {@code photos.yml} has been read. Until then an unknown frame is not an
@@ -181,14 +195,61 @@ public final class PhotoManager {
      * <p>A capture takes long enough to look like nothing happened, and the photo only
      * announces itself once it exists. Main thread only.</p>
      */
-    private void shutter(Camera camera, Player actor, boolean open) {
-        if (camera == null) return;
+    private CaptureProgress shutter(Camera camera, Player actor, boolean open) {
+        if (camera == null) return null;
 
-        camera.capturing(open);
+        var progress = open ? new CaptureProgress() : null;
+        camera.captureProgress(progress);
+        if (open) {
+            watched.put(camera.id(), actor.getUniqueId());
+            startProgressTask();
+        } else {
+            watched.remove(camera.id());
+        }
+        showProgress(camera, actor);
+        return progress;
+    }
+
+    /**
+     * Repaints the two places a running capture shows itself: the preview's status line
+     * and the hologram above the model. Main thread only.
+     */
+    private void showProgress(Camera camera, Player actor) {
         if (cameraManager.syncHologram(camera))
             cameraManager.persist();
 
-        plugin.preview().showStatus(camera, actor);
+        if (actor != null)
+            plugin.preview().showStatus(camera, actor);
+    }
+
+    /**
+     * Keeps the percentage moving while a capture runs.
+     *
+     * <p>Neither surface refreshes itself often enough on its own: the hologram is only
+     * rewritten when something changes it, and the preview's status task skips cameras
+     * nobody is watching — which includes the one whose photographer has a full offhand.
+     * The task exists only while a shutter is open.</p>
+     */
+    private void startProgressTask() {
+        if (progressTask != null) return;
+
+        progressTask = plugin.getServer().getGlobalRegionScheduler().runAtFixedRate(
+                plugin, task -> tickProgress(), PROGRESS_PERIOD_TICKS, PROGRESS_PERIOD_TICKS);
+    }
+
+    private void tickProgress() {
+        for (var entry : Map.copyOf(watched).entrySet()) {
+            var camera = cameraManager.byId(entry.getKey());
+            if (camera == null || !camera.capturing()) {
+                watched.remove(entry.getKey());
+                continue;
+            }
+            showProgress(camera, plugin.getServer().getPlayer(entry.getValue()));
+        }
+        if (watched.isEmpty() && progressTask != null) {
+            progressTask.cancel();
+            progressTask = null;
+        }
     }
 
     private void applyToMaps(Photo photo, List<MapTile> tiles) {
@@ -237,7 +298,7 @@ public final class PhotoManager {
             return;
         }
         plugin.messages().send(player, "photo.capturing");
-        shutter(camera, player, true);
+        var progress = shutter(camera, player, true);
         var start = System.currentTimeMillis();
 
         // Frozen once, so the cache, the record and the image all describe the same shot.
@@ -245,7 +306,7 @@ public final class PhotoManager {
         var photo = new Photo(UUID.randomUUID(), player.getUniqueId(),
                 uniqueName(player.getUniqueId(), name), camera.name(), spec, grid, null);
 
-        renderService.capture(spec, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
+        renderService.capture(spec, grid.widthPx(), grid.heightPx(), progress).whenComplete((result, error) -> {
             plugin.runOnMain(() -> shutter(camera, player, false));
             if (error != null || result == null) {
                 reportCaptureError(player, camera.name(), error);
@@ -288,11 +349,11 @@ public final class PhotoManager {
 
         var cameraName = camera != null ? camera.name() : photo.cameraName();
         plugin.messages().send(player, "photo.capturing");
-        shutter(camera, player, true);
+        var progress = shutter(camera, player, true);
         var start = System.currentTimeMillis();
         var grid = photo.grid();
 
-        renderService.capture(spec, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
+        renderService.capture(spec, grid.widthPx(), grid.heightPx(), progress).whenComplete((result, error) -> {
             plugin.runOnMain(() -> shutter(camera, player, false));
             if (error != null || result == null) {
                 // Nothing was written yet, so the wall still shows the previous shot.

@@ -647,6 +647,17 @@ Bütçe aşımı uyarısı bu satıra ezdirilmez: uyarı geldiğinde oturum 5 sa
 "notice" moduna girer ve durum satırı beklemeye alınır. Aksi halde uyarı bir saniye
 sonra kaybolur ve oyuncu neden hiçbir şey olmadığını anlamazdı.
 
+Çekim sürerken satır `preview.actionbar-capturing` şablonuna geçer ve render göstergesinin
+önüne geçer — çekim daha uzun sürer ve daha büyük bir olaydır. `<percent>` ve `<bar>` yer
+tutucuları ilerlemeyi taşır (`CaptureProgress`); ikisi de **ışın yürüyüşünün** satırlarını
+sayar, chunk kopyalama ondan önce geldiği için o sırada değer 0'da bekler. Aynı yer
+tutucular hologramın `camera.hologram.capturing` satırında da geçerlidir.
+
+Hiçbir yüzey kendiliğinden yeterince sık yenilenmediği için (hologram yalnızca bir şey
+değişince yazılır, preview'ın durum görevi ise kimsenin izlemediği kamerayı atlar) çekim
+boyunca yarım saniyede bir çalışan küçük bir görev ikisini de tazeler. Görev yalnızca
+açık deklanşör varken yaşar.
+
 Render sürerken satır `preview.actionbar-rendering` şablonuna geçer ve sonuna
 "⟳ Güncelleniyor" eklenir. Render async'tir, yani tık ile haritanın değişmesi arasında
 gözle görülür bir boşluk var; işaret olmayınca o boşluk "tık boşa gitti" gibi okunuyor ve
@@ -729,6 +740,35 @@ seferinde "bu isim alınmış" derdi.
 
 Bir fotoğrafı **indirmek onu silmez**: çerçeveler kalkar, kayıt ve görüntü listede
 kalır. Silme yalnızca Dialog'daki ✖ ile (onay ister) ya da `remove all photos` ile olur.
+
+### Çekim ekranının düzeni
+
+Ekran iki giriş alanı (fotoğraf adı, grid) ve **üç sütunluk** bir buton ızgarasından
+oluşur. Butonlar benzer olanlar aynı satıra düşecek sırayla verilir:
+
+| Satır | Butonlar |
+|---|---|
+| 1 | En-boy oranları (3 tane) |
+| 2 | Renk · Stil · Gökyüzü |
+| 3 | Üçler kuralı · Fotoğraflar · Fotoğraf Çek |
+| 4 | Kamerayı Topla · Ayarları Sıfırla |
+
+**Renk, stil ve gökyüzü açılır liste değil, döngü butonudur.** Her biri bir avuç değer
+taşıyor ve buton yürürlükteki değeri **gösterebiliyor**, kapalı bir açılır liste
+gösteremiyor. Tıklamak sıradaki değere geçirir ve ekranı yeniden açar.
+
+**Vurgular `messages.yml`'dedir.** Değerin rengi kendi adında durur
+(`filter.WARM: "<gold>Sıcak"`), buton şablonu yalnızca `<value>`'yu yerleştirir
+(`dialog.filter-button: "Renk: <value>"`). Böylece sunucu sahibi bir ayarı yeniden
+adlandırdığı yerde rengini de değiştirir. Seçili oran kalın, açık üçler kuralı yeşil,
+çekim butonu kalın yeşil, kamerayı toplama ve sıfırlama kırmızıdır — hepsi aynı dosyadan.
+
+`dialog.body-width` (varsayılan 380) gövde ve girişlerin genişliğidir. Bilgi satırı kamera
+adı ve beş ayar taşıdığı için vanilla genişlikte üç satıra sarıyordu.
+
+**Ayarları Sıfırla** yalnızca tık ile ayarlananları geri alır: zoom, yön, eğim. Oran,
+renk, stil ve gökyüzü bilerek seçilir ve tek tıkla geri alınır; onları da silmek bu
+butonu ikisinden daha yıkıcı yapardı.
 
 ### Dialog butonu yalnızca gerçekten değişince render eder
 

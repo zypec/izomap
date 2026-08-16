@@ -240,6 +240,44 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 
 ## Arşiv
 
+### T46 — Çekim ekranı yeniden düzenlendi, çekim yüzdesi geldi, create preview açıyor
+
+`[x]` **P1** · 2026-08-16
+
+Üç istek bir arada:
+
+**Kamera kurulunca preview kendiliğinden açılıyor.** `/izocam create` ve eşyayla
+yerleştirme sonrası canlı görüntü sol ele geliyor; yeni kurulan kamera zaten
+nişanlanacaktır, araya bir komut daha koymak boşuna adımdı. Sol el doluysa şikâyet
+edilmiyor (oyuncu preview istemiş değil, kamera kurmuş).
+
+**Çekim ekranı üç sütuna geçti** ve satırlar benzer işleri topluyor: oranlar / renk-stil-
+gökyüzü / üçler-fotoğraflar-çek / topla-sıfırla. Renk, stil ve gökyüzü açılır listeden
+**döngü butonuna** dönüştü: her biri birkaç değer taşıyor ve buton yürürlükteki değeri
+gösterebiliyor, kapalı bir liste gösteremiyor.
+
+Vurguların tamamı `messages.yml`'de: değerin rengi kendi adında (`filter.WARM:
+"<gold>Sıcak"`), buton şablonu yalnızca `<value>` yerleştiriyor. Seçili oran kalın, açık
+üçler kuralı yeşil, çekim kalın yeşil, topla/sıfırla kırmızı. Gövde genişliği
+`dialog.body-width` (380) — bilgi satırı vanilla genişlikte üç satıra sarıyordu.
+
+**Ayarları Sıfırla** butonu eklendi: zoom, yön ve eğimi varsayılana çeker. Oran, renk,
+stil ve gökyüzüne dokunmaz; onlar bilerek seçilir ve tek tıkla geri alınır.
+
+**Çekim ilerlemesi** `<percent>` ve `<bar>` yer tutucularıyla geldi (`CaptureProgress`),
+hem action bar hem hologram satırında kullanılabiliyor. Işın yürüyüşünün satırlarını
+sayıyor; chunk kopyalama ondan önce geldiği için o sırada 0'da bekliyor — iki fazı
+tartmak, bir chunk okumasının ne kadar süreceğini bilmeyi gerektirirdi. Yarım saniyede
+bir çalışan küçük bir görev iki yüzeyi de tazeliyor ve yalnızca açık deklanşör varken
+yaşıyor.
+
+Dokunulanlar: `CameraDialogs`, `CameraCommand`, `CameraListener`, `Camera`,
+`CameraStatus`, `CameraHologram`, `PhotoManager`, yeni `CaptureProgress`,
+`IsometricRenderer`, `RenderService`, `ConfigManager`, `config.yml`, `messages.yml`,
+`IZOMAP.md` §5 ve §6.
+
+---
+
 ### T45 — `/izocam reload` blok renklerini yenilemiyordu (bug)
 
 `[x]` **P0** · 2026-08-16

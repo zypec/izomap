@@ -1,6 +1,7 @@
 package dev.zypec.izomap.camera;
 
 import dev.zypec.izomap.Izomap;
+import dev.zypec.izomap.render.PreviewManager;
 import dev.zypec.izomap.ui.CameraDialogs;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Location;
@@ -153,6 +154,12 @@ public final class CameraListener implements Listener {
         held.subtract();
         plugin.messages().send(player, "camera.created",
                 Placeholder.unparsed("name", camera.name()));
+        // The hand that placed it is now free, so the live view can go straight into it.
+        if (plugin.preview().join(player, camera) == PreviewManager.JoinResult.JOINED) {
+            plugin.preview().refresh(camera);
+            plugin.messages().send(player, "preview.started",
+                    Placeholder.unparsed("camera", camera.name()));
+        }
     }
 
     private void adjust(Camera camera, int direction, Player player) {
