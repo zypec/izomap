@@ -92,6 +92,13 @@ preview:
 # değiştirmek istersen adının başındaki etiketi değiştir.
 # Filtre TANIMLARI filters.yml'dedir; burada yalnızca görünen adları durur. Oraya yeni
 # bir filtre eklersen adını da buraya ekle; eklemezsen ekranda kimliğiyle görünür.
+# Ayar adları; izin yetmediğinde hangi ayarın engellediğini söylemek için kullanılır.
+setting:
+  style: "<white>Stil"
+  filter: "<white>Renk filtresi"
+  sky: "<white>Gökyüzü"
+  ratio: "<white>En-boy oranı"
+
 filter:
   ORIGINAL: "<white>Orijinal"
   WARM: "<gold>Sıcak"
@@ -148,6 +155,10 @@ photo:
   invalid-ratio: "<prefix> <red>Geçersiz en-boy oranı. Seçenekler: 1:1, 16:9, 4:3"
   # Limit kamera başınadır ve asılı olmayan fotoğrafları da sayar.
   limit-reached: "<prefix> <red>Bu kamerayla en fazla <limit> fotoğrafın olabilir. <gray>Yenisini çekmek için listeden birini sil."
+  # Kamerada, oyuncunun iznine sahip olmadığı bir ayar duruyor (çoğunlukla başkası
+  # ayarlamıştır). Çekim ekranındaki butondan değiştirilebilir.
+  setting-not-allowed: "<prefix> <red>Bu ayarla fotoğraf çekemezsin: <setting> = <value>. <gray>Çekim ekranından değiştirip tekrar dene."
+  grid-not-allowed: "<prefix> <red><grid> ızgarası <white><tiles></white> harita eder; senin sınırın <white><limit></white>. <gray>Daha küçük bir ızgara seç."
 
 map:
   invalid-grid: "<prefix> <red>Bu en-boy oranı için geçersiz grid. <gray><ratio> için seçenekler: <white><grids></white></gray>"

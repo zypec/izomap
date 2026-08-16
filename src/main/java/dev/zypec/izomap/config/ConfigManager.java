@@ -113,6 +113,18 @@ public final class ConfigManager {
         return cfg().getInt("settings.max-photos-per-camera", 5);
     }
 
+    /**
+     * Map tiles one photo may cover, for players holding no
+     * {@code izomap.max_map_tiles.<n>} of their own.
+     *
+     * <p>The render cost scales with this and nothing else scales as fast: a 16x9 grid is
+     * 144 tiles against a 1x1's one. The default admits every small grid (up to 4x3) and
+     * keeps the three big ones behind a permission.</p>
+     */
+    public int maxMapTiles() {
+        return clamp(cfg().getInt("settings.max-map-tiles", 12), 1, 4096);
+    }
+
     // --- camera ---
 
     public String displayType() {

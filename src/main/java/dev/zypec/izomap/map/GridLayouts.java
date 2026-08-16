@@ -1,7 +1,10 @@
 package dev.zypec.izomap.map;
 
+import dev.zypec.izomap.config.Permissions;
 import dev.zypec.izomap.render.AspectRatio;
+import org.bukkit.entity.Player;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -29,6 +32,27 @@ public final class GridLayouts {
                     new GridOption(4, 3),
                     new GridOption(8, 6));
         };
+    }
+
+    /**
+     * The options a player may actually shoot at this ratio.
+     *
+     * <p>The smallest one is kept whatever the allowance says. A ratio whose cheapest
+     * grid is already over the limit — 16:9 starts at eight tiles — would otherwise
+     * become a ratio with no grid at all, and the capture screen would offer an empty
+     * dropdown rather than an explanation.</p>
+     */
+    public static List<GridOption> allowedFor(Player player, AspectRatio ratio, int configuredLimit) {
+        var all = optionsFor(ratio);
+        List<GridOption> allowed = new ArrayList<>(all.size());
+        for (var option : all) {
+            if (Permissions.grid(player, option, configuredLimit))
+                allowed.add(option);
+        }
+        if (allowed.isEmpty())
+            allowed.add(all.getFirst());
+
+        return allowed;
     }
 
     /**

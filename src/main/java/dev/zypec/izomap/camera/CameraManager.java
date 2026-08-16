@@ -2,7 +2,9 @@ package dev.zypec.izomap.camera;
 
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.config.PermissionLimit;
+import dev.zypec.izomap.config.Permissions;
 import dev.zypec.izomap.render.AspectRatio;
+import dev.zypec.izomap.render.PhotoStyle;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Color;
@@ -195,6 +197,11 @@ public final class CameraManager {
         camera.camYaw(owner.getLocation().getYaw());
         camera.camPitch((float) plugin.config().defaultPitch());
         camera.aspectRatio(AspectRatio.fromString(plugin.config().defaultAspectRatio(), AspectRatio.RATIO_1_1));
+        // A camera starts on the sharp style, which not everyone may shoot with. Handing
+        // a player a camera their own capture would be refused for is a bad first
+        // minute, so a creator without the permission gets the free style instead.
+        if (!Permissions.style(owner, camera.style()))
+            camera.style(PhotoStyle.FAST);
 
         keys.tagCamera(display.getPersistentDataContainer(), camera.id());
         keys.tagCamera(interaction.getPersistentDataContainer(), camera.id());

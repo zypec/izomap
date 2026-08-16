@@ -9,6 +9,7 @@ import com.mojang.brigadier.suggestion.Suggestions;
 import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import dev.zypec.izomap.Izomap;
+import dev.zypec.izomap.config.Permissions;
 import dev.zypec.izomap.map.GridLayouts;
 import dev.zypec.izomap.map.GridOption;
 import dev.zypec.izomap.map.ImageSlicer;
@@ -158,7 +159,7 @@ public final class CameraCommand {
                 .then(Commands.literal("cleanup")
                         .executes(this::cleanup))
                 .then(Commands.literal("export")
-                        .requires(source -> source.getSender().hasPermission(PERM_ADMIN))
+                        .requires(source -> source.getSender().hasPermission(Permissions.EXPORT))
                         .then(Commands.literal("as")
                                 .then(Commands.argument("file", StringArgumentType.word())
                                         .then(Commands.argument("photo", StringArgumentType.greedyString())
@@ -320,6 +321,12 @@ public final class CameraCommand {
             plugin.messages().send(player, "photo.invalid-ratio");
             return 0;
         }
+        if (!Permissions.ratio(player, ratio)) {
+            plugin.messages().send(player, "photo.setting-not-allowed",
+                    Placeholder.component("setting", plugin.messages().getOr("setting.ratio", "ratio")),
+                    Placeholder.unparsed("value", ratio.label()));
+            return 0;
+        }
 
         camera.aspectRatio(ratio);
         manager.applyAndPersist(camera);
@@ -342,6 +349,10 @@ public final class CameraCommand {
                     Placeholder.unparsed("grids", options));
             return 0;
         }
+        // The same gate the capture screen goes through; this path renders straight to
+        // maps and would otherwise be the way around every permission.
+        if (!photoManager.mayCapture(player, camera, grid))
+            return 0;
 
         plugin.messages().send(player, "photo.capturing");
         var start = System.currentTimeMillis();

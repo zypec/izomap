@@ -13,3 +13,18 @@ permissions:
   izomap.admin:
     description: Başkalarının kameraları üzerinde yönetim işlemleri
     default: op
+  izomap.export:
+    description: Fotoğrafı PNG olarak diske yazma
+    default: op
+  izomap.style.sharp:
+    description: "Keskin stil (her piksel için ışın); hızlı stil izin istemez"
+    default: op
+  izomap.filter:
+    description: "Tüm renk filtreleri; tek filtre için izomap.filter.<KIMLIK>"
+    default: op
+  izomap.sky:
+    description: "Tüm gökyüzü seçenekleri; tek seçenek için izomap.sky.<AD>"
+    default: op
+  izomap.ratio:
+    description: "Tüm en-boy oranları; tek oran için izomap.ratio.<AD>"
+    default: true

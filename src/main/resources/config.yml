@@ -57,6 +57,15 @@ settings:
   # izomap.max_photos_by_camera.0 → hiç çekemez.
   # izomap.max_photos_by_camera.unlimited → sınırsız.
   max-photos-per-camera: 5
+  # Bir fotoğrafın kaplayabileceği maksimum harita karesi (1x1 = 1, 4x2 = 8, 16x9 = 144).
+  # Render maliyetini asıl belirleyen ayar budur; başka hiçbir seçenek bu kadar hızlı
+  # büyümez. Varsayılan 12, küçük ızgaraların tamamına (4x3'e kadar) izin verir, büyük
+  # üçünü (8x4, 8x6, 16x9) izne bırakır.
+  # İzinle geçersiz kılınabilir: izomap.max_map_tiles.<sayı> (aynı kurallar: izin varsa
+  # buradaki değer yok sayılır, birden çoksa en büyüğü geçerlidir, .unlimited sınırsız).
+  # Bir en-boy oranının EN KÜÇÜK ızgarası sınırın üstünde bile olsa seçilebilir kalır;
+  # yoksa 16:9 (en küçüğü 8 kare) hiç kullanılamayan bir oran olurdu.
+  max-map-tiles: 12
 
 camera:
   # Kamera modeli tipi: ITEM_DISPLAY veya BLOCK_DISPLAY

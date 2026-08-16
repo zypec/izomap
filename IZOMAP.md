@@ -1143,17 +1143,65 @@ boşluk içerebilir ve Brigadier `/` karakterini tırnaksız kelimede kabul etme
 isteğe bağlı ikinci argümanlar referansın **önüne** alındı: `retake with <kamera> <foto>`
 ve `export as <dosya> <foto>`.
 
-**İzinler:** `paper-plugin.yml` içinde tanımlıdır — `izomap.camera` (tüm komutlar,
-`default: true`), `izomap.admin` (yalnızca `reload`, `default: op`).
+### İzinler (`config/Permissions`)
+
+Düğüm adlarının ve "ne neye izin verir" sorusunun tek yeri `Permissions` sınıfıdır;
+`paper-plugin.yml` yalnızca tanımlarını ve varsayılanlarını taşır.
+
+| Düğüm | Ne verir | Varsayılan |
+|---|---|---|
+| `izomap.camera` | Kamera kurma, ayarlama, çekme (tüm komutlar) | `true` |
+| `izomap.admin` | Başkasının kamerası/fotoğrafı, `reload`, `cleanup` | `op` |
+| `izomap.export` | `/izocam export` (diske PNG yazar) | `op` |
+| `izomap.style.sharp` | `SHARP` stil | `op` |
+| `izomap.filter` / `izomap.filter.<KİMLİK>` | Tüm filtreler / tek filtre | `op` |
+| `izomap.sky` / `izomap.sky.<AD>` | Tüm gökyüzleri / tek gökyüzü | `op` |
+| `izomap.ratio` / `izomap.ratio.<AD>` | Tüm oranlar / tek oran | `true` |
+| `izomap.max_map_tiles.<sayı>` | Bir fotoğrafın harita karesi sayısı | `settings.max-map-tiles` |
+
+**Alan mı, tek seçenek mi.** Listesi olan ayarlar iki kez sorulur: `izomap.filter`
+hepsini, `izomap.filter.WARM` yalnızca onu verir; oyuncu ikisinden **biriyle** geçer.
+Böylece bir sunucu ekibine alanın tamamını, herkese tek bir seçeneği verebilir ve bu iki
+ihtiyaç için iki sistem yazmak gerekmez.
+
+**Her ayarın en ucuz değeri bedavadır.** `ORIGINAL` filtre, `NONE` gökyüzü ve `FAST`
+stil hiçbir düğüm istemez. Hiçbir izni olmayan oyuncu yine fotoğraf çekebilir: izinler
+fotoğrafın **ne kadar pahalıya** çıkabileceğine karar verir, çekilip çekilemeyeceğine
+değil. Yeni kamera `SHARP` ile başladığı için, izni olmayan oyuncunun kurduğu kamera
+kurulurken `FAST`'e çekilir — aksi halde oyuncuya kendi çekiminin reddedileceği bir
+kamera verilmiş olurdu.
+
+**Çekim ekranı yalnızca izinliyi gösterir**, ama kameranın **o anki** değeri her zaman
+listede kalır. Başkasının `SHARP` bıraktığı bir kamerada buton gizlenseydi oyuncu ne
+gördüğünü ne de değiştirebileceğini anlardı; değer görünür olduğu için tek tıkla
+değiştirilebiliyor. Seçenek sayısı bire düşen buton (örneğin izinsiz oyuncuda filtre)
+hiç çizilmez — tıklayınca hiçbir şey yapmayan bir buton gürültüdür.
+
+**Sunucu tarafı ikinci kez bakar.** `PhotoManager#mayCapture` çekim anında stili,
+filtreyi, gökyüzünü, oranı ve ızgarayı yeniden denetler; ekran açıkken izin kaybedilmiş
+olabilir ve `/izocam maps` doğrudan haritaya render ettiği için ekranı hiç görmez.
+**Sessizce düşürme yok:** izinsiz bir ayarla çekim reddedilir ve hangi ayarın engellediği
+söylenir (`photo.setting-not-allowed`). Ekranda görülenden farklı ayarlarla çekilmiş bir
+fotoğraf, reddedilmiş bir çekimden daha kötüdür.
+
+**Retake izin sormaz.** Fotoğraf zaten çekilmiş ve duvarda; sonradan kaybedilen bir izin
+yüzünden onu yeniden çekememek, var olan resmi bozmak olurdu.
 
 ### Sayısal limit izinleri (`config/PermissionLimit`)
 
-İki config limiti izinle geçersiz kılınabilir:
+Üç config limiti izinle geçersiz kılınabilir:
 
 | İzin öneki | Geçersiz kıldığı |
 |---|---|
 | `izomap.max_photos_by_camera.<sayı>` | `settings.max-photos-per-camera` |
 | `izomap.max_cameras_by_player.<sayı>` | `settings.max-cameras-per-player` |
+| `izomap.max_map_tiles.<sayı>` | `settings.max-map-tiles` |
+
+Çözünürlük neden sayısal: maliyeti sürekli, listesi değil. 1x1 bir kare, 16x9 **144**
+kare eder ve render süresi kareyle doğru orantılıdır — sunucunun ödediği bedele en çok
+bu düğüm karar verir. Bir oranın **en küçük** ızgarası sınırın üstünde olsa bile
+seçilebilir kalır: 16:9 sekiz kareyle başladığı için, sınırı dörde çeken bir sunucu o
+oranı hiç kullanılamaz hâle getirirdi.
 
 Kurallar:
 
@@ -1187,7 +1235,7 @@ toplanır ve değerler mantıklı aralıklara clamp'lenir.
 
 | Bölüm | Anahtarlar |
 |---|---|
-| `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `render-timing`, `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player`, `max-photos-per-camera` |
+| `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `render-timing`, `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player`, `max-photos-per-camera`, `max-map-tiles` (1-4096), `correct-vanilla-colors` |
 | `camera` | `display-type`, `model-material`, `item-display-transform`, `interaction-size` (0.1-3.0), `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `move-step` (0.05-16.0), `default-pitch` (-90..90), `edit-lock-seconds` (1-3600), `model-rotation.{x,y,z}`, `hologram.{enabled, offset-y (-4..8), view-range (0.1-10), billboard, background}` |
 | `photo` | `sky.colors.*`, `sky.gradient`, `sky.horizon-blend`, `sky.dither`, `style.fast-scale`, `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
 | `placement` | `distance`, `invisible-frames`, `build-backing-wall`, `backing-material`, `timeout-seconds` (5-600) |
@@ -1299,6 +1347,7 @@ Yeni bir sabit eklemek yalnızca yeni bir anahtar eklemeyi gerektirir.
 | `SkyTest` | Saat çemberi: dört karenin kendi rengi, şafak-öğle aralığının tick 0 üstünden geçmesi, dithering hücresinin 4 pikselde tekrarı, her gökyüzü pikselinin palette olması |
 | `StylePassTest` | Stil geçişlerinin iki kuralı: paletten çıkmamak ve deliği renge ortalamamak |
 | `PermissionLimitTest` | İzin kuralları: config'i ezmesi, küçüğün kısıtlaması, en büyüğün kazanması, `unlimited`, reddedilmiş ve sayı olmayan düğümler |
+| `PermissionsTest` | Bedava varsayılanlar, alan düğümü ile tek seçenek düğümü, kare sayısına göre ızgara süzme, en küçük ızgaranın hep kalması |
 | `PhotoExporterTest` | Dosya adı oyuncu girdisidir: yol ayracı, baştaki nokta, uzunluk sınırı |
 | `GridAndSlicingTest` | Dilimlemenin karo sırası — yanlışı ancak duvara asınca görünür |
 | `FormatAndIdsTest` | Sayıların locale'den bağımsızlığı ve bozuk kimliğin `null` dönmesi |

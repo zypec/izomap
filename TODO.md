@@ -37,7 +37,7 @@ T37 (temel renk tablosunun wiki ile denetimi) ✔
 T49 (kısmi kaplama / karıştırma aşaması)
  └── T57 (su render'ı, TRANSLUCENT kipi)
 
-T54 (permission ağacı)
+T54 (permission ağacı) ✔
  ├── T53 (çerçeveler)
  ├── T55 (gök cisimleri)
  └── T56 (imza)
@@ -142,62 +142,7 @@ en çok değişecek olan onlar.
 
 ## P1 — Kamera ve etkileşim
 
-### T54 — Permission ağacı: pahalı olan her seçenek izne bağlansın
-
-`[ ]` **P1** · 2026-08-16 · Bloke ettikleri: T53, T55, T56
-
-Bugün yalnızca dört node var: `izomap.camera` (varsayılan açık), `izomap.admin` (op) ve
-iki sayısal limit — `izomap.max_cameras_by_player.<n>`, `izomap.max_photos_by_camera.<n>`.
-Yani **her oyuncu 4x4 ızgarada, ss3, SHARP fotoğraf çekebiliyor**; sunucunun ödediği
-bedel ile oyuncunun tıkladığı buton arasında hiçbir bağ yok.
-
-**İki kalıp kullanılır** (ikisi de projede mevcut):
-
-- **Sayısal limit** — "ne kadar" sorusu için: `izomap.<ad>.<n>`, `PermissionLimit` en
-  büyüğü alır, `*` = sınırsız.
-- **Boolean node** — "hangisi" sorusu için: `izomap.<alan>.<SEÇENEK>`.
-
-**Önerilen ağaç:**
-
-| Node | Ne verir | Varsayılan |
-|---|---|---|
-| `izomap.camera` | Kamera kurma, ayarlama, çekme (mevcut) | `true` |
-| `izomap.admin` | Başkasının kamerası/fotoğrafı üzerinde işlem (mevcut) | `op` |
-| `izomap.max_cameras_by_player.<n>` | Kamera sayısı (mevcut) | — |
-| `izomap.max_photos_by_camera.<n>` | Kamera başına fotoğraf (mevcut) | — |
-| **`izomap.max_map_tiles.<n>`** | Bir fotoğrafın toplam harita karesi (1x1=1, 4x2=8). Izgara listesi buna göre filtrelenir | `4` (2x2'ye kadar) |
-| **`izomap.style.fast`** | `FAST` stil | `true` |
-| **`izomap.style.sharp`** | `SHARP` stil — asıl pahalı olan | `op` |
-| **`izomap.filter`** | Renk filtresi kullanabilmek | `op` |
-| **`izomap.filter.<ID>`** | Tek bir filtre (`filters.yml`'deki kimlik) | — |
-| **`izomap.sky`** | Gökyüzü seçebilmek | `true` |
-| **`izomap.sky.<SEÇENEK>`** | Tek bir gökyüzü (`NONE`/`WORLD`/`DAWN`/`DAY`/`DUSK`/`NIGHT`) | — |
-| **`izomap.sky.bodies`** | Ay/güneş/yıldız (T55) | `op` |
-| **`izomap.frame`** | Çerçeve kullanabilmek (T53) | `op` |
-| **`izomap.frame.<ID>`** | Tek bir çerçeve | — |
-| **`izomap.signature`** | Fotoğrafa imza atmak (T56) | `op` |
-| **`izomap.ratio.<AD>`** | Belirli en-boy oranları | `true` |
-| **`izomap.export`** | PNG dışa aktarma (diske yazar) | `op` |
-
-**Kurallar:**
-
-- **Alan node'u + seçenek node'u.** `izomap.filter` alanın kapısıdır; yoksa filtre
-  butonu ekranda hiç görünmez. Varsa, oyuncu yalnızca `izomap.filter.<ID>` tuttuğu
-  filtreleri görür. Aynısı gökyüzü ve çerçeve için. Kapıyı ayrı tutmak, "filtre diye bir
-  şey olduğunu bile görmesin" ile "görsün ama seçemesin" arasını ayırır.
-- **Ekranda gizle, tıkta reddetme.** İzin yoksa seçenek Dialog'da hiç çizilmez; izinliyi
-  gizlemek de, izinsizi gösterip tıkta mesaj vermek de kötü. Tek istisna ızgara: sınırın
-  üstündeki seçenekler **soluk** görünür ve neden kapalı olduğu yazar, çünkü orada
-  oyuncunun bir üst kademeyi istemesi anlamlı.
-- **Çekim anında bir kez daha bakılır.** Dialog açıkken izin kaybedilmiş olabilir.
-- **Retake izin sormaz.** Fotoğraf zaten çekilmiş; sonradan izni alınan bir ayarı geri
-  almak, duvardaki resmi bozmak demek olurdu.
-- **Varsayılan felsefe:** ucuz olan herkese açık (FAST, 1x1–2x2, `NONE` gökyüzü,
-  `ORIGINAL` filtre), pahalı ve süs olan izne bağlı (SHARP, büyük ızgara, çerçeve,
-  imza, gök cisimleri).
-
-Sınırların **sayısal değerleri T50'nin ölçümünden sonra** kesinleşir; tablodaki
-varsayılanlar şimdilik tahmin.
+*(Şu an açık madde yok.)*
 
 ---
 
@@ -205,7 +150,7 @@ varsayılanlar şimdilik tahmin.
 
 ### T53 — Çerçeveler ve asılı fotoğrafın sağ tık Dialog'u
 
-`[ ]` **P1** · 2026-08-16 · Bağımlı: T54 (permission)
+`[ ]` **P1** · 2026-08-16 · Bağımlı: T54 ✔
 
 Fotoğraflara çerçeve. Çeşitli çerçeveler olacak, oyuncu **asıldıktan sonra** da
 takabilecek, ve hangi çerçeveyi kimin kullanabileceği permission'a bağlı olacak.
@@ -259,7 +204,7 @@ render mı, yalnızca ad mı); varsayılan pakette kaç çerçeve gelir ve nası
 
 ### T56 — Fotoğrafa imza
 
-`[ ]` **P1** · 2026-08-16 · Bağımlı: T53 (overlay aşaması), T54 (permission)
+`[ ]` **P1** · 2026-08-16 · Bağımlı: T53 (overlay aşaması), T54 ✔
 
 `izomap.signature` tutan oyuncu fotoğrafın istediği köşesine kısa bir metin koyabilir.
 
@@ -366,7 +311,7 @@ manzarayı göstermek).
 
 ### T55 — Gökyüzüne güneş, ay ve yıldızlar
 
-`[ ]` **P1** · 2026-08-16 · Bağımlı: T32 ✔, T54 (permission)
+`[ ]` **P1** · 2026-08-16 · Bağımlı: T32 ✔, T54 ✔
 
 Gökyüzü şu an dikey bir gradyan + dither. Üstüne üç cisim:
 
@@ -504,6 +449,78 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T54 — Permission ağacı: pahalı olan her seçenek izne bağlansın
+
+`[x]` **P1** · 2026-08-16 · Açtıkları: T53, T55, T56
+
+Bugün yalnızca dört node var: `izomap.camera` (varsayılan açık), `izomap.admin` (op) ve
+iki sayısal limit — `izomap.max_cameras_by_player.<n>`, `izomap.max_photos_by_camera.<n>`.
+Yani **her oyuncu 4x4 ızgarada, ss3, SHARP fotoğraf çekebiliyor**; sunucunun ödediği
+bedel ile oyuncunun tıkladığı buton arasında hiçbir bağ yok.
+
+**İki kalıp kullanılır** (ikisi de projede mevcut):
+
+- **Sayısal limit** — "ne kadar" sorusu için: `izomap.<ad>.<n>`, `PermissionLimit` en
+  büyüğü alır, `*` = sınırsız.
+- **Boolean node** — "hangisi" sorusu için: `izomap.<alan>.<SEÇENEK>`.
+
+**Kurulan ağaç:**
+
+| Node | Ne verir | Varsayılan |
+|---|---|---|
+| `izomap.camera` | Kamera kurma, ayarlama, çekme (mevcut) | `true` |
+| `izomap.admin` | Başkasının kamerası/fotoğrafı üzerinde işlem (mevcut) | `op` |
+| `izomap.max_cameras_by_player.<n>` | Kamera sayısı (mevcut) | — |
+| `izomap.max_photos_by_camera.<n>` | Kamera başına fotoğraf (mevcut) | — |
+| **`izomap.max_map_tiles.<n>`** | Bir fotoğrafın toplam harita karesi (1x1=1, 4x2=8). Izgara listesi buna göre filtrelenir | `4` (2x2'ye kadar) |
+| **`izomap.style.fast`** | `FAST` stil | `true` |
+| **`izomap.style.sharp`** | `SHARP` stil — asıl pahalı olan | `op` |
+| **`izomap.filter`** | Renk filtresi kullanabilmek | `op` |
+| **`izomap.filter.<ID>`** | Tek bir filtre (`filters.yml`'deki kimlik) | — |
+| **`izomap.sky`** | Gökyüzü seçebilmek | `true` |
+| **`izomap.sky.<SEÇENEK>`** | Tek bir gökyüzü (`NONE`/`WORLD`/`DAWN`/`DAY`/`DUSK`/`NIGHT`) | — |
+| **`izomap.ratio.<AD>`** | Belirli en-boy oranları | `true` |
+| **`izomap.export`** | PNG dışa aktarma (diske yazar) | `op` |
+
+(T53/T55/T56'nın düğümleri — `izomap.frame`, `izomap.signature`, `izomap.sky.bodies` —
+kendi maddeleriyle birlikte eklenecek; olmayan özelliğin düğümünü şimdiden tanımlamak
+wiki'ye yalan yazmak olurdu.)
+
+**Uygulanan kurallar:**
+
+- **Alan mı, tek seçenek mi.** `izomap.filter` hepsini, `izomap.filter.WARM` yalnızca
+  onu verir; oyuncu ikisinden **biriyle** geçer (`Permissions#allows`). TODO'da bunlar
+  ayrı iki düğüm olarak (kapı + seçenek) planlanmıştı; koda dökünce gereksiz çıktı,
+  çünkü "hiç görmesin" durumu zaten seçenek sayısından çıkıyor: seçeneği bire düşen
+  buton çizilmiyor.
+- **Her ayarın en ucuz değeri bedava:** `ORIGINAL`, `NONE` gökyüzü, `FAST`. İzni olmayan
+  oyuncu yine fotoğraf çekebiliyor; izinler fotoğrafın **ne kadar pahalıya**
+  çıkabileceğine karar veriyor.
+- **Kameranın o anki değeri her zaman listede.** Başkasının `SHARP` bıraktığı kamerada
+  buton gizlenseydi oyuncu ne gördüğünü ne de değiştirebileceğini anlardı. Değer
+  görünür, tek tıkla değiştirilebiliyor, değiştirilene kadar çekim reddediliyor.
+- **Yeni kamera izne göre kuruluyor:** `SHARP` izni olmayanın kurduğu kamera `FAST` ile
+  başlıyor. Aksi hâlde oyuncuya kendi çekiminin reddedileceği bir kamera verilirdi.
+- **Sunucu tarafı ikinci kez bakıyor** (`PhotoManager#mayCapture`): ekran açıkken izin
+  kaybedilebilir, üstelik `/izocam maps` doğrudan haritaya render ettiği için ekranı hiç
+  görmüyor. Sessizce düşürme yok — hangi ayarın engellediği söyleniyor.
+- **Retake izin sormuyor.** Fotoğraf zaten duvarda.
+- **En küçük ızgara her zaman seçilebilir.** 16:9 sekiz kareyle başladığından, sınırı
+  dörde çeken bir sunucu o oranı hiç kullanılamaz hâle getirirdi.
+
+`settings.max-map-tiles` varsayılanı **12**: küçük ızgaraların tamamı (4x3'e kadar)
+serbest, büyük üçü (8x4, 8x6, 16x9) izne bağlı. Bu sayı **T50'nin ölçümünden sonra**
+gözden geçirilecek; şimdilik "144 kare varsayılan olamaz" kadarını biliyoruz.
+
+8 yeni test (`PermissionsTest`): bedava varsayılanlar, alan/seçenek ayrımı, filtrenin
+kimliğe göre eşleşmesi, kare sayısına göre süzme, en küçük ızgaranın kalması.
+
+Dokunulanlar: yeni `Permissions`, `PermissionsTest`; `ConfigManager`, `GridLayouts`,
+`CameraDialogs`, `CameraManager`, `PhotoManager`, `CameraCommand`, `paper-plugin.yml`,
+`config.yml`, `messages.yml`, `IZOMAP.md` §7.
+
+---
 
 ### T52 — Geriye dönük okumaların tamamı silindi
 

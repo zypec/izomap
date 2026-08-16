@@ -3,6 +3,7 @@ package dev.zypec.izomap.ui;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.camera.Camera;
 import dev.zypec.izomap.camera.CameraManager;
+import dev.zypec.izomap.config.Permissions;
 import dev.zypec.izomap.map.GridLayouts;
 import dev.zypec.izomap.map.GridOption;
 import dev.zypec.izomap.map.Photo;
@@ -31,6 +32,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * Paper Dialog API screens for taking photos and managing them.
@@ -92,7 +94,7 @@ public final class CameraDialogs {
                         .inputs(List.of(
                                 DialogInput.text(INPUT_NAME, plugin.messages().get("dialog.name-label"))
                                         .initial(initialName).width(width).build(),
-                                DialogInput.singleOption(INPUT_GRID, width, gridEntries(camera),
+                                DialogInput.singleOption(INPUT_GRID, width, gridEntries(player, camera),
                                         plugin.messages().get("dialog.grid-label"), true)))
                         .build())
                 .type(DialogType.multiAction(captureButtons(player, camera), cancelButton(), COLUMNS)));
@@ -106,19 +108,33 @@ public final class CameraDialogs {
      * the two that undo a camera last.
      */
     private List<ActionButton> captureButtons(Player viewer, Camera camera) {
-        List<ActionButton> buttons = new ArrayList<>(ratioButtons(camera));
+        List<ActionButton> buttons = new ArrayList<>(ratioButtons(viewer, camera));
 
         // Cycled rather than picked from a list: each is a handful of values, and a
         // button can show the one in force while a closed dropdown cannot.
-        buttons.add(cycleButton(camera, "dialog.filter-button", "filter.",
-                camera.colorFilter().id(),
-                target -> target.colorFilter(plugin.filters().next(target.colorFilter()))));
-        buttons.add(cycleButton(camera, "dialog.style-button", "style.",
-                camera.style().name(),
-                target -> target.style(next(PhotoStyle.values(), target.style()))));
-        buttons.add(cycleButton(camera, "dialog.sky-button", "sky.",
-                camera.sky().name(),
-                target -> target.sky(next(SkyOption.values(), target.sky()))));
+        var filters = choices(plugin.filters().all(), camera.colorFilter(),
+                filter -> Permissions.filter(viewer, filter));
+        if (filters.size() > 1) {
+            buttons.add(cycleButton(camera, "dialog.filter-button", "filter.",
+                    camera.colorFilter().id(),
+                    target -> target.colorFilter(after(filters, target.colorFilter()))));
+        }
+
+        var styles = choices(List.of(PhotoStyle.values()), camera.style(),
+                style -> Permissions.style(viewer, style));
+        if (styles.size() > 1) {
+            buttons.add(cycleButton(camera, "dialog.style-button", "style.",
+                    camera.style().name(),
+                    target -> target.style(after(styles, target.style()))));
+        }
+
+        var skies = choices(List.of(SkyOption.values()), camera.sky(),
+                sky -> Permissions.sky(viewer, sky));
+        if (skies.size() > 1) {
+            buttons.add(cycleButton(camera, "dialog.sky-button", "sky.",
+                    camera.sky().name(),
+                    target -> target.sky(after(skies, target.sky()))));
+        }
 
         buttons.add(button(plugin.messages().get(
                         camera.thirdsGuide() ? "dialog.thirds-button-active" : "dialog.thirds-button"),
@@ -145,9 +161,10 @@ public final class CameraDialogs {
         return buttons;
     }
 
-    private List<ActionButton> ratioButtons(Camera camera) {
+    private List<ActionButton> ratioButtons(Player viewer, Camera camera) {
         List<ActionButton> buttons = new ArrayList<>();
-        for (AspectRatio ratio : AspectRatio.values()) {
+        for (AspectRatio ratio : choices(List.of(AspectRatio.values()), camera.aspectRatio(),
+                allowed -> Permissions.ratio(viewer, allowed))) {
             var current = ratio == camera.aspectRatio();
             var label = plugin.messages().get(current ? "dialog.ratio-button-active" : "dialog.ratio-button",
                     Placeholder.unparsed("ratio", ratio.label()));
@@ -171,10 +188,30 @@ public final class CameraDialogs {
     }
 
     /**
-     * The next constant, wrapping at the end.
+     * The values this player may cycle through, in their own order.
+     *
+     * <p>The camera's current value is always among them, even when the player may not
+     * use it: a camera set to something expensive by somebody else would otherwise show
+     * no button at all, leaving them looking at a setting they can neither see nor
+     * change while the capture keeps being refused. Included, it is visible and one
+     * click from being replaced — and the capture stays refused until it is.</p>
      */
-    private static <T extends Enum<T>> T next(T[] values, T current) {
-        return values[(current.ordinal() + 1) % values.length];
+    private static <T> List<T> choices(List<T> all, T current, Predicate<T> allowed) {
+        List<T> choices = new ArrayList<>(all.size());
+        for (var value : all) {
+            if (value.equals(current) || allowed.test(value))
+                choices.add(value);
+        }
+        return choices;
+    }
+
+    /**
+     * The value after this one, wrapping at the end. A current value that is not on the
+     * list — nothing here puts one there, but a reload might — moves to the first.
+     */
+    private static <T> T after(List<T> values, T current) {
+        var index = values.indexOf(current);
+        return values.get(index < 0 ? 0 : (index + 1) % values.size());
     }
 
     /**
@@ -354,8 +391,9 @@ public final class CameraDialogs {
 
     // --- inputs ---
 
-    private List<SingleOptionDialogInput.OptionEntry> gridEntries(Camera camera) {
-        List<GridOption> options = GridLayouts.optionsFor(camera.aspectRatio());
+    private List<SingleOptionDialogInput.OptionEntry> gridEntries(Player viewer, Camera camera) {
+        List<GridOption> options = GridLayouts.allowedFor(
+                viewer, camera.aspectRatio(), plugin.config().maxMapTiles());
         List<SingleOptionDialogInput.OptionEntry> entries = new ArrayList<>();
         for (int i = 0; i < options.size(); i++) {
             GridOption option = options.get(i);

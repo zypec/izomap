@@ -4,6 +4,7 @@ import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.camera.Camera;
 import dev.zypec.izomap.camera.CameraManager;
 import dev.zypec.izomap.config.PermissionLimit;
+import dev.zypec.izomap.config.Permissions;
 import dev.zypec.izomap.render.CaptureProgress;
 import dev.zypec.izomap.render.CaptureTooLargeException;
 import dev.zypec.izomap.render.RenderResult;
@@ -287,6 +288,54 @@ public final class PhotoManager {
     // --- capture ---
 
     /**
+     * Whether this player may shoot the camera as it currently stands, telling them
+     * which setting stopped them when they may not.
+     *
+     * <p>The camera carries the settings, not the player, and a camera can be set up by
+     * somebody else — an admin's camera left on {@code SHARP}, a filter granted to one
+     * group and used by another. The capture screen only offers what the player holds,
+     * so this is the shot they did not go through the screen for: the commands, and the
+     * screen they opened before losing the permission.</p>
+     *
+     * <p>Nothing is quietly downgraded. A photo taken at settings other than the ones
+     * shown is a worse outcome than a refusal that names the setting.</p>
+     */
+    public boolean mayCapture(Player player, Camera camera, GridOption grid) {
+        if (!Permissions.style(player, camera.style()))
+            return deny(player, "style", camera.style().name());
+
+        if (!Permissions.filter(player, camera.colorFilter()))
+            return deny(player, "filter", camera.colorFilter().id());
+
+        if (!Permissions.sky(player, camera.sky()))
+            return deny(player, "sky", camera.sky().name());
+
+        if (!Permissions.ratio(player, camera.aspectRatio()))
+            return deny(player, "ratio", camera.aspectRatio().label());
+
+        if (!Permissions.grid(player, grid, plugin.config().maxMapTiles())) {
+            plugin.messages().send(player, "photo.grid-not-allowed",
+                    Placeholder.unparsed("grid", grid.label()),
+                    Placeholder.unparsed("tiles", String.valueOf(grid.tileCount())),
+                    Placeholder.unparsed("limit", String.valueOf(
+                            Permissions.mapTiles(player, plugin.config().maxMapTiles()))));
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Reports a setting the player may not shoot with, and returns {@code false} so the
+     * caller can hand the answer straight back.
+     */
+    private boolean deny(Player player, String setting, String value) {
+        plugin.messages().send(player, "photo.setting-not-allowed",
+                Placeholder.component("setting", plugin.messages().getOr("setting." + setting, setting)),
+                Placeholder.component("value", plugin.messages().getOr(setting + "." + value, value)));
+        return false;
+    }
+
+    /**
      * Shoots the camera and files the result under the player's photos. Nothing is put
      * up in the world; that is {@link #place}'s job. Must be started on the main thread.
      */
@@ -297,6 +346,8 @@ public final class PhotoManager {
                     Placeholder.unparsed("limit", String.valueOf(limitFor(player))));
             return;
         }
+        if (!mayCapture(player, camera, grid))
+            return;
         plugin.messages().send(player, "photo.capturing");
         var progress = shutter(camera, player, true);
         var start = System.currentTimeMillis();
