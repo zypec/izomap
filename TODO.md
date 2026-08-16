@@ -264,15 +264,28 @@ manzarayı göstermek).
 `SHORT_GRASS` ve `TALL_GRASS` fotoğrafta fazla parlak/doygun duruyor ve zeminden ayrışıp
 gürültü gibi görünüyor.
 
-- Önce doğru davranış tespit edilecek (T37): bu bloklar vanilla haritada gerçekte hangi
-  temel rengi bildiriyor, bizimki onunla uyuşuyor mu? Sorun yanlış eşleme ise çözüm T37'de.
-- Eşleme doğruysa mesele estetik. Seçenekler:
-  - Ot gibi "ince" blokların ışını durdurmaması, yani altındaki zeminin görünmesi
-    (`IsometricRenderer` ışın yürüyüşünde geçirgen materyal listesi).
-  - Ya da ışını durdursun ama zemin rengiyle harmanlansın.
-- Hangisi seçilirse `block-colors.yml` override'ıyla sunucu sahibinin geri alabilmesi
-  korunmalı.
-- Karar için önce/sonra ekran görüntüsü alınacak; bu madde göz kararıdır, ölçüt görsel.
+**Bulgu (2026-08-16): eşleme doğru, mesele estetik.** T37 denetimi bu blokların gerçekten
+`PLANT` (#007C00) bildirdiğini doğruladı — saf, doygun bir yeşil. Altındaki çim bloğu ise
+`GRASS` (#7FB238), daha açık ve sarıya çalan. Vanilla haritada fark göze batmıyor çünkü
+tepeden bakışta ot seyrek kalıyor; izometrikte her tutam bir blok yüzünü komple boyuyor.
+
+**Yeni kod gerekmiyor.** `block-colors.yml` bir bloğa `NONE` verilmesini zaten
+destekliyor ve ışın yürüyüşü `NONE`'ı saydam sayıp arkasını görüyor. Karar, varsayılanın
+ne olacağıdır.
+
+**Sunucuda denenecek** (oyuncu kararı bekliyor): `block-colors.yml` → `overrides:` altına
+`SHORT_GRASS: NONE` ve `TALL_GRASS: NONE`, ardından `/izocam reload` + `/izocam retake`.
+
+Seçenekler:
+- **Saydam (`NONE`)** — tutam yok sayılır, altındaki blok çizilir. Renk araziyi
+  kendiliğinden takip eder: çim üstünde çim, podzol üstünde podzol, kar üstünde kar.
+- **Zemin rengine boyama (`GRASS`)** — tutam durur ve ışını durdurmaya devam eder ama
+  çim bloğuyla aynı renge düşer. Riski: podzol ormanında eğrelti otu kahverengi zeminin
+  üstünde parlak çim yeşili okunur, çünkü renk sabit.
+- Karar verilince ya varsayılan `block-colors.yml`'ye yazılır (dosya sürümü 3'e çıkar,
+  mevcut dosyalar yedeklenip yenilenir) ya da yalnızca yorum satırı örneği eklenir.
+  İkincisi dosyanın "varsayılan tablo yoktur" ilkesine daha sadık.
+- `FERN` / `LARGE_FERN` de aynı kefede; karar ikisini de kapsamalı.
 
 ---
 
