@@ -277,9 +277,36 @@ Eklentinin ilk sürümleri daha "yağlı boya" görünümlü fotoğraflar üreti
 stil pikselin nasıl oluştuğunu, filtre rengin nasıl kaydırıldığını belirler. İkisi bir
 fotoğrafa aynı anda uygulanabilmeli.
 
-- Ne değişti sorusu önce cevaplanacak: keskinliği getiren büyük ihtimalle
-  `settings.supersampling` ve `ColorPipeline#blend`'in kenar pikselleri ortalaması —
-  eski hâlde örnekleme yoktu ya da harmanlama farklıydı. Git geçmişinden karşılaştırılacak.
+**Ne değiştiği bulundu (2026-08-16).** Tek bir commit: `08ecea1` *(Rework the render
+frame/chunk system and camera zoom semantics)*, yani ikinci commit. İlk commit
+(`b0773c1`) "yağlı boya" sürümüdür. O commit'te ışın yürüyüşü **aynı anda iki** yönden
+değişti:
+
+1. **Sabit adımlı ray-march → tam DDA.** Eskisi ışını `photo.step-size` (0.25 blok)
+   aralıklarla nokta örnekliyor ve ilk hava olmayan örneği alıyordu. Işının yalnızca
+   köşesinden geçtiği — yani kat ettiği yol adımdan kısa olan — her blok **rastgele
+   kaçırılıyordu**. Köşe kesme tam olarak blok kenarlarında ve yüzey eklerinde olur,
+   dolayısıyla her siluet ve her ek düzensiz biçimde kırılıyordu. Amanatides-Woo hiçbir
+   bloğu kaçırmaz: bugün her kenar tam ve kesintisiz.
+2. **Piksel başına 1 ışın → NxN örnekleme + ortalama.** Bu, ters yönde çalışır: kenarları
+   *yumuşatır*. Yani bugünün kenarları yumuşatma anlamında daha yumuşak ama **yeri kesin**;
+   eskininki sert ama düzensizdi.
+
+Sonuç: aranan "yağlı boya" niteliği bilinçli bir efekt değil, **yaklaşık örnekleyicinin
+düzensizliğiydi**. Geri getirmenin yolu bug'ı geri koymak değil, o düzensizliği kontrollü
+biçimde üretmek. (Eski sürümde ışınlar ayrıca `maxDist/2` kadar geriden başlıyordu; o
+sonradan "boş fotoğraf" bug'ı olarak düzeltildi, görünümle ilgisi yok.)
+
+**Aday mekanizmalar** (biri seçilip prototiplenecek, ölçüt görsel):
+- **(a) Örnek titretme (jitter)** — her örneğin piksel içi konumunu rastgele kaydır.
+  Kenarlar temiz rampa yerine noktalı karışıma döner; eski artefakta en yakın olan bu.
+  Ek maliyet yok, ışın sayısı aynı. Ama düz yüzeylerin içini değiştirmez, etkisi ince.
+- **(b) Izgara çözünürlüğünün altında render + büyütme** — örn. ×0.5 render edip
+  bilinear büyüt, sonra palete snap'le. Her blok yüzü komşusuna karışır; en güçlü
+  "boyanmış" etkisi bu ve bugünkünden **ucuz** (daha az ışın).
+- **(c) Render sonrası komşu harmanlama** — yumuşatma/medyan tek geçiş. Gücü ışın
+  sayısından bağımsız ayarlanır, ama tam görüntü üzerinde ek bir geçiş demek.
+
 - Stil = render sonrası (ya da örnekleme sırasında) uygulanan bir işlem kümesi. Aday
   işlemler: komşu piksel harmanlama/yumuşatma, kenar yumuşatmayı azaltma, renk sayısını
   düşürme (palet zaten 244), hafif bulanıklık, doku gürültüsü.
