@@ -240,6 +240,27 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 
 ## Arşiv
 
+### T45 — `/izocam reload` blok renklerini yenilemiyordu (bug)
+
+`[x]` **P0** · 2026-08-16
+
+`BlockColorTable.load` yalnızca `onEnable`'da çağrılıyordu ve tablo `IsometricRenderer`'a
+kurucudan veriliyordu; `reloadAll` ona hiç dokunmuyordu. Sonuç: `block-colors.yml`'de
+yapılan bir override (ve T37'nin sunucuya sorduğu blok durumu renkleri) ancak sunucu
+yeniden başlarken devreye giriyordu. T35'i denemek için tam da bu dosya kullanılacağı
+için sinsi bir engeldi.
+
+`RenderService#reloadColors` eklendi; tabloyu baştan kurup renderer'ı bütünüyle
+değiştiriyor. Renderer alanı `volatile` ve `capture` onu yürüyüşten önce yerele alıyor,
+böylece reload ortasında kalan bir render görüntünün yarısını bir tabloya yarısını
+diğerine düşürmüyor.
+
+Not: değişiklik mevcut fotoğrafları etkilemez (ön bellekten gelirler), `retake` gerekir.
+
+Dokunulanlar: `RenderService`, `Izomap#reloadAll`, `IZOMAP.md` §3 ve §7.
+
+---
+
 ### T39 — Fotoğraflar komutlara adıyla veriliyor
 
 `[x]` **P1** · 2026-08-16

@@ -249,6 +249,16 @@ kurulur: `MapColorConverter#packedId` piksel → harita baytı dönüşümünü 
 `block-colors.yml` yalnızca **override** dosyasıdır; varsayılan tablo içermez. `version: 2`
 taşır, eski v1 dosyaları `.v1.bak` olarak yedeklenip yenilenir.
 
+**`/izocam reload` tabloyu da yeniler.** Renkler sunucudan ve bu dosyadan **bir kez**
+okunup `IsometricRenderer`'a veriliyordu; render sırasında hiçbiri tekrar sorulmadığı için
+düzenlenen bir override ancak sunucu yeniden başlayınca görünüyordu. Reload artık tabloyu
+baştan kurup renderer'ı bütünüyle değiştiriyor. Koşmakta olan bir render başladığı
+tabloyla devam eder (alan yürüyüşten önce yerele alınır), yoksa görüntünün yarısı bir
+tabloya yarısı diğerine düşerdi.
+
+Değişiklik **mevcut fotoğraflara yansımaz**: onlar ön bellekten gelir. Yeni renkleri
+görmek için `retake` gerekir; preview ise ilk tıkta kendiliğinden yenilenir.
+
 ### Gökyüzü (`SkyOption`, `Sky`)
 
 Hiçbir bloğa çarpmayan ışın normalde şeffaf piksel bırakır. Gökyüzü açıksa o pikseller
@@ -932,7 +942,7 @@ yazar. Görüntü `PhotoManager#image` üzerinden gelir: **önce ön bellek, olm
 | `cleanup` | Çerçeveleri kaybolmuş fotoğrafları "asılı değil"e çeker; sahipsiz kalmış çerçeveleri ve kamera modellerini dünyadan siler |
 | `export <kamera/foto>` | Fotoğrafı PNG olarak `exports/` altına yazar (`izomap.admin`) |
 | `export as <dosya> <kamera/foto>` | Aynısı, dosya adını vererek |
-| `reload` | Yapılandırmayı yeniden yükler (`izomap.admin`) |
+| `reload` | `config.yml`, `messages.yml` ve `block-colors.yml`'yi yeniden okur (`izomap.admin`) |
 
 Ad, oran, grid ve fotoğraf referansı argümanlarının tamamı tab-complete'lidir; grid
 önerileri önceki argümandaki kameranın **oranına göre** filtrelenir.

@@ -55,7 +55,11 @@ public final class RenderService {
     private static final int BEAM_SLICES = 8;
 
     private final Izomap plugin;
-    private final IsometricRenderer renderer;
+    /**
+     * Replaced wholesale by {@link #reloadColors()}; a render in flight keeps the one
+     * it started with, which is why the field is read into a local before the walk.
+     */
+    private volatile IsometricRenderer renderer;
     private final MapColorConverter converter = new MapColorConverter();
     private final AtomicInteger threadCounter = new AtomicInteger();
 
@@ -65,6 +69,14 @@ public final class RenderService {
     public RenderService(Izomap plugin, BlockColorTable colorTable) {
         this.plugin = plugin;
         this.renderer = new IsometricRenderer(colorTable);
+    }
+
+    /**
+     * Reads {@code block-colors.yml} and the server's block colours again, so an edited
+     * override takes effect on {@code /izocam reload} rather than on the next restart.
+     */
+    public void reloadColors() {
+        this.renderer = new IsometricRenderer(BlockColorTable.load(plugin));
     }
 
     /**
@@ -191,13 +203,16 @@ public final class RenderService {
         var minY = world.getMinHeight();
         var maxY = world.getMaxHeight();
 
+        // Taken now, so a reload part-way through cannot leave half the image on one
+        // colour table and half on another.
+        var walker = renderer;
         var requestedAt = System.nanoTime();
         return snapshotChunks(world, chunkKeys, minY, maxY).thenCompose(snapshot -> {
             var capturedAt = System.nanoTime();
             CompletableFuture<RenderResult> future = new CompletableFuture<>();
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                 try {
-                    var result = renderer.render(
+                    var result = walker.render(
                             snapshot, geometry, pipeline, sky, supersampling, executor, threads);
                     result = StylePass.upscale(result, widthPx, heightPx, converter);
                     if (timing) {

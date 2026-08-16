@@ -109,6 +109,11 @@ public final class Izomap extends JavaPlugin {
     public void reloadAll() {
         this.messages.reload();
         this.configManager.reload();
+        // Block colours are read from the server and from block-colors.yml, neither of
+        // which is consulted again during a render, so they have to be rebuilt here.
+        if (renderService != null)
+            renderService.reloadColors();
+
         // Visual settings such as the model rotation offset take effect immediately.
         if (cameraManager != null)
             cameraManager.refreshTransforms();
