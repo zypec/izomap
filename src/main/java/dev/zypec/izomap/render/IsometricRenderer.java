@@ -223,7 +223,7 @@ public final class IsometricRenderer {
                     out.material = material;
                     out.base = base;
                     out.face = face;
-                    out.darken = shading.stepsAt(snapshot, colorTable, x, y, z, face);
+                    out.darken = shading.stepsAt(snapshot, colorTable, x, y, z, face, stepX, stepZ);
                     return;
                 }
             } else if ((y >= snapshot.maxY() && stepY >= 0) || (y < snapshot.minY() && stepY <= 0)) {

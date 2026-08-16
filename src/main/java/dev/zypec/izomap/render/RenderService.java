@@ -220,7 +220,7 @@ public final class RenderService {
         // colour table and half on another.
         var walker = renderer;
         var requestedAt = System.nanoTime();
-        return snapshotChunks(world, chunkKeys, minY, maxY).thenCompose(snapshot -> {
+        return snapshotChunks(world, chunkKeys, minY, maxY, spec.shading().blockLight()).thenCompose(snapshot -> {
             var capturedAt = System.nanoTime();
             CompletableFuture<RenderResult> future = new CompletableFuture<>();
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
@@ -270,6 +270,11 @@ public final class RenderService {
      * <p>Loaded chunks are copied straight away; the rest go through Paper's async
      * chunk API so the server never reads or generates chunks on the main thread.</p>
      *
+     * <p>{@code light} copies the sky and block light arrays along with the blocks.
+     * Paper's three-argument overload takes them <b>by default</b>, so every render used
+     * to pay for light it never read; it is now asked for only when the shading darkens
+     * by it.</p>
+     *
      * <p>The copy is taken <b>inside the load callback</b>. Paper defines the
      * {@code getChunkAtAsync} future as "always executed synchronously on the main
      * Server Thread", so {@code thenApply} runs there at a moment the chunk is
@@ -277,7 +282,8 @@ public final class RenderService {
      * holds no ticket, the chunk can unload again in between, and the photo ends up
      * with chunk-sized holes.</p>
      */
-    private CompletableFuture<WorldSnapshot> snapshotChunks(World world, Set<Long> keys, int minY, int maxY) {
+    private CompletableFuture<WorldSnapshot> snapshotChunks(World world, Set<Long> keys,
+                                                            int minY, int maxY, boolean light) {
         var load = plugin.config().loadMissingChunks();
         var generate = plugin.config().generateMissingChunks();
 
@@ -287,11 +293,11 @@ public final class RenderService {
             var cx = WorldSnapshot.chunkX(key);
             var cz = WorldSnapshot.chunkZ(key);
             if (world.isChunkLoaded(cx, cz)) {
-                ready.add(world.getChunkAt(cx, cz).getChunkSnapshot(false, false, false));
+                ready.add(world.getChunkAt(cx, cz).getChunkSnapshot(false, false, false, light));
             } else if (load) {
                 // With generate=false, an ungenerated chunk completes the future as null.
                 loading.add(world.getChunkAtAsync(cx, cz, generate).thenApply(
-                        chunk -> chunk == null ? null : chunk.getChunkSnapshot(false, false, false)));
+                        chunk -> chunk == null ? null : chunk.getChunkSnapshot(false, false, false, light)));
             }
         }
 

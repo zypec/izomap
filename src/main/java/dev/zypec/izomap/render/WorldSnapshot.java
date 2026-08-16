@@ -20,6 +20,11 @@ import java.util.Map;
  */
 public final class WorldSnapshot {
 
+    /**
+     * Brightest a cell can be, and what an uncaptured one is taken to be.
+     */
+    private static final int MAX_LIGHT = 15;
+
     private final Map<Long, ChunkSnapshot> chunks;
     private final int minY;
     private final int maxY;
@@ -67,6 +72,37 @@ public final class WorldSnapshot {
 
         var snapshot = chunks.get(key(x >> 4, z >> 4));
         return snapshot == null ? null : snapshot.getBlockData(x & 15, y, z & 15);
+    }
+
+    /**
+     * Brightest light reaching a cell, 0-15: the greater of the sky light that falls
+     * into it and the light blocks around it emit.
+     *
+     * <p>Sky light is stored per block and does not follow the clock, so an outdoor
+     * surface reads 15 at midnight too. That is on purpose — the sun this renderer
+     * shades with is a fixed angle rather than the world's own (see {@link Shading}),
+     * and a photo of a lit landscape should not turn black because it was taken at
+     * night.</p>
+     *
+     * <p>Cells outside the captured region read as fully lit, so a chunk that could
+     * not be copied leaves a hole rather than a shadow.</p>
+     *
+     * <p>Only meaningful when the chunks were copied with light data; without it the
+     * server hands back zeroes, which would darken the whole photo. {@code RenderService}
+     * asks for light exactly when the shading needs it.</p>
+     */
+    public int lightAt(int x, int y, int z) {
+        if (y < minY || y >= maxY)
+            return MAX_LIGHT;
+
+        var snapshot = chunks.get(key(x >> 4, z >> 4));
+        if (snapshot == null)
+            return MAX_LIGHT;
+
+        var local = x & 15;
+        var localZ = z & 15;
+        return Math.max(snapshot.getBlockSkyLight(local, y, localZ),
+                snapshot.getBlockEmittedLight(local, y, localZ));
     }
 
     /**

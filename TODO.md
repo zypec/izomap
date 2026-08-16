@@ -51,36 +51,7 @@ T37 (temel renk tablosunun wiki ile denetimi) ✔
 
 ## P1 — Fotoğraf yönetimi ve yerleştirme
 
-### T24 — Dialog geçişlerinde bekleme geri bildirimi
-
-`[~]` **P1** · 2026-08-15 · sunucuda ölçülmeyi bekliyor
-
-Bir Dialog'dan diğerine geçiş (özellikle "Fotoğraflar" listesini açmak) gözle görülür
-biçimde geç. Ekran açılana kadar hiçbir şey olmuyormuş gibi görünüyor.
-
-**Bulunan sebep ve yapılan düzeltme (2026-08-15):** Çekim ekranındaki **her** buton
-`CameraDialogs#applyForm`'dan geçiyor ve bu yol koşulsuz olarak
-`cameraManager.applyAndPersist` + `preview().refresh()` çağırıyordu. İkincisi tam bir
-preview render'ı başlatır; `RenderService#capture`'ın chunk kopyalama aşaması **ana
-thread'de** koşar, yani yeni dialog o kopyalamanın arkasında sıraya girer. "Fotoğraflar"
-butonu hiçbir şeyi değiştirmediği hâlde bunu ödüyordu.
-
-- Artık görüntüyü etkileyen dört alan (oran, üçler kılavuzu, zoom, filtre) öncesi/sonrası
-  karşılaştırılıyor; değişmemişse kayıt da render da yapılmıyor (`applyIfChanged`).
-- Zoom açılır listesi dokunulmadığında cevapsız sayılıyor (`pickedZoom`); eskiden en yakın
-  hazır değere snap edip her butonu "değişiklik" hâline getiriyordu.
-- `onCapture` de aynı korumayı aldı: çekimden hemen önce aynı kadrajı bir de preview için
-  render etmek tek tık için iki render demekti.
-
-**Kalanlar:**
-- Sunucuda denenecek: geçiş hâlâ yavaş mı? `settings.render-timing` açıkken bir preview
-  render'ının kaç ms sürdüğü de kaydedilecek.
-- Hâlâ yavaşsa geriye Dialog API'sinin kendi gidiş-dönüşü kalır (buton `customClick` →
-  sunucu → yeni dialog paketi) ve bir de `plugin.runOnMain`'in bir sonraki tick'e atması
-  (≤50 ms) var. O durumda: geçişte "Yükleniyor…" gövdeli ara dialog (`dialog.loading`),
-  hazır olunca asıl ekranla değiştirilir.
-- Ara ekran her geçişte değil yalnızca gerçekten yavaş olanlarda açılmalı; yoksa hızlı
-  geçişlerde bir kare titreme olarak görünür.
+*(Şu an açık madde yok.)*
 
 ---
 
@@ -88,10 +59,10 @@ butonu hiçbir şeyi değiştirmediği hâlde bunu ödüyordu.
 
 ### T33 — Gelişmiş gölgelendirme
 
-`[~]` **P2** · 2026-08-16 · 1 ve 2 yapıldı; 3 ve 5 açık
+`[~]` **P2** · 2026-08-16 · 1, 2 ve 3 yapıldı; yalnızca 5 açık
 
-**Yapılan (TODO'nun önerdiği çift).** `Shading` + `ShadingSpec` eklendi, ikisi de
-varsayılan kapalı, ayrı ayrı açılıyor:
+**Yapılan.** `Shading` + `ShadingSpec` eklendi, üçü de varsayılan kapalı, ayrı ayrı
+açılıyor:
 
 - **Güneş gölgesi** — isabet başına ikinci bir ışın, aynı DDA ile, `shadow-distance`
   bloğa kadar. Güneş yönü sabit (`sun-yaw`/`sun-pitch`), oyun saatine bağlanmadı:
@@ -99,6 +70,20 @@ varsayılan kapalı, ayrı ayrı açılıyor:
 - **Ambient occlusion** — isabet başına dört snapshot okuması. Yüzeyin önündeki hücrenin
   dört komşusundan üçü doluysa bir ton iner. Eşik üç: iki komşu yüzey boyunca uzanan bir
   duvar demek ve her binanın yarısını koyulaştırırdı.
+- **Blok ışığı** (2026-08-16, madde 3) — isabet başına tek okuma. Yüzeyin önündeki
+  hücrenin ışığı (`max(gök, yayılan)`) `light-dim-below`'un altındaysa bir,
+  `light-dark-below`'un altındaysa iki ton iner. İç mekânı ve mağarayı taşıyan tek
+  teknik bu; güneş gölgesinin oraya sözü geçmiyor.
+
+  **TODO'nun ışıkla ilgili varsayımı yanlışmış.** Burada "snapshot ışıksız alınıyor,
+  çağrı değişmeli, kopyalama pahalılaşır" yazıyordu; `Chunk#getChunkSnapshot(a, b, c)`
+  aslında ışığı **varsayılan olarak** kopyalıyor. Yani eklenti hiç okumadığı ışığın
+  faturasını her render'da zaten ödüyormuş. Dört argümanlı Paper aşırı yüklemesine
+  geçildi ve ışık yalnızca `block-light` açıkken isteniyor — kapalıyken bu bir kazanç.
+
+  **Yan düzeltme:** AO ve ışık "yüzeyin önündeki hücre"ye bakar, ama yan yüzlerde bu
+  hücre koşulsuz `+X`/`+Z` alınıyordu; kameranın yönüne göre yarı yarıya bloğun arka
+  tarafı okunuyordu. Yürüyüşün adım işareti artık `stepsAt`'e geçiyor.
 
 Ton merdiveni `ColorPipeline`'da: dört parlaklık ordinal sırasında değil, parlaklık
 sırasında dizilip basamak basamak iniliyor. `RayHit` bir `darken` alanı taşıyor.
@@ -112,12 +97,17 @@ mutlak değil oransal): kapalı 2047 ms · AO +7% · güneş gölgesi +11% · ik
 gereksizdi (renk tablosu hava için de `NONE` döndürüyor), kaldırıldı.
 
 **Açık kalanlar:**
-- **3. Blok ışık seviyesi.** Gece/iç mekân çekimlerinde asıl farkı yaratacak olan bu, ama
-  snapshot şu an `getChunkSnapshot(false, false, false)` ile **ışıksız** alınıyor; ışık
-  istenirse çağrı değişmeli ve kopyalama maliyeti artar. Kendi config anahtarıyla ve
-  kopyalama maliyeti ölçülerek gelmeli.
+- **Blok ışığının maliyeti sunucuda ölçülecek.** Yürüyüş tarafı AO'nun dörtte biri kadar
+  iş (isabet başına dört okuma yerine bir), ama asıl soru **chunk kopyalama** yarısı ve
+  onu sentetik arazi ölçemez. `settings.render-timing: true` ile `block-light` açık ve
+  kapalı birer çekim, "copy" sütunu karşılaştırılacak.
 - **5. Ton arası dithering.** Deneysel; süpersamplingle birlikte nasıl durduğu
   denenmeden bilinemez.
+- **Gökyüzü seçimi ışığa yansısın mı?** Gök ışığı saate bağlı olmadığı için `Gece`
+  gökyüzüyle çekilen manzara gündüz aydınlığında çıkıyor. `SkyOption` → gök ışığı
+  çarpanı bunu düzeltirdi (gece 15 yerine ~4 sayılır), ama `Shading`'in gökyüzü
+  seçimini de bilmesi gerekir ve "fotoğraf simsiyah çıktı" şikâyeti riski var. Ayrı
+  madde olmayı hak edecek kadar büyük değil, karar verilene kadar burada dursun.
 - 4 (yükseklik bazlı ton) değerlendirildi ve **hayır**: izometrikte karşılığı zaten yüz
   yönelimi, üstüne eklemek görüntüyü bozar.
 
@@ -148,37 +138,45 @@ manzarayı göstermek).
   biome'larda görünmeyebilir — beklenen davranış, belgelenmeli.
 - Bilinmeyen/yeni biome → tint yok, temel renk kullanılır.
 
----
+### T49 — Kısmi kaplama: ince bloklar bloğun tamamını boyamasın
 
-### T35 — Ot bloklarının rengi göze batıyor
+`[ ]` **P2** · 2026-08-16 · İlgili: T35 ✔
 
-`[ ]` **P2** · Bağımlı: T37 ✔
+**Soru (oyuncu):** her blok "dolu bir piksel" olmak zorunda mı? Ot, çiçek gibi bloklar
+daha küçük bir kaplamayla çizilse göze daha az batmaz mı?
 
-`SHORT_GRASS` ve `TALL_GRASS` fotoğrafta fazla parlak/doygun duruyor ve zeminden ayrışıp
-gürültü gibi görünüyor.
+**Cevap: zorunlu değil, ama bugünkü ışın yürüyüşünde öyle.** Render zaten "1 blok = 1
+piksel" değil — ortografik projeksiyonda blok başına düşen piksel `spanHeight / heightPx`
+ile belirlenir (önizlemede blok ~2,7 px, 1024 px'lik bir fotoğrafta ~21 px). Sorun
+çözünürlük değil: DDA her voxel'i **dolu bir küp** sayıyor, dolayısıyla bir ot tutamı
+kendi hücresinin tamamını doygun yeşile boyuyor. T35 bu yüzden "ya hep ya hiç"e
+sıkışmıştı (`NONE` ya da tam blok).
 
-**Bulgu (2026-08-16): eşleme doğru, mesele estetik.** T37 denetimi bu blokların gerçekten
-`PLANT` (#007C00) bildirdiğini doğruladı — saf, doygun bir yeşil. Altındaki çim bloğu ise
-`GRASS` (#7FB238), daha açık ve sarıya çalan. Vanilla haritada fark göze batmıyor çünkü
-tepeden bakışta ot seyrek kalıyor; izometrikte her tutam bir blok yüzünü komple boyuyor.
+Üçüncü yol, blok başına bir **kaplama oranı** (0.0–1.0) tanımlamak. `NONE` = 0.0, bugünkü
+davranış = 1.0; eksik olan ara değerler. `block-colors.yml`'ye `coverage:` bölümü olarak
+girer, yani mevcut düğmenin genişlemesi olur, yanına rakip bir düğme değil.
 
-**Yeni kod gerekmiyor.** `block-colors.yml` bir bloğa `NONE` verilmesini zaten
-destekliyor ve ışın yürüyüşü `NONE`'ı saydam sayıp arkasını görüyor. Karar, varsayılanın
-ne olacağıdır.
+İki uygulama biçimi var:
 
-**Sunucuda denenecek** (oyuncu kararı bekliyor): `block-colors.yml` → `overrides:` altına
-`SHORT_GRASS: NONE` ve `TALL_GRASS: NONE`, ardından `/izocam reload` + `/izocam retake`.
+- **(A) Alt-hücre geometrisi.** İşaretli materyalde ışının hücre içindeki gerçek geçiş
+  noktası hesaplanır (giriş `t`'si zaten elimizde) ve yalnızca merkezdeki küçük kutuyu /
+  vanilla'nın çapraz düzlemlerini kesiyorsa isabet sayılır, yoksa ışın devam eder. Yüksek
+  zoom'da tutam gerçekten tutam şeklinde çıkar. Zayıf yanı: önizleme çözünürlüğünde ve
+  süpersampling kapalıyken ikili karar kalır, yani gürültüye dönüşür.
+- **(B) Kaplama = alfa (önerilen).** İşaretli materyalde ışın durmaz, arkasındaki bloğu
+  da bulur ve renk `c × bitki + (1−c) × zemin` olarak karışır, sonra palete snap edilir.
+  Her çözünürlükte çalışır, kenar gürültüsü üretmez ve sonuç "biraz yeşile çalan çim"
+  olur. `ColorPipeline#blend` zaten var; `RayHit`'in karışmış rengi taşıması gerekir ve o
+  pikseller hızlı yoldan (önceden hesaplanmış palet tablosu) çıkar.
 
-Seçenekler:
-- **Saydam (`NONE`)** — tutam yok sayılır, altındaki blok çizilir. Renk araziyi
-  kendiliğinden takip eder: çim üstünde çim, podzol üstünde podzol, kar üstünde kar.
-- **Zemin rengine boyama (`GRASS`)** — tutam durur ve ışını durdurmaya devam eder ama
-  çim bloğuyla aynı renge düşer. Riski: podzol ormanında eğrelti otu kahverengi zeminin
-  üstünde parlak çim yeşili okunur, çünkü renk sabit.
-- Karar verilince ya varsayılan `block-colors.yml`'ye yazılır (dosya sürümü 3'e çıkar,
-  mevcut dosyalar yedeklenip yenilenir) ya da yalnızca yorum satırı örneği eklenir.
-  İkincisi dosyanın "varsayılan tablo yoktur" ilkesine daha sadık.
-- `FERN` / `LARGE_FERN` de aynı kefede; karar ikisini de kapsamalı.
+**Maliyet, B için, sezgiye aykırı biçimde küçük:** bugün ot ışını erken durduruyor;
+B'de ışın zemine kadar devam ediyor — yani maliyet, otun **hiç olmadığı** durumla aynı,
+üstüne piksel başına bir karışım. Başka bir deyişle B, T35'te seçilen `NONE` ile
+neredeyse aynı fiyata, `NONE`'dan daha iyi bir görüntü veriyor.
+
+Karar verilmesi gerekenler: varsayılan `coverage` tablosu olacak mı (dosyanın "varsayılan
+tablo yoktur" kuralı buna karşı), yoksa yalnızca örnek mi; ve hangi bloklar (ot, eğrelti,
+çiçekler, fideler, sarmaşık, şeker kamışı…) hangi oranla.
 
 ---
 
@@ -196,6 +194,76 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T35 — Ot bloklarının rengi göze batıyor
+
+`[x]` **P2** · 2026-08-16 · Bağımlı: T37 ✔
+
+`SHORT_GRASS` ve `TALL_GRASS` fotoğrafta fazla parlak/doygun duruyor ve zeminden ayrışıp
+gürültü gibi görünüyor.
+
+**Bulgu (2026-08-16): eşleme doğru, mesele estetik.** T37 denetimi bu blokların gerçekten
+`PLANT` (#007C00) bildirdiğini doğruladı — saf, doygun bir yeşil. Altındaki çim bloğu ise
+`GRASS` (#7FB238), daha açık ve sarıya çalan. Vanilla haritada fark göze batmıyor çünkü
+tepeden bakışta ot seyrek kalıyor; izometrikte her tutam bir blok yüzünü komple boyuyor.
+
+**Yeni kod gerekmiyor.** `block-colors.yml` bir bloğa `NONE` verilmesini zaten
+destekliyor ve ışın yürüyüşü `NONE`'ı saydam sayıp arkasını görüyor. Karar, varsayılanın
+ne olacağıdır.
+
+**Karar (2026-08-16): `NONE`, sunucunun kendi dosyasında.** Tutam yok sayılır, altındaki
+blok çizilir; renk araziyi kendiliğinden takip eder (çim üstünde çim, podzol üstünde
+podzol, kar üstünde kar). Alternatifi — `GRASS` verip tutamı zemin rengine boyamak —
+podzol ormanında kahverengi zeminin üstüne parlak çim yeşili koyardı, çünkü o renk sabit
+kalırdı.
+
+**Varsayılan dosya değişmedi**, yalnızca `block-colors.yml`'ye dört satırlık **yorumlu
+örnek** eklendi (`SHORT_GRASS`, `TALL_GRASS`, `FERN`, `LARGE_FERN`). Dosyanın kuralı
+"burada varsayılan tablo yoktur"; ot tercihi de bir estetik tercih, sunucununki.
+Uygulamak: satırların başındaki `#` silinir, `/izocam reload` + `/izocam retake`.
+
+Kalıcı çözüm ayrı maddede: bir tutamın bloğun tamamını boyaması, rengin değil
+**kaplamanın** meselesi — bkz. T49.
+
+---
+
+---
+
+---
+
+### T24 — Dialog geçişlerinde bekleme geri bildirimi
+
+`[x]` **P1** · 2026-08-16
+
+Bir Dialog'dan diğerine geçiş (özellikle "Fotoğraflar" listesini açmak) gözle görülür
+biçimde geç. Ekran açılana kadar hiçbir şey olmuyormuş gibi görünüyor.
+
+**Bulunan sebep ve yapılan düzeltme (2026-08-15):** Çekim ekranındaki **her** buton
+`CameraDialogs#applyForm`'dan geçiyor ve bu yol koşulsuz olarak
+`cameraManager.applyAndPersist` + `preview().refresh()` çağırıyordu. İkincisi tam bir
+preview render'ı başlatır; `RenderService#capture`'ın chunk kopyalama aşaması **ana
+thread'de** koşar, yani yeni dialog o kopyalamanın arkasında sıraya girer. "Fotoğraflar"
+butonu hiçbir şeyi değiştirmediği hâlde bunu ödüyordu.
+
+- Artık görüntüyü etkileyen dört alan (oran, üçler kılavuzu, zoom, filtre) öncesi/sonrası
+  karşılaştırılıyor; değişmemişse kayıt da render da yapılmıyor (`applyIfChanged`).
+- Zoom açılır listesi dokunulmadığında cevapsız sayılıyor (`pickedZoom`); eskiden en yakın
+  hazır değere snap edip her butonu "değişiklik" hâline getiriyordu.
+- `onCapture` de aynı korumayı aldı: çekimden hemen önce aynı kadrajı bir de preview için
+  render etmek tek tık için iki render demekti.
+
+**Sunucuda denendi (2026-08-16): geçişler iyi, madde kapandı.** Sebep gerçekten
+gereksiz render'mış; kaldırılınca ekranlar beklemeden açılıyor.
+
+Açılmayan ihtimal not olarak kalsın: geriye yalnızca Dialog API'sinin kendi gidiş-dönüşü
+(buton `customClick` → sunucu → yeni dialog paketi) ve `plugin.runOnMain`'in bir sonraki
+tick'e atması (≤50 ms) kalıyordu. Bir gün yeniden yavaşlarsa çözüm, geçişte "Yükleniyor…"
+gövdeli ara dialog (`dialog.loading`) açıp hazır olunca asıl ekranla değiştirmek — ama
+her geçişte değil, yoksa hızlı geçişlerde bir kare titreme olarak görünür.
+
+---
+
+---
 
 ### T48 — İlk tık kamerayı düzenlemeden yalnızca önizlemeyi açıyor
 

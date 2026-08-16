@@ -183,6 +183,18 @@ photo:
     # isabet başına dört blok okur. Etkisi ince ama iç köşeleri köşe gibi gösteren şey
     # budur; kapalıyken düz rengin içinde bir kıvrım gibi durur.
     ambient-occlusion: false
+    # Az ışık alan yüzeyler koyulaşır. Üçünün en ucuzu: ışık zaten chunk kopyasının
+    # içinde, isabet başına tek okuma. Kapalıyken mağara ve iç mekân, dışarıdaki tarlayla
+    # aynı gün ışığında çıkar; güneş gölgesinin oraya sözü geçmez. Açıkken chunk kopyası
+    # ışık dizilerini de taşır, yani kopyalama biraz pahalılaşır (kapalıyken artık hiç
+    # taşımıyor).
+    block-light: false
+    # Eşikler (0-15): bu değerin altında bir ton, ikincisinin altında iki ton iner.
+    # Gök ışığı saate bağlı DEĞİLDİR — açık havadaki yüzey gece de 15 okur; buradaki
+    # sabit güneşle tutarlı olan budur. İkinci eşik birincisinden büyük verilirse
+    # birincisine çekilir.
+    light-dim-below: 8
+    light-dark-below: 4
   # GÖKYÜZÜ. Hiçbir bloğa çarpmayan ışın normalde şeffaf piksel bırakır; gökyüzü
   # açıksa o pikseller boyanır. HANGİ gökyüzünü oyuncu Dialog'dan seçer (Şeffaf, Oyun
   # saati, Şafak, Gündüz, Gün batımı, Gece); buradakiler gökyüzünün NASIL çizildiğidir.

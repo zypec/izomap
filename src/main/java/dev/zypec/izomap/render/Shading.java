@@ -18,8 +18,13 @@ package dev.zypec.izomap.render;
  * a face only when the space in front of it is boxed in, which is what makes an inside
  * corner read as a corner rather than as a fold in a flat colour.</p>
  *
- * <p>Both are off by default. They change what a photo looks like, so they belong to the
- * server's taste rather than to a default.</p>
+ * <p><b>Block light</b> is one snapshot read per hit, and the cheapest of the three by
+ * a distance: the light is already in the chunk copy, so nothing has to be walked or
+ * computed for it. It is the only one that does anything indoors or underground, where
+ * the sun cannot reach and every face otherwise comes out in full daylight.</p>
+ *
+ * <p>All three are off by default. They change what a photo looks like, so they belong
+ * to the server's taste rather than to a default.</p>
  */
 public final class Shading {
 
@@ -61,18 +66,57 @@ public final class Shading {
 
     /**
      * Steps to take off the surface at this block, entered through this face.
+     *
+     * @param stepX sign the ray travels along x, which is what tells a face on the
+     *              camera's side of the block from the one behind it
+     * @param stepZ the same for z
      */
-    int stepsAt(WorldSnapshot snapshot, BlockColorTable colors, int x, int y, int z, RayHit.Face face) {
+    int stepsAt(WorldSnapshot snapshot, BlockColorTable colors, int x, int y, int z,
+                RayHit.Face face, int stepX, int stepZ) {
         if (this == NONE) return 0;
 
         var steps = 0;
         if (spec.sunShadow() && inShadow(snapshot, colors, x, y, z))
             steps++;
 
-        if (spec.ambientOcclusion() && isBoxedIn(snapshot, colors, x, y, z, face))
+        if (!spec.ambientOcclusion() && !spec.blockLight())
+            return steps;
+
+        // The cell the face opens onto: where the ray came from, so the far side of the
+        // block is never read. Both techniques ask about that cell rather than about the
+        // block, whose own light is zero and whose own neighbours say nothing.
+        var fx = x;
+        var fy = y;
+        var fz = z;
+        switch (face) {
+            case TOP -> fy++;
+            case BOTTOM -> fy--;
+            case SIDE_X -> fx -= stepX;
+            case SIDE_Z -> fz -= stepZ;
+        }
+
+        if (spec.ambientOcclusion() && isBoxedIn(snapshot, colors, fx, fy, fz, face))
             steps++;
 
+        if (spec.blockLight())
+            steps += lightSteps(snapshot.lightAt(fx, fy, fz));
+
         return steps;
+    }
+
+    /**
+     * Steps a surface loses to the light that reaches it.
+     *
+     * <p>Two thresholds and no gradient, because the palette has none: below
+     * {@code dim-below} the surface drops one brightness, below {@code dark-below} two.
+     * A cave wall lit by a single torch therefore reads as lit near the torch and as
+     * rock further along it, which is the whole point of the technique — without it an
+     * interior is drawn in the same daylight as the field outside.</p>
+     */
+    private int lightSteps(int light) {
+        if (light < spec.darkBelow()) return 2;
+
+        return light < spec.dimBelow() ? 1 : 0;
     }
 
     /**
@@ -130,28 +174,19 @@ public final class Shading {
     /**
      * Whether the space in front of this face is hemmed in on most sides.
      *
-     * <p>Looks at the cell the face opens onto and the four around it in the face's own
-     * plane. Nothing here can tell where inside the face a pixel sits — the walk works
-     * in whole blocks — so the answer is one step for the whole face or none.</p>
+     * <p>Takes the cell the face opens onto and looks at the four around it in the
+     * face's own plane. Nothing here can tell where inside the face a pixel sits — the
+     * walk works in whole blocks — so the answer is one step for the whole face or
+     * none.</p>
      */
     private boolean isBoxedIn(WorldSnapshot snapshot, BlockColorTable colors,
-                              int x, int y, int z, RayHit.Face face) {
-        var front = switch (face) {
-            case TOP -> new int[]{0, 1, 0};
-            case BOTTOM -> new int[]{0, -1, 0};
-            case SIDE_X -> new int[]{1, 0, 0};
-            case SIDE_Z -> new int[]{0, 0, 1};
-        };
+                              int fx, int fy, int fz, RayHit.Face face) {
         // The two axes the face spans, which is where its neighbours are.
         var tangents = switch (face) {
             case TOP, BOTTOM -> new int[][]{{1, 0, 0}, {-1, 0, 0}, {0, 0, 1}, {0, 0, -1}};
             case SIDE_X -> new int[][]{{0, 1, 0}, {0, -1, 0}, {0, 0, 1}, {0, 0, -1}};
             case SIDE_Z -> new int[][]{{1, 0, 0}, {-1, 0, 0}, {0, 1, 0}, {0, -1, 0}};
         };
-
-        var fx = x + front[0];
-        var fy = y + front[1];
-        var fz = z + front[2];
 
         var solid = 0;
         for (var t : tangents) {

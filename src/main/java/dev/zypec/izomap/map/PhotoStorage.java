@@ -130,6 +130,9 @@ public final class PhotoStorage extends YamlStorage {
         cfg.set(base + ".shading.sun-pitch", spec.shading().sunPitch());
         cfg.set(base + ".shading.shadow-distance", spec.shading().shadowDistance());
         cfg.set(base + ".shading.ambient-occlusion", spec.shading().ambientOcclusion());
+        cfg.set(base + ".shading.block-light", spec.shading().blockLight());
+        cfg.set(base + ".shading.light-dim-below", spec.shading().dimBelow());
+        cfg.set(base + ".shading.light-dark-below", spec.shading().darkBelow());
         cfg.set(base + ".frame-height", spec.frameHeight());
         cfg.set(base + ".frame-shift", spec.frameShift());
         cfg.set(base + ".supersampling", spec.supersampling());
@@ -148,7 +151,10 @@ public final class PhotoStorage extends YamlStorage {
                 (float) s.getDouble("sun-yaw", 135.0),
                 (float) s.getDouble("sun-pitch", 60.0),
                 s.getInt("shadow-distance", 24),
-                s.getBoolean("ambient-occlusion", false));
+                s.getBoolean("ambient-occlusion", false),
+                s.getBoolean("block-light", false),
+                s.getInt("light-dim-below", 8),
+                s.getInt("light-dark-below", 4));
     }
 
     /**

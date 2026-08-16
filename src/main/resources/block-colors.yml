@@ -32,3 +32,11 @@ overrides:
   # GLASS: QUARTZ
   # Örnek: suyu daha koyu göstermek:
   # WATER: COLOR_BLUE
+  # Örnek: ot ve eğrelti tutamları fotoğrafta zeminden ayrışıp gürültü gibi durur —
+  # eşleme yanlış olduğu için değil, izometrikte her tutamın bir blok yüzünü komple
+  # boyaması yüzünden. NONE vermek ışının arkasını görmesini sağlar, yani renk araziyi
+  # kendiliğinden takip eder (çim üstünde çim, podzol üstünde podzol, kar üstünde kar):
+  # SHORT_GRASS: NONE
+  # TALL_GRASS: NONE
+  # FERN: NONE
+  # LARGE_FERN: NONE

@@ -20,23 +20,30 @@ package dev.zypec.izomap.render;
  * @param sunPitch         height of the sun above the horizon, degrees
  * @param shadowDistance   how far a shadow ray travels before giving up, in blocks
  * @param ambientOcclusion whether faces boxed in by their neighbours darken
+ * @param blockLight       whether poorly lit surfaces darken
+ * @param dimBelow          light level under which a surface loses one step
+ * @param darkBelow         light level under which it loses two
  */
 public record ShadingSpec(
         boolean sunShadow,
         float sunYaw,
         float sunPitch,
         int shadowDistance,
-        boolean ambientOcclusion) {
+        boolean ambientOcclusion,
+        boolean blockLight,
+        int dimBelow,
+        int darkBelow) {
 
     /**
      * Face brightness alone, as the renderer has always done it.
      */
-    public static final ShadingSpec NONE = new ShadingSpec(false, 0.0f, 0.0f, 0, false);
+    public static final ShadingSpec NONE =
+            new ShadingSpec(false, 0.0f, 0.0f, 0, false, false, 0, 0);
 
     /**
      * Whether the walk has to do anything extra at all.
      */
     public boolean enabled() {
-        return sunShadow || ambientOcclusion;
+        return sunShadow || ambientOcclusion || blockLight;
     }
 }

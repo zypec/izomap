@@ -305,16 +305,25 @@ public final class ConfigManager {
     }
 
     /**
-     * What may darken a surface beyond the face it shows. Both techniques default off:
+     * What may darken a surface beyond the face it shows. Every technique defaults off:
      * they change the picture, so they are the server's taste rather than a default.
+     *
+     * <p>The two light thresholds are clamped into order as well as into range: with
+     * {@code dark-below} above {@code dim-below} the second one could never be reached
+     * and half the setting would quietly do nothing.</p>
      */
     public ShadingSpec shading() {
+        var dimBelow = clamp(cfg().getInt("photo.shading.light-dim-below", 8), 0, 15);
+        var darkBelow = clamp(cfg().getInt("photo.shading.light-dark-below", 4), 0, 15);
         return new ShadingSpec(
                 cfg().getBoolean("photo.shading.sun-shadow", false),
                 (float) cfg().getDouble("photo.shading.sun-yaw", 135.0),
                 (float) clamp(cfg().getDouble("photo.shading.sun-pitch", 60.0), 1.0, 89.0),
                 clamp(cfg().getInt("photo.shading.shadow-distance", 24), 1, 256),
-                cfg().getBoolean("photo.shading.ambient-occlusion", false));
+                cfg().getBoolean("photo.shading.ambient-occlusion", false),
+                cfg().getBoolean("photo.shading.block-light", false),
+                dimBelow,
+                Math.min(darkBelow, dimBelow));
     }
 
     public String defaultAspectRatio() {

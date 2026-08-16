@@ -399,12 +399,13 @@ girdiği pikseller, görüntünün yüzde birkaçı.
 
 ### Gelişmiş gölgelendirme (`Shading`, `ShadingSpec`)
 
-Bir yüzeyin parlaklığı normalde yalnızca ışının girdiği yüzden gelir. İki teknik buna
-komşuları ve güneşi katar; **ikisi de varsayılan kapalı** (`photo.shading`).
+Bir yüzeyin parlaklığı normalde yalnızca ışının girdiği yüzden gelir. Üç teknik buna
+komşuları, güneşi ve ışığı katar; **üçü de varsayılan kapalı** (`photo.shading`).
 
 **Temel kısıt palettir:** renk başına dört parlaklık var, "biraz daha koyu" diye bir şey
-yok. Her teknik yüzeyi bir sonraki tona indirir ya da indirmez; gradyan üretmek paletten
-çıkmak demek olurdu ve harita onu saklayamazdı. İkisi birden en fazla iki ton indirir.
+yok. Her teknik yüzeyi bir ya da iki ton indirir; gradyan üretmek paletten çıkmak demek
+olurdu ve harita onu saklayamazdı. Adımlar toplanır ve en koyu tonda durur — üçü birden
+açıkken zaten üç adımda tabana varılır.
 
 - **Güneş gölgesi** (`sun-shadow`): isabet noktasından güneşe doğru **isabet başına**
   ikinci bir ışın (adım başına değil), aynı DDA ile, `shadow-distance` bloğa kadar.
@@ -416,6 +417,29 @@ yok. Her teknik yüzeyi bir sonraki tona indirir ya da indirmez; gradyan üretme
   ışın yok. Yüzeyin önündeki hücrenin dört komşusuna bakar; üçü doluysa bir ton indirir.
   Üç eşiği bilerek: iki komşu, yüzeyin boyunca uzanan bir duvar demektir ve her binanın
   yarısını koyulaştırırdı.
+- **Blok ışığı** (`block-light`): isabet başına **tek** okuma, üçünün en ucuzu. Yüzeyin
+  önündeki hücrenin ışığı `light-dim-below`'un altındaysa bir, `light-dark-below`'un
+  altındaysa iki ton iner. Işık = `max(gök ışığı, blokların yaydığı ışık)`.
+
+  Tek başına iç mekânı ve mağarayı taşıyan teknik budur: güneş gölgesinin oraya sözü
+  geçmez, kapalıyken bir maden ocağı dışarıdaki tarlayla aynı gün ışığında çıkar.
+
+  **Gök ışığı saate bağlı değildir** — açık havadaki yüzey gece de 15 okur ve
+  koyulaşmaz. Bilinçli: bu renderer'ın güneşi de sabit açılıdır (yukarı bakınız), ve
+  gece çekilen bir manzara fotoğrafının simsiyah çıkması istenen şey değil. Gökyüzü
+  seçimini (`Gece`) ışığa da yansıtmak ayrı bir iş; TODO'da duruyor.
+
+  Eşikler ters verilirse (`light-dark-below` > `light-dim-below`) ikincisi birincisine
+  çekilir; aksi halde iki ton hiç ulaşılamayan bir eşik olurdu.
+
+**"Yüzeyin önündeki hücre" artık gerçekten önde.** AO ve blok ışığı, bloğun kendisine
+değil ışının **geldiği** komşu hücreye bakar; bloğun kendi ışığı sıfırdır ve kendi
+komşuları bir şey söylemez. Yan yüzlerde bu hücre eskiden koşulsuz `+X`/`+Z` alınıyordu,
+yani kameranın yönüne göre yarı yarıya **bloğun arka tarafı** okunuyordu — bir duvarın
+dışını çekerken içerideki hücrenin ışığı/komşuları sayılıyordu. Yürüyüşün adım işareti
+(`stepX`/`stepZ`) artık `Shading#stepsAt`'e geçiyor ve hücre `x - stepX` ile bulunuyor.
+Blok ışığı olmadan bu fark yalnızca AO'da ve göze zor çarpıyordu; ışıkla birlikte iç ve
+dış mekân arasındaki farka dönüşüyor.
 
 **Ölçüm** (512×512, 2× örnekleme, tek thread, sentetik arazi — mutlak süre değil
 **oranlar** anlamlıdır; ölçüm sunucusuz, proxy tabanlı sahte chunk'larla yapıldı ve
@@ -428,8 +452,16 @@ blok okuması gerçekte daha ucuzdur):
 | yalnız güneş gölgesi | 2277 ms | **+11%** |
 | ikisi birden | 2441 ms | **+19%** |
 
-Kendi sunucunda gerçek sayıyı görmek için `settings.render-timing: true`; log ışın
-yürüyüşünü chunk kopyalamadan ayrı yazar.
+Blok ışığı bu tabloya girmedi: yürüyüş tarafında AO'nun dörtte biri kadar iş yapıyor
+(isabet başına dört okuma yerine bir), asıl maliyeti ise **chunk kopyalamada** ve o
+yarıyı sentetik arazi ölçemez. Kendi sunucunda gerçek sayıyı görmek için
+`settings.render-timing: true`; log ışın yürüyüşünü chunk kopyalamadan ayrı yazar.
+
+> **Işık kopyası artık isteğe bağlı.** `Chunk#getChunkSnapshot(a, b, c)` üç argümanlı
+> hâlinde ışık dizilerini **varsayılan olarak** kopyalar — yani eklenti bugüne kadar hiç
+> okumadığı ışığın kopyalanma maliyetini her render'da ödüyordu. Artık dört argümanlı
+> Paper aşırı yüklemesi kullanılıyor ve ışık, yalnızca `block-light` açıkken isteniyor.
+> Kapalıyken bu bir **kazanç**, açıkken faturanın nereye gittiği belli.
 
 > **Ölçüm sırasında çıkan bir kazanç.** Sıcak döngü blok adımı başına `Material#isAir()`
 > çağırıyordu; Paper'da bu çağrı blok **registry'sine** gidiyor (`asBlockType()`).
