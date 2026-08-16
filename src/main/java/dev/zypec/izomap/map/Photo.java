@@ -34,6 +34,17 @@ public record Photo(
     /**
      * Short display id: the first 8 characters.
      */
+    /**
+     * How a player names this photo to a command: {@code <camera>/<photo>}.
+     *
+     * <p>Names are unique per owner on their own, so the camera half is not needed to
+     * find anything. It is there because a photo belongs to a camera in the player's
+     * head too, and a list of bare names says nothing about which is which.</p>
+     */
+    public String reference() {
+        return cameraName + "/" + name;
+    }
+
     public String shortId() {
         return id.toString().substring(0, 8);
     }

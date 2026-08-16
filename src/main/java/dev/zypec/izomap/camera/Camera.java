@@ -56,6 +56,11 @@ public final class Camera {
 
     /** Not persisted: which property the owner is currently adjusting. */
     private transient EditProperty editProperty = EditProperty.YAW;
+    /**
+     * Whether a capture is running on this camera right now. Runtime only: a shutter
+     * that was open when the server stopped is not open when it starts again.
+     */
+    private transient boolean capturing;
 
     public Camera(UUID id, UUID owner, String name, Location anchor) {
         this.id = id;
@@ -213,6 +218,14 @@ public final class Camera {
 
     public void previewMapId(int previewMapId) {
         this.previewMapId = previewMapId;
+    }
+
+    public boolean capturing() {
+        return capturing;
+    }
+
+    public void capturing(boolean capturing) {
+        this.capturing = capturing;
     }
 
     public EditProperty editProperty() {

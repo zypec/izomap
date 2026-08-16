@@ -174,6 +174,23 @@ public final class PhotoManager {
         });
     }
 
+    /**
+     * Marks the camera as shooting, or done, and shows it wherever the camera is being
+     * watched: the preview's status line and the hologram above the model.
+     *
+     * <p>A capture takes long enough to look like nothing happened, and the photo only
+     * announces itself once it exists. Main thread only.</p>
+     */
+    private void shutter(Camera camera, Player actor, boolean open) {
+        if (camera == null) return;
+
+        camera.capturing(open);
+        if (cameraManager.syncHologram(camera))
+            cameraManager.persist();
+
+        plugin.preview().showStatus(camera, actor);
+    }
+
     private void applyToMaps(Photo photo, List<MapTile> tiles) {
         if (!photo.isPlaced()) return;
 
@@ -220,6 +237,7 @@ public final class PhotoManager {
             return;
         }
         plugin.messages().send(player, "photo.capturing");
+        shutter(camera, player, true);
         var start = System.currentTimeMillis();
 
         // Frozen once, so the cache, the record and the image all describe the same shot.
@@ -228,6 +246,7 @@ public final class PhotoManager {
                 uniqueName(player.getUniqueId(), name), camera.name(), spec, grid, null);
 
         renderService.capture(spec, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
+            plugin.runOnMain(() -> shutter(camera, player, false));
             if (error != null || result == null) {
                 reportCaptureError(player, camera.name(), error);
                 return;
@@ -269,10 +288,12 @@ public final class PhotoManager {
 
         var cameraName = camera != null ? camera.name() : photo.cameraName();
         plugin.messages().send(player, "photo.capturing");
+        shutter(camera, player, true);
         var start = System.currentTimeMillis();
         var grid = photo.grid();
 
         renderService.capture(spec, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
+            plugin.runOnMain(() -> shutter(camera, player, false));
             if (error != null || result == null) {
                 // Nothing was written yet, so the wall still shows the previous shot.
                 reportCaptureError(player, cameraName, error);
@@ -689,6 +710,62 @@ public final class PhotoManager {
      */
     public Optional<Photo> byId(UUID id) {
         return Optional.ofNullable(photos.get(id));
+    }
+
+    /**
+     * Finds one of the owner's photos from what a player typed.
+     *
+     * <p>Three spellings, tried in order: {@code camera/photo}, the photo's bare name,
+     * and the short id. Ids came first historically and still work, but nobody reads
+     * {@code 3f9a1c04} off a list and types it by choice.</p>
+     */
+    public Optional<Photo> findByReference(UUID owner, String raw) {
+        if (raw == null || raw.isBlank())
+            return Optional.empty();
+
+        var ref = raw.trim();
+        var slash = ref.indexOf('/');
+        if (slash > 0) {
+            var camera = ref.substring(0, slash).trim();
+            var name = ref.substring(slash + 1).trim();
+            return photos.values().stream()
+                    .filter(p -> p.owner().equals(owner)
+                                 && p.cameraName().equalsIgnoreCase(camera)
+                                 && p.name().equalsIgnoreCase(name))
+                    .findFirst();
+        }
+
+        var byName = photos.values().stream()
+                .filter(p -> p.owner().equals(owner) && p.name().equalsIgnoreCase(ref))
+                .findFirst();
+        return byName.isPresent() ? byName : findByShortId(owner, ref);
+    }
+
+    /**
+     * The same, for the admin commands that reach any owner's photos. An unqualified
+     * name is only accepted when exactly one photo answers to it; across owners the
+     * names are no longer unique, and picking one of several would export a stranger's
+     * photo without saying so.
+     */
+    public Optional<Photo> findByReference(String raw) {
+        if (raw == null || raw.isBlank())
+            return Optional.empty();
+
+        var ref = raw.trim();
+        var slash = ref.indexOf('/');
+        var matches = slash > 0
+                ? photos.values().stream()
+                .filter(p -> p.cameraName().equalsIgnoreCase(ref.substring(0, slash).trim())
+                             && p.name().equalsIgnoreCase(ref.substring(slash + 1).trim()))
+                .toList()
+                : photos.values().stream()
+                .filter(p -> p.name().equalsIgnoreCase(ref))
+                .toList();
+
+        if (matches.size() == 1)
+            return Optional.of(matches.getFirst());
+
+        return matches.isEmpty() ? findByShortId(ref) : Optional.empty();
     }
 
     /**

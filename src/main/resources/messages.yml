@@ -40,6 +40,8 @@ camera:
   # Yer tutucular: <name> <owner> <ratio> <zoom> <blocks> <yaw> <pitch> <filter> <style>
   #                <sky> <photos>
   hologram:
+    # Yalnızca çekim sürerken, yapılandırılmış satırların ALTINA eklenir.
+    capturing: "<gold>◉ Fotoğraf çekiliyor…"
     lines:
       - "<aqua><name>"
       - "<white><ratio> <gray>·</gray> <zoom>x <gray>(<blocks> blok)</gray>"
@@ -65,6 +67,8 @@ preview:
   # Render bitene kadar action bar'da bunun yerine bu satır durur. Preview'ın
   # yenilenmesi bir tık kadar sürmez; işareti olmayınca tık boşa gitmiş gibi görünür.
   actionbar-rendering: "<entries><dark_gray>  ·  </dark_gray><yellow>⟳ Güncelleniyor</yellow>"
+  # Fotoğraf çekimi sürerken; preview render'ından uzun sürer ve satırı o kapar.
+  actionbar-capturing: "<entries><dark_gray>  ·  </dark_gray><gold><bold>◉ Fotoğraf çekiliyor</bold></gold>"
   actionbar-separator: "<dark_gray>  ·  </dark_gray>"
   entry: "<gray><label> <white><value></white></gray>"
   entry-active: "<yellow><bold><label> <value></bold></yellow>"
@@ -155,7 +159,7 @@ map:
   photo-not-found: "<prefix> <red>Fotoğraf bulunamadı."
   cleaned: "<prefix> <green><count> fotoğrafın çerçeveleri kayıp; asılı olmayanlara alındı."
   photo-retaken: "<prefix> <green>Fotoğraf yeniden çekildi: <white><name></white> <gray>(kamera: <camera>, <ms>ms)"
-  photo-no-source: "<prefix> <red>Bu fotoğraf yeniden çekilemez: <white><camera></white> kamerası yok ve fotoğrafın kayıtlı çekim parametreleri de bulunmuyor. <gray>Bir kamera adı vererek dene: <white>/izocam retake [id] [kamera]</white>"
+  photo-no-source: "<prefix> <red>Bu fotoğraf yeniden çekilemez: <white><camera></white> kamerası yok ve fotoğrafın kayıtlı çekim parametreleri de bulunmuyor. <gray>Bir kamera adı vererek dene: <white>/izocam retake with &lt;kamera&gt; &lt;kamera/foto&gt;</white>"
 
 dialog:
   title: "<gradient:#5e60ce:#48bfe3>Izomap Fotoğraf</gradient>"

@@ -883,7 +883,7 @@ silinmişse fotoğrafın kendi `CaptureSpec`'i devreye girer, yani çekim aynı 
 tekrarlanır ve yalnızca dünya değişmiş olur. İkisi de yoksa (spec'ten önceki bir kayıt,
 kamerası da silinmiş) işlem reddedilir.
 
-`retake <id> [kamera]` ile başka bir kamera kaynak gösterilebilir; o durumda fotoğrafın
+`retake with <kamera> <kamera/foto>` ile başka bir kamera kaynak gösterilebilir; o durumda fotoğrafın
 kayıtlı kamera adı da yeni kamerayla güncellenir.
 
 Yazma sırası kasıtlıdır: **çekim başarısız olursa hiçbir şeye dokunulmaz**, duvarda eski
@@ -891,7 +891,7 @@ görüntü kalır. Başarıda önce ön bellek yazılır, sonra haritalar ve kay
 
 ### Dosyaya aktarma (`PhotoExporter`)
 
-`/izocam export <id> [dosya]` fotoğrafı PNG olarak `plugins/Izomap/exports/` altına
+`/izocam export [as <dosya>] <kamera/foto>` fotoğrafı PNG olarak `plugins/Izomap/exports/` altına
 yazar. Görüntü `PhotoManager#image` üzerinden gelir: **önce ön bellek, olmazsa
 `CaptureSpec`'ten yeniden render**.
 
@@ -925,15 +925,32 @@ yazar. Görüntü `PhotoManager#image` üzerinden gelir: **önce ön bellek, olm
 | `preview stop` | Açık önizlemeyi kapatır (editör de izleyici de) |
 | `open <ad>` | Fotoğraf Dialog'unu açar |
 | `pickup <ad>` | Kamerayı söker; eşyayla yerleştirildiyse eşyayı geri verir |
-| `unplace <id>` | Kısa kimlikle (ilk 8 karakter) fotoğrafı duvardan **indirir**; fotoğraf listede kalır |
-| `retake <id> [kamera]` | Fotoğrafı yeniden çeker; kamera verilmezse fotoğrafın kendi kaynağı kullanılır |
+| `unplace <kamera/foto>` | Fotoğrafı duvardan **indirir**; fotoğraf listede kalır |
+| `retake <kamera/foto>` | Fotoğrafı kendi kamerasıyla yeniden çeker |
+| `retake with <kamera> <kamera/foto>` | Başka bir kamerayı kaynak göstererek yeniden çeker |
 | `cancel` | Açık hayalet yerleştirmeyi iptal eder |
 | `cleanup` | Çerçeveleri kaybolmuş fotoğrafları "asılı değil"e çeker; sahipsiz kalmış çerçeveleri ve kamera modellerini dünyadan siler |
-| `export <id> [dosya]` | Fotoğrafı PNG olarak `exports/` altına yazar (`izomap.admin`) |
+| `export <kamera/foto>` | Fotoğrafı PNG olarak `exports/` altına yazar (`izomap.admin`) |
+| `export as <dosya> <kamera/foto>` | Aynısı, dosya adını vererek |
 | `reload` | Yapılandırmayı yeniden yükler (`izomap.admin`) |
 
-Ad, oran, grid ve fotoğraf kimliği argümanlarının tamamı tab-complete'lidir; grid önerileri
-önceki argümandaki kameranın **oranına göre** filtrelenir.
+Ad, oran, grid ve fotoğraf referansı argümanlarının tamamı tab-complete'lidir; grid
+önerileri önceki argümandaki kameranın **oranına göre** filtrelenir.
+
+### Fotoğraf nasıl adlandırılır: `<kamera>/<foto>`
+
+Fotoğraflar komutlara **adlarıyla** verilir: `cam1/manzara`. Kısa kimlik (`3f9a1c04`) de
+çalışmaya devam eder ama kimse onu listeden okuyup elle yazmaz; öneriler artık referans
+üretir. Çözümleme sırası: `kamera/foto`, çıplak foto adı, kısa kimlik. Çıplak ad tek
+başına yeterlidir çünkü isimler oyuncu başına benzersizdir; kamera yarısı oyuncunun
+kafasındaki gruplama olduğu için durur. Yönetici komutlarında (birden çok sahip görünür)
+çıplak ad yalnızca **tek** fotoğraf yanıt veriyorsa kabul edilir; birkaçından birini
+seçmek, başkasının fotoğrafını sessizce dışa aktarmak olurdu.
+
+Referans argümanı **greedy**'dir, yani satırın sonuna kadar okur: fotoğraf adları
+boşluk içerebilir ve Brigadier `/` karakterini tırnaksız kelimede kabul etmez. Bu yüzden
+isteğe bağlı ikinci argümanlar referansın **önüne** alındı: `retake with <kamera> <foto>`
+ve `export as <dosya> <foto>`.
 
 **İzinler:** `paper-plugin.yml` içinde tanımlıdır — `izomap.camera` (tüm komutlar,
 `default: true`), `izomap.admin` (yalnızca `reload`, `default: op`).

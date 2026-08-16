@@ -7,6 +7,8 @@ import net.kyori.adventure.text.JoinConfiguration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 
+import java.util.ArrayList;
+
 /**
  * Builds the text floating above a camera.
  *
@@ -39,6 +41,13 @@ public final class CameraHologram {
                 Placeholder.component("sky",
                         plugin.messages().get("sky." + camera.sky().name())),
                 Placeholder.unparsed("photos", String.valueOf(photoCount)));
+
+        // Appended rather than offered as a placeholder: the line only exists while the
+        // shutter is open, and a placeholder would leave a blank row the rest of the time.
+        if (camera.capturing()) {
+            lines = new ArrayList<>(lines);
+            lines.add(plugin.messages().get("camera.hologram.capturing"));
+        }
         return Component.join(JoinConfiguration.newlines(), lines);
     }
 

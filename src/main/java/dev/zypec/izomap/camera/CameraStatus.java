@@ -27,9 +27,9 @@ public final class CameraStatus {
     /**
      * The same line, told whether a render for this camera is still running.
      *
-     * <p>A preview is redrawn asynchronously, so an adjustment shows up a moment after
-     * the click that made it. Without saying so the wait reads as a click that did
-     * nothing, and the player clicks again.</p>
+     * <p>Both waits are asynchronous, so what the player did shows up a moment after
+     * they did it. Without saying so the pause reads as a click that did nothing, and
+     * they do it again. A running capture outranks a preview render on the line.</p>
      */
     public static Component line(Izomap plugin, Camera camera, boolean rendering) {
         var separator = plugin.messages().get("preview.actionbar-separator");
@@ -42,8 +42,12 @@ public final class CameraStatus {
             entries = entries.append(entry(plugin, camera, property));
             first = false;
         }
-        return plugin.messages().get(rendering ? "preview.actionbar-rendering" : "preview.actionbar",
-                Placeholder.component("entries", entries));
+        // A capture takes longer than a preview render and matters more, so it has the
+        // line to itself while it runs.
+        var key = camera.capturing() ? "preview.actionbar-capturing"
+                : rendering ? "preview.actionbar-rendering"
+                : "preview.actionbar";
+        return plugin.messages().get(key, Placeholder.component("entries", entries));
     }
 
     private static Component entry(Izomap plugin, Camera camera, EditProperty property) {

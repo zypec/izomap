@@ -27,6 +27,7 @@ import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
@@ -46,8 +47,8 @@ import java.util.stream.Collectors;
  *   <li>{@code maps <name> <grid>} – puts the map items in the inventory.</li>
  *   <li>{@code preview <name> | stop} – watches a camera's live view, or stops.</li>
  *   <li>{@code open <name>} – opens the capture dialog.</li>
- *   <li>{@code unplace <id>} – takes a photo off the wall, keeping it in the list.</li>
- *   <li>{@code retake <id> [camera]} – shoots a placed photo again in place.</li>
+ *   <li>{@code unplace <camera/photo>} – takes a photo off the wall, keeping it in the list.</li>
+ *   <li>{@code retake [with <camera>] <camera/photo>} – shoots a photo again in place.</li>
  *   <li>{@code cancel} – leaves placement mode.</li>
  *   <li>{@code cleanup} – clears records whose frames are gone.</li>
  *   <li>{@code reload} – reloads the configuration (admin).</li>
@@ -136,29 +137,37 @@ public final class CameraCommand {
                                 .suggests(this::suggestOwnedNames)
                                 .executes(this::openDialog)))
                 .then(Commands.literal("unplace")
-                        .then(Commands.argument("id", StringArgumentType.word())
-                                .suggests(this::suggestPhotoIds)
+                        .then(Commands.argument("photo", StringArgumentType.greedyString())
+                                .suggests(this::suggestPhotoReferences)
                                 .executes(this::unplace)))
                 .then(Commands.literal("retake")
-                        .then(Commands.argument("id", StringArgumentType.word())
-                                .suggests(this::suggestPhotoIds)
-                                .executes(ctx -> retake(ctx, null))
+                        // The camera goes in front because the reference is greedy: it
+                        // may hold spaces and a slash, so nothing can follow it.
+                        .then(Commands.literal("with")
                                 .then(Commands.argument("camera", StringArgumentType.word())
                                         .suggests(this::suggestOwnedNames)
-                                        .executes(ctx -> retake(ctx,
-                                                StringArgumentType.getString(ctx, "camera"))))))
+                                        .then(Commands.argument("photo", StringArgumentType.greedyString())
+                                                .suggests(this::suggestPhotoReferences)
+                                                .executes(ctx -> retake(ctx,
+                                                        StringArgumentType.getString(ctx, "camera"))))))
+                        .then(Commands.argument("photo", StringArgumentType.greedyString())
+                                .suggests(this::suggestPhotoReferences)
+                                .executes(ctx -> retake(ctx, null))))
                 .then(Commands.literal("cancel")
                         .executes(this::cancelPlacement))
                 .then(Commands.literal("cleanup")
                         .executes(this::cleanup))
                 .then(Commands.literal("export")
                         .requires(source -> source.getSender().hasPermission(PERM_ADMIN))
-                        .then(Commands.argument("id", StringArgumentType.word())
-                                .suggests(this::suggestAllPhotoIds)
-                                .executes(ctx -> export(ctx, null))
+                        .then(Commands.literal("as")
                                 .then(Commands.argument("file", StringArgumentType.word())
-                                        .executes(ctx -> export(ctx,
-                                                StringArgumentType.getString(ctx, "file"))))))
+                                        .then(Commands.argument("photo", StringArgumentType.greedyString())
+                                                .suggests(this::suggestAllPhotoReferences)
+                                                .executes(ctx -> export(ctx,
+                                                        StringArgumentType.getString(ctx, "file"))))))
+                        .then(Commands.argument("photo", StringArgumentType.greedyString())
+                                .suggests(this::suggestAllPhotoReferences)
+                                .executes(ctx -> export(ctx, null))))
                 .then(Commands.literal("reload")
                         .requires(source -> source.getSender().hasPermission(PERM_ADMIN))
                         .executes(this::reload))
@@ -414,8 +423,7 @@ public final class CameraCommand {
     private int unplace(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
         var player = requirePlayer(ctx);
 
-        var id = StringArgumentType.getString(ctx, "id");
-        var photo = photoManager.findByShortId(player.getUniqueId(), id).orElse(null);
+        var photo = photo(ctx, player);
         if (photo == null) {
             plugin.messages().send(player, "map.photo-not-found");
             return 0;
@@ -448,8 +456,7 @@ public final class CameraCommand {
     private int retake(CommandContext<CommandSourceStack> ctx, String cameraName) throws CommandSyntaxException {
         var player = requirePlayer(ctx);
 
-        var id = StringArgumentType.getString(ctx, "id");
-        var photo = photoManager.findByShortId(player.getUniqueId(), id).orElse(null);
+        var photo = photo(ctx, player);
         if (photo == null) {
             plugin.messages().send(player, "map.photo-not-found");
             return 0;
@@ -473,7 +480,7 @@ public final class CameraCommand {
     private int export(CommandContext<CommandSourceStack> ctx, String fileName) throws CommandSyntaxException {
         var player = requirePlayer(ctx);
 
-        var photo = photoManager.findByShortId(StringArgumentType.getString(ctx, "id")).orElse(null);
+        var photo = photoManager.findByReference(StringArgumentType.getString(ctx, "photo")).orElse(null);
         if (photo == null) {
             plugin.messages().send(player, "map.photo-not-found");
             return 0;
@@ -558,29 +565,44 @@ public final class CameraCommand {
     }
 
     // Every photo, not just the caller's: the command that uses it is admin only.
-    private CompletableFuture<Suggestions> suggestAllPhotoIds(
+    /**
+     * Every photo on the server, for the admin commands.
+     */
+    private CompletableFuture<Suggestions> suggestAllPhotoReferences(
             CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
-        String prefix = builder.getRemaining();
-        for (Photo photo : photoManager.all()) {
-            if (photo.shortId().startsWith(prefix)) {
-                builder.suggest(photo.shortId());
+        return suggestReferences(builder, photoManager.all());
+    }
+
+    private CompletableFuture<Suggestions> suggestPhotoReferences(
+            CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
+        if (ctx.getSource().getSender() instanceof Player player) {
+            return suggestReferences(builder, photoManager.ownedBy(player.getUniqueId()));
+        }
+        return builder.buildFuture();
+    }
+
+    /**
+     * Offers {@code camera/photo} for each, matched case-insensitively: the reference is
+     * typed, not copied, so the case a player uses is their own.
+     */
+    private CompletableFuture<Suggestions> suggestReferences(
+            SuggestionsBuilder builder, Collection<Photo> photos) {
+        var prefix = builder.getRemaining().toLowerCase(Locale.ROOT);
+        for (var photo : photos) {
+            var reference = photo.reference();
+            if (reference.toLowerCase(Locale.ROOT).startsWith(prefix)) {
+                builder.suggest(reference);
             }
         }
         return builder.buildFuture();
     }
 
-    private CompletableFuture<Suggestions> suggestPhotoIds(
-            CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
-        var sender = ctx.getSource().getSender();
-        if (sender instanceof Player player) {
-            String prefix = builder.getRemaining();
-            for (Photo photo : photoManager.ownedBy(player.getUniqueId())) {
-                if (photo.shortId().startsWith(prefix)) {
-                    builder.suggest(photo.shortId());
-                }
-            }
-        }
-        return builder.buildFuture();
+    /**
+     * The photo the player named, or {@code null} when nothing answers to it.
+     */
+    private Photo photo(CommandContext<CommandSourceStack> ctx, Player player) {
+        return photoManager.findByReference(
+                player.getUniqueId(), StringArgumentType.getString(ctx, "photo")).orElse(null);
     }
 
     private Player requirePlayer(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {

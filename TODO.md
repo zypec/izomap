@@ -240,6 +240,58 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 
 ## Arşiv
 
+### T39 — Fotoğraflar komutlara adıyla veriliyor
+
+`[x]` **P1** · 2026-08-16
+
+Kısa kimlikle (`3f9a1c04`) uğraşmak listeden okuyup elle yazmayı gerektiriyordu. Artık
+referans `kamera/foto`: `/izocam export cam1/manzara`. Kimlik de çalışmaya devam ediyor,
+ama öneriler artık referans üretiyor.
+
+Çözümleme sırası: `kamera/foto` → çıplak foto adı → kısa kimlik. Çıplak ad tek başına
+yeterli, çünkü isimler oyuncu başına benzersiz (`nameTaken` tüm kameraları tarıyor);
+kamera yarısı oyuncunun kafasındaki gruplama olduğu için duruyor. Yönetici komutlarında
+çıplak ad yalnızca **tek** fotoğraf yanıt veriyorsa kabul ediliyor — birkaçından birini
+seçmek başkasının fotoğrafını sessizce dışa aktarmak olurdu.
+
+**Komut şekli değişti.** Brigadier `/` karakterini tırnaksız kelimede kabul etmiyor ve
+fotoğraf adları boşluk da içerebiliyor, dolayısıyla referans **greedy** olmak zorunda —
+greedy argümandan sonra da başka argüman gelemez. Bu yüzden isteğe bağlı ikinci
+argümanlar öne alındı:
+
+| Eski | Yeni |
+|---|---|
+| `retake <id> [kamera]` | `retake <kamera/foto>` · `retake with <kamera> <kamera/foto>` |
+| `export <id> [dosya]` | `export <kamera/foto>` · `export as <dosya> <kamera/foto>` |
+| `unplace <id>` | `unplace <kamera/foto>` |
+
+Dokunulanlar: `Photo#reference`, `PhotoManager#findByReference` (iki sürüm),
+`CameraCommand` (komut ağacı + öneriler), `messages.yml`, `IZOMAP.md` §7.
+
+---
+
+### T38 — Çekim sürerken gösterge
+
+`[x]` **P1** · 2026-08-16
+
+Fotoğraf çekimi preview render'ından uzun sürüyor ve o sırada hiçbir şey olmuyormuş gibi
+görünüyordu. Kameraya `capturing` (transient) bayrağı eklendi; çekim başlarken açılıp
+bitince kapanıyor, hem başarı hem hata yolunda.
+
+İki yerde görünüyor:
+- **Preview action bar**: `preview.actionbar-capturing` satırı devreye giriyor ve
+  render göstergesinin (T17) önüne geçiyor — çekim daha uzun sürer ve daha önemlidir.
+- **Hologram**: `camera.hologram.capturing` satırı, yapılandırılmış satırların altına
+  **eklenerek** gösteriliyor. Yer tutucu yerine ekleme yapılmasının sebebi, yer tutucunun
+  çekim yokken boş bir satır bırakacak olması.
+
+Retake de bir çekimdir; o da aynı göstergeyi kullanıyor.
+
+Dokunulanlar: `Camera#capturing`, `CameraStatus`, `CameraHologram`, `PhotoManager`
+(`shutter`), `messages.yml`.
+
+---
+
 ### T36 — "Yağlı boya" görünümü: sebebi bulundu, stiller elendi
 
 `[x]` **P1** · 2026-08-16 · Bağımlı: T30 ✔
