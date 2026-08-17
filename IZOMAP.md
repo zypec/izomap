@@ -425,21 +425,43 @@ bilinçli bir **ayrılma**. Gerekçesi tek cümle: fotoğrafın işi manzarayı 
 manzaranın haritasını değil. `photo.biome-tint.enabled` ile kapanır, `strength` ile
 yumuşar.
 
-#### Renkler sunucudan okunur (eklentinin tek NMS dokunuşu)
+#### Renkler kısmen sunucudan, kısmen kendi ızgaramızdan
 
-Bukkit vermiyor: `org.bukkit.block.Biome` bir anahtardan ibaret, renkler sunucu tarafındaki
-biome efektlerinde duruyor. Alternatif, jar'a gömülü bir hex tablosuydu; Mojang her biome
-eklediğinde elle güncellenmesi gerekirdi ve **datapack biome'ları hiç tint almazdı**. Bu
-yüzden renkler blok renkleri gibi **sunucuya sorulur**: `Biome#getGrassColor`,
-`#getFoliageColor`, `#getWaterColor`.
+Bukkit vermiyor: `org.bukkit.block.Biome` bir anahtardan ibaret. Sunucunun kendi biome
+kaydı veriyor ama **her şeyi değil**, ve bu ayrım pahalıya patladı (aşağıda):
 
-Bedeli sunucu iç yapısına bağımlılık, ve o bedel §9'daki dört kuralla sınırlanmış:
-`ServerBiomeColors` tek sınıf, **açılışta bir kez** çağrılıyor (sıcak yolda asla),
-çağıran taraf `LinkageError` dahil her şeyi yakalıyor ve tinti kapatıp log'luyor. Kayıt
-donmuş ve datapack'ler uygulanmış olduğu için okuma `onEnable`'dadır, daha erken değil.
+| Ne | Nereden | Neden |
+|---|---|---|
+| Su rengi | Sunucu (`waterColor`) | Her biome kendi su rengini **açıkça** yazar |
+| Çim/yaprak, biome kendi rengini yazmışsa | Sunucu (`grassColorOverride`, `foliageColorOverride`) | Bataklık, badlands, kiraz korusu… |
+| Çim/yaprak, yazmamışsa | **`Colormaps`** (kendi ızgaramız) | Renk `grass.png`/`foliage.png`'den sıcaklık ve neme göre örneklenir ve **o doku yalnızca istemcide vardır** |
+| Bataklık/karanlık orman gibi konuma bağlı değişiklikler | Sunucu (`grassColorModifier`) | Hesabımızın üstüne sunucunun kendi kodu uygulanır |
 
-`getGrassColor` koordinat ister, çünkü iki biome onu konuma göre değiştirir (bataklık iki
-yeşil arasında gürültüyle seçer, karanlık orman geleni koyulaştırır). Işın döngüsünde
+**Yaşanan hata (ve bu tablonun sebebi):** ilk sürüm çim rengini de `Biome#getGrassColor`'a
+sordu. O metot, override yoksa `GrassColor.get(...)` çağırıyor; `GrassColor.pixels`
+istemcide `init(...)` ile doldurulan bir dizidir ve **adanmış sunucuda hep sıfırdır**.
+Yani metot sessizce **0 = siyah** döndürdü ve çimenler simsiyah çıktı. Su doğruydu, çünkü
+su rengi her biome'da açıkça yazılı. Metot adına güvenmek yetmiyor; neyi hesapladığına
+bakmak gerekiyordu.
+
+İki savunma eklendi: eksik cevabın rengi olan **siyah artık tint saymıyor** (o kanal
+tintsiz kalıyor, blok kendi rengini koruyor), ve `ColormapsTest` hiçbir iklimin siyah
+vermediğini süpürerek doğruluyor.
+
+`Colormaps` dokuyu değil, ondan alınmış **9×9 bir ızgarayı** taşır ve bilineer
+interpolasyon yapar; gerçek colormap'e göre kanal başına en kötü **3-4** birim sapıyor
+(ortalama 1'in altında), yani palet snap'inden sonra hiçbir vanilla biome'da fark
+kalmıyor. Karenin üst yarısı erişilemezdir (nem sıcaklıkla çarpıldığı için hiçbir iklim
+oraya düşemez) ve vanilla orayı beyaz bırakır; o düğümler beyaz yerine **köşegendeki
+renkle** saklanıyor — yoksa köşegene yakın interpolasyon beyazı içeri karıştırıp 48
+birime kadar sapıyordu.
+
+Sunucuya dokunmanın bedeli §9'daki dört kuralla sınırlı: `ServerBiomeColors` tek sınıf,
+**açılışta bir kez** çağrılıyor (sıcak yolda asla), çağıran taraf `LinkageError` dahil her
+şeyi yakalayıp tinti kapatıyor. Kayıt donmuş ve datapack'ler uygulanmış olduğu için okuma
+`onEnable`'dadır.
+
+Modifier koordinat ister (bataklık iki yeşil arasında gürültüyle seçer), ışın döngüsünde
 sunucu içine girmemek için tablo rengi **(0,0)**'da alır: bataklık iki yeşilinden biriyle
 çıkar, ikisiyle değil.
 
@@ -1829,6 +1851,7 @@ fonksiyondan üretir (sorulmayan her metot fırlatır, sessizce sıfır dönmez)
 | `PermissionsTest` | Bedava varsayılanlar, alan düğümü ile tek seçenek düğümü, kare sayısına göre ızgara süzme, en küçük ızgaranın hep kalması |
 | `PhotoFramesTest` | Halkaların içe doğru çizilmesi, içerinin dokunulmazlığı, kaynağın kopyalanması, kısa kenara göre kırpılma |
 | `PhotoExporterTest` | Dosya adı oyuncu girdisidir: yol ayracı, baştaki nokta, uzunluk sınırı |
+| `ColormapsTest` | Sunucunun veremediği çim/yaprak rengi: bilinen biome iklimlerinin oyundaki renkleri, ve hiçbir iklimin siyah vermemesi (çimenleri siyah yapan hatanın nöbetçisi) |
 | `BiomeTintTest` | Tintin iki kuralı: referans biome'un parlaklığını koruması ve bataklık/çöl/kar yönlerinin doğru sapması; ayrıca tintli pikselin palete oturması |
 | `PartialCoverageTest` | İnce bloğun payı, katman tavanı, arkasında hiçbir şey yokken çoğunluk kuralı — sahte bir chunk üzerinde gerçek ışın yürüyüşü |
 | `WaterDepthTest` | Derinlik eşiklerinin ton indirmesi ve saydam suyun dibi ne kadar gösterdiği |

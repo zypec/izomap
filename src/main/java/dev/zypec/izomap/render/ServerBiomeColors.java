@@ -24,12 +24,23 @@ import org.bukkit.craftbukkit.CraftServer;
  * internals are not touched from a field initializer or a static block: the class must
  * not load until somebody calls it inside a try.</p>
  *
- * <h2>Why the grass colour is asked for at the origin</h2>
+ * <h2>What the server can and cannot answer</h2>
  *
- * <p>{@code getGrassColor} takes coordinates because two biomes modify it per position:
- * swamp picks between two greens by noise, and dark forest darkens whatever it gets.
- * Asking per block would mean a server-internals call in the ray loop, so the table takes
- * the colour at (0,0) and a swamp comes out in one of its two greens rather than both.</p>
+ * <p>Water it always knows: every biome names its water colour. Grass and foliage it
+ * mostly does <b>not</b> — a biome only names those when it wants an unusual one, and
+ * otherwise the game samples a colormap texture that exists only on the client. The
+ * server's own {@code getGrassColor} therefore returns <b>0</b> for most biomes, and
+ * believing it painted every meadow black.</p>
+ *
+ * <p>So the base colour is taken from the biome when it declares one and from
+ * {@link Colormaps} when it does not, and the biome's own <b>modifier</b> is then applied
+ * to it by the server's code — which is what keeps a swamp's olive and a dark forest's
+ * dulled green exactly as the game draws them, rather than as something reimplemented
+ * here.</p>
+ *
+ * <p>The modifier takes coordinates because swamp picks between two greens by noise.
+ * Calling it per block would put server internals in the ray loop, so the table asks at
+ * the origin and a swamp comes out in one of its two greens rather than both.</p>
  */
 final class ServerBiomeColors {
 
@@ -47,9 +58,16 @@ final class ServerBiomeColors {
         if (biome == null)
             return null;
 
+        var climate = biome.climateSettings;
+        var effects = biome.getSpecialEffects();
+        var grass = effects.grassColorOverride()
+                .orElseGet(() -> Colormaps.grass(climate.temperature(), climate.downfall()));
+        var foliage = effects.foliageColorOverride()
+                .orElseGet(() -> Colormaps.foliage(climate.temperature(), climate.downfall()));
+
         return new int[]{
-                biome.getGrassColor(0.0, 0.0) & 0xFFFFFF,
-                biome.getFoliageColor() & 0xFFFFFF,
-                biome.getWaterColor() & 0xFFFFFF};
+                effects.grassColorModifier().modifyColor(0.0, 0.0, grass) & 0xFFFFFF,
+                foliage & 0xFFFFFF,
+                effects.waterColor() & 0xFFFFFF};
     }
 }

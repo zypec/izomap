@@ -357,6 +357,25 @@ yani bu madde bilinçli olarak vanilla'dan **ayrılmak**tı ve öyle yapıldı. 
 göstermek, manzaranın haritasını değil. `strength` ile yumuşatılabiliyor, tamamen de
 kapatılabiliyor.
 
+**Çıkan hata (2026-08-17, aynı gün düzeltildi): çimenler simsiyah çıktı.** İlk sürüm çim
+ve yaprak rengini de `Biome#getGrassColor`/`getFoliageColor`'a sordu. O metotlar, biome
+kendi rengini yazmamışsa `GrassColor.get(...)`'a düşüyor; `GrassColor.pixels` **istemcide**
+`init(...)` ile doldurulan bir dizidir ve adanmış sunucuda hep sıfırdır — yani metot
+sessizce **0 = siyah** döndürüyordu. Su doğruydu, çünkü su rengi her biome'da açıkça
+yazılı. TODO'nun "Paper API çim/yaprak rengini doğrudan vermiyor, colormap istemcide
+örnekleniyor" tespiti doğruymuş; metot adına fazla güvenildi.
+
+**Düzeltme.** Renk artık üç kaynaktan geliyor: su ve biome'un açıkça yazdığı renkler
+sunucudan, yazmadıkları `Colormaps`'ten (dokudan alınmış **9×9 ızgara** + bilineer
+interpolasyon; gerçek colormap'e göre kanal başına en kötü 3-4 birim, palet snap'inden
+sonra hiçbir vanilla biome'da fark yok), ve bataklık/karanlık orman gibi konuma bağlı
+değişiklikler yine sunucunun kendi `grassColorModifier`'ıyla bizim taban rengimizin
+üstüne uygulanıyor. Izgaranın erişilemez üst yarısı beyaz yerine köşegen rengiyle
+saklanıyor; beyazla 48 birime kadar sapıyordu.
+
+İki savunma: **siyah artık tint sayılmıyor** (o kanal tintsiz kalır, blok kendi rengini
+korur) ve `ColormapsTest` hiçbir iklimin siyah vermediğini süpürerek doğruluyor.
+
 **Renkler tablodan değil, SUNUCUDAN.** TODO'nun planı `biome-tints.yml`'ye vanilla
 değerlerini gömmekti. Koda dökülürken daha iyisi çıktı: Bukkit vermiyor ama sunucunun
 kendi biome kaydı veriyor (`Biome#getGrassColor/getFoliageColor/getWaterColor`).
@@ -393,10 +412,11 @@ bubble column. Ladin, huş, kiraz ve azalya yaprakları **dışarıda**: vanilla
 colormap'ten değil sabit renklerinden boyuyor. Bu liste sunucudan okunamıyor (bir bloğun
 colormap kullanıp kullanmadığı istemcinin çizim kodunda), o yüzden elle.
 
-7 test (`BiomeTintTest`): referans biome'un parlaklığını koruması, bataklık/çöl/kar
+11 test (`BiomeTintTest` + `ColormapsTest`): referans biome'un parlaklığını koruması, bataklık/çöl/kar
 yönlerinin doğru sapması, blokların biome içinde birbirinden ayrışması, `strength`'in
 fader gibi çalışması, yüz parlaklığının tintten sonra binmesi, tintli pikselin palete
-oturması ve önbelleğin aynı cevabı vermesi. Biome nesnesi sunucu ister, o yüzden testler
+oturması ve önbelleğin aynı cevabı vermesi; ayrıca bilinen biome iklimlerinin oyundaki
+renkleri ve hiçbir iklimin siyah vermemesi. Biome nesnesi sunucu ister, o yüzden testler
 tint indeksinden aşağısını kapsıyor; biome okumasının kendisi sunucuda doğrulanacak.
 
 **Açık kalanlar:** konuma bağlı `grass_color_modifier` (bataklığın iki yeşili, karanlık

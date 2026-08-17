@@ -135,13 +135,14 @@ public final class BiomeTints {
         }
 
         applyOverrides(plugin, colors);
-        if (!colors.containsKey(REFERENCE)) {
+        var reference = colors.get(REFERENCE);
+        if (reference == null || !usable(reference[0]) || !usable(reference[1]) || !usable(reference[2])) {
             plugin.messages().warn("log.biome-tint-no-reference",
                     Placeholder.unparsed("biome", REFERENCE.toString()));
             return NONE;
         }
 
-        var tints = build(biomes, colors, colors.get(REFERENCE), plugin.config().biomeTintStrength());
+        var tints = build(biomes, colors, reference, plugin.config().biomeTintStrength());
         plugin.messages().info("log.biome-tints-ready",
                 Placeholder.unparsed("count", String.valueOf(tints.byBiome.size())));
         return tints;
@@ -169,6 +170,13 @@ public final class BiomeTints {
             var indices = new int[Channel.VALUES.length];
             for (var channel : Channel.VALUES) {
                 var index = channel.ordinal();
+                if (!usable(read[index])) {
+                    // Nobody's grass is black. A colour that comes back as one means
+                    // something did not answer, and the block keeps its own colour rather
+                    // than being painted with the failure.
+                    indices[index] = NO_TINT;
+                    continue;
+                }
                 rgb.add(read[index]);
                 factor.add(factors[index]);
                 indices[index] = rgb.size() - 1;
@@ -258,6 +266,19 @@ public final class BiomeTints {
     public boolean enabled() {
         return !byBiome.isEmpty() && strength > 0.0;
     }
+
+    /**
+     * Whether a colour is one a biome could actually have named. Black is the shape a
+     * missing answer takes, here and in the server.
+     */
+    private static boolean usable(int rgb) {
+        return rgb != 0;
+    }
+
+    /**
+     * What an untinted channel is recorded as, matching {@link RayHit#NO_TINT}.
+     */
+    private static final int NO_TINT = -1;
 
     /**
      * Tint index for a biome's channel, or {@code -1} when that biome is not tinted.
