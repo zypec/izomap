@@ -316,6 +316,8 @@ log:
   # Vanilla'nın bloğa benzemeyen renkleri (settings.correct-vanilla-colors).
   block-colors-corrected: "<count> bloğun harita rengi dokusuna daha yakın olanla değiştirildi."
   block-colors-overridden: "<count> blok rengi override edildi."
+  # Hücresinin tamamını doldurmayan bloklar (photo.coverage.enabled).
+  coverage-ready: "<count> blok hücresinin tamamını doldurmuyor; ışın arkasını görüp rengini karıştıracak."
   camera-world-missing: "Kamera '<camera>' atlandı: dünya yüklü değil (<world>)."
 
   # --- yapılandırma ---
@@ -326,6 +328,7 @@ log:
   unknown-base-colors: "<count> blok, bilinmeyen bir harita temel rengi bildirdi; en yakın renge eşlendi. (MapBaseColor tablosu güncellenmeli.)"
   override-unknown-block: "<file>: bilinmeyen blok '<block>' atlandı."
   override-invalid-color: "<file>: '<block>' için geçersiz renk '<color>' atlandı."
+  coverage-invalid: "<file>: '<block>' için geçersiz kaplama oranı '<value>' atlandı (0.0 ile 1.0 arasında bir sayı olmalı)."
 
   # --- render ---
   # Eksik chunk kopyası, fotoğrafta chunk boyunda şeffaf bir delik bırakır.

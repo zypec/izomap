@@ -6,6 +6,7 @@ import dev.zypec.izomap.render.ColorFilter;
 import dev.zypec.izomap.render.FocusSpec;
 import dev.zypec.izomap.render.PhotoStyle;
 import dev.zypec.izomap.render.ShadingSpec;
+import dev.zypec.izomap.render.WaterSpec;
 import dev.zypec.izomap.storage.YamlStorage;
 import dev.zypec.izomap.util.Ids;
 import org.bukkit.configuration.ConfigurationSection;
@@ -114,6 +115,11 @@ public final class PhotoStorage extends YamlStorage {
         cfg.set(base + ".shading.block-light", spec.shading().blockLight());
         cfg.set(base + ".shading.light-dim-below", spec.shading().dimBelow());
         cfg.set(base + ".shading.light-dark-below", spec.shading().darkBelow());
+        cfg.set(base + ".water.mode", spec.water().mode().name());
+        cfg.set(base + ".water.dim-deeper-than", spec.water().dimDepth());
+        cfg.set(base + ".water.dark-deeper-than", spec.water().darkDepth());
+        cfg.set(base + ".water.surface-min", spec.water().surfaceMin());
+        cfg.set(base + ".water.opaque-depth", spec.water().opaqueDepth());
         cfg.set(base + ".focus.enabled", spec.focus().enabled());
         cfg.set(base + ".focus.distance", spec.focus().distance());
         cfg.set(base + ".focus.range", spec.focus().rangeRatio());
@@ -142,6 +148,24 @@ public final class PhotoStorage extends YamlStorage {
                 s.getBoolean("block-light", false),
                 s.getInt("light-dim-below", 8),
                 s.getInt("light-dark-below", 4));
+    }
+
+    /**
+     * Reads the water colouring. A photo written before it existed had flat water, and
+     * keeps it: re-rendering it into a deeper-looking ocean would change a picture that
+     * is already hanging on a wall.
+     */
+    private static WaterSpec readWater(ConfigurationSection s) {
+        if (s == null) return WaterSpec.FLAT;
+
+        var mode = WaterSpec.modeFrom(s.getString("mode"), WaterSpec.Mode.FLAT);
+        if (!mode.measures()) return WaterSpec.FLAT;
+
+        return new WaterSpec(mode,
+                s.getInt("dim-deeper-than", 2),
+                s.getInt("dark-deeper-than", 5),
+                s.getDouble("surface-min", 0.35),
+                s.getInt("opaque-depth", 8));
     }
 
     /**
@@ -176,6 +200,7 @@ public final class PhotoStorage extends YamlStorage {
                 PhotoStyle.fromString(s.getString("style"), PhotoStyle.SHARP),
                 s.getInt("sky-argb", 0),
                 readShading(s.getConfigurationSection("shading")),
+                readWater(s.getConfigurationSection("water")),
                 readFocus(s.getConfigurationSection("focus")),
                 s.getDouble("frame-height", 48.0), s.getDouble("frame-shift", 0.0),
                 s.getInt("supersampling", 1), s.getInt("max-capture-area", 512),

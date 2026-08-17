@@ -20,7 +20,8 @@ import dev.zypec.izomap.render.MapBaseColor.Shade;
  *
  * <p>Only a pixel averaged from disagreeing samples leaves the palette, and only that
  * pixel walks the stages for real, in {@link #blend}. Those are the antialiased edges,
- * a couple of percent of the image.</p>
+ * a couple of percent of the image, plus the pixels a see-through block mixed itself
+ * into — see {@link #compositeRgb}.</p>
  *
  * <p>Built once per render and read from every render thread; it holds no mutable
  * state.</p>
@@ -92,7 +93,51 @@ public final class ColorPipeline {
      * whatever the shading took off it.
      */
     int packedIdOf(RayHit hit) {
-        return hit.base.packedId(darker(SHADE_BY_FACE[hit.face.ordinal()], hit.darken)) & 0xFF;
+        return packedIdOf(hit.base, hit.face, hit.darken);
+    }
+
+    private int packedIdOf(MapBaseColor base, RayHit.Face face, int darken) {
+        return base.packedId(darker(SHADE_BY_FACE[face.ordinal()], darken)) & 0xFF;
+    }
+
+    /**
+     * Colour of a hit that has see-through blocks in front of it: each layer over the one
+     * behind it, and all of them over the surface the ray stopped on.
+     *
+     * <p>The result is off the palette, so the caller has to take it through
+     * {@link #blend}. Dividing by the weight that was actually laid down is what makes a
+     * ray that gathered layers and then reached nothing come out as the layers' own
+     * colour rather than as a colour faded towards black.</p>
+     */
+    int compositeRgb(RayHit hit) {
+        var r = 0.0;
+        var g = 0.0;
+        var b = 0.0;
+        var weight = 0.0;
+        for (var i = 0; i < hit.layers; i++) {
+            var rgb = paletteRgb[packedIdOf(hit.layerBase[i], hit.layerFace[i], hit.darken)];
+            var w = hit.layerWeight[i];
+            r += w * ((rgb >> 16) & 0xFF);
+            g += w * ((rgb >> 8) & 0xFF);
+            b += w * (rgb & 0xFF);
+            weight += w;
+        }
+        if (hit.opaque) {
+            var rgb = paletteRgb[packedIdOf(hit)];
+            var w = hit.transmittance;
+            r += w * ((rgb >> 16) & 0xFF);
+            g += w * ((rgb >> 8) & 0xFF);
+            b += w * (rgb & 0xFF);
+            weight += w;
+        }
+        if (weight <= 0.0)
+            return 0;
+
+        return (round(r / weight) << 16) | (round(g / weight) << 8) | round(b / weight);
+    }
+
+    private static int round(double value) {
+        return Math.clamp(Math.round(value), 0, 255);
     }
 
     /**

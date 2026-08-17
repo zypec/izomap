@@ -204,6 +204,46 @@ photo:
     # birincisine çekilir.
     light-dim-below: 8
     light-dark-below: 4
+  # KISMİ KAPLAMA. Işın yürüyüşü her bloğu dolu bir küp sayardı, yani tek bir ot tutamı
+  # kendi hücresinin tamamını doygun yeşile boyuyordu. Açıkken ince bloklar ışını
+  # DURDURMAZ: kendi renklerini arkasındaki bloğa oranınca karıştırıp geçirirler
+  # (ot üstünde çim, podzol üstünde podzol, karda kar).
+  #
+  # Bu bir efekt değil, düzeltme — o yüzden gölgelendirmenin tersine varsayılan AÇIK.
+  # Maliyeti de neredeyse yok: ışın zemine kadar zaten yürüyor (blok NONE olsaydı da
+  # yürüyecekti), üstüne piksel başına bir karışım biniyor.
+  #
+  # HANGİ bloklar ve hangi oranla: eklentinin içinde elle tutulan bir liste var (ot,
+  # eğrelti, çiçek, fide, şeker kamışı, mantar, sarmaşık, glow lichen, merdiven, ray...).
+  # Değiştirmek, eklemek ya da çıkarmak için block-colors.yml -> coverage.
+  # Yarım bloklar (slab, merdiven, duvar, çit) bilerek listede DEĞİL: kapladıkları yarı
+  # hacim gerçekten taştır, zeminle harmanlamak rengi boşuna soldurur.
+  coverage:
+    enabled: true
+  # SU. Su tek bir WATER tonu olarak çıkardı: göl de okyanus da aynı düz mavi. Vanilla
+  # harita bile bunu yapmıyor, orada su DERİNLİĞE göre tonlanır.
+  #   FLAT        = eski davranış, tek ton (su sütunu hiç ölçülmez)
+  #   DEPTH       = yüzey, altındaki su kalınlığına göre bir ya da iki ton koyulaşır;
+  #                 sığ kıyı açık, derin okyanus koyu olur, kıyı çizgisi kendiliğinden
+  #                 belirir. Maliyeti: ışının yüzeyden dibe kadar yürüdüğü hücreler.
+  #   TRANSLUCENT = su, dipteki bloğun rengiyle derinliğe bağlı oranda karışır; sığ suda
+  #                 kum/çakıl görünür, derinde su kazanır. photo.coverage'ın karıştırma
+  #                 aşamasını kullanır (o kapalı olsa da su için çalışır), ve dibi
+  #                 boyamanın bedelini de öder.
+  # Buz, buzul ve kazan bu işin dışındadır; onlar derinlik değil, kendi yüzeyleridir.
+  water:
+    mode: DEPTH
+    # Kaç hücre sudan sonra yüzey bir ton, kaç hücreden sonra iki ton koyulaşır.
+    # Işın eğik gittiği için "hücre" dikey derinlikten biraz fazladır (alçak kameradan
+    # bakılan sığ göl olduğundan biraz derin okunur); vanilla da bu ödünü verir.
+    # İkinci eşik birincisinden küçük verilirse birincisine çekilir. Aralık: 1-256.
+    dim-deeper-than: 2
+    dark-deeper-than: 5
+    # Yalnızca TRANSLUCENT: en sığ suyun (tek hücre) kendine ayırdığı pay. 0 verilirse
+    # bir hücrelik su tamamen görünmez olur. Aralık: 0.0-1.0.
+    surface-min: 0.35
+    # Yalnızca TRANSLUCENT: kaç hücreden sonra dip hiç görünmez. Aralık: 1-256.
+    opaque-depth: 8
   # ALAN DERİNLİĞİ (odak). Oyuncu çekim ekranından açar ve slider ile odak uzaklığını
   # (blok) seçer; odaktaki uzaklık net kalır, ondan uzaklaşan her şey bulanıklaşır.
   # İzin: izomap.focus. Kapalıyken hiçbir maliyeti yoktur.

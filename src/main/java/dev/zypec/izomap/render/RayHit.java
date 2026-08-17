@@ -16,6 +16,17 @@ import org.bukkit.Material;
 final class RayHit {
 
     /**
+     * How many see-through blocks a ray may collect before the next one is taken as
+     * opaque.
+     *
+     * <p>Without a cap a curtain of vines or a tall meadow would keep a ray walking to
+     * the far side of the captured region, and three layers already reach 0.66 opacity at
+     * the thinnest tier — beyond that the floor contributes less than the palette can
+     * express.</p>
+     */
+    static final int MAX_LAYERS = 3;
+
+    /**
      * Face of the block the ray entered through, with the two horizontal axes kept
      * apart because they take different brightnesses.
      */
@@ -27,9 +38,35 @@ final class RayHit {
     }
 
     /**
-     * Whether the ray hit anything at all; the other fields only hold when it did.
+     * Whether the ray found anything to draw, whether a surface or thin layers alone.
      */
     boolean hit;
+
+    /**
+     * Whether {@link #base}, {@link #face} and {@link #darken} describe a surface the ray
+     * actually stopped on. False when it only gathered layers and then ran out of world,
+     * in which case those three mean nothing.
+     */
+    boolean opaque;
+
+    /**
+     * See-through blocks the ray passed on its way here, nearest the camera first: a
+     * tuft of grass, a vine, or a column of water the floor shows through.
+     */
+    int layers;
+    final MapBaseColor[] layerBase = new MapBaseColor[MAX_LAYERS];
+    final Face[] layerFace = new Face[MAX_LAYERS];
+    /**
+     * Share of the pixel each layer holds — its own coverage times whatever the layers in
+     * front of it left over — so the weights are already comparable and never renormalized.
+     */
+    final double[] layerWeight = new double[MAX_LAYERS];
+
+    /**
+     * Share of the pixel the layers left to whatever is behind them. 1.0 means there are
+     * none, which is the case for nearly every ray.
+     */
+    double transmittance;
 
     Material material;
 
@@ -40,8 +77,47 @@ final class RayHit {
     /**
      * How many brightness steps down the face's own shade the surface goes, from the
      * sun shadow and the neighbours around it. Zero is the plain face brightness.
+     *
+     * <p>The layers in front of it take the same number: a tuft of grass stands in the
+     * light the ground under it stands in, and asking the shading again per layer would
+     * cost a second shadow ray for every blade in the frame.</p>
      */
     int darken;
+
+    /**
+     * Clears the hit for a fresh ray. Only the counters have to go: the layer arrays are
+     * read no further than {@link #layers}.
+     */
+    void reset() {
+        hit = false;
+        opaque = false;
+        layers = 0;
+        transmittance = 1.0;
+        darken = 0;
+    }
+
+    /**
+     * Records a see-through block and returns whether there was room for it. A refusal is
+     * the caller's cue to treat the block as opaque, which is what caps the walk.
+     */
+    boolean addLayer(MapBaseColor base, Face face, double coverage) {
+        if (layers >= MAX_LAYERS)
+            return false;
+
+        layerBase[layers] = base;
+        layerFace[layers] = face;
+        layerWeight[layers] = coverage * transmittance;
+        transmittance -= layerWeight[layers];
+        layers++;
+        return true;
+    }
+
+    /**
+     * How much of the pixel the layers have taken so far.
+     */
+    double covered() {
+        return 1.0 - transmittance;
+    }
 
     /**
      * How far the ray travelled to reach the surface, in blocks, measured from where it

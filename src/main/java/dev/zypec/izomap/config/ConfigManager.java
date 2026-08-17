@@ -3,6 +3,7 @@ package dev.zypec.izomap.config;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.render.FocusSpec;
 import dev.zypec.izomap.render.ShadingSpec;
+import dev.zypec.izomap.render.WaterSpec;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.configuration.file.FileConfiguration;
 
@@ -327,6 +328,46 @@ public final class ConfigManager {
                 cfg().getBoolean("photo.shading.block-light", false),
                 dimBelow,
                 Math.min(darkBelow, dimBelow));
+    }
+
+    /**
+     * Whether blocks that fill only part of their cell are drawn that way — a tuft of
+     * grass tinting the ground rather than replacing it.
+     *
+     * <p>On by default, unlike the shading. This is not an effect the server chooses to
+     * add: a grass tuft painting a whole block of saturated green was the render being
+     * wrong about the world, and the fix costs about what leaving those blocks out
+     * entirely would (the ray reaches the ground either way).</p>
+     *
+     * <p>Read when the colour table is loaded rather than at capture, so it follows
+     * {@code block-colors.yml} — both are the table, and neither is frozen into a
+     * photo.</p>
+     */
+    public boolean partialCoverage() {
+        return cfg().getBoolean("photo.coverage.enabled", true);
+    }
+
+    /**
+     * How water is coloured. {@code DEPTH} by default, which is what vanilla maps do:
+     * a flat single blue for both a pond and an ocean was the one thing here that even
+     * vanilla does not defend.
+     *
+     * <p>The two depth thresholds are clamped into order like the shading's light ones,
+     * for the same reason: with {@code dark} below {@code dim} the second could never be
+     * reached.</p>
+     */
+    public WaterSpec water() {
+        var mode = WaterSpec.modeFrom(cfg().getString("photo.water.mode"), WaterSpec.Mode.DEPTH);
+        if (!mode.measures())
+            return WaterSpec.FLAT;
+
+        var dim = clamp(cfg().getInt("photo.water.dim-deeper-than", 2), 1, 256);
+        var dark = clamp(cfg().getInt("photo.water.dark-deeper-than", 5), 1, 256);
+        return new WaterSpec(mode,
+                dim,
+                Math.max(dark, dim),
+                clamp(cfg().getDouble("photo.water.surface-min", 0.35), 0.0, 1.0),
+                clamp(cfg().getInt("photo.water.opaque-depth", 8), 1, 256));
     }
 
     /**

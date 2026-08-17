@@ -25,6 +25,8 @@ import java.util.UUID;
  *                       is stored rather than the time, so a re-render neither drifts
  *                       with the clock nor with a retuned palette
  * @param shading        what darkens a surface beyond its own face, at capture time
+ * @param water          how water is coloured, at capture time; {@link WaterSpec#FLAT}
+ *                       leaves it the single tone it used to be
  * @param focus          which distance stays sharp and how the rest softens, at capture
  *                       time; {@link FocusSpec#NONE} leaves the whole frame sharp
  * @param frameHeight    {@code photo.frame-height} at capture time
@@ -45,6 +47,7 @@ public record CaptureSpec(
         PhotoStyle style,
         int skyArgb,
         ShadingSpec shading,
+        WaterSpec water,
         FocusSpec focus,
         double frameHeight,
         double frameShift,

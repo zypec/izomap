@@ -41,3 +41,45 @@ overrides:
   # TALL_GRASS: NONE
   # FERN: NONE
   # LARGE_FERN: NONE
+  # ...ama artık daha iyisi var: aşağıdaki coverage bölümü aynı bloğu hem gösterir hem
+  # arkasını gösterir. NONE'a düşürmek yalnızca bloğu fotoğraftan tamamen silmek içindir.
+
+# ============================================================
+#  KAPLAMA ORANI (coverage)
+#
+#  Bir bloğun kendi hücresinin ne kadarını gerçekten doldurduğu: 1.0 = dolu küp
+#  (bloklarin neredeyse tamamı), 0.3 = hücrenin üçte biri. Işın ince bloklarda DURMAZ,
+#  rengi bu oranla arkasındaki bloğa karıştırıp geçer. 0.0, NONE ile aynı şeydir.
+#
+#  Eklentinin kendi listesi vardır (ot, eğrelti, çiçek, fide, şeker kamışı, mantar,
+#  örümcek ağı → 0.30; sarmaşık, glow lichen, sculk damarı, merdiven, zincir, ray → 0.15)
+#  ve buradaki her satır o listeyi EZER. Tümünü kapatmak için config.yml ->
+#  photo.coverage.enabled: false.
+#
+#  Renkler gibi bu liste sunucudan okunamaz: BlockData#getCollisionShape ÇARPIŞMA
+#  kutusunu verir, görsel şekli değil — ve tam da dertli bloklarda (ot, çiçek, glow
+#  lichen, sarmaşık) o kutu BOŞTUR. Otomatik türetim düzeltmek istediğimiz blokların
+#  hepsini kaçırırdı, o yüzden liste elle tutuluyor.
+#
+#  Listede bilerek OLMAYANLAR:
+#    - Yarım bloklar (slab, stairs, duvar, çit): kapladıkları yarı hacim gerçekten
+#      taştır; zeminle harmanlamak rengi boşuna soldurur. Rahatsız etmemelerinin sebebi
+#      de bu, rengi zaten çevresindeki taşla aynı.
+#    - Halı, kar tabakası, nilüfer, redstone tozu: bastıkları YÜZÜ tam kaplarlar, yalnızca
+#      yandan bakınca incedirler. Tek bir sayı ikisine de yanlış cevap verir (kar tarlası
+#      yeşile çalardı); bunlar yüze duyarlı kaplamayı bekliyor.
+#    - Su altı bitkileri (deniz otu, yosun): su sütunu tek parça ölçülür, ortasındaki ince
+#      bir hücre o ölçümü ikiye böler. Su için photo.water var.
+# ============================================================
+
+coverage:
+  # Örnek: otu daha da silik yap (varsayılan 0.30):
+  # SHORT_GRASS: 0.2
+  # Örnek: buğday tarlası da tutam tutam olsun — varsayılan listede DEĞİL, çünkü
+  # vanilla haritada tarla dolu sarı bir alan olarak okunur:
+  # WHEAT: 0.4
+  # Örnek: bakır zincirler de ince sayılsın (varsayılan listede yalnızca IRON_CHAIN var):
+  # COPPER_CHAIN: 0.15
+  # WAXED_COPPER_CHAIN: 0.15
+  # Örnek: sarmaşığı eski hâline döndür (hücrenin tamamını boyasın):
+  # VINE: 1.0

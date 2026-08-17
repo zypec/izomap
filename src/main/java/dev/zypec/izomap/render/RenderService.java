@@ -92,6 +92,7 @@ public final class RenderService {
                 camera.camYaw(), camera.camPitch(), camera.zoom(), camera.colorFilter(), camera.style(),
                 skyArgbFor(camera.sky(), world),
                 plugin.config().shading(),
+                plugin.config().water(),
                 plugin.config().focus(camera.focusEnabled(), camera.focusDistance()),
                 plugin.config().frameHeight(), plugin.config().frameShift(),
                 plugin.config().supersampling(), plugin.config().maxCaptureArea(),
@@ -233,6 +234,7 @@ public final class RenderService {
         // reversed: a surface looks up towards it.
         var toSun = directionFrom(spec.shading().sunYaw(), spec.shading().sunPitch()).multiply(-1.0);
         var shading = Shading.of(spec.shading(), toSun.getX(), toSun.getY(), toSun.getZ());
+        var water = Water.of(spec.water());
         var sky = spec.skyArgb() == 0
                 ? Sky.NONE
                 : Sky.of(spec.skyArgb() & 0xFFFFFF, plugin.config().skyGradient(),
@@ -264,7 +266,7 @@ public final class RenderService {
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                 try {
                     var result = walker.render(
-                            snapshot, geometry, pipeline, sky, shading, supersampling, focus.draws(),
+                            snapshot, geometry, pipeline, sky, shading, water, supersampling, focus.draws(),
                             progress, executor, threads);
                     // Before the scale-up, where the depth buffer still lines up with the
                     // pixels. The radius is a ratio of image height, so a FAST render

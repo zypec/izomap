@@ -201,6 +201,13 @@ hangi materyal, temel rengi ne, hangi yüzden girildi. Onu renge çevirmek
 gerekir; temel renk zaten o kontrol için okunduğundan `RayHit` ile birlikte taşınır,
 renk aşaması aynı aramayı tekrarlamaz.
 
+Blok **iki değil üç** türdür. Renksiz olan (cam, meşale) ışını hiç durdurmaz; dolu küp
+onu durdurur; arada, hücresinin yalnızca bir kısmını dolduranlar var (ot tutamı, sarmaşık,
+ve ölçülen bir oranla su). Onlarda ışın durmaz: renk, bloğun kapladığı pay ile birlikte
+`RayHit`'e **katman** olarak yazılır ve yürüyüş arkasındakine devam eder. En çok
+`RayHit.MAX_LAYERS` katman toplanır, sonraki blok katı sayılır — yoksa bir sarmaşık
+perdesi ışını haritanın öbür ucuna kadar yürütürdü. Ayrıntı: "Kısmi kaplama" ve "Su".
+
 `RayHit` bilerek **mutable ve yeniden kullanılır**: bant başına bir tane üretilip her
 örnek için doldurulur ve onu üreten thread'den hiç çıkmaz. 2048×1152 bir çekim, 2×
 süpersamplingle 9,4 milyon örnek demektir; örnek başına nesne üretmek bu yolu çöp
@@ -221,6 +228,10 @@ aşamaları sırayla uygular:
 Haritada renksiz bloklar (cam, meşale, fidan…) `MapBaseColor.NONE` verir ve ışın
 vanilla'daki gibi arkalarını görerek devam eder — bu, 1. aşamadan önce yürüyüşte
 elenir.
+
+Hücresini tam doldurmayan bloklar (ot tutamı, sarmaşık, saydam kipte su) 1. aşamayı
+**birden çok kez** üretir: yürüyüş katmanları toplar, `#compositeRgb` onları paylarınca
+üst üste bindirir ve sonuç 3-4. aşamalardan `#blend` ile geçer. Bkz. "Kısmi kaplama".
 
 #### Rengi büyüme durumuna göre değişen bloklar
 
@@ -287,6 +298,109 @@ tabloya yarısı diğerine düşerdi.
 
 Değişiklik **mevcut fotoğraflara yansımaz**: onlar ön bellekten gelir. Yeni renkleri
 görmek için `retake` gerekir; preview ise ilk tıkta kendiliğinden yenilenir.
+
+### Kısmi kaplama (`BlockColorTable.coverage`, `photo.coverage`)
+
+**Soru:** her blok "dolu bir piksel" olmak zorunda mı? Bir ot tutamı hücresinin tamamını
+doygun yeşile boyayınca fotoğrafta gürültü gibi duruyor.
+
+Zorunlu değil. Çözünürlük sorunu da değil — ortografik projeksiyonda blok başına düşen
+piksel `spanHeight / heightPx`'tir (1024 px'lik fotoğrafta ~21 px) — sorun DDA'nın her
+voxel'i dolu küp saymasıydı. Tabloya bu yüzden ikinci bir sütun girdi: **kaplama oranı**,
+bloğun hücresinin ne kadarını gerçekten doldurduğu. `NONE` = 0.0, eski davranış = 1.0;
+eksik olan ara değerlerdi.
+
+**Kaplama alfa olarak harcanır.** İşaretli blokta ışın durmaz; rengi payı kadar
+`RayHit`'e yazılır, ışın arkadakini bulur ve `ColorPipeline#compositeRgb` katmanları
+sırayla üst üste bindirir (`c × bitki + (1−c) × zemin`), sonra sonuç palete snap edilir.
+Alternatif olan **alt-hücre geometrisi** (ışının hücre içindeki gerçek geçiş noktası
+hesaplanıp yalnızca vanilla'nın çapraz düzlemlerini kesiyorsa isabet sayılması) yüksek
+zoom'da daha doğru olurdu ama önizleme çözünürlüğünde ve süpersampling kapalıyken ikili
+karara düşüp gürültüye dönüşüyor. Alfa her çözünürlükte çalışır.
+
+**Maliyeti sezgiye aykırı biçimde küçük:** ışın bugün otta duruyordu, artık zemine kadar
+gidiyor — yani maliyet, o bloğun `NONE` olduğu durumla aynı, üstüne piksel başına bir
+karışım. Kısmi kaplama, `NONE` vermekle neredeyse aynı fiyata ondan daha iyi bir görüntü
+veriyor; bu yüzden gölgelendirmenin tersine varsayılan **açık**
+(`photo.coverage.enabled`). Bu bir efekt değil, render'ın dünya hakkındaki yanlışının
+düzeltilmesi.
+
+**Liste elle tutulur, çünkü türetilemiyor.** `BlockData#getCollisionShape` **çarpışma**
+kutusunu verir, görsel şekli değil — ve tam da dertli bloklarda (ot, çiçek, glow lichen,
+sarmaşık) o kutu **boştur**. Otomatik türetim düzeltilmek istenen blokların hepsini
+kaçırırdı. Ölçüt "gerçekte arkasını görüyor musun?" ve blokları üçe ayırıyor:
+
+| Sınıf | Örnek | Ne yapılır |
+|---|---|---|
+| İnce/serpme bitki | ot, eğrelti, çiçek, fide, şeker kamışı, mantar, örümcek ağı | `0.30`, harmanlanır |
+| Yüzeye yapışık / ince iskelet | sarmaşık, glow lichen, sculk damarı, merdiven, zincir, ray | `0.15`, harmanlanır |
+| Katı ama yarım blok | slab, stairs, duvar, çit | **dokunulmaz**, `1.0` kalır |
+
+Üçüncü sınıf bilerek dışarıda: bir slab'ın kapladığı yarı hacim *gerçekten* taştır, onu
+zeminle harmanlamak rengi boşuna soldurur — slab'ın hiç rahatsız etmemesinin sebebi de
+rengi zaten çevresindeki taşla aynı olması. Onları düzeltmek kaplama değil **alt-voxel
+yürüyüşü** ister.
+
+Varsayılan liste `BlockColorTable.DEFAULT_COVERAGE`'da, `block-colors.yml` → `coverage:`
+onu ezer (0.0–1.0; aralık dışı değer log'lanıp atlanır). Tablo renklerle aynı yerde
+durduğu için `/izocam reload` ile yenilenir ve fotoğrafa **donmaz** — `block-colors.yml`
+override'ları gibi.
+
+**Yan etki: ince blok gölge atmaz.** Gölge ışını ve ambient occlusion "arkası görünüyor
+mu" diye sorar; `BlockColorTable#occludes` artık renksizlerin yanına kaplaması 0.5'in
+altında olanları da katıyor. Zemini gösteren bir ot tutamının o zemine blok boyunda gölge
+düşürmesi tuhaftı.
+
+**Katmanın kendi gölgesi yok:** katmanlar arkalarındaki yüzeyin `darken`'ını alır. Bir
+tutam, üzerinde bittiği toprağın ışığında durur; katman başına gölgelendirmeyi tekrar
+sormak kadraja giren her yaprak için ikinci bir gölge ışını demekti.
+
+**Arkasında hiçbir şey yoksa** (silüette kalan tutam) payı çoğunluk kuralına girer:
+palette saydamlık olmadığı için, süpersampler'ın örneklerine uyguladığı kuralın aynısı —
+toplam kaplama %50'nin altındaysa piksel gökyüzüne bırakılır. Tek tutam gökyüzünü yeşile
+boyamaz, üç katman boyar.
+
+**Açık kalan: yüze duyarlı kaplama.** Duvara yapışık bir kaplama ön yüzünden bakınca o
+yüzü gerçekten kaplar, yandan bakınca koca bir küp boyar. Işının girdiği yüz
+(`RayHit.Face`) zaten elimizde, yani tablo `coverage: {face: 0.9, side: 0.15}` taşıyabilir
+— maliyeti bir tablo okuması. Halı, kar tabakası, nilüfer ve redstone tozu bu yüzden
+varsayılan listede **yok**: tek skalerle kar tarlası yeşile çalardı.
+
+### Su: derinlik ve saydamlık (`Water`, `WaterSpec`)
+
+Su tek bir `WATER` tonu olarak çıkıyordu: göl de okyanus da aynı düz mavi. Vanilla harita
+bile bunu yapmıyor, orada su **derinliğe göre** tonlanır — yani burada savunulacak bir
+"gerçekçi mi" tartışması yok. `photo.water.mode` üç kip:
+
+| Kip | Ne yapar | Bedeli |
+|---|---|---|
+| `FLAT` | Eski davranış, tek ton; su sütunu hiç ölçülmez | — |
+| `DEPTH` (varsayılan) | Yüzey, altındaki hücre sayısına göre bir (`dim-deeper-than`) ya da iki (`dark-deeper-than`) ton koyulaşır | Işının yüzeyden dibe yürüdüğü hücreler |
+| `TRANSLUCENT` | Su, dipteki bloğun rengiyle derinliğe bağlı oranda karışır (`surface-min` → `opaque-depth`) | Üstüne dibi bulup boyamak |
+
+Mekanizma kısmi kaplamanın aynısıdır, tek farkı payın tablodan değil **ölçümden**
+gelmesi: ışın suya girince durmaz, sütunu takip eder ve hücreleri sayar. Sütun bittiğinde
+`DEPTH` yüzeyi isabet yazar (sayı `darken`'a eklenir), `TRANSLUCENT` ise sütunu bir katman
+olarak bırakıp dibe devam eder. `TRANSLUCENT`, `photo.coverage.enabled` kapalı olsa da
+çalışır — karıştırma yürüyüşün kendi yeteneği, tablonun değil.
+
+Derinlik **hücreyle** sayılır, metreyle değil: eğik giden bir ışın suyun derinliğinden çok
+hücre geçer, yani alçak kameradan bakılan sığ göl olduğundan biraz derin okunur. Vanilla
+da bu ödünü verir ve yürüyüşün hiç ölçmediği bir dikey derinliği geri kurmaktan ucuzdur.
+
+Buz, buzul ve `WATER_CAULDRON` bu işin dışında: onlar bir derinlik değil, kendi
+yüzeyleridir. Hava taşıyan `BUBBLE_COLUMN` çevresindeki suyla birlikte okunur. Su altı
+bitkileri (deniz otu, yosun) varsayılan kaplama listesinde yok, çünkü sütunun ortasındaki
+ince bir hücre ölçümü ikiye böler.
+
+`WaterSpec`, `ShadingSpec` gibi `CaptureSpec`'e **donar**: sunucu kip değiştirdiğinde
+duvarda asılı bir fotoğrafın yeniden render'ı onu değiştirmez. Kaydı olmayan (bu iş
+öncesinde çekilmiş) fotoğraflar `FLAT` sayılır.
+
+**Açık kalan: `GLINT`.** Güneşin yansıma yönüne yakın yüzeylerde dağınık bir ton yukarı;
+süpersamplingle parıltı gibi durabilir ama paletle birleşince "kirli" görünme riski var,
+denenmeden karar verilmez. Aynı şekilde dalga kırığı (dünya koordinatına bağlı
+deterministik desen) da yazılmadı.
 
 ### Gökyüzü (`SkyOption`, `Sky`)
 
@@ -1457,7 +1571,7 @@ toplanır ve değerler mantıklı aralıklara clamp'lenir.
 |---|---|
 | `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `render-timing`, `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player`, `max-photos-per-camera`, `max-map-tiles` (1-4096), `correct-vanilla-colors` |
 | `camera` | `display-type`, `model-material`, `item-display-transform`, `interaction-size` (0.1-3.0), `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `move-step` (0.05-16.0), `default-pitch` (-90..90), `edit-lock-seconds` (1-3600), `model-rotation.{x,y,z}`, `hologram.{enabled, offset-y (-4..8), view-range (0.1-10), billboard, background}` |
-| `photo` | `sky.colors.*`, `sky.gradient`, `sky.horizon-blend`, `sky.dither`, `focus.{range (0.02-8), max-radius (0-0.05), samples (4-128), dither (0-128)}`, `style.fast-scale`, `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
+| `photo` | `sky.colors.*`, `sky.gradient`, `sky.horizon-blend`, `sky.dither`, `coverage.enabled`, `water.{mode, dim-deeper-than (1-256), dark-deeper-than (1-256), surface-min (0-1), opaque-depth (1-256)}`, `focus.{range (0.02-8), max-radius (0-0.05), samples (4-128), dither (0-128)}`, `style.fast-scale`, `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
 | `placement` | `distance`, `invisible-frames`, `build-backing-wall`, `backing-material`, `timeout-seconds` (5-600) |
 
 **Geriye dönük uyumluluk yok, bilerek.** Eklenti yayınlanmadığı için okunacak eski kurulum
@@ -1478,7 +1592,7 @@ kontrol edip `0.25`'in üstündeyse log uyarısı verir.
 | `config.yml` | Ayarlar |
 | `filters.yml` | Renk filtresi tanımları (kimlik + işlem zinciri; adları `messages.yml`'de) |
 | `messages.yml` | MiniMessage mesajları (`prefix` + anahtar ağacı; oyuncuya gidenler **ve** konsol) |
-| `block-colors.yml` | Blok rengi override'ları (v2) |
+| `block-colors.yml` | Blok rengi override'ları ve kaplama oranları (v2) |
 | `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, üçler kuralı, odak, model/interaction/hologram entity UUID'leri, önizleme harita kimliği) |
 | `photos.yml` | Fotoğraflar (ad, kamera, ızgara, `capture` bloğunda çekim parametreleri; asılıysa `placement` bloğunda harita id'leri, çerçeve UUID'leri ve çıpa koordinatı) |
 | `photos/<uuid>.izm` | Fotoğrafın çekilmiş görüntüsü (palet indeksi + Deflate); YML değil, ikili. Çerçeve `embed: true` ile takıldıysa pikselleri de buradadır |
@@ -1560,7 +1674,10 @@ Yeni bir sabit eklemek yalnızca yeni bir anahtar eklemeyi gerektirir.
 `./gradlew test` — JUnit 5, `src/test/java`. Sunucu ayağa kaldırılmaz; test edilen her
 şey saf hesaptır. Paper sınıfları yine de test yolundadır (`testImplementation`,
 `compileOnly`'den devralır), bu sayede `Player` gibi arayüzler kullanılabiliyor —
-`PermissionLimitTest` tek metoda cevap veren bir `Proxy` ile oyuncuyu taklit ediyor.
+`PermissionLimitTest` tek metoda cevap veren bir `Proxy` ile oyuncuyu taklit ediyor. Işın
+yürüyüşü de test edilebilir: `FakeChunk` bir `ChunkSnapshot`'ı dünya yerine bir
+fonksiyondan üretir (sorulmayan her metot fırlatır, sessizce sıfır dönmez) ve
+`BlockColorTable.of` tabloyu sunucuya sormadan kurar.
 
 | Test | Neyi koruyor |
 |---|---|
@@ -1571,6 +1688,8 @@ Yeni bir sabit eklemek yalnızca yeni bir anahtar eklemeyi gerektirir.
 | `PermissionsTest` | Bedava varsayılanlar, alan düğümü ile tek seçenek düğümü, kare sayısına göre ızgara süzme, en küçük ızgaranın hep kalması |
 | `PhotoFramesTest` | Halkaların içe doğru çizilmesi, içerinin dokunulmazlığı, kaynağın kopyalanması, kısa kenara göre kırpılma |
 | `PhotoExporterTest` | Dosya adı oyuncu girdisidir: yol ayracı, baştaki nokta, uzunluk sınırı |
+| `PartialCoverageTest` | İnce bloğun payı, katman tavanı, arkasında hiçbir şey yokken çoğunluk kuralı — sahte bir chunk üzerinde gerçek ışın yürüyüşü |
+| `WaterDepthTest` | Derinlik eşiklerinin ton indirmesi ve saydam suyun dibi ne kadar gösterdiği |
 | `GridAndSlicingTest` | Dilimlemenin karo sırası — yanlışı ancak duvara asınca görünür |
 | `FormatAndIdsTest` | Sayıların locale'den bağımsızlığı ve bozuk kimliğin `null` dönmesi |
 

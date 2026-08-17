@@ -1,5 +1,7 @@
 package dev.zypec.izomap.render;
 
+import org.bukkit.Material;
+
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
@@ -18,6 +20,16 @@ import java.util.concurrent.Executor;
  */
 public final class IsometricRenderer {
 
+    /**
+     * How much of a pixel see-through blocks must hold, with nothing behind them, before
+     * they are drawn at all rather than left to the sky.
+     *
+     * <p>The palette has no translucency, so this is the same majority rule the
+     * supersampler already applies to its samples: a lone tuft of grass on a ridge does
+     * not paint the sky green, three layers of it do.</p>
+     */
+    private static final double MIN_VISIBLE_COVERAGE = 0.5;
+
     private final BlockColorTable colorTable;
 
     public IsometricRenderer(BlockColorTable colorTable) {
@@ -30,6 +42,8 @@ public final class IsometricRenderer {
      * @param sky           color for rays that reach nothing; {@link Sky#NONE} leaves
      *                      them transparent
      * @param shading       what may darken a surface beyond its own face
+     * @param water         how deep water is allowed to look; {@link Water#FLAT} keeps the
+     *                      column unmeasured
      * @param progress      told as each row finishes, or {@code null} when nobody is
      *                      watching the capture
      * @param supersampling antialiasing rays per pixel (NxN); 1 disables it
@@ -38,7 +52,7 @@ public final class IsometricRenderer {
      * @param threads       how many bands, and therefore threads, to use
      */
     public RenderResult render(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
-                               Sky sky, Shading shading, int supersampling, boolean withDepth,
+                               Sky sky, Shading shading, Water water, int supersampling, boolean withDepth,
                                CaptureProgress progress, Executor executor, int threads) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
@@ -52,7 +66,7 @@ public final class IsometricRenderer {
 
         var bands = Math.max(1, Math.min(threads, h));
         if (bands == 1) {
-            renderBand(snapshot, geo, pipeline, sky, shading, samples, progress, argb, depth, 0, h);
+            renderBand(snapshot, geo, pipeline, sky, shading, water, samples, progress, argb, depth, 0, h);
             return new RenderResult(w, h, argb, depth);
         }
 
@@ -63,9 +77,9 @@ public final class IsometricRenderer {
             final int from = band * rowsPerBand;
             final int to = Math.min(h, from + rowsPerBand);
             pending[band] = CompletableFuture.runAsync(
-                    () -> renderBand(snapshot, geo, pipeline, sky, shading, samples, progress, argb, depth, from, to), executor);
+                    () -> renderBand(snapshot, geo, pipeline, sky, shading, water, samples, progress, argb, depth, from, to), executor);
         }
-        renderBand(snapshot, geo, pipeline, sky, shading, samples, progress, argb, depth, (bands - 1) * rowsPerBand, h);
+        renderBand(snapshot, geo, pipeline, sky, shading, water, samples, progress, argb, depth, (bands - 1) * rowsPerBand, h);
         CompletableFuture.allOf(pending).join();
 
         return new RenderResult(w, h, argb, depth);
@@ -75,7 +89,7 @@ public final class IsometricRenderer {
      * Renders the row range {@code [yFrom, yTo)}.
      */
     private void renderBand(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
-                            Sky sky, Shading shading, int samples, CaptureProgress progress,
+                            Sky sky, Shading shading, Water water, int samples, CaptureProgress progress,
                             int[] argb, float[] depth, int yFrom, int yTo) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
@@ -95,6 +109,7 @@ public final class IsometricRenderer {
         final var climbPerBlock = -dy;
         final var total = samples * samples;
         final var hit = new RayHit();
+        final var run = new WaterRun();
 
         for (var py = yFrom; py < yTo; py++) {
             for (var px = 0; px < w; px++) {
@@ -132,21 +147,30 @@ public final class IsometricRenderer {
 
                         // View distance is measured from the camera plane, so a
                         // pulled-back ray walks the extra distance too.
-                        marchRay(snapshot, shading, ox, oy, oz, dx, dy, dz, maxDist + backoff, hit);
+                        marchRay(snapshot, shading, water, run,
+                                ox, oy, oz, dx, dy, dz, maxDist + backoff, hit);
                         if (!hit.hit)
                             continue;
 
-                        var id = pipeline.packedIdOf(hit);
-                        if (hits == 0) {
-                            firstId = id;
-                        } else if (id != firstId) {
+                        int rgb;
+                        if (hit.layers == 0) {
+                            var id = pipeline.packedIdOf(hit);
+                            if (hits == 0) {
+                                firstId = id;
+                            } else if (id != firstId) {
+                                uniform = false;
+                            }
+                            rgb = pipeline.paletteRgbOf(id);
+                        } else {
+                            // A composited colour is off the palette by definition, so the
+                            // pixel has to take the long way out through blend().
                             uniform = false;
+                            rgb = pipeline.compositeRgb(hit);
                         }
                         hits++;
                         // Measured from the camera plane, not from where this ray began:
                         // a pulled-back ray walked its backoff before reaching it.
                         sumDistance += hit.distance - backoff;
-                        var rgb = pipeline.paletteRgbOf(id);
                         sumR += (rgb >> 16) & 0xFF;
                         sumG += (rgb >> 8) & 0xFF;
                         sumB += rgb & 0xFF;
@@ -177,18 +201,33 @@ public final class IsometricRenderer {
     }
 
     /**
-     * Walks the ray block by block and describes the first hit in {@code out}, leaving
+     * Walks the ray block by block and describes what it found in {@code out}, leaving
      * {@link RayHit#hit} false when the ray reached nothing.
      *
      * <p>Amanatides-Woo: keep the parametric distance to the next boundary on each
      * axis ({@code tMax}), step along the smallest one. That axis is also the face
      * the ray entered through.</p>
+     *
+     * <h2>Three kinds of block, not two</h2>
+     *
+     * <p>A block used to be either see-through (no map colour, ray continues) or a full
+     * cube (ray stops). Between them sit the blocks that fill only part of their cell: the
+     * ray does not stop, it records the colour with the share of the pixel the block holds
+     * and carries on to whatever is behind it. {@link RayHit#MAX_LAYERS} of those and the
+     * next one counts as solid, so a curtain of vines cannot walk a ray across the map.</p>
+     *
+     * <p>Water is the same idea with the share measured rather than tabled: the column is
+     * followed to its floor, and the number of cells decides either how far the surface
+     * darkens ({@code DEPTH}) or how much of the floor shows through it
+     * ({@code TRANSLUCENT}).</p>
      */
-    private void marchRay(WorldSnapshot snapshot, Shading shading,
+    private void marchRay(WorldSnapshot snapshot, Shading shading, Water water, WaterRun run,
                           double ox, double oy, double oz,
                           double dx, double dy, double dz,
                           double maxDist, RayHit out) {
-        out.hit = false;
+        out.reset();
+        run.reset();
+        var layered = colorTable.anyPartial() || water.measures();
 
         var x = fastFloor(ox);
         var y = fastFloor(oy);
@@ -224,25 +263,38 @@ public final class IsometricRenderer {
                 // Material#isAir goes through the block registry, which is a poor thing
                 // to ask once per block of every ray.
                 var base = colorTable.baseColorOf(material);
-                // Colorless on maps (glass, torches, saplings): continue like vanilla.
-                if (base != MapBaseColor.NONE) {
-                    // Crops and the like wear a different color as they grow, and only
-                    // they are worth reading a whole block state for.
-                    if (colorTable.variesByState(material)) {
-                        var data = snapshot.blockDataAt(x, y, z);
-                        if (data != null)
-                            base = colorTable.baseColorOf(material, data);
+                if (!layered) {
+                    // Colorless on maps (glass, torches): continue like vanilla.
+                    if (base != MapBaseColor.NONE) {
+                        surfaceAt(snapshot, shading, material,
+                                resolveBase(snapshot, material, base, x, y, z),
+                                x, y, z, face, stepX, stepZ, t, out);
+                        return;
                     }
-                    out.hit = true;
-                    out.material = material;
-                    out.base = base;
-                    out.face = face;
-                    out.distance = t;
-                    out.darken = shading.stepsAt(snapshot, colorTable, x, y, z, face, stepX, stepZ);
-                    return;
+                } else if (water.measures() && base != MapBaseColor.NONE && water.isWater(material)) {
+                    // Not a hit yet: the column is followed to its floor and the cells
+                    // counted, because that count is the colour.
+                    run.enter(base, face, t, x, y, z);
+                } else {
+                    // Anything that is not water ends a column, air and glass included: a
+                    // ray can leave a waterfall sideways as easily as through its bed.
+                    if (run.cells > 0 && !closeColumn(snapshot, shading, water, run, stepX, stepZ, out))
+                        return;
+
+                    if (base != MapBaseColor.NONE) {
+                        var coverage = colorTable.coverageOf(material);
+                        base = resolveBase(snapshot, material, base, x, y, z);
+                        if (coverage >= 1.0f || !out.addLayer(base, face, coverage)) {
+                            surfaceAt(snapshot, shading, material, base, x, y, z, face, stepX, stepZ, t, out);
+                            return;
+                        }
+                        if (out.layers == 1)
+                            out.distance = t; // stands in until a surface is reached
+                    }
                 }
             } else if ((y >= snapshot.maxY() && stepY >= 0) || (y < snapshot.minY() && stepY <= 0)) {
                 // Left the world and will not come back.
+                finishLayers(snapshot, shading, water, run, stepX, stepZ, out);
                 return;
             }
 
@@ -263,8 +315,111 @@ public final class IsometricRenderer {
                 face = RayHit.Face.SIDE_Z;
             }
             if (t > maxDist) {
+                finishLayers(snapshot, shading, water, run, stepX, stepZ, out);
                 return;
             }
+        }
+    }
+
+    /**
+     * Records the surface the ray stopped on. Whatever layers it gathered on the way stay
+     * where they are, in front of it.
+     */
+    private void surfaceAt(WorldSnapshot snapshot, Shading shading, Material material,
+                           MapBaseColor base, int x, int y, int z, RayHit.Face face,
+                           int stepX, int stepZ, double t, RayHit out) {
+        out.hit = true;
+        out.opaque = true;
+        out.material = material;
+        out.base = base;
+        out.face = face;
+        out.distance = t;
+        out.darken = shading.stepsAt(snapshot, colorTable, x, y, z, face, stepX, stepZ);
+    }
+
+    /**
+     * The colour of this particular block: crops and the like wear a different one as they
+     * grow, and only they are worth reading a whole block state for.
+     */
+    private MapBaseColor resolveBase(WorldSnapshot snapshot, Material material,
+                                     MapBaseColor base, int x, int y, int z) {
+        if (!colorTable.variesByState(material))
+            return base;
+
+        var data = snapshot.blockDataAt(x, y, z);
+        return data != null ? colorTable.baseColorOf(material, data) : base;
+    }
+
+    /**
+     * Resolves the water column the ray has just left and reports whether the walk should
+     * carry on past it.
+     *
+     * <p>Only translucent water lets it: there the column becomes a layer, weighted by how
+     * deep it was, and the floor underneath is still to be found. In {@code DEPTH} the
+     * surface <i>is</i> the answer, and so is a translucent column that found no room for
+     * a layer — three vines' worth of water is not water you can see into.</p>
+     */
+    private boolean closeColumn(WorldSnapshot snapshot, Shading shading, Water water, WaterRun run,
+                                int stepX, int stepZ, RayHit out) {
+        if (water.translucent()
+            && out.addLayer(run.base, run.face, water.opacity(run.cells))) {
+            if (out.layers == 1)
+                out.distance = run.t;
+
+            run.reset();
+            return true;
+        }
+        surfaceAt(snapshot, shading, Material.WATER, run.base,
+                run.x, run.y, run.z, run.face, stepX, stepZ, run.t, out);
+        out.darken += water.depthSteps(run.cells);
+        return false;
+    }
+
+    /**
+     * Settles a ray that ran out of world or of distance with something still pending: a
+     * water column it never found the floor of, or layers with nothing behind them.
+     *
+     * <p>A ray that only grazed a tuft of grass leaves it: the palette has no
+     * translucency, so the same majority rule the supersampler uses decides whether the
+     * layers are the pixel or the sky is.</p>
+     */
+    private void finishLayers(WorldSnapshot snapshot, Shading shading, Water water, WaterRun run,
+                              int stepX, int stepZ, RayHit out) {
+        if (run.cells > 0 && !closeColumn(snapshot, shading, water, run, stepX, stepZ, out))
+            return;
+
+        out.hit = out.layers > 0 && out.covered() >= MIN_VISIBLE_COVERAGE;
+    }
+
+    /**
+     * Water column the ray is in the middle of, kept per render band so measuring one
+     * costs no allocation.
+     */
+    private static final class WaterRun {
+        private int cells;
+        private MapBaseColor base;
+        private RayHit.Face face;
+        private double t;
+        private int x;
+        private int y;
+        private int z;
+
+        /**
+         * Counts a cell, remembering where the column was entered the first time.
+         */
+        private void enter(MapBaseColor base, RayHit.Face face, double t, int x, int y, int z) {
+            if (cells++ == 0) {
+                this.base = base;
+                this.face = face;
+                this.t = t;
+                this.x = x;
+                this.y = y;
+                this.z = z;
+            }
+        }
+
+        private void reset() {
+            cells = 0;
         }
     }
 

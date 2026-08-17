@@ -197,10 +197,11 @@ public final class Shading {
     }
 
     /**
-     * Whether a block would show on a map, which is the only sense in which one is
-     * solid here: glass and torches neither hide anything nor occlude anything.
+     * Whether a block hides what is behind it, which is the only sense in which one is
+     * solid here: glass and torches neither hide anything nor occlude anything, and
+     * neither does a tuft of grass the ground shows through.
      */
     private static boolean draws(WorldSnapshot snapshot, BlockColorTable colors, int x, int y, int z) {
-        return colors.baseColorOf(snapshot.materialAt(x, y, z)) != MapBaseColor.NONE;
+        return colors.occludes(snapshot.materialAt(x, y, z));
     }
 }

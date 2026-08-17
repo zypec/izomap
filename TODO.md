@@ -34,8 +34,9 @@ T30 (renk pipeline'ının parametrikleşmesi) ✔
 T37 (temel renk tablosunun wiki ile denetimi) ✔
  └── T35 (ot bloklarının rengi) ✔
 
-T49 (kısmi kaplama / karıştırma aşaması)
- └── T57 (su render'ı, TRANSLUCENT kipi)
+T49 (kısmi kaplama / karıştırma aşaması) ✔
+ ├── T57 (su render'ı; DEPTH + TRANSLUCENT ✔, GLINT açık)
+ └── T61 (yüze duyarlı kaplama)
 
 T54 (permission ağacı) ✔
  ├── T53 (çerçeveler)
@@ -289,105 +290,73 @@ durumu). T53'ün Dialog düzenlemesiyle birlikte planlanmalı.
 
 ### T57 — Su fazla düz duruyor
 
-`[ ]` **P1** · 2026-08-16 · İlgili: T49 (karıştırma aşaması)
+`[~]` **P1** · 2026-08-16 · Bağımlı: T49 ✔ · 1 ve 2 yapıldı (2026-08-17); yalnızca 3 açık
 
-Su tek bir `WATER` temel renginin tek tonu olarak çıkıyor: göl de okyanus da aynı düz
+Su tek bir `WATER` temel renginin tek tonu olarak çıkıyordu: göl de okyanus da aynı düz
 mavi. Vanilla harita bile bunu yapmıyor — orada su **derinliğe göre** tonlanır.
 
-Config: `photo.water.mode`, üç kip, sırayla uygulanabilir:
+**Yapılan.** `WaterSpec` + `Water` eklendi, `photo.water.mode` üç kip:
 
-1. **`DEPTH` (önerilen ilk adım, neredeyse bedava).** Işın suya girdiğinde durmak yerine
-   kaç blok su geçtiğini sayar, sonra dibe ya da sınıra varınca durur; sayıya göre bir ya
-   da iki ton iner. Sığ kıyı açık, derin okyanus koyu olur ve kıyı çizgisi kendiliğinden
-   belirir. Vanilla haritanın yaptığı da tam olarak budur, yani "gerçekçi mi" tartışması
-   yok.
-2. **`TRANSLUCENT`.** T49'un karıştırma aşaması gelince: su rengi, dipteki bloğun rengiyle
-   derinliğe bağlı bir oranla karışır. Sığ suda kum/çakıl görünür, derinde su kazanır.
-   T49 olmadan yapılmaz, o yüzden ona bağlı.
-3. **`GLINT` (deneysel).** Güneşin yansıma yönüne yakın yüzeylerde dağınık bir ton
-   yukarı; süpersamplingle birlikte parıltı gibi durur. Riski: paletle birleşince
-   "kirli" görünebilir, denenmeden karar verilmez.
+1. **`DEPTH` (varsayılan).** Işın suya girince durmuyor, sütunu takip edip hücreleri
+   sayıyor; `dim-deeper-than` (2) ve `dark-deeper-than` (5) eşiklerine göre yüzey bir ya
+   da iki ton iniyor. Sığ kıyı açık, derin okyanus koyu, kıyı çizgisi kendiliğinden
+   belirir. Varsayılan **açık**: vanilla haritanın yaptığı da tam olarak bu, yani
+   savunulacak bir "gerçekçi mi" tartışması yok.
+2. **`TRANSLUCENT`.** T49'un karıştırma aşamasıyla: sütun bir katman olarak bırakılıyor,
+   ışın dibe devam ediyor ve renk `surface-min` (0.35) ile `opaque-depth` (8) arasında
+   lineer bir oranla karışıyor. Sığ suda kum/çakıl görünüyor, derinde su kazanıyor.
+   `photo.coverage.enabled` kapalı olsa da çalışır — karıştırma yürüyüşün yeteneği,
+   tablonun değil.
 
-Ayrıca su yüzeyi hep `TOP` yüzü aldığından yatay bir düzlem gibi parlıyor; dalga kırığı
-istenirse dünya koordinatına bağlı deterministik bir desenle tek ton oynatılabilir
-(`DEPTH`'in üstüne, ayrı anahtar). Buz, buzul ve `WATER_CAULDRON` bu işin dışında kalır.
+**Derinlik hücreyle sayılıyor, metreyle değil.** Eğik ışın suyun derinliğinden çok hücre
+geçer, yani alçak kameradan bakılan sığ göl biraz derin okunur; vanilla da bu ödünü verir
+ve yürüyüşün hiç ölçmediği dikey derinliği geri kurmaktan ucuz.
 
-### T49 — Kısmi kaplama: ince bloklar bloğun tamamını boyamasın
+`WaterSpec` `CaptureSpec`'e donuyor (gölgelendirme gibi): sunucu kip değiştirdiğinde
+duvarda asılı fotoğrafın yeniden render'ı onu değiştirmiyor, kaydı olmayan eski
+fotoğraflar `FLAT` sayılıyor. Buz, buzul ve `WATER_CAULDRON` dışarıda; `BUBBLE_COLUMN`
+çevresindeki suyla okunuyor. Su altı bitkileri T49'un varsayılan kaplama listesine
+**bilerek** girmedi: sütunun ortasındaki ince bir hücre ölçümü ikiye böler.
 
-`[ ]` **P2** · 2026-08-16 · İlgili: T35 ✔ · Bloke ettiği: T57 (`TRANSLUCENT`)
+5 test (`WaterDepthTest`): iki eşiğin ton indirmesi, `FLAT`'ın derinliği yok sayması,
+sığ saydam suyun dibi göstermesi, `opaque-depth`'te dibin kapanması.
 
-**Soru (oyuncu):** her blok "dolu bir piksel" olmak zorunda mı? Ot, çiçek gibi bloklar
-daha küçük bir kaplamayla çizilse göze daha az batmaz mı?
+**Açık kalan — 3. `GLINT` (deneysel).** Güneşin yansıma yönüne yakın yüzeylerde dağınık
+bir ton yukarı; süpersamplingle parıltı gibi durabilir ama paletle birleşince "kirli"
+görünme riski var, denenmeden karar verilmez. Aynı torbada: su yüzeyi hep `TOP` yüzü
+aldığı için yatay bir düzlem gibi duruyor; dalga kırığı istenirse dünya koordinatına bağlı
+deterministik bir desenle tek ton oynatılabilir (`DEPTH`'in üstüne, ayrı anahtar).
 
-**Cevap: zorunlu değil, ama bugünkü ışın yürüyüşünde öyle.** Render zaten "1 blok = 1
-piksel" değil — ortografik projeksiyonda blok başına düşen piksel `spanHeight / heightPx`
-ile belirlenir (önizlemede blok ~2,7 px, 1024 px'lik bir fotoğrafta ~21 px). Sorun
-çözünürlük değil: DDA her voxel'i **dolu bir küp** sayıyor, dolayısıyla bir ot tutamı
-kendi hücresinin tamamını doygun yeşile boyuyor. T35 bu yüzden "ya hep ya hiç"e
-sıkışmıştı (`NONE` ya da tam blok).
-
-Üçüncü yol, blok başına bir **kaplama oranı** (0.0–1.0) tanımlamak. `NONE` = 0.0, bugünkü
-davranış = 1.0; eksik olan ara değerler. `block-colors.yml`'ye `coverage:` bölümü olarak
-girer, yani mevcut düğmenin genişlemesi olur, yanına rakip bir düğme değil.
-
-İki uygulama biçimi var:
-
-- **(A) Alt-hücre geometrisi.** İşaretli materyalde ışının hücre içindeki gerçek geçiş
-  noktası hesaplanır (giriş `t`'si zaten elimizde) ve yalnızca merkezdeki küçük kutuyu /
-  vanilla'nın çapraz düzlemlerini kesiyorsa isabet sayılır, yoksa ışın devam eder. Yüksek
-  zoom'da tutam gerçekten tutam şeklinde çıkar. Zayıf yanı: önizleme çözünürlüğünde ve
-  süpersampling kapalıyken ikili karar kalır, yani gürültüye dönüşür.
-- **(B) Kaplama = alfa (önerilen).** İşaretli materyalde ışın durmaz, arkasındaki bloğu
-  da bulur ve renk `c × bitki + (1−c) × zemin` olarak karışır, sonra palete snap edilir.
-  Her çözünürlükte çalışır, kenar gürültüsü üretmez ve sonuç "biraz yeşile çalan çim"
-  olur. `ColorPipeline#blend` zaten var; `RayHit`'in karışmış rengi taşıması gerekir ve o
-  pikseller hızlı yoldan (önceden hesaplanmış palet tablosu) çıkar.
-
-**Maliyet, B için, sezgiye aykırı biçimde küçük:** bugün ot ışını erken durduruyor;
-B'de ışın zemine kadar devam ediyor — yani maliyet, otun **hiç olmadığı** durumla aynı,
-üstüne piksel başına bir karışım. Başka bir deyişle B, T35'te seçilen `NONE` ile
-neredeyse aynı fiyata, `NONE`'dan daha iyi bir görüntü veriyor.
-
-Karar verilmesi gerekenler: varsayılan `coverage` tablosu olacak mı (dosyanın "varsayılan
-tablo yoktur" kuralı buna karşı), yoksa yalnızca örnek mi; ve hangi bloklar (ot, eğrelti,
-çiçekler, fideler, sarmaşık, şeker kamışı…) hangi oranla.
-
-**Karar (2026-08-16): B denenecek, ve liste elle tutulacak.**
-
-**Neden otomatik değil.** "Blok tam küp mü" sorusunun API'de hazır cevabı yok:
-`BlockData#getCollisionShape` **çarpışma** kutusunu verir, görsel şekli değil — ve tam da
-dertli bloklarda (ot, çiçek, glow lichen, sarmaşık) çarpışma kutusu **boştur**. Yani
-otomatik türetim, düzeltmek istediğimiz blokların hepsini kaçırır. Elle tablo doğru karar.
-
-**Ölçüt: "gerçekte arkasını görüyor musun?"** Bu, blokları üçe ayırıyor ve `slab`'ın niye
-rahatsız etmediğini de açıklıyor:
-
-| Sınıf | Örnek | Ne yapılır |
-|---|---|---|
-| İnce/serpme bitki | ot, eğrelti, çiçek, fide, şeker kamışı, ölü çalı | `coverage` 0.25–0.35, harmanlanır |
-| Yüzeye yapışık kaplama | **glow lichen**, sarmaşık, merdiven (ladder), ray, halı, kar tabakası, nilüfer, redstone tozu | `coverage` 0.1–0.2, harmanlanır |
-| Katı ama yarım blok | slab, stairs, duvar, çit | **dokunulmaz**, 1.0 kalır |
-
-Üçüncü sınıf bilerek dışarıda: bir slab'ın kapladığı yarı hacim *gerçekten* taştır, onu
-zeminle harmanlamak rengi boşuna soldurur. Slab'ın rahatsız etmemesinin sebebi de bu —
-rengi zaten çevresindeki taşla aynı. Onları düzeltmek `coverage` değil **alt-voxel
-yürüyüşü** ister (hücre içinde yükseklik bilgisi), o da bambaşka bir iş.
-
-**Glow lichen'in özel derdi ve ucuz çözümü.** Duvara yapışık bir kaplama, ön yüzünden
-bakınca gerçekten o yüzü kaplar (kaplama doğrudur), yandan bakınca ise koca bir küp
-boyar (tuhaf olan bu). Işının girdiği yüz zaten elimizde (`RayHit.Face`), yani tablo
-istenirse yüze göre iki değer taşıyabilir: `coverage: {face: 0.9, side: 0.15}`. Ekstra
-maliyet bir tablo okuması. **Sıra:** önce tek skaler değerle B, sonra gerekirse yüze
-duyarlı hâli.
-
-**Üst üste ince bloklar.** Uzun ot iki blok, sarmaşık bir sütun olabilir. Karıştırma
-biriktirilir (geçirgenlik çarpılarak) ve bir sınırda kesilir (öneri: en çok 3 ince
-katman, sonra sonuncusu opak sayılır) — yoksa sarmaşık perdesi ışını dünyanın öbür
-ucuna kadar yürütür.
+Dokunulanlar: `WaterSpec`, `Water`, `IsometricRenderer`, `CaptureSpec`, `PhotoStorage`,
+`ConfigManager`, `config.yml`, `WaterDepthTest`, `IZOMAP.md` §3.
 
 ---
 
 ## P2 — Teknik borç
+
+### T61 — Yüze duyarlı kaplama: halı, kar ve glow lichen
+
+`[ ]` **P2** · 2026-08-17 · Açan: T49 ✔
+
+T49 kaplamayı tek skaler olarak getirdi ve bir sınıf blok bu yüzden listeye **girmedi**:
+duvara/zemine yapışık kaplamalar. Bunlar bastıkları yüzü gerçekten tam kaplar, yalnızca
+yandan bakınca incedir. Tek sayı ikisine de yanlış cevap veriyor — kar tabakasına 0.15
+vermek kar tarlasını yeşile çalar, 1.0 vermek yandan bakınca koca bir küp boyar.
+
+Işının girdiği yüz zaten `RayHit.Face`'te duruyor, yani tablo iki değer taşıyabilir:
+
+```yaml
+coverage:
+  GLOW_LICHEN: {face: 0.9, side: 0.15}
+```
+
+Ek maliyet bir tablo okuması. Kapsam: halı ve yosun halısı, kar tabakası, nilüfer,
+redstone tozu, glow lichen, sculk damarı, pink petals, ray.
+
+**Karar verilmesi gereken:** "yüz" hangi yüzdür? Blok kendi durumunda hangi yüze yapışık
+olduğunu biliyor (`MultipleFacing`, `Directional`) ama bunu okumak `variesByState` gibi
+isabet başına bir blok durumu okuması demek. Ucuz alternatif: kaplamanın yatay/dikey
+olduğunu materyalden varsaymak (halı ve kar hep zemin, lichen değişken).
 
 ### T42 — Kamera paylaşımı / başkasının kamerasını görüntüleme
 
@@ -401,6 +370,76 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T49 — Kısmi kaplama: ince bloklar bloğun tamamını boyamasın
+
+`[x]` **P2** · 2026-08-17 · İlgili: T35 ✔ · Açtığı: T61 · Bloke ettiği: T57 (`TRANSLUCENT`) ✔
+
+**Soru (oyuncu):** her blok "dolu bir piksel" olmak zorunda mı? Ot, çiçek gibi bloklar
+daha küçük bir kaplamayla çizilse göze daha az batmaz mı?
+
+**Cevap: zorunlu değildi, artık değil.** Sorun çözünürlük değildi — ortografik
+projeksiyonda blok başına düşen piksel `spanHeight / heightPx` (önizlemede ~2,7 px,
+1024 px'lik fotoğrafta ~21 px) — DDA'nın her voxel'i **dolu küp** saymasıydı; bir ot tutamı
+kendi hücresinin tamamını doygun yeşile boyuyordu. T35 bu yüzden "ya hep ya hiç"e
+sıkışmıştı (`NONE` ya da tam blok).
+
+**Uygulanan: (B) kaplama = alfa.** Tabloya blok başına bir **kaplama oranı** girdi
+(`NONE` = 0.0, eski davranış = 1.0). İşaretli blokta ışın durmuyor; rengi payı kadar
+`RayHit`'e katman olarak yazılıyor, ışın arkadakini buluyor ve `ColorPipeline#compositeRgb`
+katmanları paylarınca üst üste bindirip palete snap ediyor. Alternatif (A) alt-hücre
+geometrisi değerlendirildi ve **hayır**: önizleme çözünürlüğünde ve süpersampling
+kapalıyken ikili karara düşüp gürültüye dönüşüyor.
+
+**Maliyet sezgiye aykırı biçimde küçük çıktı:** ışın eskiden otta duruyordu, artık zemine
+kadar gidiyor — yani maliyet o bloğun `NONE` olduğu durumla aynı, üstüne piksel başına bir
+karışım. Bu yüzden gölgelendirmenin tersine varsayılan **açık**
+(`photo.coverage.enabled`): efekt değil, render'ın dünya hakkındaki yanlışının
+düzeltilmesi.
+
+**Liste elle tutuluyor, çünkü türetilemiyor.** `BlockData#getCollisionShape` **çarpışma**
+kutusunu verir, görsel şekli değil — ve tam da dertli bloklarda (ot, çiçek, glow lichen,
+sarmaşık) o kutu **boştur**. Ölçüt "gerçekte arkasını görüyor musun?":
+
+| Sınıf | Örnek | Ne yapıldı |
+|---|---|---|
+| İnce/serpme bitki | ot, eğrelti, çiçek, fide, şeker kamışı, mantar, örümcek ağı | `0.30` |
+| Yüzeye yapışık / ince iskelet | sarmaşık, glow lichen, sculk damarı, merdiven, zincir, ray | `0.15` |
+| Katı ama yarım blok | slab, stairs, duvar, çit | **dokunulmadı**, `1.0` |
+
+Varsayılan tablo koda girdi (`DEFAULT_COVERAGE`), dosyaya değil: `block-colors.yml`'nin
+"varsayılan tablo yoktur" kuralı **override edilebilir** şeyler içindir, kaplama ise
+sunucudan hiç okunamıyor. Dosyadaki `coverage:` bölümü onu eziyor ve renk tablosuyla aynı
+yerde durduğu için `/izocam reload` ile yenileniyor, fotoğrafa donmuyor.
+
+**Üç karar daha:**
+
+- **Katman tavanı 3** (`RayHit.MAX_LAYERS`), sonraki blok katı sayılıyor — yoksa sarmaşık
+  perdesi ışını dünyanın öbür ucuna kadar yürütür. En ince kademede üç katman zaten 0.66
+  opaklık demek, ötesi palete sığmıyor.
+- **Katman kendi gölgesini sormuyor**, arkasındaki yüzeyin `darken`'ını alıyor: tutam
+  üstünde bittiği toprağın ışığında durur, ve katman başına sormak kadraja giren her
+  yaprak için ikinci bir gölge ışını demekti.
+- **Arkasında hiçbir şey yoksa** (silüet) çoğunluk kuralı işliyor — süpersampler'ın
+  örneklerine uyguladığının aynısı: toplam kaplama %50'nin altındaysa piksel gökyüzüne
+  bırakılıyor. Tek tutam gökyüzünü yeşile boyamıyor, üç katman boyuyor.
+
+**Yan düzeltme:** ince blok artık gölge atmıyor ve ambient occlusion'a katılmıyor
+(`BlockColorTable#occludes` renksizlerin yanına kaplaması 0.5'in altındakileri de aldı).
+Zemini gösteren bir tutamın o zemine blok boyunda gölge düşürmesi tuhaftı.
+
+7 test (`PartialCoverageTest`), sahte bir chunk üzerinde **gerçek ışın yürüyüşüyle**:
+payın doğru oranda karışması, kapalıyken eski davranış, katman tavanı, silüetteki
+çoğunluk kuralı, ince bloğun perde olmaması.
+
+Halı, kar tabakası, nilüfer ve redstone tozu bilerek listede yok; onlar yüze duyarlı
+kaplama istiyor → **T61**.
+
+Dokunulanlar: `BlockColorTable`, `RayHit`, `ColorPipeline`, `IsometricRenderer`, `Shading`,
+`ConfigManager`, `block-colors.yml`, `config.yml`, `messages.yml`, `PartialCoverageTest`,
+`FakeChunk`, `IZOMAP.md` §3.
+
+---
 
 ### T60 — Alan derinliği: odak slider'ı ve bokeh
 
