@@ -416,6 +416,92 @@ yüzü gerçekten kaplar, yandan bakınca koca bir küp boyar. Işının girdiğ
 — maliyeti bir tablo okuması. Halı, kar tabakası, nilüfer ve redstone tozu bu yüzden
 varsayılan listede **yok**: tek skalerle kar tarlası yeşile çalardı.
 
+### Biome tint (`BiomeTints`, `ServerBiomeColors`, `biome-tints.yml`)
+
+Çim, yaprak ve su oyunda biome'a göre farklı renktedir; bataklık koyu yeşil, çöl sarımsı,
+karlı ova mavimsi, ılık okyanus turkuaz. **Vanilla haritada bu yoktur** — harita blok
+başına tek sabit renk kullanır — yani bu, önceki başlıkların aksine bir düzeltme değil,
+bilinçli bir **ayrılma**. Gerekçesi tek cümle: fotoğrafın işi manzarayı göstermek,
+manzaranın haritasını değil. `photo.biome-tint.enabled` ile kapanır, `strength` ile
+yumuşar.
+
+#### Renkler sunucudan okunur (eklentinin tek NMS dokunuşu)
+
+Bukkit vermiyor: `org.bukkit.block.Biome` bir anahtardan ibaret, renkler sunucu tarafındaki
+biome efektlerinde duruyor. Alternatif, jar'a gömülü bir hex tablosuydu; Mojang her biome
+eklediğinde elle güncellenmesi gerekirdi ve **datapack biome'ları hiç tint almazdı**. Bu
+yüzden renkler blok renkleri gibi **sunucuya sorulur**: `Biome#getGrassColor`,
+`#getFoliageColor`, `#getWaterColor`.
+
+Bedeli sunucu iç yapısına bağımlılık, ve o bedel §9'daki dört kuralla sınırlanmış:
+`ServerBiomeColors` tek sınıf, **açılışta bir kez** çağrılıyor (sıcak yolda asla),
+çağıran taraf `LinkageError` dahil her şeyi yakalıyor ve tinti kapatıp log'luyor. Kayıt
+donmuş ve datapack'ler uygulanmış olduğu için okuma `onEnable`'dadır, daha erken değil.
+
+`getGrassColor` koordinat ister, çünkü iki biome onu konuma göre değiştirir (bataklık iki
+yeşil arasında gürültüyle seçer, karanlık orman geleni koyulaştırır). Işın döngüsünde
+sunucu içine girmemek için tablo rengi **(0,0)**'da alır: bataklık iki yeşilinden biriyle
+çıkar, ikisiyle değil.
+
+#### Tint bloğun rengini değiştirmez, tonunu verir
+
+İki kestirme yol da yanlış:
+
+- **Biome rengini doğrudan kullanmak.** O renk, istemcinin *gri bir dokuyu çarptığı*
+  değerdir; ham kullanılırsa çayır paletle alakası olmayan bir parlaklıkta çıkar.
+- **Temel renkle çarpmak.** Vanilla'nın `WATER`'ı (#4040FF) gerçek suyla (plains'te
+  #3F76E4) hue paylaşmayan stilize bir mavidir; birini diğerine oranlayınca bataklığın
+  yeşil suyu **mor** çıkıyor.
+
+Uygulanan formül, tinte kendi hue'sunu bırakıp parlaklığı bloktan ödünç alıyor:
+
+```
+sonuç = biome_rengi × parlaklık(blok_temel_rengi) / parlaklık(referans_biome_rengi)
+```
+
+Referans **plains**. Bundan iki şey çıkıyor: plains fotoğrafı eskisi gibi çıkar (referans
+sadeleşir), ve bloklar birbirinden ayrışmaya devam eder — bir ot tutamı (`PLANT`) her
+biome'da çim bloğundan (`GRASS`) daha koyudur, çünkü tintlenen şey kendi parlaklığıdır.
+`strength` sonucu tintsiz renge doğru geri çeker.
+
+Yüz parlaklığı (255/220/180/135) tintten **sonra** uygulanır, yani tintli bir yüzey de
+diğerleri gibi gölgelenir.
+
+#### Maliyet: snap önbelleği
+
+Tintli renk tanımı gereği paletin dışındadır, yani her tintli piksel bir `snap` — 244
+girdilik arama — demektir; bir çayır bunu piksel piksel öderdi. Ama *bir blok türü + bir
+biome* her seferinde aynı rengi verir, o yüzden `ColorPipeline` tint başına 256'lık bir
+satır tutup ilk hesaptan sonrasını dizi okumasına indiriyor. Satırlar atomik diziyle
+yayımlanıyor; aynı satırı iki thread doldurursa ikisi de aynı sayıyı hesaplar, kaybeden
+yalnızca boşa çalışmış olur.
+
+Chunk kopyası, tint açıkken **biome dizisini de** taşır (ışıkta olduğu gibi): kapalıyken
+hiç taşınmaz.
+
+#### Hangi blok hangi kanalı alır
+
+`block-colors.yml` → `tint`; varsayılan liste `BlockColorTable.DEFAULT_TINTS`:
+
+| Kanal | Bloklar |
+|---|---|
+| `GRASS` | çim bloğu, ot, uzun ot, eğrelti, büyük eğrelti, şeker kamışı |
+| `FOLIAGE` | meşe/jungle/akasya/karanlık meşe yaprağı, sarmaşık |
+| `WATER` | su, bubble column |
+
+Ladin, huş, kiraz ve azalya yaprakları bilerek dışarıda: vanilla onları colormap'ten
+değil **sabit** renklerinden boyar. Bu liste de sunucudan okunamaz — bir bloğun colormap
+kullanıp kullanmadığı istemcinin çizim kodunda yazar — o yüzden elle tutuluyor, kaplama
+listesi gibi.
+
+**T62'nin kanıtı burada işe yaradı:** `short_grass.png` ve `fern.png` dokuları gridir
+(#929192, #7C7D7C); renkleri istemcide colormap'ten gelir. "Doku ortalamasını al" yöntemi
+bu bloklarda geçersizdir, tint tablosu şarttır.
+
+**Açık kalan:** konuma bağlı `grass_color_modifier` (bataklık gürültüsü, karanlık orman
+koyulaştırması) tablo tek renk tuttuğu için düzleşiyor; kuru yaprak rengi
+(`getDryFoliageColor`) hiç kullanılmıyor.
+
 ### Su: derinlik ve saydamlık (`Water`, `WaterSpec`)
 
 Su tek bir `WATER` tonu olarak çıkıyordu: göl de okyanus da aynı düz mavi. Vanilla harita
@@ -1621,7 +1707,7 @@ toplanır ve değerler mantıklı aralıklara clamp'lenir.
 |---|---|
 | `settings` | `max-capture-area` (64-4096), `render-depth` (0-1024), `render-threads` (1-16), `render-timing`, `load-missing-chunks`, `generate-missing-chunks`, `max-cameras-per-player`, `max-photos-per-camera`, `max-map-tiles` (1-4096), `correct-vanilla-colors` |
 | `camera` | `display-type`, `model-material`, `item-display-transform`, `interaction-size` (0.1-3.0), `zoom-step` (1.01-4.0), `model-scale` (0.1-8.0), `angle-step`, `move-step` (0.05-16.0), `default-pitch` (-90..90), `edit-lock-seconds` (1-3600), `model-rotation.{x,y,z}`, `hologram.{enabled, offset-y (-4..8), view-range (0.1-10), billboard, background}` |
-| `photo` | `sky.colors.*`, `sky.gradient`, `sky.horizon-blend`, `sky.dither`, `coverage.enabled`, `water.{mode, dim-deeper-than (1-256), dark-deeper-than (1-256), surface-min (0-1), opaque-depth (1-256)}`, `focus.{range (0.02-8), max-radius (0-0.05), samples (4-128), dither (0-128)}`, `style.fast-scale`, `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
+| `photo` | `sky.colors.*`, `sky.gradient`, `sky.horizon-blend`, `sky.dither`, `coverage.enabled`, `biome-tint.{enabled, strength (0-1)}`, `water.{mode, dim-deeper-than (1-256), dark-deeper-than (1-256), surface-min (0-1), opaque-depth (1-256)}`, `focus.{range (0.02-8), max-radius (0-0.05), samples (4-128), dither (0-128)}`, `style.fast-scale`, `default-aspect-ratio`, `frame-height` (4-512), `frame-shift` (-1..1), `supersampling` (1-4) |
 | `placement` | `distance`, `invisible-frames`, `build-backing-wall`, `backing-material`, `timeout-seconds` (5-600) |
 
 **Geriye dönük uyumluluk yok, bilerek.** Eklenti yayınlanmadığı için okunacak eski kurulum
@@ -1642,7 +1728,8 @@ kontrol edip `0.25`'in üstündeyse log uyarısı verir.
 | `config.yml` | Ayarlar |
 | `filters.yml` | Renk filtresi tanımları (kimlik + işlem zinciri; adları `messages.yml`'de) |
 | `messages.yml` | MiniMessage mesajları (`prefix` + anahtar ağacı; oyuncuya gidenler **ve** konsol) |
-| `block-colors.yml` | Blok rengi override'ları ve kaplama oranları (v2) |
+| `block-colors.yml` | Blok rengi override'ları, kaplama oranları ve biome tint kanalları (v2) |
+| `biome-tints.yml` | Biome renklerinin override'ları; varsayılan tablo yoktur, renkler sunucudan okunur |
 | `cameras.yml` | Kameralar (konum, açı, zoom, oran, filtre, üçler kuralı, odak, model/interaction/hologram entity UUID'leri, önizleme harita kimliği) |
 | `photos.yml` | Fotoğraflar (ad, kamera, ızgara, `capture` bloğunda çekim parametreleri; asılıysa `placement` bloğunda harita id'leri, çerçeve UUID'leri ve çıpa koordinatı) |
 | `photos/<uuid>.izm` | Fotoğrafın çekilmiş görüntüsü (palet indeksi + Deflate); YML değil, ikili. Çerçeve `embed: true` ile takıldıysa pikselleri de buradadır |
@@ -1689,7 +1776,11 @@ Yeni bir sabit eklemek yalnızca yeni bir anahtar eklemeyi gerektirir.
    çalışır (`Izomap#asyncExecutor`). Blok/entity/MapView erişimi ise ana thread'e
    döner (`Izomap#runOnMain`); scheduler doğrudan çağrılmaz.
 2. **Paper API, NMS değil.** Mojang-mapped derleme var ama API yeterli olduğu sürece
-   NMS'e inilmez.
+   NMS'e inilmez. Bugün tek bir istisna var — biome renkleri
+   (`ServerBiomeColors`, bkz. §3) — ve kuralı o da tarif ediyor: API'de karşılığı
+   **yok**, dokunuş **tek bir sınıfa** kapatılmış, **açılışta bir kez** çağrılıyor
+   (sıcak yolda değil) ve çağıran taraf `Throwable` yakalayıp özelliği kapatarak devam
+   ediyor. Yeni bir NMS kullanımı bu dördünü de sağlamıyorsa yazılmaz.
 3. **Tüm görünür metin `messages.yml`'den gelir.** Oyuncuya giden mesajlar da,
    **konsola yazılanlar da** (`log.*`). MiniMessage kullanılır; legacy `&` renk kodu
    hiçbir yerde geçmez. `getLogger()` doğrudan çağrılmaz, `Messages#info/warn/error`
@@ -1738,6 +1829,7 @@ fonksiyondan üretir (sorulmayan her metot fırlatır, sessizce sıfır dönmez)
 | `PermissionsTest` | Bedava varsayılanlar, alan düğümü ile tek seçenek düğümü, kare sayısına göre ızgara süzme, en küçük ızgaranın hep kalması |
 | `PhotoFramesTest` | Halkaların içe doğru çizilmesi, içerinin dokunulmazlığı, kaynağın kopyalanması, kısa kenara göre kırpılma |
 | `PhotoExporterTest` | Dosya adı oyuncu girdisidir: yol ayracı, baştaki nokta, uzunluk sınırı |
+| `BiomeTintTest` | Tintin iki kuralı: referans biome'un parlaklığını koruması ve bataklık/çöl/kar yönlerinin doğru sapması; ayrıca tintli pikselin palete oturması |
 | `PartialCoverageTest` | İnce bloğun payı, katman tavanı, arkasında hiçbir şey yokken çoğunluk kuralı — sahte bir chunk üzerinde gerçek ışın yürüyüşü |
 | `WaterDepthTest` | Derinlik eşiklerinin ton indirmesi ve saydam suyun dibi ne kadar gösterdiği |
 | `GridAndSlicingTest` | Dilimlemenin karo sırası — yanlışı ancak duvara asınca görünür |

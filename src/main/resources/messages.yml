@@ -318,6 +318,9 @@ log:
   block-colors-overridden: "<count> blok rengi override edildi."
   # Hücresinin tamamını doldurmayan bloklar (photo.coverage.enabled).
   coverage-ready: "<count> blok hücresinin tamamını doldurmuyor; ışın arkasını görüp rengini karıştıracak."
+  # Biome tint (photo.biome-tint).
+  biome-tints-ready: "<count> biome için çim/yaprak/su rengi sunucudan okundu."
+  biome-tints-overridden: "<count> biome rengi override edildi (biome-tints.yml)."
   camera-world-missing: "Kamera '<camera>' atlandı: dünya yüklü değil (<world>)."
 
   # --- yapılandırma ---
@@ -329,6 +332,12 @@ log:
   override-unknown-block: "<file>: bilinmeyen blok '<block>' atlandı."
   override-invalid-color: "<file>: '<block>' için geçersiz renk '<color>' atlandı."
   coverage-invalid: "<file>: '<block>' için geçersiz kaplama oranı '<value>' atlandı (0.0 ile 1.0 arasında bir sayı olmalı)."
+  tint-channel-invalid: "<file>: '<block>' için geçersiz tint kanalı '<channel>' atlandı. Beklenen: GRASS, FOLIAGE, WATER ya da NONE."
+  biome-tint-unknown: "<file>: bilinmeyen biome adı '<biome>' atlandı."
+  biome-tint-invalid: "<file>: '<biome>' için geçersiz renk '<color>' atlandı."
+  # Sunucunun iç yapısı bu sürümün okuduğu hâlde değilse; fotoğraf tintsiz çekilir.
+  biome-tint-unavailable: "<yellow>Biome renkleri sunucudan okunamadı, biome tint kapatıldı: <reason>"
+  biome-tint-no-reference: "<yellow>Referans biome '<biome>' bulunamadı, biome tint kapatıldı."
 
   # --- render ---
   # Eksik chunk kopyası, fotoğrafta chunk boyunda şeffaf bir delik bırakır.

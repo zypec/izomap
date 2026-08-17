@@ -64,6 +64,9 @@ public final class Izomap extends JavaPlugin {
         this.photoFrames = PhotoFrames.load(this);
         var colorTable = BlockColorTable.load(this);
         this.renderService = new RenderService(this, colorTable);
+        // Datapacks are applied and the registries frozen by the time plugins enable,
+        // which is what makes the biome colours safe to read here and not before.
+        this.renderService.loadBiomeTints();
         this.mapService = new MapService(this);
         this.previewManager = new PreviewManager(this, renderService, mapService);
         var photoKeys = new PhotoKeys(this);

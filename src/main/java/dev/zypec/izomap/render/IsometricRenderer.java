@@ -44,6 +44,8 @@ public final class IsometricRenderer {
      * @param shading       what may darken a surface beyond its own face
      * @param water         how deep water is allowed to look; {@link Water#FLAT} keeps the
      *                      column unmeasured
+     * @param tints         what each biome paints its grass, leaves and water with;
+     *                      {@link BiomeTints#NONE} leaves every block its own colour
      * @param progress      told as each row finishes, or {@code null} when nobody is
      *                      watching the capture
      * @param supersampling antialiasing rays per pixel (NxN); 1 disables it
@@ -52,7 +54,8 @@ public final class IsometricRenderer {
      * @param threads       how many bands, and therefore threads, to use
      */
     public RenderResult render(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
-                               Sky sky, Shading shading, Water water, int supersampling, boolean withDepth,
+                               Sky sky, Shading shading, Water water, BiomeTints tints,
+                               int supersampling, boolean withDepth,
                                CaptureProgress progress, Executor executor, int threads) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
@@ -66,7 +69,7 @@ public final class IsometricRenderer {
 
         var bands = Math.max(1, Math.min(threads, h));
         if (bands == 1) {
-            renderBand(snapshot, geo, pipeline, sky, shading, water, samples, progress, argb, depth, 0, h);
+            renderBand(snapshot, geo, pipeline, sky, shading, water, tints, samples, progress, argb, depth, 0, h);
             return new RenderResult(w, h, argb, depth);
         }
 
@@ -77,9 +80,9 @@ public final class IsometricRenderer {
             final int from = band * rowsPerBand;
             final int to = Math.min(h, from + rowsPerBand);
             pending[band] = CompletableFuture.runAsync(
-                    () -> renderBand(snapshot, geo, pipeline, sky, shading, water, samples, progress, argb, depth, from, to), executor);
+                    () -> renderBand(snapshot, geo, pipeline, sky, shading, water, tints, samples, progress, argb, depth, from, to), executor);
         }
-        renderBand(snapshot, geo, pipeline, sky, shading, water, samples, progress, argb, depth, (bands - 1) * rowsPerBand, h);
+        renderBand(snapshot, geo, pipeline, sky, shading, water, tints, samples, progress, argb, depth, (bands - 1) * rowsPerBand, h);
         CompletableFuture.allOf(pending).join();
 
         return new RenderResult(w, h, argb, depth);
@@ -89,7 +92,8 @@ public final class IsometricRenderer {
      * Renders the row range {@code [yFrom, yTo)}.
      */
     private void renderBand(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
-                            Sky sky, Shading shading, Water water, int samples, CaptureProgress progress,
+                            Sky sky, Shading shading, Water water, BiomeTints tints,
+                            int samples, CaptureProgress progress,
                             int[] argb, float[] depth, int yFrom, int yTo) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
@@ -147,7 +151,7 @@ public final class IsometricRenderer {
 
                         // View distance is measured from the camera plane, so a
                         // pulled-back ray walks the extra distance too.
-                        marchRay(snapshot, shading, water, run,
+                        marchRay(snapshot, shading, water, tints, run,
                                 ox, oy, oz, dx, dy, dz, maxDist + backoff, hit);
                         if (!hit.hit)
                             continue;
@@ -155,12 +159,15 @@ public final class IsometricRenderer {
                         int rgb;
                         if (hit.layers == 0) {
                             var id = pipeline.packedIdOf(hit);
+                            // The tint travels in the key: two samples of the same block
+                            // in two biomes are two colours, however equal their bytes.
+                            var key = id | ((hit.tint + 1) << 8);
                             if (hits == 0) {
-                                firstId = id;
-                            } else if (id != firstId) {
+                                firstId = key;
+                            } else if (key != firstId) {
                                 uniform = false;
                             }
-                            rgb = pipeline.paletteRgbOf(id);
+                            rgb = pipeline.rgbOf(id, hit.tint);
                         } else {
                             // A composited colour is off the palette by definition, so the
                             // pixel has to take the long way out through blend().
@@ -189,7 +196,7 @@ public final class IsometricRenderer {
                 // Samples that all agreed left the color on the palette, so the finished
                 // value was precomputed; only an averaged pixel runs the stages for real.
                 argb[py * w + px] = uniform
-                        ? pipeline.argbOf(firstId)
+                        ? pipeline.argbOf(firstId & 0xFF, (firstId >> 8) - 1)
                         : pipeline.blend(sumR / hits, sumG / hits, sumB / hits);
                 if (depth != null) {
                     depth[py * w + px] = (float) (sumDistance / hits);
@@ -221,13 +228,15 @@ public final class IsometricRenderer {
      * darkens ({@code DEPTH}) or how much of the floor shows through it
      * ({@code TRANSLUCENT}).</p>
      */
-    private void marchRay(WorldSnapshot snapshot, Shading shading, Water water, WaterRun run,
+    private void marchRay(WorldSnapshot snapshot, Shading shading, Water water, BiomeTints tints,
+                          WaterRun run,
                           double ox, double oy, double oz,
                           double dx, double dy, double dz,
                           double maxDist, RayHit out) {
         out.reset();
         run.reset();
         var layered = colorTable.anyPartial() || water.measures();
+        var tinted = tints.enabled();
 
         var x = fastFloor(ox);
         var y = fastFloor(oy);
@@ -268,13 +277,14 @@ public final class IsometricRenderer {
                     if (base != MapBaseColor.NONE) {
                         surfaceAt(snapshot, shading, material,
                                 resolveBase(snapshot, material, base, x, y, z),
+                                tintAt(snapshot, tints, tinted, material, x, y, z),
                                 x, y, z, face, stepX, stepZ, t, out);
                         return;
                     }
                 } else if (water.measures() && base != MapBaseColor.NONE && water.isWater(material)) {
                     // Not a hit yet: the column is followed to its floor and the cells
                     // counted, because that count is the colour.
-                    run.enter(base, face, t, x, y, z);
+                    run.enter(base, face, tintAt(snapshot, tints, tinted, material, x, y, z), t, x, y, z);
                 } else {
                     // Anything that is not water ends a column, air and glass included: a
                     // ray can leave a waterfall sideways as easily as through its bed.
@@ -283,9 +293,11 @@ public final class IsometricRenderer {
 
                     if (base != MapBaseColor.NONE) {
                         var coverage = colorTable.coverageOf(material);
+                        var tint = tintAt(snapshot, tints, tinted, material, x, y, z);
                         base = resolveBase(snapshot, material, base, x, y, z);
-                        if (coverage >= 1.0f || !out.addLayer(base, face, coverage)) {
-                            surfaceAt(snapshot, shading, material, base, x, y, z, face, stepX, stepZ, t, out);
+                        if (coverage >= 1.0f || !out.addLayer(base, face, tint, coverage)) {
+                            surfaceAt(snapshot, shading, material, base, tint,
+                                    x, y, z, face, stepX, stepZ, t, out);
                             return;
                         }
                         if (out.layers == 1)
@@ -326,15 +338,32 @@ public final class IsometricRenderer {
      * where they are, in front of it.
      */
     private void surfaceAt(WorldSnapshot snapshot, Shading shading, Material material,
-                           MapBaseColor base, int x, int y, int z, RayHit.Face face,
+                           MapBaseColor base, int tint, int x, int y, int z, RayHit.Face face,
                            int stepX, int stepZ, double t, RayHit out) {
         out.hit = true;
         out.opaque = true;
         out.material = material;
         out.base = base;
+        out.tint = tint;
         out.face = face;
         out.distance = t;
         out.darken = shading.stepsAt(snapshot, colorTable, x, y, z, face, stepX, stepZ);
+    }
+
+    /**
+     * Which biome tint this block takes here, or {@link RayHit#NO_TINT} for the blocks —
+     * nearly all of them — that look the same wherever they stand.
+     *
+     * <p>The biome is only read for a block that is tinted at all, so a stone wall costs
+     * one array read and no chunk lookup.</p>
+     */
+    private int tintAt(WorldSnapshot snapshot, BiomeTints tints, boolean tinted,
+                       Material material, int x, int y, int z) {
+        if (!tinted)
+            return RayHit.NO_TINT;
+
+        var channel = colorTable.tintChannelOf(material);
+        return channel == null ? RayHit.NO_TINT : tints.indexOf(snapshot.biomeAt(x, y, z), channel);
     }
 
     /**
@@ -362,14 +391,14 @@ public final class IsometricRenderer {
     private boolean closeColumn(WorldSnapshot snapshot, Shading shading, Water water, WaterRun run,
                                 int stepX, int stepZ, RayHit out) {
         if (water.translucent()
-            && out.addLayer(run.base, run.face, water.opacity(run.cells))) {
+            && out.addLayer(run.base, run.face, run.tint, water.opacity(run.cells))) {
             if (out.layers == 1)
                 out.distance = run.t;
 
             run.reset();
             return true;
         }
-        surfaceAt(snapshot, shading, Material.WATER, run.base,
+        surfaceAt(snapshot, shading, Material.WATER, run.base, run.tint,
                 run.x, run.y, run.z, run.face, stepX, stepZ, run.t, out);
         out.darken += water.depthSteps(run.cells);
         return false;
@@ -399,18 +428,22 @@ public final class IsometricRenderer {
         private int cells;
         private MapBaseColor base;
         private RayHit.Face face;
+        private int tint;
         private double t;
         private int x;
         private int y;
         private int z;
 
         /**
-         * Counts a cell, remembering where the column was entered the first time.
+         * Counts a cell, remembering where the column was entered the first time. The
+         * biome is the surface's, so a river running out of a swamp changes colour where
+         * the bank does rather than where its bed does.
          */
-        private void enter(MapBaseColor base, RayHit.Face face, double t, int x, int y, int z) {
+        private void enter(MapBaseColor base, RayHit.Face face, int tint, double t, int x, int y, int z) {
             if (cells++ == 0) {
                 this.base = base;
                 this.face = face;
+                this.tint = tint;
                 this.t = t;
                 this.x = x;
                 this.y = y;

@@ -1,0 +1,40 @@
+# ============================================================
+#  Izomap - Biome Tint Override'ları
+#
+#  Çim, yaprak ve su, oyunda biome'a göre farklı renktedir. Eklenti bu renkleri
+#  SUNUCUDAN okur (açılışta bir kez, biome kaydından), yani:
+#    - vanilla biome'ların tamamı zaten doğrudur,
+#    - datapack'le eklenmiş ya da rengi değiştirilmiş biome'lar da doğrudur,
+#    - burada varsayılan bir tablo YOKTUR; bu dosya yalnızca sunucunun verdiği renkle
+#      aynı fikirde olmadığın biome'lar içindir.
+#
+#  Tintin tamamını kapatmak ya da yumuşatmak için: config.yml -> photo.biome-tint.
+#  Hangi bloğun hangi kanalı (grass / foliage / water) aldığı: block-colors.yml -> tint.
+#
+#  NASIL UYGULANIR (bilmek işine yarar): buradaki renk bloğun rengini DEĞİŞTİRMEZ,
+#  ona kendi TONUNU verir. Blok kendi parlaklığını korur:
+#
+#      sonuç = biome_rengi × parlaklık(blok_temel_rengi) / parlaklık(plains_rengi)
+#
+#  Referans plains'tir, yani plains fotoğrafı eskisi gibi çıkar ve diğer biome'lar
+#  plains'e göre kayar. Bu yüzden buradaki bir rengi KOYULAŞTIRMAK o bloğu koyulaştırır;
+#  rengin parlaklığı değil, TONU (hue) esas alınır.
+#
+#  Biome adı: "swamp" (minecraft: varsayılan) ya da "mypack:volcano".
+#  Kanal değeri hex; yazmadığın kanal sunucunun verdiği hâlde kalır.
+# ============================================================
+
+# Sürüm alanı ileride göç (migration) gerekirse diye duruyor; şu an okunmuyor.
+version: 1
+
+overrides:
+  # Örnek: bataklık suyunu daha yeşil yap (vanilla #617B64):
+  # swamp:
+  #   water: "#4F6B50"
+  # Örnek: çölün çimini vanilla'dan daha sarı göster:
+  # desert:
+  #   grass: "#D6C24A"
+  #   foliage: "#C9B93A"
+  # Örnek: datapack biome'unun suyunu elle ver:
+  # "mypack:volcano":
+  #   water: "#7A2E14"

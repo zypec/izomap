@@ -11,6 +11,7 @@ import java.io.File;
 import java.util.Arrays;
 import java.util.EnumMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -257,6 +258,36 @@ public final class BlockColorTable {
         return map;
     }
 
+    /**
+     * Blocks the world tints by biome, and which of the biome's three colours each one
+     * takes.
+     *
+     * <p>Hand-kept for the same reason coverage is: which blocks the client runs through
+     * a colormap is decided in its rendering code, not in anything a server can be asked.
+     * The list is the colormap-tinted ones only — spruce, birch, cherry and azalea leaves
+     * carry a <b>fixed</b> colour of their own in vanilla and are left alone, and so is
+     * every block whose colour never depended on where it stands.</p>
+     */
+    private static final Map<Material, BiomeTints.Channel> DEFAULT_TINTS = defaultTints();
+
+    private static Map<Material, BiomeTints.Channel> defaultTints() {
+        Map<Material, BiomeTints.Channel> map = new EnumMap<>(Material.class);
+        for (var material : List.of(
+                Material.GRASS_BLOCK, Material.SHORT_GRASS, Material.TALL_GRASS,
+                Material.FERN, Material.LARGE_FERN, Material.SUGAR_CANE)) {
+            map.put(material, BiomeTints.Channel.GRASS);
+        }
+        for (var material : List.of(
+                Material.OAK_LEAVES, Material.JUNGLE_LEAVES, Material.ACACIA_LEAVES,
+                Material.DARK_OAK_LEAVES, Material.VINE)) {
+            map.put(material, BiomeTints.Channel.FOLIAGE);
+        }
+        for (var material : List.of(Material.WATER, Material.BUBBLE_COLUMN)) {
+            map.put(material, BiomeTints.Channel.WATER);
+        }
+        return map;
+    }
+
     private final Map<Material, MapBaseColor> colors = new EnumMap<>(Material.class);
     /**
      * Colors per age, for the materials that have more than one. Absent means the
@@ -276,6 +307,12 @@ public final class BlockColorTable {
      * fast path when nothing does.
      */
     private boolean anyPartial;
+
+    /**
+     * Biome channel per {@link Material#ordinal()}, or {@code null} for the blocks that
+     * look the same wherever they stand — which is nearly all of them.
+     */
+    private final BiomeTints.Channel[] tints = new BiomeTints.Channel[Material.values().length];
 
     /**
      * Blocks reporting a base color this build's table does not know, counted across
@@ -300,6 +337,8 @@ public final class BlockColorTable {
         table.applyOverrides(plugin, file);
         if (plugin.config().partialCoverage())
             table.applyCoverage(plugin, file);
+
+        table.applyTints(plugin, file);
 
         plugin.messages().info("log.block-colors-ready",
                 Placeholder.unparsed("count", String.valueOf(table.colors.size())));
@@ -559,6 +598,61 @@ public final class BlockColorTable {
             plugin.messages().info("log.coverage-ready",
                     Placeholder.unparsed("count", String.valueOf(partialCount())));
         }
+    }
+
+    /**
+     * Fills the biome-channel table: the built-in list, then {@code tint:} from the file
+     * over it. Read whether or not the tint is switched on, so turning it on needs no
+     * colour reload of its own.
+     */
+    private void applyTints(Izomap plugin, YamlConfiguration cfg) {
+        DEFAULT_TINTS.forEach((material, channel) -> {
+            if (colors.containsKey(material))
+                tints[material.ordinal()] = channel;
+        });
+
+        var section = cfg.getConfigurationSection("tint");
+        if (section == null) return;
+
+        for (var key : section.getKeys(false)) {
+            var material = Material.matchMaterial(key);
+            if (material == null || !material.isBlock()) {
+                plugin.messages().warn("log.override-unknown-block",
+                        Placeholder.unparsed("file", FILE_NAME),
+                        Placeholder.unparsed("block", key));
+                continue;
+            }
+            var raw = String.valueOf(section.getString(key)).trim().toUpperCase(Locale.ROOT);
+            if (raw.equals("NONE")) {
+                tints[material.ordinal()] = null;
+                continue;
+            }
+            var channel = channelByName(raw);
+            if (channel == null) {
+                plugin.messages().warn("log.tint-channel-invalid",
+                        Placeholder.unparsed("file", FILE_NAME),
+                        Placeholder.unparsed("block", key),
+                        Placeholder.unparsed("channel", String.valueOf(section.get(key))));
+                continue;
+            }
+            tints[material.ordinal()] = channel;
+        }
+    }
+
+    private static BiomeTints.Channel channelByName(String name) {
+        for (var channel : BiomeTints.Channel.values()) {
+            if (channel.name().equals(name))
+                return channel;
+        }
+        return null;
+    }
+
+    /**
+     * Which of a biome's colours this block is painted with, or {@code null} when it
+     * looks the same everywhere.
+     */
+    public BiomeTints.Channel tintChannelOf(Material material) {
+        return tints[material.ordinal()];
     }
 
     private void setCoverage(Material material, float value) {

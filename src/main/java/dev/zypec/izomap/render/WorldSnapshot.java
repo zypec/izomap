@@ -2,6 +2,7 @@ package dev.zypec.izomap.render;
 
 import org.bukkit.ChunkSnapshot;
 import org.bukkit.Material;
+import org.bukkit.block.Biome;
 import org.bukkit.block.data.BlockData;
 
 import java.util.Collection;
@@ -72,6 +73,21 @@ public final class WorldSnapshot {
 
         var snapshot = chunks.get(key(x >> 4, z >> 4));
         return snapshot == null ? null : snapshot.getBlockData(x & 15, y, z & 15);
+    }
+
+    /**
+     * Biome at a world coordinate, or {@code null} when the chunk was not copied.
+     *
+     * <p>Only meaningful when the chunks were copied with biomes; {@code RenderService}
+     * asks for them exactly when something is tinted by biome, since carrying them costs
+     * copy time like the light does.</p>
+     */
+    public Biome biomeAt(int x, int y, int z) {
+        if (y < minY || y >= maxY)
+            return null;
+
+        var snapshot = chunks.get(key(x >> 4, z >> 4));
+        return snapshot == null ? null : snapshot.getBiome(x & 15, y, z & 15);
     }
 
     /**

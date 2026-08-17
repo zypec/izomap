@@ -229,6 +229,22 @@ photo:
   # hacim gerçekten taştır, zeminle harmanlamak rengi boşuna soldurur.
   coverage:
     enabled: true
+  # BIOME TINT. Çim, yaprak ve su, oyunda biome'a göre farklı renktedir: bataklık koyu
+  # yeşil, çöl sarımsı, karlı ova mavimsi, ılık okyanus turkuaz. Vanilla HARİTADA bu yoktur
+  # — harita blok başına tek sabit renk kullanır — yani bu ayar bilinçli olarak vanilla'dan
+  # AYRILIR. Fotoğrafın işi manzarayı göstermek olduğu için varsayılan açık.
+  #
+  # Renkler sunucunun kendisinden okunur (açılışta bir kez), yani datapack'le eklenmiş ya
+  # da değiştirilmiş biome'lar da doğru renk alır ve bakılacak bir tablo yoktur. Sunucu
+  # sürümü eklentinin okuduğu yapıya uymazsa tint kendini kapatır ve log'a yazar.
+  # Tek tek renk değiştirmek için: biome-tints.yml. Hangi bloğun hangi kanalı aldığı ise
+  # block-colors.yml -> tint bölümünde.
+  biome-tint:
+    enabled: true
+    # Biome renginin ne kadarının uygulanacağı. 1.0 = tamamı, 0.5 = yarı yolda,
+    # 0.0 = kapalı. Palet 244 renk olduğu için bazı biome'larda 1.0 ile 0.7 arasında fark
+    # görünmeyebilir; beklenen davranış budur. Aralık: 0.0-1.0.
+    strength: 1.0
   # SU. Su tek bir WATER tonu olarak çıkardı: göl de okyanus da aynı düz mavi. Vanilla
   # harita bile bunu yapmıyor, orada su DERİNLİĞE göre tonlanır.
   #   FLAT        = eski davranış, tek ton (su sütunu hiç ölçülmez)

@@ -29,7 +29,7 @@ T30 (renk pipeline'ının parametrikleşmesi) ✔
  ├── T31 (kullanıcı tanımlı filtreler)
  ├── T32 (gökyüzü) ✔
  ├── T33 (gelişmiş gölgelendirme)
- └── T34 (biome tint)
+ └── T34 (biome tint) ✔
 
 T37 (temel renk tablosunun wiki ile denetimi) ✔
  └── T35 (ot bloklarının rengi) ✔
@@ -235,36 +235,6 @@ gereksizdi (renk tablosu hava için de `NONE` döndürüyor), kaldırıldı.
 - 4 (yükseklik bazlı ton) değerlendirildi ve **hayır**: izometrikte karşılığı zaten yüz
   yönelimi, üstüne eklemek görüntüyü bozar.
 
-### T34 — Biome tint
-
-`[ ]` **P2** · Bağımlı: T30 ✔
-
-Çim, yaprak ve su, oyunda biome'a göre farklı renkte görünür (bataklık koyu yeşil, çöl
-sarımsı, kar beyazımsı vb.).
-
-**Önemli tespit:** Vanilla **haritalarda biome tint yoktur** — harita, blok başına sabit
-temel rengi kullanır. Yani bu madde bilinçli olarak vanilla'dan **ayrılmak** demektir.
-Fotoğraf gerçekçiliği açısından muhtemelen doğru karar, ama config'ten kapatılabilir
-olmalı ve varsayılanı tartışmalı (öneri: varsayılan **açık**, çünkü fotoğrafın amacı
-manzarayı göstermek).
-
-**Uygulama notları:**
-- **Ölçülmüş kanıt (T62):** `short_grass.png` ve `fern.png` dokuları **gri**dir
-  (#929192, #7C7D7C); renk istemcide colormap'ten gelir. Yani "dokunun ortalamasını al"
-  yöntemi bu bloklarda geçersiz, tablo şart.
-- `ChunkSnapshot#getBiome(x, y, z)` snapshot'ta mevcut, asenkron kullanılabilir —
-  ancak snapshot şu an `includeBiome = false` ile alınıyor, bu değişmeli.
-- Paper API biome'un çim/yaprak rengini **doğrudan vermiyor**. Renkler istemci tarafında
-  `grass.png`/`foliage.png` colormap'inden sıcaklık ve nem değerleriyle örnekleniyor.
-  Dolayısıyla kendi tablomuz gerekiyor: `biome-tints.yml` içinde biome → `{grass, foliage,
-  water}` hex değerleri; varsayılan dosya vanilla değerleriyle doldurulur.
-  Kaynak: minecraft.wiki "Color" / "Biome" sayfalarındaki colormap tabloları.
-- Tint yalnızca **tint alan bloklara** uygulanmalı (çim bloğu, yapraklar, sarmaşık, su,
-  şeker kamışı…). Hangi materyalin hangi tint kanalını kullandığı da tablo işidir.
-- Uygulama: temel renk × tint, sonra palete snap. Palet kısıtı yüzünden fark bazı
-  biome'larda görünmeyebilir — beklenen davranış, belgelenmeli.
-- Bilinmeyen/yeni biome → tint yok, temel renk kullanılır.
-
 ### T55 — Gökyüzüne güneş, ay ve yıldızlar
 
 `[ ]` **P1** · 2026-08-16 · Bağımlı: T32 ✔, T54 ✔
@@ -373,6 +343,73 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T34 — Biome tint
+
+`[x]` **P2** · 2026-08-17 · Bağımlı: T30 ✔ · İlgili: T49 ✔, T57 ✔, T62 ✔
+
+Çim, yaprak ve su oyunda biome'a göre farklı renktedir (bataklık koyu yeşil, çöl sarımsı,
+karlı ova mavimsi, ılık okyanus turkuaz).
+
+**Vanilla haritada biome tint YOKTUR** — harita blok başına sabit temel rengi kullanır —
+yani bu madde bilinçli olarak vanilla'dan **ayrılmak**tı ve öyle yapıldı. Varsayılan
+**açık** (`photo.biome-tint.enabled`), gerekçesi tek cümle: fotoğrafın işi manzarayı
+göstermek, manzaranın haritasını değil. `strength` ile yumuşatılabiliyor, tamamen de
+kapatılabiliyor.
+
+**Renkler tablodan değil, SUNUCUDAN.** TODO'nun planı `biome-tints.yml`'ye vanilla
+değerlerini gömmekti. Koda dökülürken daha iyisi çıktı: Bukkit vermiyor ama sunucunun
+kendi biome kaydı veriyor (`Biome#getGrassColor/getFoliageColor/getWaterColor`).
+Böylece datapack'le eklenmiş ya da değiştirilmiş biome'lar da bedava doğru oluyor ve
+Mojang biome ekledikçe çürüyecek bir tablo kalmıyor. `biome-tints.yml` de duruyor ama
+artık **yalnızca override** dosyası, `block-colors.yml` gibi.
+
+**Bu eklentinin ilk NMS dokunuşu**, ve §9'un 2. kuralı ona göre güncellendi. Dördü birden
+sağlandığı için yazıldı: API'de karşılığı yok · tek sınıfta (`ServerBiomeColors`) ·
+açılışta bir kez, sıcak yolda asla · çağıran taraf `Throwable`/`LinkageError` yakalayıp
+tinti kapatarak devam ediyor.
+
+**Formül: tint bloğun rengini değiştirmez, tonunu verir.** İki kestirme de yanlış çıktı:
+biome rengini ham kullanmak (o renk istemcinin *gri dokuyu çarptığı* değerdir, çayır
+paletle alakasız bir parlaklıkta çıkar) ve temel renkle çarpmak (vanilla'nın `WATER`'ı
+gerçek suyla hue paylaşmıyor, bataklığın yeşil suyu **mor** çıkıyordu). Uygulanan:
+
+```
+sonuç = biome_rengi × parlaklık(blok_temel_rengi) / parlaklık(plains_rengi)
+```
+
+Referans plains olduğu için plains fotoğrafı eskisi gibi çıkıyor, ve bloklar birbirinden
+ayrışmaya devam ediyor (ot tutamı her biome'da çim bloğundan koyu). Yüz parlaklığı
+tintten sonra uygulanıyor.
+
+**Maliyet.** Tintli renk paletin dışında, yani piksel başına bir `snap` (244 girdilik
+arama) olurdu; blok türü + biome başına 256'lık bir satır önbelleğe alınıp ikinciden
+sonrası dizi okumasına indirildi. Chunk kopyası tint açıkken biome dizisini de taşıyor,
+kapalıyken hiç taşımıyor.
+
+**Kanal tablosu** (`block-colors.yml` → `tint`): GRASS'a çim bloğu/ot/eğrelti/şeker
+kamışı, FOLIAGE'a meşe-jungle-akasya-karanlık meşe yaprağı ve sarmaşık, WATER'a su ve
+bubble column. Ladin, huş, kiraz ve azalya yaprakları **dışarıda**: vanilla onları
+colormap'ten değil sabit renklerinden boyuyor. Bu liste sunucudan okunamıyor (bir bloğun
+colormap kullanıp kullanmadığı istemcinin çizim kodunda), o yüzden elle.
+
+7 test (`BiomeTintTest`): referans biome'un parlaklığını koruması, bataklık/çöl/kar
+yönlerinin doğru sapması, blokların biome içinde birbirinden ayrışması, `strength`'in
+fader gibi çalışması, yüz parlaklığının tintten sonra binmesi, tintli pikselin palete
+oturması ve önbelleğin aynı cevabı vermesi. Biome nesnesi sunucu ister, o yüzden testler
+tint indeksinden aşağısını kapsıyor; biome okumasının kendisi sunucuda doğrulanacak.
+
+**Açık kalanlar:** konuma bağlı `grass_color_modifier` (bataklığın iki yeşili, karanlık
+ormanın koyulaştırması) tablo tek renk tuttuğu için düzleşiyor — düzeltmek ışın döngüsüne
+sunucu çağrısı sokmak demek, o yüzden bilerek yapılmadı. `getDryFoliageColor` (kuru
+yaprak) hiç kullanılmıyor.
+
+Dokunulanlar: `BiomeTints`, `ServerBiomeColors`, `BlockColorTable` (`DEFAULT_TINTS`),
+`ColorPipeline`, `IsometricRenderer`, `RayHit`, `WorldSnapshot`, `RenderService`,
+`ConfigManager`, `Izomap`, `biome-tints.yml`, `block-colors.yml`, `config.yml`,
+`messages.yml`, `BiomeTintTest`, `IZOMAP.md` §3 ve §9.
+
+---
 
 ### T62 — Çiçekler yeşil çıkıyor
 

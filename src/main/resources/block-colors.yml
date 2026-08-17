@@ -88,3 +88,30 @@ coverage:
   # WAXED_COPPER_CHAIN: 0.15
   # Örnek: sarmaşığı eski hâline döndür (hücrenin tamamını boyasın):
   # VINE: 1.0
+
+# ============================================================
+#  BIOME TINT KANALI (tint)
+#
+#  Hangi bloğun rengi bulunduğu biome'a göre değişir ve biome'un ÜÇ renginden hangisini
+#  alır: GRASS, FOLIAGE, WATER (ya da NONE = hiç değişmesin).
+#
+#  Eklentinin varsayılan listesi:
+#    GRASS   : GRASS_BLOCK, SHORT_GRASS, TALL_GRASS, FERN, LARGE_FERN, SUGAR_CANE
+#    FOLIAGE : OAK_LEAVES, JUNGLE_LEAVES, ACACIA_LEAVES, DARK_OAK_LEAVES, VINE
+#    WATER   : WATER, BUBBLE_COLUMN
+#
+#  Listede olmayanlar bilerek dışarıda: ladin, huş, kiraz ve azalya yaprakları vanilla'da
+#  biome'a göre DEĞİL, kendi sabit renkleriyle çizilir. Renklerin kendisi burada değil,
+#  biome-tints.yml'de; tintin tamamı config.yml -> photo.biome-tint ile kapanır.
+#
+#  Bu liste de sunucudan okunamaz: bir bloğun colormap'ten mi yoksa sabit bir renkten mi
+#  boyandığı istemcinin çizim kodunda yazar, sunucuda değil.
+# ============================================================
+
+tint:
+  # Örnek: mangrov yapraklarını da biome'a bağla:
+  # MANGROVE_LEAVES: FOLIAGE
+  # Örnek: nilüferi de (vanilla'da sabit yeşildir):
+  # LILY_PAD: FOLIAGE
+  # Örnek: suyu her biome'da aynı renk bırak:
+  # WATER: NONE

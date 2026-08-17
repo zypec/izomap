@@ -50,12 +50,24 @@ final class RayHit {
     boolean opaque;
 
     /**
+     * Which biome tint the surface takes, or {@link #NO_TINT} when it looks the same
+     * wherever it stands — which is nearly every block.
+     */
+    int tint;
+
+    /**
+     * A surface no biome colours.
+     */
+    static final int NO_TINT = -1;
+
+    /**
      * See-through blocks the ray passed on its way here, nearest the camera first: a
      * tuft of grass, a vine, or a column of water the floor shows through.
      */
     int layers;
     final MapBaseColor[] layerBase = new MapBaseColor[MAX_LAYERS];
     final Face[] layerFace = new Face[MAX_LAYERS];
+    final int[] layerTint = new int[MAX_LAYERS];
     /**
      * Share of the pixel each layer holds — its own coverage times whatever the layers in
      * front of it left over — so the weights are already comparable and never renormalized.
@@ -94,18 +106,20 @@ final class RayHit {
         layers = 0;
         transmittance = 1.0;
         darken = 0;
+        tint = NO_TINT;
     }
 
     /**
      * Records a see-through block and returns whether there was room for it. A refusal is
      * the caller's cue to treat the block as opaque, which is what caps the walk.
      */
-    boolean addLayer(MapBaseColor base, Face face, double coverage) {
+    boolean addLayer(MapBaseColor base, Face face, int tint, double coverage) {
         if (layers >= MAX_LAYERS)
             return false;
 
         layerBase[layers] = base;
         layerFace[layers] = face;
+        layerTint[layers] = tint;
         layerWeight[layers] = coverage * transmittance;
         transmittance -= layerWeight[layers];
         layers++;

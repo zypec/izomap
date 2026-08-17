@@ -60,6 +60,11 @@ public final class RenderService {
      * it started with, which is why the field is read into a local before the walk.
      */
     private volatile IsometricRenderer renderer;
+    /**
+     * Reloaded with the colour table, and read into a local before a render for the same
+     * reason.
+     */
+    private volatile BiomeTints biomeTints = BiomeTints.NONE;
     private final MapColorConverter converter = new MapColorConverter();
     private final AtomicInteger threadCounter = new AtomicInteger();
 
@@ -77,6 +82,16 @@ public final class RenderService {
      */
     public void reloadColors() {
         this.renderer = new IsometricRenderer(BlockColorTable.load(plugin));
+        this.biomeTints = BiomeTints.load(plugin);
+    }
+
+    /**
+     * Reads the biome tints for the first time. Separate from the constructor because it
+     * asks the server's registries, which are not ready while plugins are being
+     * constructed.
+     */
+    public void loadBiomeTints() {
+        this.biomeTints = BiomeTints.load(plugin);
     }
 
     /**
@@ -235,6 +250,9 @@ public final class RenderService {
         var toSun = directionFrom(spec.shading().sunYaw(), spec.shading().sunPitch()).multiply(-1.0);
         var shading = Shading.of(spec.shading(), toSun.getX(), toSun.getY(), toSun.getZ());
         var water = Water.of(spec.water());
+        // Read once here: a reload swapping the table mid-render would leave half the
+        // image on one set of tints, like the colour table it travels with.
+        var tints = biomeTints;
         var sky = spec.skyArgb() == 0
                 ? Sky.NONE
                 : Sky.of(spec.skyArgb() & 0xFFFFFF, plugin.config().skyGradient(),
@@ -244,7 +262,7 @@ public final class RenderService {
         var geometry = new RenderGeometry(
                 planeCenter, right, up, direction, spanWidth, spanHeight, maxDistance,
                 eyeY, maxBackoff, renderWidth, renderHeight);
-        var pipeline = ColorPipeline.of(spec.colorFilter(), converter);
+        var pipeline = ColorPipeline.of(spec.colorFilter(), converter, tints);
         var focus = spec.focus();
         var supersampling = spec.supersampling();
         var threads = plugin.config().renderThreads();
@@ -260,13 +278,14 @@ public final class RenderService {
         // colour table and half on another.
         var walker = renderer;
         var requestedAt = System.nanoTime();
-        return snapshotChunks(world, chunkKeys, minY, maxY, spec.shading().blockLight()).thenCompose(snapshot -> {
+        return snapshotChunks(world, chunkKeys, minY, maxY,
+                spec.shading().blockLight(), tints.enabled()).thenCompose(snapshot -> {
             var capturedAt = System.nanoTime();
             CompletableFuture<RenderResult> future = new CompletableFuture<>();
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                 try {
                     var result = walker.render(
-                            snapshot, geometry, pipeline, sky, shading, water, supersampling, focus.draws(),
+                            snapshot, geometry, pipeline, sky, shading, water, tints, supersampling, focus.draws(),
                             progress, executor, threads);
                     // Before the scale-up, where the depth buffer still lines up with the
                     // pixels. The radius is a ratio of image height, so a FAST render
@@ -328,7 +347,8 @@ public final class RenderService {
      * with chunk-sized holes.</p>
      */
     private CompletableFuture<WorldSnapshot> snapshotChunks(World world, Set<Long> keys,
-                                                            int minY, int maxY, boolean light) {
+                                                            int minY, int maxY,
+                                                            boolean light, boolean biomes) {
         var load = plugin.config().loadMissingChunks();
         var generate = plugin.config().generateMissingChunks();
 
@@ -338,11 +358,11 @@ public final class RenderService {
             var cx = WorldSnapshot.chunkX(key);
             var cz = WorldSnapshot.chunkZ(key);
             if (world.isChunkLoaded(cx, cz)) {
-                ready.add(world.getChunkAt(cx, cz).getChunkSnapshot(false, false, false, light));
+                ready.add(world.getChunkAt(cx, cz).getChunkSnapshot(false, biomes, false, light));
             } else if (load) {
                 // With generate=false, an ungenerated chunk completes the future as null.
                 loading.add(world.getChunkAtAsync(cx, cz, generate).thenApply(
-                        chunk -> chunk == null ? null : chunk.getChunkSnapshot(false, false, false, light)));
+                        chunk -> chunk == null ? null : chunk.getChunkSnapshot(false, biomes, false, light)));
             }
         }
 

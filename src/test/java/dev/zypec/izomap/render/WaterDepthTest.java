@@ -52,7 +52,8 @@ class WaterDepthTest {
                 4.0, 4.0, 200.0, EYE_Y, 0.0, 1, 1);
         var result = new IsometricRenderer(table).render(
                 FakeChunk.world(MIN_Y, MAX_Y, blocks), geometry, pipeline,
-                Sky.NONE, Shading.NONE, Water.of(spec), 1, false, null, Runnable::run, 1);
+                Sky.NONE, Shading.NONE, Water.of(spec), BiomeTints.NONE,
+                1, false, null, Runnable::run, 1);
         return result.argb()[0];
     }
 

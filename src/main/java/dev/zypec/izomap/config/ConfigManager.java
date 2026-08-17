@@ -348,6 +348,28 @@ public final class ConfigManager {
     }
 
     /**
+     * Whether grass, leaves and water take the colour of the biome they stand in.
+     *
+     * <p>A vanilla map has no such thing — one fixed colour per block, so a swamp and a
+     * desert are the same green — which makes this a deliberate departure rather than a
+     * correction. It is on all the same: a photo is of the landscape, and in the
+     * landscape a swamp is not the colour of a meadow.</p>
+     *
+     * <p>Read at colour-table load like the coverage, not frozen into a photo: the tints
+     * are part of the table rather than of the capture.</p>
+     */
+    public boolean biomeTint() {
+        return cfg().getBoolean("photo.biome-tint.enabled", true);
+    }
+
+    /**
+     * How much of the biome's colour is actually applied, from nothing to all of it.
+     */
+    public double biomeTintStrength() {
+        return clamp(cfg().getDouble("photo.biome-tint.strength", 1.0), 0.0, 1.0);
+    }
+
+    /**
      * How water is coloured. {@code DEPTH} by default, which is what vanilla maps do:
      * a flat single blue for both a pond and an ocean was the one thing here that even
      * vanilla does not defend.
