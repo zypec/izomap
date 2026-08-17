@@ -1061,6 +1061,10 @@ arkası boşsa **destek bloğu**. Önizleme ikisini ayrı gösterir.
 | Çerçeve | `WHITE_STAINED_GLASS_PANE` — ince, tam yükseklik | Çerçeve hücresi, duvara yapışık | Daima |
 | Destek | `placement.backing-material` — tam blok | Çerçevenin bir blok arkası | Yalnızca o hücrede **gerçekten** blok örülecekse |
 
+- **Hayaletler bir blok aşağı çizilir** (`GHOST_DROP = 1`). Kayma yalnızca çizimdedir:
+  hangi hücrenin boş olması gerektiği, nereye destek örüleceği ve çerçevelerin sonunda
+  nereye gideceği hep `PlacementArea.frameBlock`'tan okunur, yani kayma dünyaya geçmez.
+
 - **Cam paneli duvarın kendi eksenine bağlanır** (`MultipleFacing`): bağlantısız bir
   panel ortada ince bir direk olarak çizilir, bağlanınca bloğu baştan sona kaplar ve
   ızgara tek bir yüzey gibi okunur. Oyuncu başka bir duvara döndüğünde `forward`
@@ -1124,8 +1128,9 @@ oyuncunun kendi eşyası konur (aksi halde oyuncu ölünce sol elindeki eşyayı
 
 Nereye asılacağını `PlacementArea` belirler: oyuncunun baktığı yönde `placement.distance`
 blok ötede, oyuncuya bakan bir ızgara; görselin yönü korunur (sol üst karo sol üstte).
-Hayalet önizleme ile gerçek yerleştirme **aynı** hesabı kullanır, yani oyuncunun
-hizaladığı yer birebir asıldığı yerdir.
+Hayalet önizleme ile gerçek yerleştirme **aynı** hesabı kullanır; önizlemenin tek
+farkı hayaletleri bir blok aşağı **çizmesi** (`PlacementManager.GHOST_DROP`), hesaba
+karışmaz.
 
 Yerleştirme **non-destructive**'dir: `fits` bir kez daha bakılır, uymuyorsa hiçbir şey
 değiştirilmeden `null` dönülür. `placement.build-backing-wall` açıksa çerçevelerin

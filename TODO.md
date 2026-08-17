@@ -5,7 +5,7 @@
 > güncellenir. Maddelere kimlikleriyle (T1, T2 …) referans verilir; kimlikler kalıcıdır,
 > tamamlanan maddeler silinmez, arşiv bölümüne taşınır.
 >
-> Son güncelleme: 2026-08-16
+> Son güncelleme: 2026-08-17
 
 **Öncelik:** `P0` = başkalarını bloke ediyor / bug · `P1` = asıl istenen özellikler ·
 `P2` = iyileştirme, teknik borç
@@ -457,6 +457,10 @@ bloklar duruyordu. Kendi ördüğü duvara fotoğraf asan oyuncu, hiç örülmey
 Katman ikiye ayrıldı: **çerçeve katmanı** (duvara yapıştırılmış ince cam paneli, daima)
 ve **destek katmanı** (tam blok, yalnızca o hücrede gerçekten blok örülecekse). Ayrıntı
 `IZOMAP.md` §"Hayalet önizleme"de.
+
+**Sonradan (2026-08-17):** hayaletler bir blok aşağı çizilir olsun istendi
+(`PlacementManager.GHOST_DROP = 1`). Kayma yalnızca çizimde; uygunluk kontrolü, destek
+kararı ve gerçek yerleştirme hâlâ `PlacementArea.frameBlock`'un verdiği hücrelerde.
 
 ### T58 — Çerçevelerde piksel sanatı: desen, köşe ve PNG
 

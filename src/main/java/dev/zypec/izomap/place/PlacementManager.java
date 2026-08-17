@@ -11,6 +11,7 @@ import org.bukkit.Color;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.block.Block;
 import org.bukkit.block.BlockFace;
 import org.bukkit.block.data.BlockData;
 import org.bukkit.block.data.MultipleFacing;
@@ -134,6 +135,15 @@ public final class PlacementManager implements Listener {
      * wall's do not fight over the same plane.</p>
      */
     private static final float FRAME_OFFSET = 6.5f / 16f;
+
+    /**
+     * How far down the ghosts are drawn from the cells they stand for, in blocks.
+     *
+     * <p>Only the drawing moves: every decision — which cells must be free, where a
+     * backing is owed, where the frames finally go — keeps working from
+     * {@link PlacementArea#frameBlock}, so the shift never reaches the world.</p>
+     */
+    private static final int GHOST_DROP = 1;
 
     private final Izomap plugin;
     /**
@@ -322,7 +332,7 @@ public final class PlacementManager implements Listener {
         for (var row = 0; row < session.grid.rows(); row++) {
             for (var col = 0; col < session.grid.cols(); col++) {
                 var block = session.area.frameBlock(session.grid, col, row);
-                var frame = spawnGhost(block.getLocation(), paneData, color);
+                var frame = spawnGhost(ghostLocation(block), paneData, color);
                 frame.setTransformation(flush);
                 player.showEntity(plugin, frame);
                 session.frames.add(frame);
@@ -330,7 +340,7 @@ public final class PlacementManager implements Listener {
                 // Shown by refreshBackings below, and only where one would be built.
                 if (buildsBacking)
                     session.backings.add(spawnGhost(
-                            block.getRelative(forward).getLocation(), backingData, color));
+                            ghostLocation(block.getRelative(forward)), backingData, color));
             }
         }
         refreshBackings(player, session);
@@ -366,14 +376,14 @@ public final class PlacementManager implements Listener {
                 for (var col = 0; col < session.grid.cols(); col++) {
                     var block = area.frameBlock(session.grid, col, row);
                     var frame = session.frames.get(index);
-                    frame.teleport(block.getLocation());
+                    frame.teleport(ghostLocation(block));
                     if (turned) {
                         frame.setBlock(paneData);
                         frame.setTransformation(flush);
                     }
                     if (!session.backings.isEmpty())
                         session.backings.get(index)
-                                .teleport(block.getRelative(area.forward()).getLocation());
+                                .teleport(ghostLocation(block.getRelative(area.forward())));
 
                     index++;
                 }
@@ -417,6 +427,14 @@ public final class PlacementManager implements Listener {
                 index++;
             }
         }
+    }
+
+    /**
+     * Where the ghost for a cell is drawn: {@link #GHOST_DROP} blocks below the cell
+     * itself.
+     */
+    private static Location ghostLocation(Block block) {
+        return block.getLocation().subtract(0, GHOST_DROP, 0);
     }
 
     private static Iterable<BlockDisplay> ghosts(Session session) {
