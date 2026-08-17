@@ -458,9 +458,10 @@ Katman ikiye ayrıldı: **çerçeve katmanı** (duvara yapıştırılmış ince 
 ve **destek katmanı** (tam blok, yalnızca o hücrede gerçekten blok örülecekse). Ayrıntı
 `IZOMAP.md` §"Hayalet önizleme"de.
 
-**Sonradan (2026-08-17):** hayaletler bir blok aşağı çizilir olsun istendi
-(`PlacementManager.GHOST_DROP = 1`). Kayma yalnızca çizimde; uygunluk kontrolü, destek
-kararı ve gerçek yerleştirme hâlâ `PlacementArea.frameBlock`'un verdiği hücrelerde.
+**Sonradan (2026-08-17):** ızgara bir blok aşağı indi. İlk deneme kaydırmayı yalnızca
+hayalet çiziminde yapmıştı; istenen fotoğrafın **kendisinin** de aşağı asılmasıydı, o
+yüzden kayma `PlacementArea.inFrontOf`'a taşındı (`ANCHOR_DROP = 1`). Önizleme ile
+yerleştirme yine tek hesaptan besleniyor.
 
 ### T58 — Çerçevelerde piksel sanatı: desen, köşe ve PNG
 

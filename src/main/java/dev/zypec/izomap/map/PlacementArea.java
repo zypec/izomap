@@ -19,13 +19,24 @@ import org.bukkit.entity.Player;
 public record PlacementArea(World world, Block base, BlockFace right, BlockFace forward) {
 
     /**
+     * How far below eye level the bottom row sits, in blocks.
+     *
+     * <p>Anchored at the eyes the grid grew straight up from them, so a photo hung
+     * standing on the floor came out a row too high — the whole thing had to be aimed
+     * from a crouch to sit at eye height.</p>
+     */
+    private static final int ANCHOR_DROP = 1;
+
+    /**
      * Area a player would place into right now, {@code distance} blocks ahead of them.
      */
     public static PlacementArea inFrontOf(Player player, int distance) {
         var forward = horizontalFacing(player);
         return new PlacementArea(
                 player.getWorld(),
-                player.getEyeLocation().getBlock().getRelative(forward, distance),
+                player.getEyeLocation().getBlock()
+                        .getRelative(forward, distance)
+                        .getRelative(BlockFace.DOWN, ANCHOR_DROP),
                 clockwise(forward),
                 forward);
     }
