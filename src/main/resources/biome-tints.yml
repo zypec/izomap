@@ -22,6 +22,10 @@
 #
 #  Biome adı: "swamp" (minecraft: varsayılan) ya da "mypack:volcano".
 #  Kanal değeri hex; yazmadığın kanal sunucunun verdiği hâlde kalır.
+#
+#  RENGİ BULUNAMAYAN BIOME plains rengine düşer — tintsiz kalmaz. Tabloya girmemiş bir
+#  biome (tablo okunduktan sonra yüklenen datapack; /izocam reload onu da alır) fotoğrafta
+#  ova gibi görünür. Özel bir biome'un kendi rengi olsun istiyorsan buraya yaz.
 # ============================================================
 
 # Sürüm alanı ileride göç (migration) gerekirse diye duruyor; şu an okunmuyor.

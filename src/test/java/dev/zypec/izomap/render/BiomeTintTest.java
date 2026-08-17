@@ -129,6 +129,19 @@ class BiomeTintTest {
     }
 
     @Test
+    @DisplayName("a biome nobody has a colour for falls back to the reference, not to nothing")
+    void unknownBiomesTakeTheReference() {
+        var tints = BiomeTints.of(PLAINS_GRASS, TINTS, 1.0);
+
+        // null is what an uncopied chunk answers, and a datapack biome added after the
+        // table was read is the same case. Either way the pixel must come out as plains
+        // rather than as whatever a missing answer would have been.
+        for (var channel : BiomeTints.Channel.values()) {
+            assertEquals(PLAINS, tints.indexOf(null, channel));
+        }
+    }
+
+    @Test
     @DisplayName("an untinted block is not touched at all")
     void noTintMeansThePaletteEntry() {
         var pipeline = pipelineAt(1.0);

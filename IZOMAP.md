@@ -520,6 +520,17 @@ listesi gibi.
 (#929192, #7C7D7C); renkleri istemcide colormap'ten gelir. "Doku ortalamasını al" yöntemi
 bu bloklarda geçersizdir, tint tablosu şarttır.
 
+#### Rengi bulunamayan biome plains'e düşer
+
+Tabloda karşılığı olmayan bir biome **tintsiz kalmaz**, referans biome'un (plains) rengini
+alır. İki yol buraya çıkar: tablo okunduktan *sonra* yüklenen bir datapack biome'u
+(`/izocam reload` onu da alır) ve kopyalanamamış bir chunk (`biomeAt` `null` döner). Aynı
+şey, bir kanalın rengi okunamadığında da olur — siyah bir renk "cevap yok" demektir ve
+cevabın yerine referans geçer.
+
+Kural tek cümle: **hesaplanamayan bir renk görüntüye geçmez.** Çimenlerin siyah çıktığı
+hata tam olarak bunun ihlaliydi; fallback o yüzden var.
+
 **Açık kalan:** konuma bağlı `grass_color_modifier` (bataklık gürültüsü, karanlık orman
 koyulaştırması) tablo tek renk tuttuğu için düzleşiyor; kuru yaprak rengi
 (`getDryFoliageColor`) hiç kullanılmıyor.

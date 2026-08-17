@@ -373,8 +373,10 @@ değişiklikler yine sunucunun kendi `grassColorModifier`'ıyla bizim taban reng
 üstüne uygulanıyor. Izgaranın erişilemez üst yarısı beyaz yerine köşegen rengiyle
 saklanıyor; beyazla 48 birime kadar sapıyordu.
 
-İki savunma: **siyah artık tint sayılmıyor** (o kanal tintsiz kalır, blok kendi rengini
-korur) ve `ColormapsTest` hiçbir iklimin siyah vermediğini süpürerek doğruluyor.
+Üç savunma: **siyah artık tint sayılmıyor**, **rengi bulunamayan biome plains'e düşüyor**
+(tabloya girmemiş datapack biome'u, kopyalanamamış chunk, okunamamış kanal — hepsi referans
+rengiyle çiziliyor, tintsiz bırakılmıyor), ve `ColormapsTest` hiçbir iklimin siyah
+vermediğini süpürerek doğruluyor. Kural: hesaplanamayan bir renk görüntüye geçmez.
 
 **Renkler tablodan değil, SUNUCUDAN.** TODO'nun planı `biome-tints.yml`'ye vanilla
 değerlerini gömmekti. Koda dökülürken daha iyisi çıktı: Bukkit vermiyor ama sunucunun

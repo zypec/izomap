@@ -237,6 +237,12 @@ photo:
   # Renkler sunucunun kendisinden okunur (açılışta bir kez), yani datapack'le eklenmiş ya
   # da değiştirilmiş biome'lar da doğru renk alır ve bakılacak bir tablo yoktur. Sunucu
   # sürümü eklentinin okuduğu yapıya uymazsa tint kendini kapatır ve log'a yazar.
+  #
+  # RENGİ BULUNAMAYAN BIOME NE OLUR: plains rengine düşer. Tabloya girmemiş bir biome
+  # (ör. tablo okunduktan SONRA yüklenen bir datapack — /izocam reload onu da alır) ya da
+  # kopyalanamamış bir chunk, tintsiz kalmak yerine referans biome'un rengiyle çizilir.
+  # Kural şu: hesaplanamayan bir renk asla görüntüye geçmez — çimenlerin siyah çıkması
+  # tam olarak bunun ihlaliydi.
   # Tek tek renk değiştirmek için: biome-tints.yml. Hangi bloğun hangi kanalı aldığı ise
   # block-colors.yml -> tint bölümünde.
   biome-tint:

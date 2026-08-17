@@ -66,9 +66,15 @@ public final class BiomeTints {
     private static final NamespacedKey REFERENCE = NamespacedKey.minecraft("plains");
 
     /**
+     * What an untinted channel is recorded as, matching {@link RayHit#NO_TINT}.
+     */
+    private static final int NO_TINT = -1;
+
+    /**
      * No tint at all: every block keeps the colour vanilla gives it.
      */
-    public static final BiomeTints NONE = new BiomeTints(Map.of(), new int[0], new double[0], 0.0);
+    public static final BiomeTints NONE = new BiomeTints(
+            Map.of(), new int[0], new double[0], 0.0, new int[]{NO_TINT, NO_TINT, NO_TINT});
 
     /**
      * Which of a biome's three colours a block is painted with.
@@ -99,12 +105,19 @@ public final class BiomeTints {
      * How much of the tint is applied, 0 to 1.
      */
     private final double strength;
+    /**
+     * The reference biome's own three indices, and what anything unrecognized falls back
+     * to. See {@link #indexOf}.
+     */
+    private final int[] fallback;
 
-    private BiomeTints(Map<Biome, int[]> byBiome, int[] rgb, double[] factor, double strength) {
+    private BiomeTints(Map<Biome, int[]> byBiome, int[] rgb, double[] factor, double strength,
+                       int[] fallback) {
         this.byBiome = byBiome;
         this.rgb = rgb;
         this.factor = factor;
         this.strength = strength;
+        this.fallback = fallback;
     }
 
     /**
@@ -158,8 +171,14 @@ public final class BiomeTints {
         List<Integer> rgb = new ArrayList<>();
         List<Double> factor = new ArrayList<>();
         var factors = new double[Channel.VALUES.length];
+        // The reference takes the first indices, so it is always there to fall back to.
+        var fallback = new int[Channel.VALUES.length];
         for (var channel : Channel.VALUES) {
-            factors[channel.ordinal()] = 1.0 / Math.max(1.0, luma(reference[channel.ordinal()]));
+            var index = channel.ordinal();
+            factors[index] = 1.0 / Math.max(1.0, luma(reference[index]));
+            rgb.add(reference[index]);
+            factor.add(factors[index]);
+            fallback[index] = rgb.size() - 1;
         }
 
         for (var biome : biomes) {
@@ -172,9 +191,9 @@ public final class BiomeTints {
                 var index = channel.ordinal();
                 if (!usable(read[index])) {
                     // Nobody's grass is black. A colour that comes back as one means
-                    // something did not answer, and the block keeps its own colour rather
-                    // than being painted with the failure.
-                    indices[index] = NO_TINT;
+                    // something did not answer, and the reference stands in rather than
+                    // the failure being painted onto the world.
+                    indices[index] = fallback[index];
                     continue;
                 }
                 rgb.add(read[index]);
@@ -190,7 +209,7 @@ public final class BiomeTints {
             rgbArray[i] = rgb.get(i);
             factorArray[i] = factor.get(i);
         }
-        return new BiomeTints(byBiome, rgbArray, factorArray, strength);
+        return new BiomeTints(byBiome, rgbArray, factorArray, strength, fallback);
     }
 
     /**
@@ -256,7 +275,8 @@ public final class BiomeTints {
     static BiomeTints of(int referenceRgb, int[] tints, double strength) {
         var factor = new double[tints.length];
         Arrays.fill(factor, 1.0 / Math.max(1.0, luma(referenceRgb)));
-        return new BiomeTints(Map.of(), tints.clone(), factor, strength);
+        // Index 0 stands in for the reference, as it does in a table read from a server.
+        return new BiomeTints(Map.of(), tints.clone(), factor, strength, new int[]{0, 0, 0});
     }
 
     /**
@@ -276,19 +296,21 @@ public final class BiomeTints {
     }
 
     /**
-     * What an untinted channel is recorded as, matching {@link RayHit#NO_TINT}.
-     */
-    private static final int NO_TINT = -1;
-
-    /**
-     * Tint index for a biome's channel, or {@code -1} when that biome is not tinted.
-     * {@code biome} may be {@code null}, which is what an uncaptured chunk answers.
+     * Tint index for a biome's channel.
+     *
+     * <p>A biome nobody has a colour for takes the <b>reference</b> biome's — plains —
+     * rather than nothing at all. Two things can lead here: a datapack biome added after
+     * the table was read (a reload picks it up), and a chunk that was never copied, which
+     * answers {@code null}. Neither is worth a surprise in the middle of a photo, and the
+     * one rule this fallback exists to keep is that a colour nobody could work out must
+     * never reach the image — that is how a meadow once came out black.</p>
      */
     int indexOf(Biome biome, Channel channel) {
-        if (biome == null) return -1;
+        var slot = channel.ordinal();
+        if (biome == null) return fallback[slot];
 
         var indices = byBiome.get(biome);
-        return indices == null ? -1 : indices[channel.ordinal()];
+        return indices == null ? fallback[slot] : indices[slot];
     }
 
     /**
