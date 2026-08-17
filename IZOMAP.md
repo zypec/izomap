@@ -285,6 +285,56 @@ ikisi aynı yüzeyde nadiren bulunur.
 Ölçüm sırasında kiraz kütüğü de kontrol edildi ve vanilla'nın seçimi **doğru** çıktı
 (#36212C, `TERRACOTTA_GRAY`'e uzaklık 12) — o yüzden listede yok.
 
+#### Çiçekler: vanilla hepsine yeşil verir
+
+Vanilla her çiçeğe `PLANT` (#007C00) atar ve **haritada bu doğrudur** — sütun başına tek
+piksele düşen bir çayır yeşilliktir. Fotoğrafta değil: orada gelincik kırmızı, karahindiba
+sarı bir noktadır. Aynı ölçüt (`settings.correct-vanilla-colors`), farklı sebep.
+
+**Ölçüm taçyapraktan yapılır, dokudan değil.** Düz doku ortalaması burada işe yaramıyor:
+bir çiçek dokusunun çoğu sap ve yapraktır, öyle ki kırmızı lalenin ortalaması **yeşil**
+çıkıyor (#5A8121) ve vanilla'nın seçimi savunulabilir görünüyor. Yeşil baskın pikseller
+(g, hem r hem b'den 12 fazla) ayıklanıp kalanın ortalaması alınıyor; sıralama
+`MapColorConverter`'ın snap ettiği **redmean** uzaklığıyla.
+
+**Hue, parlaklığı yener.** En yakın girdi soluk taçyaprakları griye gönderiyor — pink
+petals (#F7B5DB) `WOOL`'e düşüyor — çünkü paletin renkli girdileri gerçek bir taçyapraktan
+daha doygun. Gri bir çiçek kadrajda bulunma sebebini kaybetmiştir, o yüzden taçyaprağın
+gerçek kroması varsa renkli girdi kazanıyor.
+
+| Taçyaprak (ölçülen) | En yakın | Seçilen |
+|---|---|---|
+| karahindiba #F5CE40, ayçiçeği #F6C536 | — | `COLOR_YELLOW` |
+| kır çiçekleri #EDD675 | `GOLD` 6074 ≈ `SAND` 6077 | `GOLD` (beraberliğin sarı yarısı) |
+| gelincik #C92925, kırmızı lale #D32D2A, gül #C12A24 | — | `CRIMSON_NYLIUM` |
+| turuncu lale #D98527 | — | `COLOR_ORANGE` |
+| meşale çiçeği #A06956 | `DIRT` 468 | `TERRACOTTA_ORANGE` 8051 (aşağıya bak) |
+| peygamber çiçeği #546EDF | — | `LAPIS` |
+| mavi orkide #25AAED | `LAPIS` 10991 / `COLOR_LIGHT_BLUE` 11954 | `COLOR_LIGHT_BLUE` (%9'luk beraberlik, hue'ya bakıldı) |
+| ibrik bitkisi #797EBA | — | `COLOR_LIGHT_BLUE` |
+| allium #BA85E5 | `ICE` 6293 | `COLOR_MAGENTA` 13555 (hue; ICE soluk mavi okunurdu) |
+| leylak #BE75C0 | — | `COLOR_MAGENTA` |
+| pembe lale #EBC4FA, şakayık #E6B3F7, pink petals #F7B5DB | `WOOL` | `COLOR_PINK` (hue) |
+| spore blossom #CF619F, kaktüs çiçeği #D47889 | — | `COLOR_PINK` |
+| beyaz lale #CDDFDF, açık eyeblossom #C4BAC0 | — | `WOOL` (koruyacak kroma yok) |
+| müge #EDEDED | — | `QUARTZ` |
+| azure bluet #EEEFC1, oxeye daisy #E3E1BC | — | `SAND` |
+| kapalı eyeblossom #6C6265 | — | `DEEPSLATE` (uzaklık 172) |
+| solmuş gül #292619 | — | `TERRACOTTA_GRAY` |
+
+Ölçümün karara bağlayamadığı tek girdi **meşale çiçeği**: dokusu koyu mor bir gövde
+(#652D70) ve küçük parlak bir tomurcuktan (#FCE257, #F6B927) oluşuyor, ortalama neredeyse
+tam `DIRT`'e düşüyor — yani çiçek, üzerinde bittiği toprağın içinde kaybolurdu. En yakın
+sıcak girdi olan `TERRACOTTA_ORANGE` tomurcuğu koruyor.
+
+Kısmi kaplama (T49) bu tablonun etkisini ölçülü tutuyor: çiçek hücresinin ancak ~%30'unu
+tuttuğu için sonuç blok dolusu renk değil, **doğru hue'da bir ton**.
+
+**Yan tespit (T34 için):** aynı ölçümde `short_grass.png` ve `fern.png`'in **gri**
+olduğu görüldü (#929192, #7C7D7C). Bu dokular istemcide biome colormap'iyle
+renklendiriliyor, yani "dokusunun ortalamasını al" yöntemi tint alan bloklar için
+geçersiz — biome tint maddesi bunu kendi tablosuyla çözmek zorunda.
+
 Düzeltme `settings.correct-vanilla-colors: false` ile kapatılır; kapalıyken fotoğraf
 vanilla haritayla birebir aynıdır, bu kusur dahil. Sıra: vanilla → düzeltme → 
 `block-colors.yml`, yani sunucu sahibi her ikisini de ezer.

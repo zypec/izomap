@@ -27,6 +27,11 @@ version: 1
 #  bildiriyor, oysa doku ortalaması #6C6D66. Bu blokların rengi artık eklenti tarafından
 #  dokusuna en yakın olana çekiliyor (tuff -> DEEPSLATE); kapatmak için
 #  config.yml -> settings.correct-vanilla-colors. Buradaki override her ikisini de ezer.
+#
+#  Aynı düzeltme ÇİÇEKLERİ de kapsıyor: vanilla hepsine PLANT (düz yeşil) verir, eklenti
+#  her birine taçyaprağının ölçülmüş rengine en yakın girdiyi verir (gelincik ->
+#  CRIMSON_NYLIUM, karahindiba -> COLOR_YELLOW, mor lale -> COLOR_PINK ...). Vanilla
+#  haritanın yeşilini geri istiyorsan tek tek buradan yazabilirsin:  POPPY: PLANT
 
 overrides:
   # Örnek: cam blokları haritada renksizdir; görünmelerini istersen:

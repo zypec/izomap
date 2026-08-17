@@ -48,6 +48,10 @@ import java.util.Map;
  * {@code settings.correct-vanilla-colors} by anyone who wants a photo to match a vanilla
  * map exactly, wart and all, and {@code block-colors.yml} still wins over both.</p>
  *
+ * <p>{@link #FLOWER_COLORS} is the same switch for a different kind of disagreement:
+ * vanilla paints every flower plant-green, which is right for a map and wrong for a
+ * photograph.</p>
+ *
  * <p>{@code block-colors.yml} exists only for overrides.</p>
  *
  * <h2>How much of its cell a block fills</h2>
@@ -78,6 +82,84 @@ public final class BlockColorTable {
     private static final float OPAQUE_ENOUGH = 0.5f;
 
     /**
+     * Flowers, whose vanilla map colour is the green of the plant they are rather than
+     * the colour of the blossom they are grown for.
+     *
+     * <p>Vanilla gives every flower {@code PLANT} (#007C00), which is the right answer on
+     * a map — one pixel per column, at which size a meadow is greenery — and the wrong one
+     * in a photo, where a poppy is a red dot in the grass and a dandelion a yellow one.
+     * With coverage the flower only holds about a third of its cell, so what this buys is
+     * a tint of the right hue, not a block of colour.</p>
+     *
+     * <p><b>Measured from the blossom, not from the texture.</b> The plain texture average
+     * is useless here: a flower texture is mostly stem and leaves, so red tulip averages
+     * <i>green</i> (#5A8121) and vanilla's choice looks defensible. Green-dominant pixels
+     * (g more than 12 over both r and b) are therefore dropped and the rest averaged, which
+     * is the blossom. The ranking then uses the same redmean distance
+     * {@link MapColorConverter} snaps with.</p>
+     *
+     * <p><b>Hue outranks lightness when the two disagree.</b> Nearest-by-distance sends
+     * every pale blossom to a grey — pink petals (#F7B5DB) land on {@code WOOL} — because
+     * the palette's chromatic entries are more saturated than a real petal. A grey flower
+     * has lost the only thing it was in the frame for, so a chromatic entry wins whenever
+     * the blossom itself has real chroma. Those picks are marked below.</p>
+     *
+     * <table>
+     *   <caption>Blossom average and the entry chosen for it</caption>
+     *   <tr><th>Blossom</th><th>Measured</th><th>Chosen</th></tr>
+     *   <tr><td>dandelion #F5CE40, sunflower #F6C536</td><td>nearest</td><td>{@code COLOR_YELLOW}</td></tr>
+     *   <tr><td>wildflowers #EDD675</td><td>{@code GOLD} 6074 ties {@code SAND} 6077</td><td>{@code GOLD}, the yellower half of the tie</td></tr>
+     *   <tr><td>poppy #C92925, red tulip #D32D2A, rose bush #C12A24</td><td>nearest</td><td>{@code CRIMSON_NYLIUM}</td></tr>
+     *   <tr><td>orange tulip #D98527</td><td>nearest</td><td>{@code COLOR_ORANGE}</td></tr>
+     *   <tr><td>torchflower #A06956</td><td>{@code DIRT} 468</td><td>{@code TERRACOTTA_ORANGE} 8051 — hue; see below</td></tr>
+     *   <tr><td>cornflower #546EDF</td><td>nearest</td><td>{@code LAPIS}</td></tr>
+     *   <tr><td>blue orchid #25AAED</td><td>{@code LAPIS} 10991 vs {@code COLOR_LIGHT_BLUE} 11954</td><td>{@code COLOR_LIGHT_BLUE}, a 9% tie broken on hue</td></tr>
+     *   <tr><td>pitcher plant #797EBA</td><td>nearest</td><td>{@code COLOR_LIGHT_BLUE}</td></tr>
+     *   <tr><td>allium #BA85E5</td><td>{@code ICE} 6293</td><td>{@code COLOR_MAGENTA} 13555 — hue; ICE would read pale blue</td></tr>
+     *   <tr><td>lilac #BE75C0</td><td>nearest</td><td>{@code COLOR_MAGENTA}</td></tr>
+     *   <tr><td>pink tulip #EBC4FA, peony #E6B3F7, pink petals #F7B5DB</td><td>{@code WOOL}</td><td>{@code COLOR_PINK} — hue</td></tr>
+     *   <tr><td>spore blossom #CF619F, cactus flower #D47889</td><td>nearest</td><td>{@code COLOR_PINK}</td></tr>
+     *   <tr><td>white tulip #CDDFDF, open eyeblossom #C4BAC0</td><td>nearest, and no chroma to keep</td><td>{@code WOOL}</td></tr>
+     *   <tr><td>lily of the valley #EDEDED</td><td>nearest</td><td>{@code QUARTZ}</td></tr>
+     *   <tr><td>azure bluet #EEEFC1, oxeye daisy #E3E1BC</td><td>nearest</td><td>{@code SAND}</td></tr>
+     *   <tr><td>closed eyeblossom #6C6265</td><td>nearest, distance 172</td><td>{@code DEEPSLATE}</td></tr>
+     *   <tr><td>wither rose #292619</td><td>nearest</td><td>{@code TERRACOTTA_GRAY}</td></tr>
+     * </table>
+     *
+     * <p>Torchflower is the one entry the measurement could not settle: its texture is a
+     * dark purple body (#652D70) with a small bright bloom (#FCE257, #F6B927), so the
+     * average lands almost exactly on {@code DIRT} — which would hide it in the ground it
+     * grows out of. {@code TERRACOTTA_ORANGE} is the nearest warm entry and keeps the
+     * bloom.</p>
+     */
+    private static final Map<Material, MapBaseColor> FLOWER_COLORS = Map.ofEntries(
+            Map.entry(Material.DANDELION, MapBaseColor.COLOR_YELLOW),
+            Map.entry(Material.SUNFLOWER, MapBaseColor.COLOR_YELLOW),
+            Map.entry(Material.WILDFLOWERS, MapBaseColor.GOLD),
+            Map.entry(Material.POPPY, MapBaseColor.CRIMSON_NYLIUM),
+            Map.entry(Material.RED_TULIP, MapBaseColor.CRIMSON_NYLIUM),
+            Map.entry(Material.ROSE_BUSH, MapBaseColor.CRIMSON_NYLIUM),
+            Map.entry(Material.ORANGE_TULIP, MapBaseColor.COLOR_ORANGE),
+            Map.entry(Material.TORCHFLOWER, MapBaseColor.TERRACOTTA_ORANGE),
+            Map.entry(Material.CORNFLOWER, MapBaseColor.LAPIS),
+            Map.entry(Material.BLUE_ORCHID, MapBaseColor.COLOR_LIGHT_BLUE),
+            Map.entry(Material.PITCHER_PLANT, MapBaseColor.COLOR_LIGHT_BLUE),
+            Map.entry(Material.ALLIUM, MapBaseColor.COLOR_MAGENTA),
+            Map.entry(Material.LILAC, MapBaseColor.COLOR_MAGENTA),
+            Map.entry(Material.PINK_TULIP, MapBaseColor.COLOR_PINK),
+            Map.entry(Material.PEONY, MapBaseColor.COLOR_PINK),
+            Map.entry(Material.PINK_PETALS, MapBaseColor.COLOR_PINK),
+            Map.entry(Material.SPORE_BLOSSOM, MapBaseColor.COLOR_PINK),
+            Map.entry(Material.CACTUS_FLOWER, MapBaseColor.COLOR_PINK),
+            Map.entry(Material.WHITE_TULIP, MapBaseColor.WOOL),
+            Map.entry(Material.OPEN_EYEBLOSSOM, MapBaseColor.WOOL),
+            Map.entry(Material.LILY_OF_THE_VALLEY, MapBaseColor.QUARTZ),
+            Map.entry(Material.AZURE_BLUET, MapBaseColor.SAND),
+            Map.entry(Material.OXEYE_DAISY, MapBaseColor.SAND),
+            Map.entry(Material.CLOSED_EYEBLOSSOM, MapBaseColor.DEEPSLATE),
+            Map.entry(Material.WITHER_ROSE, MapBaseColor.TERRACOTTA_GRAY));
+
+    /**
      * Blocks whose vanilla map colour does not resemble them, and what to use instead.
      *
      * <p>Tuff averages #6C6D66 and its bricks #62665F. {@code DEEPSLATE} (#646464) is
@@ -87,8 +169,16 @@ public final class BlockColorTable {
      * every build that uses it, and giving it {@code STONE} would erase the wall it was
      * chosen to distinguish. Colliding with deepslate instead costs less, since the two
      * rarely share a surface.</p>
+     *
+     * <p>{@link #FLOWER_COLORS} joins them: same criterion, different reason for vanilla
+     * having got there.</p>
      */
-    private static final Map<Material, MapBaseColor> CORRECTIONS = Map.ofEntries(
+    private static final Map<Material, MapBaseColor> CORRECTIONS = corrections();
+
+    private static Map<Material, MapBaseColor> corrections() {
+        Map<Material, MapBaseColor> map = new EnumMap<>(Material.class);
+        map.putAll(FLOWER_COLORS);
+        map.putAll(Map.ofEntries(
             Map.entry(Material.TUFF, MapBaseColor.DEEPSLATE),
             Map.entry(Material.TUFF_SLAB, MapBaseColor.DEEPSLATE),
             Map.entry(Material.TUFF_STAIRS, MapBaseColor.DEEPSLATE),
@@ -102,7 +192,9 @@ public final class BlockColorTable {
             Map.entry(Material.TUFF_BRICK_SLAB, MapBaseColor.DEEPSLATE),
             Map.entry(Material.TUFF_BRICK_STAIRS, MapBaseColor.DEEPSLATE),
             Map.entry(Material.TUFF_BRICK_WALL, MapBaseColor.DEEPSLATE),
-            Map.entry(Material.CHISELED_TUFF_BRICKS, MapBaseColor.DEEPSLATE));
+            Map.entry(Material.CHISELED_TUFF_BRICKS, MapBaseColor.DEEPSLATE)));
+        return map;
+    }
 
     /**
      * Blocks that do not fill the cell they stand in, and how much of it they do fill.
@@ -141,6 +233,7 @@ public final class BlockColorTable {
                 Material.AZURE_BLUET, Material.RED_TULIP, Material.ORANGE_TULIP,
                 Material.WHITE_TULIP, Material.PINK_TULIP, Material.OXEYE_DAISY,
                 Material.CORNFLOWER, Material.LILY_OF_THE_VALLEY, Material.WITHER_ROSE,
+                Material.OPEN_EYEBLOSSOM, Material.CLOSED_EYEBLOSSOM, Material.CACTUS_FLOWER,
                 Material.TORCHFLOWER, Material.SUNFLOWER, Material.LILAC, Material.ROSE_BUSH,
                 Material.PEONY,
                 Material.OAK_SAPLING, Material.SPRUCE_SAPLING, Material.BIRCH_SAPLING,

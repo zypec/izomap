@@ -41,6 +41,15 @@ settings:
   # tuff bloğunun tamamı TERRACOTTA_GRAY (#392923, siyaha yakın kahve) bildirir, oysa
   # tuff dokusunun ortalaması #6C6D66 (açık gri-yeşil). Bu ayar açıkken o bloklar
   # dokusuna en yakın temel renge çekilir (tuff -> DEEPSLATE).
+  #
+  # ÇİÇEKLER de bu ayara bağlı. Vanilla her çiçeğe PLANT (#007C00, düz yeşil) verir —
+  # haritada doğru cevap budur, sütun başına tek piksele düşen bir çayır yeşilliktir;
+  # fotoğrafta ise gelincik kırmızı, karahindiba sarı bir noktadır. Açıkken her çiçek
+  # kendi TACYAPRAĞININ ölçülmüş rengine en yakın palet girdisini alır (gelincik ->
+  # CRIMSON_NYLIUM, karahindiba -> COLOR_YELLOW, peygamber çiçeği -> LAPIS ...).
+  # Kısmi kaplama yüzünden çiçek hücresinin ancak üçte birini tuttuğu için sonuç
+  # "doğru renkte bir ton", blok dolusu renk değil.
+  #
   # Kapatırsan fotoğraf vanilla haritayla birebir aynı olur, bu kusur dahil.
   # block-colors.yml her iki durumda da son sözü söyler.
   correct-vanilla-colors: true

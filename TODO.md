@@ -249,6 +249,9 @@ olmalı ve varsayılanı tartışmalı (öneri: varsayılan **açık**, çünkü
 manzarayı göstermek).
 
 **Uygulama notları:**
+- **Ölçülmüş kanıt (T62):** `short_grass.png` ve `fern.png` dokuları **gri**dir
+  (#929192, #7C7D7C); renk istemcide colormap'ten gelir. Yani "dokunun ortalamasını al"
+  yöntemi bu bloklarda geçersiz, tablo şart.
 - `ChunkSnapshot#getBiome(x, y, z)` snapshot'ta mevcut, asenkron kullanılabilir —
   ancak snapshot şu an `includeBiome = false` ile alınıyor, bu değişmeli.
 - Paper API biome'un çim/yaprak rengini **doğrudan vermiyor**. Renkler istemci tarafında
@@ -370,6 +373,50 @@ genişletilmeli (herkese açık / davetli / özel) ve `preview` komutu ona göre
 ---
 
 ## Arşiv
+
+### T62 — Çiçekler yeşil çıkıyor
+
+`[x]` **P2** · 2026-08-17 · İlgili: T49 ✔, T34
+
+**Soru (oyuncu):** tüm çiçek türlerinin renklerini ekleyelim mi? Şu an hepsi çimen rengi
+alıyor.
+
+**Cevap: evet, ve bu tuff'la aynı sınıf bir sorun.** Vanilla her çiçeğe `PLANT` (#007C00)
+atıyor; **haritada bu doğru** — sütun başına tek piksele düşen çayır yeşilliktir — ama
+fotoğrafta gelincik kırmızı, karahindiba sarı bir noktadır. Aynı ölçüt, aynı anahtar:
+`settings.correct-vanilla-colors`.
+
+**Ölçüm taçyapraktan yapıldı, dokudan değil.** İlk deneme düz doku ortalamasıydı ve
+yanılttı: bir çiçek dokusunun çoğu sap ve yaprak, öyle ki kırmızı lalenin ortalaması
+**yeşil** çıkıyor (#5A8121) — yani vanilla savunulabilir görünüyor. Yeşil baskın pikseller
+(g, hem r hem b'den 12 fazla) ayıklandı, kalanın ortalaması alındı; sıralama
+`MapColorConverter`'ın kullandığı redmean uzaklığıyla. Kaynak: 26.2 istemci jar'ı.
+
+**Hue parlaklığı yeniyor.** En yakın girdi soluk taçyaprakları griye gönderiyordu (pink
+petals #F7B5DB → `WOOL`), çünkü paletin renkli girdileri gerçek taçyapraktan daha doygun.
+Gri bir çiçek kadrajda bulunma sebebini kaybeder; taçyaprağın gerçek kroması varsa renkli
+girdi kazanıyor. Tablonun tamamı `IZOMAP.md` §3 "Çiçekler"de.
+
+25 blok: karahindiba/ayçiçeği `COLOR_YELLOW`, gelincik/kırmızı lale/gül `CRIMSON_NYLIUM`,
+turuncu lale `COLOR_ORANGE`, peygamber çiçeği `LAPIS`, mavi orkide/ibrik bitkisi
+`COLOR_LIGHT_BLUE`, allium/leylak `COLOR_MAGENTA`, pembe olanlar `COLOR_PINK`, beyazlar
+`WOOL`/`QUARTZ`/`SAND`, solmuş gül `TERRACOTTA_GRAY`, eyeblossom'lar `WOOL`/`DEEPSLATE`.
+
+**Karara bağlanamayan tek girdi meşale çiçeği:** dokusu koyu mor gövde + küçük parlak
+tomurcuk, ortalaması neredeyse tam `DIRT` — çiçek, üzerinde bittiği toprakta kaybolurdu.
+En yakın sıcak girdi `TERRACOTTA_ORANGE` seçildi.
+
+Etki, T49 sayesinde ölçülü: çiçek hücresinin ~%30'unu tuttuğu için sonuç blok dolusu renk
+değil, doğru hue'da bir ton.
+
+**T34 için yan tespit:** aynı ölçümde `short_grass.png` ve `fern.png`'in **gri** olduğu
+görüldü (#929192, #7C7D7C) — bu dokular istemcide biome colormap'iyle renklendiriliyor,
+yani "doku ortalaması" yöntemi tint alan bloklarda geçersiz.
+
+Dokunulanlar: `BlockColorTable` (`FLOWER_COLORS`), `config.yml`, `block-colors.yml`,
+`IZOMAP.md` §3.
+
+---
 
 ### T49 — Kısmi kaplama: ince bloklar bloğun tamamını boyamasın
 
