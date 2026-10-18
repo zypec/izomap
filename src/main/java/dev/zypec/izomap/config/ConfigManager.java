@@ -3,6 +3,7 @@ package dev.zypec.izomap.config;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.render.FocusSpec;
 import dev.zypec.izomap.render.ShadingSpec;
+import dev.zypec.izomap.render.SkyBodiesSpec;
 import dev.zypec.izomap.render.WaterSpec;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -290,6 +291,27 @@ public final class ConfigManager {
     /** Sky color at the given keyframe, as 0xRRGGBB. */
     public int skyColor(String keyframe, int fallback) {
         return parseRgb(cfg().getString("photo.sky.colors." + keyframe), fallback);
+    }
+
+    /**
+     * What the sky carries besides its colour, for a camera that draws them.
+     *
+     * <p>The sizes are ratios of the image's height rather than pixel counts, so the sun
+     * covers the same share of a 128px preview and a 2048px photo. The star density is
+     * the share of a fixed direction grid that holds a star; a few thousandths already
+     * reads as a full sky.</p>
+     */
+    public SkyBodiesSpec skyBodies() {
+        return new SkyBodiesSpec(
+                cfg().getBoolean("photo.sky.bodies.sun", true),
+                cfg().getBoolean("photo.sky.bodies.moon", true),
+                cfg().getBoolean("photo.sky.bodies.stars", true),
+                clamp(cfg().getDouble("photo.sky.bodies.sun-size", 0.07), 0.0, 1.0),
+                clamp(cfg().getDouble("photo.sky.bodies.moon-size", 0.06), 0.0, 1.0),
+                clamp(cfg().getDouble("photo.sky.bodies.star-density", 0.004), 0.0, 0.5),
+                parseRgb(cfg().getString("photo.sky.bodies.sun-color"), 0xFFF6D0),
+                parseRgb(cfg().getString("photo.sky.bodies.moon-color"), 0xE6E9F0),
+                parseRgb(cfg().getString("photo.sky.bodies.star-color"), 0xFFFFFF));
     }
 
     /**

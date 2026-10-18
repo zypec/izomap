@@ -166,12 +166,14 @@ public final class CameraDialogs {
                     target -> target.style(after(styles, target.style()))));
         }
 
-        var skies = choices(List.of(SkyOption.values()), camera.sky(),
-                sky -> Permissions.sky(viewer, sky));
-        if (skies.size() > 1) {
-            buttons.add(cycleButton(camera, "dialog.sky-button", "sky.",
-                    camera.sky().name(),
-                    target -> target.sky(after(skies, target.sky()))));
+        // The one setting with a screen of its own: it is two questions now (which sky,
+        // and what is in it), and a button that cycles cannot ask two.
+        if (skyChoices(viewer, camera).size() > 1 || maySeeBodies(viewer, camera)) {
+            buttons.add(button(plugin.messages().get("dialog.sky-button",
+                            Placeholder.component("value", plugin.messages().getOr(
+                                    "sky." + camera.sky().name(), camera.sky().name()))),
+                    (view, audience) -> applyAndOpen(view, audience, camera,
+                            (player, name) -> openSkyDialog(player, camera, name))));
         }
 
         // Shown to a camera that already has it on even without the permission, for the
@@ -223,6 +225,83 @@ public final class CameraDialogs {
         if (enabled && camera.focusDistance() <= 0.0f) {
             camera.focusDistance((float) plugin.render().focusRange(camera).suggested());
         }
+    }
+
+    // --- sky screen ---
+
+    /**
+     * The skies this player may shoot against, the camera's own always among them.
+     */
+    private List<SkyOption> skyChoices(Player viewer, Camera camera) {
+        return choices(List.of(SkyOption.values()), camera.sky(), sky -> Permissions.sky(viewer, sky));
+    }
+
+    /**
+     * Whether the bodies switch belongs on this player's screen. A camera that already
+     * has them on keeps it either way, for the same reason the settings do: an effect
+     * nobody can see is an effect nobody can turn off.
+     */
+    private static boolean maySeeBodies(Player viewer, Camera camera) {
+        return Permissions.skyBodies(viewer) || camera.skyBodies();
+    }
+
+    /**
+     * Which sky, and what is in it.
+     *
+     * <p>Its own screen rather than another button on the capture one: the six skies
+     * read better listed than cycled, and the bodies are a second question about the
+     * same thing. Picking a sky goes back to the capture screen, since that is the
+     * answer; toggling the bodies stays here, where the state is visible.</p>
+     *
+     * @param photoName what the capture screen's name field held, so leaving and coming
+     *                  back does not throw away a typed name
+     */
+    private void openSkyDialog(Player player, Camera camera, String photoName) {
+        List<ActionButton> buttons = new ArrayList<>();
+        for (SkyOption option : skyChoices(player, camera)) {
+            var current = option == camera.sky();
+            buttons.add(button(plugin.messages().get(
+                            current ? "dialog.sky-option-active" : "dialog.sky-option",
+                            Placeholder.component("value", plugin.messages().getOr(
+                                    "sky." + option.name(), option.name()))),
+                    (view, audience) -> onPlayer(audience, p -> {
+                        apply(p, camera, target -> target.sky(option));
+                        openCaptureDialog(p, camera, photoName);
+                    })));
+        }
+
+        // Nothing to carry the bodies on a transparent sky, so the switch is not offered
+        // there; the body line says why.
+        if (camera.sky().draws() && maySeeBodies(player, camera)) {
+            buttons.add(button(plugin.messages().get(camera.skyBodies()
+                            ? "dialog.sky-bodies-active" : "dialog.sky-bodies"),
+                    (view, audience) -> onPlayer(audience, p -> {
+                        apply(p, camera, target -> target.skyBodies(!target.skyBodies()));
+                        openSkyDialog(p, camera, photoName);
+                    })));
+        }
+        buttons.add(button(plugin.messages().get("dialog.sky-back"),
+                (view, audience) -> onPlayer(audience, p -> openCaptureDialog(p, camera, photoName))));
+
+        Dialog dialog = Dialog.create(builder -> builder.empty()
+                .base(DialogBase.builder(plugin.messages().get("dialog.sky-title"))
+                        .body(List.of(DialogBody.plainMessage(plugin.messages().get(
+                                camera.sky().draws() ? "dialog.sky-body" : "dialog.sky-body-none"),
+                                plugin.config().dialogBodyWidth())))
+                        .build())
+                .type(DialogType.multiAction(buttons, cancelButton(), COLUMNS)));
+
+        player.showDialog(dialog);
+    }
+
+    /**
+     * Changes a camera setting, persisting and re-rendering only if the shot moved.
+     * Main thread only.
+     */
+    private void apply(Player player, Camera camera, Consumer<Camera> change) {
+        var before = imageState(camera);
+        change.accept(camera);
+        applyIfChanged(player, camera, before);
     }
 
     private List<ActionButton> ratioButtons(Player viewer, Camera camera) {
@@ -496,6 +575,16 @@ public final class CameraDialogs {
         }, (player, name) -> next.accept(player));
     }
 
+    /**
+     * The same, for a screen that has to know what the name field held: the sky screen
+     * comes back to the capture one, and a typed name should still be there.
+     */
+    private void applyAndOpen(DialogResponseView view, Audience audience, Camera camera,
+                              FormAction then) {
+        applyForm(view, audience, camera, target -> {
+        }, then);
+    }
+
     private void applyForm(DialogResponseView view, Audience audience, Camera camera,
                            Consumer<Camera> change, FormAction then) {
         if (!(audience instanceof Player player)) {
@@ -521,7 +610,7 @@ public final class CameraDialogs {
      */
     private static List<Object> imageState(Camera camera) {
         return List.of(camera.aspectRatio(), camera.thirdsGuide(), camera.zoom(),
-                camera.colorFilter(), camera.style(), camera.sky(),
+                camera.colorFilter(), camera.style(), camera.sky(), camera.skyBodies(),
                 camera.focusEnabled(), camera.focusDistance());
     }
 

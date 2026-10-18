@@ -15,13 +15,18 @@ package dev.zypec.izomap.render;
  * snapping is a search over the whole palette — far too much to do per pixel. Both are
  * therefore resolved once per row into a 16-entry cell, so painting a sky pixel is one
  * array read.</p>
+ *
+ * <p>The sun, the moon and the stars sit on top of that table rather than in it: they
+ * depend on where a pixel is in <b>both</b> directions and on the camera's angles, so
+ * they are asked first and the table answers whatever they leave, see
+ * {@link SkyBodies}.</p>
  */
 public final class Sky {
 
     /**
      * No sky: every miss stays a hole.
      */
-    public static final Sky NONE = new Sky(null, 0);
+    public static final Sky NONE = new Sky(null, 0, SkyBodies.NONE);
 
     /**
      * Ordered dither thresholds, the standard 4x4 Bayer matrix scaled to -0.5..0.5.
@@ -41,10 +46,12 @@ public final class Sky {
      */
     private final int[] table;
     private final int height;
+    private final SkyBodies bodies;
 
-    private Sky(int[] table, int height) {
+    private Sky(int[] table, int height, SkyBodies bodies) {
         this.table = table;
         this.height = height;
+        this.bodies = bodies;
     }
 
     /**
@@ -55,9 +62,11 @@ public final class Sky {
      * @param horizonBlend  how far the bottom row moves towards white, 0 to 1
      * @param ditherSpread  how far a dithered pixel may stray from the true color, in
      *                      channel steps; 0 disables dithering
+     * @param bodies        the sun, moon and stars this frame carries, or
+     *                      {@link SkyBodies#NONE} for a bare sky
      */
     public static Sky of(int zenithRgb, boolean gradient, double horizonBlend, double ditherSpread,
-                         int height, MapColorConverter converter) {
+                         int height, MapColorConverter converter, SkyBodies bodies) {
         if (height <= 0)
             return NONE;
 
@@ -77,7 +86,15 @@ public final class Sky {
                 table[row * CELL_SIZE + cell] = 0xFF000000 | converter.snap(rgb);
             }
         }
-        return new Sky(table, height);
+        return new Sky(table, height, bodies);
+    }
+
+    /**
+     * A sky with nothing in it but its gradient.
+     */
+    public static Sky of(int zenithRgb, boolean gradient, double horizonBlend, double ditherSpread,
+                         int height, MapColorConverter converter) {
+        return of(zenithRgb, gradient, horizonBlend, ditherSpread, height, converter, SkyBodies.NONE);
     }
 
     /**
@@ -126,6 +143,12 @@ public final class Sky {
      */
     public int argbAt(int x, int y) {
         if (table == null) return 0;
+
+        if (bodies.draws()) {
+            var body = bodies.argbAt(x, y);
+            if (body != 0)
+                return body;
+        }
 
         var row = y < 0 ? 0 : Math.min(y, height - 1);
         return table[row * CELL_SIZE + (y & 3) * CELL + (x & 3)];

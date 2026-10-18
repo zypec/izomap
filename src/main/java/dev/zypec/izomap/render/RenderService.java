@@ -105,7 +105,7 @@ public final class RenderService {
                 world != null ? world.getUID() : null,
                 anchor.getX(), anchor.getY(), anchor.getZ(),
                 camera.camYaw(), camera.camPitch(), camera.zoom(), camera.colorFilter(), camera.style(),
-                skyArgbFor(camera.sky(), world),
+                skyFor(camera, world),
                 plugin.config().shading(),
                 plugin.config().water(),
                 plugin.config().focus(camera.focusEnabled(), camera.focusDistance()),
@@ -154,25 +154,33 @@ public final class RenderService {
     }
 
     /**
-     * Resolves a player's sky choice into the colour it means right now.
+     * Resolves a camera's sky choice into what that sky is right now.
      *
      * <p>Done here, once, at capture: {@code WORLD} has to read a clock that keeps
      * moving, and the whole point of freezing it is that the photo keeps the evening it
-     * was taken in.</p>
+     * was taken in. The time is kept alongside the colour because the bodies need it —
+     * which of the two is up comes from the hour, the moon's phase from the day.</p>
+     *
+     * <p>A fixed choice such as {@code NIGHT} still takes its phase from the world:
+     * the hour is the part the player picked, and the calendar is not.</p>
      */
-    private int skyArgbFor(SkyOption option, World world) {
+    private SkySpec skyFor(Camera camera, World world) {
+        var option = camera.sky();
         if (!option.draws())
-            return 0;
+            return SkySpec.NONE;
 
         var ticks = option.ticks();
         if (ticks < 0)
             ticks = world != null ? (int) (world.getTime() % 24_000L) : SkyOption.DAY.ticks();
 
-        return 0xFF000000 | Sky.colorAt(ticks,
+        var argb = 0xFF000000 | Sky.colorAt(ticks,
                 plugin.config().skyColor("dawn", 0xFF9E6B),
                 plugin.config().skyColor("day", 0x78A7FF),
                 plugin.config().skyColor("dusk", 0xFF7A4D),
                 plugin.config().skyColor("night", 0x0B1026));
+        var phase = world != null ? (int) ((world.getFullTime() / 24_000L) % 8L) : 0;
+        var bodies = camera.skyBodies() ? plugin.config().skyBodies() : SkyBodiesSpec.NONE;
+        return new SkySpec(argb, ticks, phase, bodies);
     }
 
     /**
@@ -253,15 +261,18 @@ public final class RenderService {
         // Read once here: a reload swapping the table mid-render would leave half the
         // image on one set of tints, like the colour table it travels with.
         var tints = biomeTints;
-        var sky = spec.skyArgb() == 0
-                ? Sky.NONE
-                : Sky.of(spec.skyArgb() & 0xFFFFFF, plugin.config().skyGradient(),
-                plugin.config().skyHorizonBlend(), plugin.config().skyDither(),
-                renderHeight, converter);
 
         var geometry = new RenderGeometry(
                 planeCenter, right, up, direction, spanWidth, spanHeight, maxDistance,
                 eyeY, maxBackoff, renderWidth, renderHeight);
+        // Built from the geometry, since where a body falls in the frame is a question
+        // about the camera's axes and nothing else.
+        var sky = !spec.sky().draws()
+                ? Sky.NONE
+                : Sky.of(spec.sky().argb() & 0xFFFFFF, plugin.config().skyGradient(),
+                plugin.config().skyHorizonBlend(), plugin.config().skyDither(),
+                renderHeight, converter,
+                SkyBodies.of(spec.sky(), geometry, toSun.getX(), toSun.getY(), toSun.getZ(), converter));
         var pipeline = ColorPipeline.of(spec.colorFilter(), converter, tints);
         var focus = spec.focus();
         var supersampling = spec.supersampling();

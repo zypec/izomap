@@ -335,6 +335,32 @@ photo:
     # Değer, bir pikselin gerçek renkten kaç kanal basamağı sapabileceğidir.
     # 0 = kapalı (temiz ama bantlı). Aralık: 0-128.
     dither: 24.0
+    # GÖK CİSİMLERİ. Gökyüzüne güneş, ay ve yıldız çizilir. Oyuncu tarafında ayrı bir
+    # anahtar vardır (çekim ekranı -> Gökyüzü -> Gök cisimleri) ve izomap.sky.bodies
+    # iznine bağlıdır; buradaki değerler yalnızca AÇIKKEN neyin nasıl çizileceğini
+    # söyler. Cisimler yalnızca gökyüzü olan fotoğraflarda görünür.
+    bodies:
+      # Güneş, gündüz saatlerinde çizilir; yönü gölgelendirmenin güneşiyle aynıdır
+      # (photo.shading.sun-yaw / sun-pitch), yoksa gölgeler bir yana güneş öbür yana
+      # düşerdi.
+      sun: true
+      # Ay, gece saatlerinde ve güneşin tam tersi yönde çizilir; evresi çekim anındaki
+      # oyun gününden gelir.
+      moon: true
+      # Yıldızlar yalnızca gökyüzü koyulaştıkça belirir ve dünya yönüne bağlıdır:
+      # kamera çevrildiğinde kaymaz, aynı kamera aynı yıldızları görür.
+      stars: true
+      # Çap, fotoğrafın YÜKSEKLİĞİNE oranla. Böylece 128 px'lik önizlemede de
+      # 2048 px'lik fotoğrafta da aynı büyüklükte durur. Aralık: 0.0-1.0.
+      sun-size: 0.07
+      moon-size: 0.06
+      # Yıldız yoğunluğu: yön ızgarasının kaçta kaçında yıldız var. Birkaç binde bir
+      # zaten dolu bir gökyüzü demektir. Aralık: 0.0-0.5.
+      star-density: 0.004
+      # Renkler palete yuvarlanır; kızıl bir güneş isteyen buradan değiştirir.
+      sun-color: "#FFF6D0"
+      moon-color: "#E6E9F0"
+      star-color: "#FFFFFF"
   # ÇEKİM MALİYETİ. Stil, fotoğrafın ne kadarının gerçekten ışınla çizildiğini belirler;
   # oyuncu Dialog'dan seçer. "Keskin" her piksel için ışın atar, "Hızlı" görüntüyü küçük
   # çizip büyütür — ışın sayısı aşağıdaki oranın KARESİYLE azalır (0.5 -> dörtte bir).

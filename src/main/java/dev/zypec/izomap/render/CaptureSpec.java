@@ -21,9 +21,9 @@ import java.util.UUID;
  * @param zoom           zoom multiplier; the frame covers {@code frameHeight / zoom} blocks
  * @param colorFilter    color effect applied before the palette snap
  * @param style          how the pixels are drawn, as opposed to colored
- * @param skyArgb        sky color frozen at capture, or {@code 0} for none. The colour
- *                       is stored rather than the time, so a re-render neither drifts
- *                       with the clock nor with a retuned palette
+ * @param sky            sky frozen at capture: its colour, the moment it was taken from
+ *                       and what it carries. Stored rather than re-read, so a re-render
+ *                       neither drifts with the clock nor with a retuned palette
  * @param shading        what darkens a surface beyond its own face, at capture time
  * @param water          how water is coloured, at capture time; {@link WaterSpec#FLAT}
  *                       leaves it the single tone it used to be
@@ -45,7 +45,7 @@ public record CaptureSpec(
         float zoom,
         ColorFilter colorFilter,
         PhotoStyle style,
-        int skyArgb,
+        SkySpec sky,
         ShadingSpec shading,
         WaterSpec water,
         FocusSpec focus,

@@ -70,6 +70,7 @@ public final class CameraStorage extends YamlStorage {
             cfg.set(base + ".color-filter", c.colorFilter().id());
             cfg.set(base + ".style", c.style().name());
             cfg.set(base + ".sky", c.sky().name());
+            cfg.set(base + ".sky-bodies", c.skyBodies());
             cfg.set(base + ".from-item", c.placedFromItem());
             cfg.set(base + ".thirds-guide", c.thirdsGuide());
             cfg.set(base + ".focus-enabled", c.focusEnabled());
@@ -133,6 +134,7 @@ public final class CameraStorage extends YamlStorage {
         camera.colorFilter(plugin.filters().byId(s.getString("color-filter"), ColorFilter.ORIGINAL));
         camera.style(PhotoStyle.fromString(s.getString("style"), PhotoStyle.SHARP));
         camera.sky(SkyOption.fromString(s.getString("sky"), SkyOption.NONE));
+        camera.skyBodies(s.getBoolean("sky-bodies", false));
         camera.placedFromItem(s.getBoolean("from-item", false));
         camera.thirdsGuide(s.getBoolean("thirds-guide", false));
         camera.focusEnabled(s.getBoolean("focus-enabled", false));

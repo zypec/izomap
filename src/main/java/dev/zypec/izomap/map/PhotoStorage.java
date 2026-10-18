@@ -6,6 +6,9 @@ import dev.zypec.izomap.render.ColorFilter;
 import dev.zypec.izomap.render.FocusSpec;
 import dev.zypec.izomap.render.PhotoStyle;
 import dev.zypec.izomap.render.ShadingSpec;
+import dev.zypec.izomap.render.SkyBodiesSpec;
+import dev.zypec.izomap.render.SkyOption;
+import dev.zypec.izomap.render.SkySpec;
 import dev.zypec.izomap.render.WaterSpec;
 import dev.zypec.izomap.storage.YamlStorage;
 import dev.zypec.izomap.util.Ids;
@@ -106,7 +109,19 @@ public final class PhotoStorage extends YamlStorage {
         cfg.set(base + ".zoom", spec.zoom());
         cfg.set(base + ".color-filter", spec.colorFilter().id());
         cfg.set(base + ".style", spec.style().name());
-        cfg.set(base + ".sky-argb", spec.skyArgb());
+        cfg.set(base + ".sky.argb", spec.sky().argb());
+        cfg.set(base + ".sky.ticks", spec.sky().ticks());
+        cfg.set(base + ".sky.moon-phase", spec.sky().moonPhase());
+        var bodies = spec.sky().bodies();
+        cfg.set(base + ".sky.bodies.sun", bodies.sun());
+        cfg.set(base + ".sky.bodies.moon", bodies.moon());
+        cfg.set(base + ".sky.bodies.stars", bodies.stars());
+        cfg.set(base + ".sky.bodies.sun-size", bodies.sunSize());
+        cfg.set(base + ".sky.bodies.moon-size", bodies.moonSize());
+        cfg.set(base + ".sky.bodies.star-density", bodies.starDensity());
+        cfg.set(base + ".sky.bodies.sun-color", bodies.sunRgb());
+        cfg.set(base + ".sky.bodies.moon-color", bodies.moonRgb());
+        cfg.set(base + ".sky.bodies.star-color", bodies.starRgb());
         cfg.set(base + ".shading.sun-shadow", spec.shading().sunShadow());
         cfg.set(base + ".shading.sun-yaw", spec.shading().sunYaw());
         cfg.set(base + ".shading.sun-pitch", spec.shading().sunPitch());
@@ -169,6 +184,33 @@ public final class PhotoStorage extends YamlStorage {
     }
 
     /**
+     * Reads the sky. Photos written before it was a section of its own carry a bare
+     * {@code sky-argb}; they had no bodies, so noon and a full moon stand in for the
+     * clock nothing ever reads.
+     */
+    private static SkySpec readSky(ConfigurationSection s, int legacyArgb) {
+        if (s == null)
+            return legacyArgb == 0 ? SkySpec.NONE
+                    : new SkySpec(legacyArgb, SkyOption.DAY.ticks(), 0, SkyBodiesSpec.NONE);
+
+        var argb = s.getInt("argb", 0);
+        if (argb == 0) return SkySpec.NONE;
+
+        var bodies = s.getConfigurationSection("bodies");
+        return new SkySpec(argb, s.getInt("ticks", SkyOption.DAY.ticks()), s.getInt("moon-phase", 0),
+                bodies == null ? SkyBodiesSpec.NONE : new SkyBodiesSpec(
+                        bodies.getBoolean("sun", false),
+                        bodies.getBoolean("moon", false),
+                        bodies.getBoolean("stars", false),
+                        bodies.getDouble("sun-size", 0.07),
+                        bodies.getDouble("moon-size", 0.06),
+                        bodies.getDouble("star-density", 0.004),
+                        bodies.getInt("sun-color", 0xFFF6D0),
+                        bodies.getInt("moon-color", 0xE6E9F0),
+                        bodies.getInt("star-color", 0xFFFFFF)));
+    }
+
+    /**
      * Reads the focus; a photo taken with none has the whole frame sharp.
      */
     private static FocusSpec readFocus(ConfigurationSection s) {
@@ -198,7 +240,7 @@ public final class PhotoStorage extends YamlStorage {
                 (float) s.getDouble("zoom", 1.0),
                 plugin.filters().byId(s.getString("color-filter"), ColorFilter.ORIGINAL),
                 PhotoStyle.fromString(s.getString("style"), PhotoStyle.SHARP),
-                s.getInt("sky-argb", 0),
+                readSky(s.getConfigurationSection("sky"), s.getInt("sky-argb", 0)),
                 readShading(s.getConfigurationSection("shading")),
                 readWater(s.getConfigurationSection("water")),
                 readFocus(s.getConfigurationSection("focus")),

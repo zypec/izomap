@@ -311,6 +311,9 @@ public final class PhotoManager {
         if (!Permissions.sky(player, camera.sky()))
             return deny(player, "sky", camera.sky().name());
 
+        if (camera.skyBodies() && !Permissions.skyBodies(player))
+            return deny(player, "sky-bodies", "on");
+
         if (!Permissions.ratio(player, camera.aspectRatio()))
             return deny(player, "ratio", camera.aspectRatio().label());
 

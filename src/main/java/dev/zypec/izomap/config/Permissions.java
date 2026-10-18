@@ -44,6 +44,11 @@ public final class Permissions {
     public static final String STYLE_SHARP = "izomap.style.sharp";
     /** Depth of field: a second pass over every pixel of the image. */
     public static final String FOCUS = "izomap.focus";
+    /**
+     * The sun, the moon and the stars in the sky. Under {@code izomap.sky} by name but
+     * not one of its options: it says what a sky <b>holds</b>, not which sky it is.
+     */
+    public static final String SKY_BODIES = "izomap.sky.bodies";
 
     /** Area nodes; a single option is {@code <area>.<NAME>}. */
     public static final String FILTER = "izomap.filter";
@@ -89,6 +94,14 @@ public final class Permissions {
 
     public static boolean sky(Permissible who, SkyOption sky) {
         return sky == SkyOption.NONE || allows(who, SKY, sky.name());
+    }
+
+    /**
+     * Whether the holder may put bodies in the sky. Every sky can be shot without them,
+     * so this keeps nobody from taking a photo.
+     */
+    public static boolean skyBodies(Permissible who) {
+        return who.hasPermission(SKY_BODIES);
     }
 
     public static boolean ratio(Permissible who, AspectRatio ratio) {

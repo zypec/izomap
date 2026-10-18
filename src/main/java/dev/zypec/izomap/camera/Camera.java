@@ -48,6 +48,8 @@ public final class Camera {
     private ColorFilter colorFilter;
     private PhotoStyle style;
     private SkyOption sky;
+    /** Whether the sun, the moon and the stars are drawn into that sky. */
+    private boolean skyBodies;
     private boolean placedFromItem;
 
     private boolean thirdsGuide;
@@ -192,6 +194,18 @@ public final class Camera {
 
     public void sky(SkyOption sky) {
         this.sky = sky;
+    }
+
+    /**
+     * Whether the sky this camera shoots against carries the sun, the moon and the
+     * stars. Off on a transparent sky, which has nothing to carry them.
+     */
+    public boolean skyBodies() {
+        return skyBodies && sky.draws();
+    }
+
+    public void skyBodies(boolean skyBodies) {
+        this.skyBodies = skyBodies;
     }
 
     /**

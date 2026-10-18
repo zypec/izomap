@@ -118,11 +118,16 @@ setting:
   style: "<white>Stil"
   filter: "<white>Renk filtresi"
   sky: "<white>Gökyüzü"
+  sky-bodies: "<white>Gök cisimleri"
   ratio: "<white>En-boy oranı"
   focus: "<white>Alan derinliği"
 
-# setting.focus'un değeri; izinsiz çekim reddedilirken "Alan derinliği: Açık" yazar.
+# setting.focus ve setting.sky-bodies'in değeri; izinsiz çekim reddedilirken
+# "Alan derinliği: Açık" yazar.
 focus:
+  on: "<green>Açık"
+
+sky-bodies:
   on: "<green>Açık"
 
 filter:
@@ -221,6 +226,15 @@ dialog:
   filter-button: "Renk: <value>"
   style-button: "Stil: <value>"
   sky-button: "Gökyüzü: <value>"
+  # Gökyüzü kendi alt ekranında seçilir: altı seçenek ve gök cisimleri anahtarı.
+  sky-title: "<gradient:#5e60ce:#48bfe3>Gökyüzü</gradient>"
+  sky-body: "<gray>Fotoğrafın arkasında hangi gökyüzü olacak? <white>Oyun saati</white> çekim anındaki saati donduruyor."
+  sky-body-none: "<gray>Şeffaf gökyüzünde ışının çarpmadığı yer delik kalır; fotoğraf arka planı olmadan asılabilir. Gök cisimleri bu yüzden yalnızca gökyüzü olan fotoğraflarda çizilir."
+  sky-option: "<value>"
+  sky-option-active: "<value> <green>✔"
+  sky-bodies: "Gök cisimleri: <gray>Kapalı"
+  sky-bodies-active: "Gök cisimleri: <green>Açık ✔"
+  sky-back: "Geri"
   grid-option: "<grid> — <count> harita (<wpx>x<hpx>px)"
   capture-full: "<red>Limit dolu (<limit>)"
   pickup-button: "<red>Kamerayı Topla"
