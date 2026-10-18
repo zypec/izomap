@@ -99,16 +99,26 @@ public final class RenderService {
      * the config values the image depends on.
      */
     public CaptureSpec specFor(Camera camera) {
-        var anchor = camera.anchor();
+        return specFor(camera.anchor(), camera.camYaw(), camera.camPitch(), camera.zoom(),
+                camera.colorFilter(), camera.style(), camera.sky(), camera.skyBodies(),
+                camera.focusEnabled(), camera.focusDistance());
+    }
+
+    /**
+     * The same for a view no camera stands at, such as one the development tools shoot.
+     */
+    public CaptureSpec specFor(Location anchor, float yaw, float pitch, float zoom,
+                               ColorFilter colorFilter, PhotoStyle style, SkyOption sky,
+                               boolean skyBodies, boolean focusEnabled, double focusDistance) {
         var world = anchor.getWorld();
         return new CaptureSpec(
                 world != null ? world.getUID() : null,
                 anchor.getX(), anchor.getY(), anchor.getZ(),
-                camera.camYaw(), camera.camPitch(), camera.zoom(), camera.colorFilter(), camera.style(),
-                skyFor(camera, world),
+                yaw, pitch, zoom, colorFilter, style,
+                skyFor(sky, skyBodies && sky.draws(), world),
                 plugin.config().shading(),
                 plugin.config().water(),
-                plugin.config().focus(camera.focusEnabled(), camera.focusDistance()),
+                plugin.config().focus(focusEnabled, focusDistance),
                 plugin.config().frameHeight(), plugin.config().frameShift(),
                 plugin.config().supersampling(), plugin.config().maxCaptureArea(),
                 plugin.config().renderDepth());
@@ -164,8 +174,7 @@ public final class RenderService {
      * <p>A fixed choice such as {@code NIGHT} still takes its phase from the world:
      * the hour is the part the player picked, and the calendar is not.</p>
      */
-    private SkySpec skyFor(Camera camera, World world) {
-        var option = camera.sky();
+    private SkySpec skyFor(SkyOption option, boolean withBodies, World world) {
         if (!option.draws())
             return SkySpec.NONE;
 
@@ -179,7 +188,7 @@ public final class RenderService {
                 plugin.config().skyColor("dusk", 0xFF7A4D),
                 plugin.config().skyColor("night", 0x0B1026));
         var phase = world != null ? (int) ((world.getFullTime() / 24_000L) % 8L) : 0;
-        var bodies = camera.skyBodies() ? plugin.config().skyBodies() : SkyBodiesSpec.NONE;
+        var bodies = withBodies ? plugin.config().skyBodies() : SkyBodiesSpec.NONE;
         return new SkySpec(argb, ticks, phase, bodies);
     }
 

@@ -6,6 +6,7 @@ import dev.zypec.izomap.camera.CameraListener;
 import dev.zypec.izomap.camera.CameraManager;
 import dev.zypec.izomap.config.ConfigManager;
 import dev.zypec.izomap.config.Messages;
+import dev.zypec.izomap.dev.DevShots;
 import dev.zypec.izomap.map.MapService;
 import dev.zypec.izomap.map.PhotoFrameListener;
 import dev.zypec.izomap.map.PhotoFrames;
@@ -88,6 +89,8 @@ public final class Izomap extends JavaPlugin {
         getServer().getPluginManager().registerEvents(previewManager, this);
         getServer().getPluginManager().registerEvents(placementManager, this);
         CameraCommand.register(this, cameraManager, renderService, mapService, photoManager, cameraDialogs);
+        if (DevShots.enabled())
+            DevShots.register(this);
 
         messages.info("log.enabled");
     }
