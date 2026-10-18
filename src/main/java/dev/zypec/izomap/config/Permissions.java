@@ -106,10 +106,11 @@ public final class Permissions {
     }
 
     /**
-     * Whether the player may take a camera down: its owner, or an admin. Picking a camera
-     * up deletes every photo it took, so it is not something a passer-by can do.
+     * Whether the player may adjust a camera, shoot with it or take it down: its owner, or
+     * an admin. Everybody else may only watch its preview; picking a camera up deletes
+     * every photo it took, and turning one moves what its owner is framing.
      */
-    public static boolean pickUp(Player who, Camera camera) {
+    public static boolean edit(Player who, Camera camera) {
         return camera.owner().equals(who.getUniqueId()) || who.hasPermission(ADMIN);
     }
 

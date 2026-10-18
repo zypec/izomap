@@ -63,6 +63,10 @@ public final class CameraListener implements Listener {
 
         event.setCancelled(true);
         var player = event.getPlayer();
+        if (!Permissions.edit(player, camera)) {
+            watch(player, camera);
+            return;
+        }
         if (!plugin.preview().claimEditor(player, camera)) return;
         if (openedPreview(player, camera)) return;
 
@@ -85,6 +89,10 @@ public final class CameraListener implements Listener {
         if (camera == null) return;
 
         event.setCancelled(true);
+        if (!Permissions.edit(player, camera)) {
+            watch(player, camera);
+            return;
+        }
         if (!plugin.preview().claimEditor(player, camera)) return;
         if (openedPreview(player, camera)) return;
 
@@ -187,6 +195,28 @@ public final class CameraListener implements Listener {
                 Placeholder.unparsed("camera", camera.name()));
         plugin.preview().showStatus(camera, player);
         return true;
+    }
+
+    /**
+     * What a click on somebody else's camera does: it opens the live view, and once that
+     * is open, says whose camera it is.
+     */
+    private void watch(Player player, Camera camera) {
+        switch (plugin.preview().join(player, camera)) {
+            case JOINED -> {
+                plugin.preview().refresh(camera);
+                plugin.messages().send(player, "preview.started",
+                        Placeholder.unparsed("camera", camera.name()));
+                plugin.preview().showStatus(camera, player);
+            }
+            case OFFHAND_FULL -> plugin.messages().send(player, "preview.offhand-full");
+            case ALREADY -> {
+                var owner = plugin.getServer().getOfflinePlayer(camera.owner()).getName();
+                plugin.messages().send(player, "camera.view-only",
+                        Placeholder.unparsed("owner", owner != null ? owner : "?"),
+                        Placeholder.unparsed("name", camera.name()));
+            }
+        }
     }
 
     private void adjust(Camera camera, int direction, Player player) {

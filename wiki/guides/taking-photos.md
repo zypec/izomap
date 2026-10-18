@@ -6,7 +6,7 @@ Everything a camera can do, from aiming it to the capture screen's last button.
 
 A camera is three entities: the model you see (a spyglass by default), an invisible click box around it, and the info hologram above it. The hologram shows the camera's name, ratio, zoom, angles and how many photos it holds; while a photo is being taken it shows a progress bar too.
 
-Any player with `izomap.camera` can place cameras, up to `settings.max-cameras-per-player`. A camera keeps every setting until it is changed, across restarts.
+Any player with `izomap.camera` can place cameras, up to `settings.max-cameras-per-player`. A camera belongs to whoever placed it. A camera keeps every setting until it is changed, across restarts.
 
 ### Aiming
 
@@ -29,7 +29,9 @@ Zoom is a factor: every click multiplies or divides by the same amount, so a ste
 
 While you watch a camera, the map in your off hand is its live view, and the action bar shows its settings. To watch, your off hand has to be empty. The preview map cannot be dropped, moved or swapped; dropping it with `Q` closes the preview, and so does `/izocam preview stop`.
 
-Several players can watch the same camera at once, and it is rendered only once for all of them. Only one of them can adjust it: the first to click is the **editor**, the others are told who and join as viewers. An editor who stops clicking for `camera.edit-lock-seconds` loses the seat to the next player who clicks.
+Several players can watch the same camera at once, and it is rendered only once for all of them. Anyone can watch a camera by clicking it; only its **owner** and players with `izomap.admin` can adjust it, open its capture screen or pick it up. A click on somebody else's camera opens its preview and nothing more.
+
+When more than one player may adjust a camera (its owner and an admin), one of them at a time is the **editor**: the first to click. The other is told who and joins as a viewer. An editor who stops clicking for `camera.edit-lock-seconds` loses the seat to the next who clicks.
 
 The preview is taken at the camera's own aspect ratio, letterboxed on the square map, so it shows the real frame and the real cost: if the preview renders, the photo will too.
 

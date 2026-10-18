@@ -20,9 +20,9 @@ The photo would need more chunks than `settings.max-capture-area` allows. Zoom i
 
 Your off hand has to be empty: the preview is a map held there.
 
-### Someone else is adjusting my camera
+### Can other players change my camera?
 
-One player edits a camera at a time; the others watch. The editor's seat frees itself after `camera.edit-lock-seconds` without a click.
+No. Anyone can click your camera to watch its preview, but only you and players with `izomap.admin` can turn it, take photos with it or pick it up.
 
 ### The colors are not the ones the vanilla map shows
 

@@ -201,7 +201,7 @@ public final class CameraDialogs {
                         Placeholder.unparsed("limit", String.valueOf(photoManager.limitFor(viewer)))),
                 (view, audience) -> onCapture(view, audience, camera)));
 
-        if (Permissions.pickUp(viewer, camera))
+        if (Permissions.edit(viewer, camera))
             buttons.add(button(plugin.messages().get("dialog.pickup-button"),
                     (view, audience) -> applyAndRun(view, audience, camera,
                             player -> openPickupDialog(player, camera))));
@@ -475,7 +475,7 @@ public final class CameraDialogs {
      */
     public void pickUp(Player player, Camera camera) {
         // Asked again: the screen may have been opened before a permission was lost.
-        if (!Permissions.pickUp(player, camera))
+        if (!Permissions.edit(player, camera))
             return;
         var result = cameraManager.pickup(player, camera);
         plugin.messages().send(player,

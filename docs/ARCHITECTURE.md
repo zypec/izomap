@@ -569,7 +569,9 @@ world.
 | Shift + left-click | Open the capture dialog |
 | Right-click a block with the camera item | Place a camera there (the item is used) |
 
-The first four need the **editor seat** (§5). **The first click only opens the preview:** a player
+**Only the owner and `izomap.admin` edit** (`Permissions#edit`): anybody else's click opens the
+preview and, once it is open, says whose camera it is (`camera.view-only`); the capture screen's
+pickup button and its confirmation ask the same. The first four rows need the **editor seat** (§5). **The first click only opens the preview:** a player
 not yet watching gets the preview and nothing else; acting on the click too used to nudge the
 camera before the player could see it. A player whose off hand is full gets no preview and edits on
 the first click. A camera placed with the item opens its preview on placement.
@@ -586,7 +588,7 @@ status value is the camera's position.
 **Pickup.** A camera placed with the item has `placedFromItem` (`cameras.yml` → `from-item`); picking
 it up returns the item. A command-made camera returns nothing (no item is invented). Photos go with
 their camera (a photo without its camera cannot be retaken), so pickup confirms, and only the
-owner or `izomap.admin` may do it (`Permissions#pickUp`, asked when the button is drawn and again on
+owner or `izomap.admin` may do it (`Permissions#edit`, asked when the button is drawn and again on
 confirm); `/izocam pickup`
 skips the confirmation when there is nothing to lose. A full inventory drops the item at the
 player's feet and says so.
@@ -605,7 +607,7 @@ the preview cleanly), swapped or moved; it is removed on quit and cleaned on joi
   stored as `preview-map-id` and the view is reused and cleared on open.
 - **One session per camera** (`PreviewSession`): one `MapView`, one render, many viewers. Viewers'
   maps point at the same view.
-- **One editor.** Every interaction asks for the seat; a player who cannot get it is told who has it
+- **One editor** among those allowed to edit (owner, admins). Every interaction asks for the seat; a player who cannot get it is told who has it
   and joins as a viewer. The seat frees when its holder leaves the preview, disconnects, or does not
   touch the camera for `camera.edit-lock-seconds`. The seat is independent of the map: a player with
   a full off hand can still edit.

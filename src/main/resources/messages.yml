@@ -24,6 +24,8 @@ camera:
   picked-up: "<prefix> <green>Camera picked up: <white><name></white> <gray>(item returned, <count> photo(s) deleted)"
   picked-up-no-item: "<prefix> <yellow>Camera taken down: <white><name></white> <gray>(it was made by command, so there is no item to return; <count> photo(s) deleted)"
   name-taken: "<prefix> <red>You already have a camera called <white><name></white>."
+  # Clicking somebody else's camera: anyone may watch it, only its owner may adjust it.
+  view-only: "<prefix> <gray><white><name></white> is <white><owner></white>'s camera: you can watch it, not adjust it."
   list-header: "<prefix> <gray>Cameras (<count>):"
   list-entry: "<prefix> <dark_gray>› <white><name></white> <gray>(<ratio>, zoom <scale>x)"
   list-empty: "<prefix> <gray>You have no cameras yet."
