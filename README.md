@@ -32,3 +32,7 @@ Paper 26.3 or newer, Java 25.
 The site and the wiki are generated with `./gradlew generateWiki`, which needs the shared kit from
 [zypec/zypec.github.io](https://github.com/zypec/zypec.github.io) checked out beside this
 repository. How the plugin is built inside is in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## License
+
+[MIT](LICENSE)

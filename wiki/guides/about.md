@@ -5,6 +5,7 @@ Izomap is a Paper plugin for isometric photography, printed onto maps, made by [
 | | |
 |---|---|
 | Platform | Paper 26.3 and newer, Java 25 |
+| License | MIT |
 | Source | [github.com/zypec/izomap](https://github.com/zypec/izomap) |
 | Issues | [github.com/zypec/izomap/issues](https://github.com/zypec/izomap/issues) |
 
