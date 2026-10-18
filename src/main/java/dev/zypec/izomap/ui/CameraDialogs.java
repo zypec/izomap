@@ -201,9 +201,10 @@ public final class CameraDialogs {
                         Placeholder.unparsed("limit", String.valueOf(photoManager.limitFor(viewer)))),
                 (view, audience) -> onCapture(view, audience, camera)));
 
-        buttons.add(button(plugin.messages().get("dialog.pickup-button"),
-                (view, audience) -> applyAndRun(view, audience, camera,
-                        player -> openPickupDialog(player, camera))));
+        if (Permissions.pickUp(viewer, camera))
+            buttons.add(button(plugin.messages().get("dialog.pickup-button"),
+                    (view, audience) -> applyAndRun(view, audience, camera,
+                            player -> openPickupDialog(player, camera))));
         buttons.add(button(plugin.messages().get("dialog.reset-button"),
                 (view, audience) -> applyAndRun(view, audience, camera,
                         player -> resetAiming(player, camera))));
@@ -473,6 +474,9 @@ public final class CameraDialogs {
      * Takes the camera back and reports what became of it. Main thread only.
      */
     public void pickUp(Player player, Camera camera) {
+        // Asked again: the screen may have been opened before a permission was lost.
+        if (!Permissions.pickUp(player, camera))
+            return;
         var result = cameraManager.pickup(player, camera);
         plugin.messages().send(player,
                 result.itemReturned() ? "camera.picked-up" : "camera.picked-up-no-item",

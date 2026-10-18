@@ -1,5 +1,6 @@
 package dev.zypec.izomap.config;
 
+import dev.zypec.izomap.camera.Camera;
 import dev.zypec.izomap.map.GridOption;
 import dev.zypec.izomap.render.AspectRatio;
 import dev.zypec.izomap.render.ColorFilter;
@@ -102,6 +103,14 @@ public final class Permissions {
      */
     public static boolean skyBodies(Permissible who) {
         return who.hasPermission(SKY_BODIES);
+    }
+
+    /**
+     * Whether the player may take a camera down: its owner, or an admin. Picking a camera
+     * up deletes every photo it took, so it is not something a passer-by can do.
+     */
+    public static boolean pickUp(Player who, Camera camera) {
+        return camera.owner().equals(who.getUniqueId()) || who.hasPermission(ADMIN);
     }
 
     public static boolean ratio(Permissible who, AspectRatio ratio) {

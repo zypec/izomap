@@ -102,6 +102,6 @@ If a setting on the camera needs a permission you do not have, the photo is refu
 
 ### Picking a camera up
 
-**Pick up camera** (or `/izocam pickup <camera>`) takes the camera down and gives its item back, if it was placed with one. Photos belong to the camera that took them and cannot be retaken without it, so they are deleted with it; the screen asks first.
+**Pick up camera** (or `/izocam pickup <camera>`) takes the camera down and gives its item back, if it was placed with one. Only the camera's owner and players with `izomap.admin` see the button. Photos belong to the camera that took them and cannot be retaken without it, so they are deleted with it; the screen asks first.
 
 **Reset aim** puts zoom, facing and tilt back to their defaults and leaves everything else alone.

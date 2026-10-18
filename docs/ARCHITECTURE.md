@@ -585,7 +585,9 @@ status value is the camera's position.
 
 **Pickup.** A camera placed with the item has `placedFromItem` (`cameras.yml` → `from-item`); picking
 it up returns the item. A command-made camera returns nothing (no item is invented). Photos go with
-their camera (a photo without its camera cannot be retaken), so pickup confirms; `/izocam pickup`
+their camera (a photo without its camera cannot be retaken), so pickup confirms, and only the
+owner or `izomap.admin` may do it (`Permissions#pickUp`, asked when the button is drawn and again on
+confirm); `/izocam pickup`
 skips the confirmation when there is nothing to lose. A full inventory drops the item at the
 player's feet and says so.
 
