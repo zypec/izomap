@@ -14,6 +14,9 @@ import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,6 +46,15 @@ public final class Messages {
             plugin.saveResource("messages.yml", false);
 
         this.messages = YamlConfiguration.loadConfiguration(file);
+        // A key the server's copy lacks, such as one added by a newer version, reads the
+        // shipped text rather than showing a placeholder for the missing key.
+        try (var shipped = plugin.getResource("messages.yml")) {
+            if (shipped != null)
+                messages.setDefaults(YamlConfiguration.loadConfiguration(
+                        new InputStreamReader(shipped, StandardCharsets.UTF_8)));
+        } catch (IOException unreadable) {
+            plugin.getSLF4JLogger().debug("The shipped messages.yml could not be read", unreadable);
+        }
         this.miniMessage = MiniMessage.builder()
                 .tags(TagResolver.builder()
                         .resolver(TagResolver.standard())
