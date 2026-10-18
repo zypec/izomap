@@ -1,388 +1,164 @@
-# ============================================================
-#  Izomap - Ana Yapılandırma
-# ============================================================
+# Izomap configuration. Every key is explained on the wiki:
+# https://zypec.github.io/izomap/wiki/#configuration
 
 settings:
-  # TEK MALİYET AYARI: bir fotoğrafın kapsayabileceği en geniş alanın kenar
-  # uzunluğu (blok). Aşırı uzaklaştırmanın sunucuyu dondurmasını engeller;
-  # aşılırsa çekim yapılmaz ve oyuncuya yakınlaşması söylenir.
-  # Hem kopyalanacak chunk sayısını hem de ışınların kat edebileceği mesafeyi
-  # sınırlar. Maliyet bununla KARESEL büyür: 512 -> ~1024 chunk, 1024 -> ~4096 chunk.
-  # Aralık: 64-4096.
+  # Widest area one photo may cover, in blocks per side. The main cost limit. 64-4096.
   max-capture-area: 512
-  # Işınların, referans zeminden kaç blok daha AŞAĞIYA ulaşacağı.
-  # Işın mesafesi ayar değil, hesaplanan bir sonuçtur:
-  #   mesafe = (kadrajın üst kenarının hedef tabana dikey inişi) / sin(pitch)
-  # Referans zemin, deniz seviyesi ile kameranın altındaki zeminden ALÇAK olanıdır
-  # (kamera ikisinin de altındaysa kendi yüksekliği). Kameranın kendi sütunu tek
-  # başına kullanılamaz: kamera bir kulenin/uzun ağacın üstündeyse taban yüzlerce
-  # blok yukarı kayar ve uzaktaki deniz menzil dışında kalarak fotoğrafın üstünde
-  # dümdüz bir boşluk şeridi bırakır. Bu değer ise kadrajın uzak ucu bir vadiye/
-  # uçuruma denk geldiğinde ne kadar derinini göreceğini belirler.
-  # Yüzey manzarası için varsayılan yeterlidir. Aralık: 0-1024.
+  # How far below the reference ground the rays may reach, in blocks. 0-1024.
   render-depth: 64
-  # Render'ın kaç iş parçacığına bölüneceği. Görüntü yatay bantlara ayrılıp
-  # paralel işlenir. Aralık: 1-16.
+  # Threads one render is split across. 1-16.
   render-threads: 4
-  # Her çekimin ne kadar sürdüğü konsola yazılsın mı? Süre ikiye ayrılır:
-  # chunk kopyalama (ana thread, diske bağlı) ve ışın yürüyüşü (render havuzu, saf CPU).
-  # Render'a yeni bir aşama eklendiğinde maliyetini ölçmenin yoludur.
-  # Varsayılan kapalı: canlı önizleme sürekli render ettiği için log'u doldurur.
+  # Log how long each capture took (chunk copy and ray walk).
   render-timing: false
-  # Kadraja giren ama yüklü olmayan chunk'lar diskten yüklensin mi?
-  # Kapalıysa sunucunun görüş mesafesi dışındaki her yer boş (şeffaf) çıkar.
-  # Yükleme asenkrondur; ana thread donmaz.
+  # Load chunks the frame covers that are not loaded (asynchronously).
   load-missing-chunks: true
-  # Hiç üretilmemiş chunk'lar çekim için üretilsin mi? Varsayılan kapalı:
-  # fotoğraf çekmek dünyayı büyütmemelidir.
+  # Generate chunks that were never generated, so a photo can be taken of them.
   generate-missing-chunks: false
-  # Vanilla'nın harita rengi her zaman bloğa benzemez: renk dokudan üretilmiş bir
-  # ortalama değil, elle atanmış bir değerdir. En belirgin örnek tuff ailesi — on dört
-  # tuff bloğunun tamamı TERRACOTTA_GRAY (#392923, siyaha yakın kahve) bildirir, oysa
-  # tuff dokusunun ortalaması #6C6D66 (açık gri-yeşil). Bu ayar açıkken o bloklar
-  # dokusuna en yakın temel renge çekilir (tuff -> DEEPSLATE).
-  #
-  # ÇİÇEKLER de bu ayara bağlı. Vanilla her çiçeğe PLANT (#007C00, düz yeşil) verir —
-  # haritada doğru cevap budur, sütun başına tek piksele düşen bir çayır yeşilliktir;
-  # fotoğrafta ise gelincik kırmızı, karahindiba sarı bir noktadır. Açıkken her çiçek
-  # kendi TACYAPRAĞININ ölçülmüş rengine en yakın palet girdisini alır (gelincik ->
-  # CRIMSON_NYLIUM, karahindiba -> COLOR_YELLOW, peygamber çiçeği -> LAPIS ...).
-  # Kısmi kaplama yüzünden çiçek hücresinin ancak üçte birini tuttuğu için sonuç
-  # "doğru renkte bir ton", blok dolusu renk değil.
-  #
-  # Kapatırsan fotoğraf vanilla haritayla birebir aynı olur, bu kusur dahil.
-  # block-colors.yml her iki durumda da son sözü söyler.
+  # Replace vanilla map colors that look nothing like their block (tuff, flowers).
   correct-vanilla-colors: true
-  # Bir oyuncunun aynı anda sahip olabileceği maksimum kamera sayısı.
-  # İzinle geçersiz kılınabilir: izomap.max_cameras_by_player.<sayı>
+  # Cameras one player may own. Permission: izomap.max_cameras_by_player.<n>
   max-cameras-per-player: 5
-  # Bir kamerayla çekilebilecek maksimum fotoğraf sayısı (asılı olsun olmasın).
-  # İzinle geçersiz kılınabilir: izomap.max_photos_by_camera.<sayı>
-  #
-  # İzin varsa buradaki değer TAMAMEN yok sayılır — izindeki sayı daha küçük olsa bile
-  # geçerlidir, böylece bir grubu genel sınırın altında tutmak da mümkün olur.
-  # Birden çok izin varsa EN BÜYÜĞÜ geçerlidir (izinler gruplardan toplandığı için
-  # küçüğü almak, cömert bir gruba girmeyi cezaya çevirirdi).
-  # izomap.max_photos_by_camera.0 → hiç çekemez.
-  # izomap.max_photos_by_camera.unlimited → sınırsız.
+  # Photos one camera may take. Permission: izomap.max_photos_by_camera.<n>
   max-photos-per-camera: 5
-  # Bir fotoğrafın kaplayabileceği maksimum harita karesi (1x1 = 1, 4x2 = 8, 16x9 = 144).
-  # Render maliyetini asıl belirleyen ayar budur; başka hiçbir seçenek bu kadar hızlı
-  # büyümez. Varsayılan 12, küçük ızgaraların tamamına (4x3'e kadar) izin verir, büyük
-  # üçünü (8x4, 8x6, 16x9) izne bırakır.
-  # İzinle geçersiz kılınabilir: izomap.max_map_tiles.<sayı> (aynı kurallar: izin varsa
-  # buradaki değer yok sayılır, birden çoksa en büyüğü geçerlidir, .unlimited sınırsız).
-  # Bir en-boy oranının EN KÜÇÜK ızgarası sınırın üstünde bile olsa seçilebilir kalır;
-  # yoksa 16:9 (en küçüğü 8 kare) hiç kullanılamayan bir oran olurdu.
+  # Map tiles one photo may span (4x2 = 8). Permission: izomap.max_map_tiles.<n>
   max-map-tiles: 12
 
 camera:
-  # Kamera modeli tipi: ITEM_DISPLAY veya BLOCK_DISPLAY
+  # ITEM_DISPLAY or BLOCK_DISPLAY.
   display-type: ITEM_DISPLAY
-  # ITEM_DISPLAY için kullanılacak model eşyası (Material adı).
+  # Item the camera model is drawn with (material name).
   model-material: SPYGLASS
-  # ITEM_DISPLAY modelinin duruşu. Eşyanın hangi bağlamda çizileceğini seçer ve
-  # görünümü belirgin biçimde değiştirir: NONE, THIRDPERSON_RIGHTHAND,
-  # THIRDPERSON_LEFTHAND, FIRSTPERSON_RIGHTHAND, FIRSTPERSON_LEFTHAND, HEAD, GUI,
-  # GROUND, FIXED.
-  # Varsayılan: NONE.
-  # Geçersiz değer varsayılana düşer ve log'a uyarı yazılır.
-  # BLOCK_DISPLAY seçiliyken yok sayılır.
+  # How the item is held: NONE, THIRDPERSON_RIGHTHAND, HEAD, GUI, GROUND, FIXED and the rest.
   item-display-transform: NONE
-  # Tık kutusunun model ölçeği 1.0'ken kenar uzunluğu. Gerçek kutu bununla
-  # model-scale'in çarpımıdır (0.25-3.0 arasına sıkıştırılır): büyütülen kamerada
-  # modelin gövdesine tıklamak çalışsın, küçültülende de görünmeyen bir alan
-  # tıklanabilir kalmasın. Aralık: 0.1-3.0.
+  # Side of the click box at model scale 1.0. 0.1-3.0.
   interaction-size: 0.6
-  # Sol/sağ tık ile yakınlaştırma adımı. ÇARPANDIR, eklenen bir miktar değil:
-  # 1.25 = her tık %25 yakınlaştırır/uzaklaştırır. Aralık: 1.01-4.0.
+  # Zoom factor per click (1.25 = 25%). 1.01-4.0.
   zoom-step: 1.25
-  # Dünyada duran kamera modelinin görsel boyutu. Fotoğrafın yakınlaştırmasıyla
-  # ilgisi YOKTUR; sadece modeli büyütüp küçültür. Aralık: 0.1-8.0.
+  # Size of the camera model in the world; does not change the photo. 0.1-8.0.
   model-scale: 1.0
-  # Yaw/Pitch ayar adımı (derece).
+  # Degrees per click when turning the camera.
   angle-step: 15.0
-  # Hareket modunda her tıkın kamerayı kaç blok taşıyacağı. Yön OYUNCUNUN bakış
-  # vektörüdür: sağ tık baktığı yöne, sol tık zıt yöne. Bakış pitch'i de taşıdığı
-  # için yükseklik ayrı bir moda gerek kalmadan gelir. Aralık: 0.05-16.0.
+  # Blocks per click in move mode, along the player's view. 0.05-16.0.
   move-step: 1.0
-  # Yeni kurulan kameranın dikey açısı (derece, pozitif = aşağı bakış).
-  # 30 klasik izometrik açıdır. Ortografik projeksiyonda ışınlar paralel olduğu
-  # için 0'a (yatay bakış) yaklaştıkça kamera arazi YÜZEYİNİ göremez hale gelir:
-  # kadrajın üstü gökyüzü, altı toprak kesiti olur. 20-45 arasında kal.
+  # Pitch of a new camera, in degrees down. Keep it between 20 and 45.
   default-pitch: 30.0
-  # Bir kamerayı aynı anda yalnızca tek oyuncu ayarlayabilir. Bu süre boyunca
-  # kameraya dokunmayan oyuncunun kilidi düşer ve sıradaki tıklayan devralır;
-  # aksi halde bir kez tıklayıp giden biri kamerayı kalıcı olarak kilitlerdi.
-  # Diğerleri bu sırada önizlemeyi izleyebilir, yalnızca ayar yapamaz.
-  # Saniye. Aralık: 1-3600.
+  # Seconds an idle editor keeps a camera before someone else can take it over. 1-3600.
   edit-lock-seconds: 30
-  # Model rotasyon düzeltmesi (derece), üç eksende serbest. Farklı bir model
-  # kullanılırsa, modelin baktığı yön ile çekim yönü hizalanana kadar elle ayarlanır.
-  # Uygulanma sırası Y -> X -> Z olduğundan z, modelin kendi bakış ekseni etrafında
-  # yatırma (roll) sağlar.
+  # Model rotation correction in degrees, for a custom model.
   model-rotation:
-    x: 0.0   # pitch: öne/arkaya eğme
-    y: 0.0   # yaw:   sağa/sola çevirme
-    z: 0.0   # roll:  kendi ekseninde yatırma
-  # Kameranın üstünde duran bilgi hologramı (TextDisplay).
-  # HANGİ BİLGİNİN görüneceğini burası değil, messages.yml -> camera.hologram.lines
-  # belirler; oradaki bir satırı silmek onu hologramdan kaldırır.
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  # The info hologram above a camera. Its lines are in messages.yml (camera.hologram.lines).
   hologram:
-    # Kapatılırsa mevcut hologramlar da silinir (chunk yüklendikçe).
     enabled: true
-    # Hologramın çıpanın kaç blok üstünde duracağı. Gerçek yükseklik bununla
-    # model-scale'in çarpımıdır: büyütülmüş kamerada hologram modelin içine gömülmesin,
-    # küçültülmüşte de havada asılı kalmasın. Aralık: -4.0 - 8.0.
+    # Blocks above the camera, times model-scale. -4.0-8.0.
     offset-y: 0.6
-    # Görünme mesafesi çarpanı. Aralık: 0.1 - 10.0.
+    # View range multiplier. 0.1-10.0.
     view-range: 1.0
-    # Hologramın nasıl duracağı: FIXED, VERTICAL, HORIZONTAL, CENTER.
-    # CENTER = her zaman oyuncuya dönük. Geçersiz değer CENTER'a düşer.
+    # FIXED, VERTICAL, HORIZONTAL or CENTER.
     billboard: CENTER
-    # Arka plan: "default" (vanilla koyu şerit), "none" / "transparent" (arka plan yok)
-    # ya da #AARRGGBB / #RRGGBB hex renk (örn. #80000000 = yarı saydam siyah).
-    # Geçersiz değer "default"a düşer ve log'a uyarı yazılır.
+    # "default", "none" or a #AARRGGBB / #RRGGBB color.
     background: default
 
-# Fotoğraf çekim ekranı (Dialog).
 dialog:
-  # Gövde metninin ve giriş alanlarının genişliği (piksel). Bilgi satırı kamera adı ve
-  # beş ayar taşıdığı için vanilla genişlikte üç satıra sarıyor. Aralık: 100-1024.
+  # Width of the capture screen's text and fields, in pixels. 100-1024.
   body-width: 380
 
 photo:
-  # Varsayılan en-boy oranı: RATIO_1_1, RATIO_16_9, RATIO_4_3
+  # Aspect ratio of a new camera: RATIO_1_1, RATIO_16_9 or RATIO_4_3.
   default-aspect-ratio: RATIO_1_1
-  # KADRAJ GENİŞLİĞİ: görüntünün üst kenarı ile alt kenarı arasına kaç blok
-  # sığacağı. Kameranın zoom'u bunu böler:
-  #   kapsanan alan = frame-height / zoom   (0.25x -> 192 blok, 2x -> 24 blok)
-  # Ortografik (izometrik) projeksiyonda nesne boyutunu YALNIZCA bu belirler;
-  # kameranın hedefe uzaklığı boyutu DEĞİŞTİRMEZ. "Daha çok yer görsün"
-  # istiyorsan burayı büyüt ya da kameranın zoom'unu küçült
-  # (settings.max-capture-area izin verdiği kadar). Aralık: 4-512.
+  # Blocks from the top of the frame to the bottom at zoom 1. 4-512.
   frame-height: 48
-  # KADRAJIN DİKEY KAYMASI, kadraj yüksekliğinin oranı olarak.
-  #   0.0 = kamera kadrajın tam ortasında -> kameranın baktığı nokta fotoğrafın
-  #         merkezidir. Normal kullanım budur.
-  #   0.5 = kamera kadrajın alt kenarında -> kadrajın TAMAMI kameranın üstünde
-  #         kalır. DİKKAT: ortografik projeksiyonda ışınlar paraleldir, yani
-  #         yatay (pitch ~0) ya da yukarı bakan bir kamerada hiçbir ışın araziye
-  #         inmez ve fotoğraf TAMAMEN BOŞ çıkar.
-  # Kadrajın kameranın altına düşen kısmının toprak kesiti basmasını bu ayar
-  # çözmez; o iş, ışınların bakış yönünde geriye çekilmesiyle otomatik yapılır
-  # (kameranın yatay düzleminin altından hiçbir ışın başlamaz).
+  # Vertical frame offset, as a fraction of its height. 0.0 keeps the camera centered.
   frame-shift: 0.0
-  # KENAR YUMUŞATMA: piksel başına NxN ışın gönderilip ortalaması alınır.
-  # 1 = kapalı (en hızlı), 2 = önerilen, 3-4 = daha temiz kenar, N² kat maliyet.
+  # Anti-aliasing: NxN rays per pixel. Costs N squared. 1-4.
   supersampling: 2
-  # GÖLGELENDİRME. Bugün bir yüzeyin parlaklığı yalnızca ışının girdiği yüzden gelir
-  # (üst 255, yan 220/180, alt 135). Aşağıdakiler buna komşuları ve güneşi katar.
-  #
-  # ÖNEMLİ: harita paletinde renk başına yalnızca DÖRT parlaklık var. "Biraz daha koyu"
-  # diye bir şey yok; her teknik yüzeyi bir sonraki tona indirir ya da indirmez.
-  # İkisi de varsayılan KAPALI: görüntüyü değiştirirler, yani sunucunun zevkidir.
-  # Maliyetleri IZOMAP.md -> "Gelişmiş gölgelendirme" başlığında ölçülmüş hâlde.
+  # Extra darkening beyond a surface's own face. Each step is one of the palette's four shades.
   shading:
-    # Isabet noktasından güneşe doğru ikinci bir ışın atar; yolda blok varsa yüzey bir
-    # ton koyulaşır. Görsel kazancı en yüksek olan bu: kapalıyken duvar ile önündeki
-    # zemin aynı parlaklıkta çıkıyor ve kadrajda ışığın nereden geldiğini söyleyen
-    # hiçbir şey olmuyor. Maliyeti de en yüksek olan bu (isabet başına ikinci ışın).
+    # A second ray towards the sun; a blocked surface goes one shade darker.
     sun-shadow: false
-    # Güneşin yönü ve ufuktan yüksekliği (derece). Oyun saatine bağlamak yerine sabit
-    # tutuluyor: sabit açı daha "render" gibi durur ve aynı manzaranın iki çekimi
-    # birbirini tutar. Aralık: pitch 1-89.
+    # Direction and height of the sun, in degrees. Pitch 1-89.
     sun-yaw: 135.0
     sun-pitch: 60.0
-    # Gölge ışınının pes etmeden önce kat ettiği mesafe (blok). Küçük değer ucuzdur ama
-    # uzak bir kulenin gölgesi yere düşmez. Aralık: 1-256.
+    # How far a shadow ray travels, in blocks. 1-256.
     shadow-distance: 24
-    # Yüzeyin önü komşularıyla kapatılmışsa bir ton koyulaşır (iç köşeler). Işın atmaz,
-    # isabet başına dört blok okur. Etkisi ince ama iç köşeleri köşe gibi gösteren şey
-    # budur; kapalıyken düz rengin içinde bir kıvrım gibi durur.
+    # Darken inner corners whose neighbors close them in.
     ambient-occlusion: false
-    # Az ışık alan yüzeyler koyulaşır. Üçünün en ucuzu: ışık zaten chunk kopyasının
-    # içinde, isabet başına tek okuma. Kapalıyken mağara ve iç mekân, dışarıdaki tarlayla
-    # aynı gün ışığında çıkar; güneş gölgesinin oraya sözü geçmez. Açıkken chunk kopyası
-    # ışık dizilerini de taşır, yani kopyalama biraz pahalılaşır (kapalıyken artık hiç
-    # taşımıyor).
+    # Darken surfaces that get little light (caves, interiors).
     block-light: false
-    # Eşikler (0-15): bu değerin altında bir ton, ikincisinin altında iki ton iner.
-    # Gök ışığı saate bağlı DEĞİLDİR — açık havadaki yüzey gece de 15 okur; buradaki
-    # sabit güneşle tutarlı olan budur. İkinci eşik birincisinden büyük verilirse
-    # birincisine çekilir.
+    # Light levels (0-15) below which a surface loses one, then two shades.
     light-dim-below: 8
     light-dark-below: 4
-  # KISMİ KAPLAMA. Işın yürüyüşü her bloğu dolu bir küp sayardı, yani tek bir ot tutamı
-  # kendi hücresinin tamamını doygun yeşile boyuyordu. Açıkken ince bloklar ışını
-  # DURDURMAZ: kendi renklerini arkasındaki bloğa oranınca karıştırıp geçirirler
-  # (ot üstünde çim, podzol üstünde podzol, karda kar).
-  #
-  # Bu bir efekt değil, düzeltme — o yüzden gölgelendirmenin tersine varsayılan AÇIK.
-  # Maliyeti de neredeyse yok: ışın zemine kadar zaten yürüyor (blok NONE olsaydı da
-  # yürüyecekti), üstüne piksel başına bir karışım biniyor.
-  #
-  # HANGİ bloklar ve hangi oranla: eklentinin içinde elle tutulan bir liste var (ot,
-  # eğrelti, çiçek, fide, şeker kamışı, mantar, sarmaşık, glow lichen, merdiven, ray...).
-  # Değiştirmek, eklemek ya da çıkarmak için block-colors.yml -> coverage.
-  # Yarım bloklar (slab, merdiven, duvar, çit) bilerek listede DEĞİL: kapladıkları yarı
-  # hacim gerçekten taştır, zeminle harmanlamak rengi boşuna soldurur.
+  # Thin blocks (grass, flowers, rails) blend into what is behind them instead of filling the cell.
   coverage:
     enabled: true
-  # BIOME TINT. Çim, yaprak ve su, oyunda biome'a göre farklı renktedir: bataklık koyu
-  # yeşil, çöl sarımsı, karlı ova mavimsi, ılık okyanus turkuaz. Vanilla HARİTADA bu yoktur
-  # — harita blok başına tek sabit renk kullanır — yani bu ayar bilinçli olarak vanilla'dan
-  # AYRILIR. Fotoğrafın işi manzarayı göstermek olduğu için varsayılan açık.
-  #
-  # Renkler sunucunun kendisinden okunur (açılışta bir kez), yani datapack'le eklenmiş ya
-  # da değiştirilmiş biome'lar da doğru renk alır ve bakılacak bir tablo yoktur. Sunucu
-  # sürümü eklentinin okuduğu yapıya uymazsa tint kendini kapatır ve log'a yazar.
-  #
-  # RENGİ BULUNAMAYAN BIOME NE OLUR: plains rengine düşer. Tabloya girmemiş bir biome
-  # (ör. tablo okunduktan SONRA yüklenen bir datapack — /izocam reload onu da alır) ya da
-  # kopyalanamamış bir chunk, tintsiz kalmak yerine referans biome'un rengiyle çizilir.
-  # Kural şu: hesaplanamayan bir renk asla görüntüye geçmez — çimenlerin siyah çıkması
-  # tam olarak bunun ihlaliydi.
-  # Tek tek renk değiştirmek için: biome-tints.yml. Hangi bloğun hangi kanalı aldığı ise
-  # block-colors.yml -> tint bölümünde.
+  # Grass, leaves and water take their biome's color, read from the server.
   biome-tint:
     enabled: true
-    # Biome renginin ne kadarının uygulanacağı. 1.0 = tamamı, 0.5 = yarı yolda,
-    # 0.0 = kapalı. Palet 244 renk olduğu için bazı biome'larda 1.0 ile 0.7 arasında fark
-    # görünmeyebilir; beklenen davranış budur. Aralık: 0.0-1.0.
+    # How much of the biome color is applied. 0.0-1.0.
     strength: 1.0
-  # SU. Su tek bir WATER tonu olarak çıkardı: göl de okyanus da aynı düz mavi. Vanilla
-  # harita bile bunu yapmıyor, orada su DERİNLİĞE göre tonlanır.
-  #   FLAT        = eski davranış, tek ton (su sütunu hiç ölçülmez)
-  #   DEPTH       = yüzey, altındaki su kalınlığına göre bir ya da iki ton koyulaşır;
-  #                 sığ kıyı açık, derin okyanus koyu olur, kıyı çizgisi kendiliğinden
-  #                 belirir. Maliyeti: ışının yüzeyden dibe kadar yürüdüğü hücreler.
-  #   TRANSLUCENT = su, dipteki bloğun rengiyle derinliğe bağlı oranda karışır; sığ suda
-  #                 kum/çakıl görünür, derinde su kazanır. photo.coverage'ın karıştırma
-  #                 aşamasını kullanır (o kapalı olsa da su için çalışır), ve dibi
-  #                 boyamanın bedelini de öder.
-  # Buz, buzul ve kazan bu işin dışındadır; onlar derinlik değil, kendi yüzeyleridir.
+  # FLAT, DEPTH or TRANSLUCENT.
   water:
     mode: DEPTH
-    # Kaç hücre sudan sonra yüzey bir ton, kaç hücreden sonra iki ton koyulaşır.
-    # Işın eğik gittiği için "hücre" dikey derinlikten biraz fazladır (alçak kameradan
-    # bakılan sığ göl olduğundan biraz derin okunur); vanilla da bu ödünü verir.
-    # İkinci eşik birincisinden küçük verilirse birincisine çekilir. Aralık: 1-256.
+    # Cells of water after which the surface loses one, then two shades. 1-256.
     dim-deeper-than: 2
     dark-deeper-than: 5
-    # Yalnızca TRANSLUCENT: en sığ suyun (tek hücre) kendine ayırdığı pay. 0 verilirse
-    # bir hücrelik su tamamen görünmez olur. Aralık: 0.0-1.0.
+    # TRANSLUCENT only: share the shallowest water keeps for itself. 0.0-1.0.
     surface-min: 0.35
-    # Yalnızca TRANSLUCENT: kaç hücreden sonra dip hiç görünmez. Aralık: 1-256.
+    # TRANSLUCENT only: cells after which the bottom is hidden. 1-256.
     opaque-depth: 8
-  # ALAN DERİNLİĞİ (odak). Oyuncu çekim ekranından açar ve slider ile odak uzaklığını
-  # (blok) seçer; odaktaki uzaklık net kalır, ondan uzaklaşan her şey bulanıklaşır.
-  # İzin: izomap.focus. Kapalıyken hiçbir maliyeti yoktur.
-  #
-  # ÖNEMLİ: projeksiyon ortografiktir, yani ortada mercek YOKTUR. Bu gerçek bir bokeh
-  # simülasyonu değil, seçilmiş bir görünümdür (eğimli kamerada "tilt-shift", yatay
-  # kamerada özneyi arka planından ayırma). Aşağıdaki değerler efektin fiziği değil,
-  # sunucunun ona izin verdiği ölçüdür.
+  # Depth of field, switched on per camera. Permission: izomap.focus
   focus:
-    # NETLİK BANDININ DERİNLİĞİ: odaktan ne kadar uzaklaşınca bulanıklık tavana vurur.
-    # Blok değil, KADRAJ YÜKSEKLİĞİNİN ORANI olarak verilir (0.5 = yarım kadraj boyu),
-    # böylece zoom'la birlikte kendiliğinden ölçeklenir. Küçük değer = ince odak bandı,
-    # güçlü ayrışma. Aralık: 0.02-8.0.
+    # Depth of the sharp band, as a fraction of the frame height. 0.02-8.0.
     range: 0.5
-    # EN GENİŞ BULANIKLIK YARIÇAPI, görüntü YÜKSEKLİĞİNİN oranı olarak (0.015 = 1152px
-    # bir fotoğrafta ~17 piksel). Piksel yerine oran: aynı çekim 128px'lik önizlemede de
-    # 2048px'lik fotoğrafta da aynı görünsün. 0 = efekt kapalı. Aralık: 0.0-0.05.
+    # Widest blur, as a fraction of the image height. 0 turns it off. 0.0-0.05.
     max-radius: 0.015
-    # MALİYET AYARI. Bulanıklık diski her piksel için bu kadar noktadan örneklenir;
-    # maliyet yarıçapla değil, YALNIZCA bu sayıyla artar (piksel başına sabit iş).
-    # Az örnek = disk üzerinde noktacıklar görünür, çok örnek = daha pürüzsüz ve pahalı.
-    # Aralık: 4-128.
+    # Samples per pixel; the cost of the effect. 4-128.
     samples: 24
-    # DITHERING, gökyüzündekiyle aynı sebep: bulanıklık ara tonlar üretir, palette 244
-    # renk vardır ve doğrudan snap edilirse yumuşak geçiş bantlaşır. Değer, bir pikselin
-    # gerçek renkten kaç kanal basamağı sapabileceğidir. 0 = kapalı. Aralık: 0-128.
+    # Dithering of the blurred tones. 0 turns it off. 0-128.
     dither: 24.0
-  # ÇERÇEVELER. Çerçeveler frames.yml'de tanımlıdır; buradaki tek soru, taktıktan sonra
-  # değiştirilebilir olup olmadıklarıdır.
   frames:
-    # false (varsayılan): fotoğraf kaydında yalnızca çerçevenin kimliği durur, kenar
-    #   haritalara giderken çizilir. Maliyeti zaten okunan piksellerin üzerinden bir
-    #   geçiş; karşılığında çerçeve değiştirilebilir ve kaldırılabilir kalır.
-    # true: kenar fotoğrafın ön bellek dosyasına işlenir. Fotoğraf kendi dosyasından
-    #   başka hiçbir şeye ihtiyaç duymaz, ama çerçeve resmin parçası olur ve geri
-    #   alınamaz — istenen tam olarak buysa açılır.
-    # Ayar, çerçeve TAKILDIĞI anda fotoğrafa donar; sonradan değiştirmek, gömülü
-    # çerçeveyle asılmış fotoğrafları geri döndürmez.
+    # Bake a decoration frame into the photo for good instead of drawing it on the way out.
     embed: false
-  # GÖKYÜZÜ. Hiçbir bloğa çarpmayan ışın normalde şeffaf piksel bırakır; gökyüzü
-  # açıksa o pikseller boyanır. HANGİ gökyüzünü oyuncu Dialog'dan seçer (Şeffaf, Oyun
-  # saati, Şafak, Gündüz, Gün batımı, Gece); buradakiler gökyüzünün NASIL çizildiğidir.
-  # Renk çekim anında çözülüp fotoğrafa donar, yani yeniden render'da saat kaymaz.
+  # How a sky is drawn. Which sky a photo has is chosen per camera.
   sky:
-    # Renk oyun saatine göre bu dört kareden interpolasyonla gelir.
-    # Saatler: şafak 23000, gündüz 6000, gün batımı 12500, gece 18000.
     colors:
       dawn: "#FF9E6B"
       day: "#78A7FF"
       dusk: "#FF7A4D"
       night: "#0B1026"
-    # Aşağı indikçe ufka doğru açılsın mı? Kapalıysa düz tek renk gökyüzü.
+    # Lighten towards the horizon.
     gradient: true
-    # Gradyanın en alt satırının beyaza ne kadar yaklaşacağı. Aralık: 0.0-1.0.
+    # How close the lowest row gets to white. 0.0-1.0.
     horizon-blend: 0.45
-    # DITHERING. Harita paletinde mavi az olduğu için gradyan bantlaşır; bu ayar
-    # komşu iki paleti 4x4 damalı karıştırıp aradaki tonu göz için üretir.
-    # Değer, bir pikselin gerçek renkten kaç kanal basamağı sapabileceğidir.
-    # 0 = kapalı (temiz ama bantlı). Aralık: 0-128.
+    # Dithering of the gradient. 0 turns it off. 0-128.
     dither: 24.0
-    # GÖK CİSİMLERİ. Gökyüzüne güneş, ay ve yıldız çizilir. Oyuncu tarafında ayrı bir
-    # anahtar vardır (çekim ekranı -> Gökyüzü -> Gök cisimleri) ve izomap.sky.bodies
-    # iznine bağlıdır; buradaki değerler yalnızca AÇIKKEN neyin nasıl çizileceğini
-    # söyler. Cisimler yalnızca gökyüzü olan fotoğraflarda görünür.
+    # Sun, moon and stars, switched on per camera. Permission: izomap.sky.bodies
     bodies:
-      # Güneş, gündüz saatlerinde çizilir; yönü gölgelendirmenin güneşiyle aynıdır
-      # (photo.shading.sun-yaw / sun-pitch), yoksa gölgeler bir yana güneş öbür yana
-      # düşerdi.
       sun: true
-      # Ay, gece saatlerinde ve güneşin tam tersi yönde çizilir; evresi çekim anındaki
-      # oyun gününden gelir.
       moon: true
-      # Yıldızlar yalnızca gökyüzü koyulaştıkça belirir ve dünya yönüne bağlıdır:
-      # kamera çevrildiğinde kaymaz, aynı kamera aynı yıldızları görür.
       stars: true
-      # Çap, fotoğrafın YÜKSEKLİĞİNE oranla. Böylece 128 px'lik önizlemede de
-      # 2048 px'lik fotoğrafta da aynı büyüklükte durur. Aralık: 0.0-1.0.
+      # Diameter as a fraction of the image height. 0.0-1.0.
       sun-size: 0.07
       moon-size: 0.06
-      # Yıldız yoğunluğu: yön ızgarasının kaçta kaçında yıldız var. Birkaç binde bir
-      # zaten dolu bir gökyüzü demektir. Aralık: 0.0-0.5.
+      # Share of the sky that holds a star. 0.0-0.5.
       star-density: 0.004
-      # Renkler palete yuvarlanır; kızıl bir güneş isteyen buradan değiştirir.
       sun-color: "#FFF6D0"
       moon-color: "#E6E9F0"
       star-color: "#FFFFFF"
-  # ÇEKİM MALİYETİ. Stil, fotoğrafın ne kadarının gerçekten ışınla çizildiğini belirler;
-  # oyuncu Dialog'dan seçer. "Keskin" her piksel için ışın atar, "Hızlı" görüntüyü küçük
-  # çizip büyütür — ışın sayısı aşağıdaki oranın KARESİYLE azalır (0.5 -> dörtte bir).
-  # Karşılığında görüntü o oranda yumuşar; bu bir efekt değil, atılmayan ışınların bedeli.
-  # Büyük ızgaralarda (4x3 ve üstü) işe yarar.
   style:
+    # Scale the FAST style renders at before it is enlarged. 0.5 casts a quarter of the rays.
     fast-scale: 0.5
 
 placement:
-  # Fotoğraf duvarının oyuncunun kaç blok önüne kurulacağı. Hayalet önizleme de bu
-  # mesafede durur; oyuncu bakışını çevirdikçe onu takip eder.
+  # Blocks in front of the player the photo wall is put.
   distance: 3
-  # Harita çerçevelerini görünmez yap (kenarlıksız, kesintisiz görsel).
+  # Make the item frames invisible.
   invisible-frames: true
-  # Çerçevelerin arkasına destek bloğu inşa et (yeniden başlatmada kalıcılık).
-  # KAPALIYSA: fotoğraf yalnızca her çerçevenin arkasında zaten katı bir blok varsa
-  # asılabilir; hayalet önizleme uygun olmayan yerde kırmızı yanar.
+  # Build a block behind each frame that has none.
   build-backing-wall: true
-  # Destek bloğu materyali (çerçeve arkasında, oyuncuya görünmez).
-  # Hayalet önizlemenin destek katmanı da bundan çizilir — ama yalnızca gerçekten blok
-  # örülecek hücrelerde; blok değilse WHITE_CONCRETE kullanılır.
+  # Block the backing wall is built from.
   backing-material: STONE
-  # Hayalet önizleme, oyuncu onaylamazsa kaç saniye sonra kendiliğinden iptal olur.
-  # Aralık: 5-600.
+  # Seconds before an unconfirmed placement is cancelled. 5-600.
   timeout-seconds: 60

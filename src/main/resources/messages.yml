@@ -1,378 +1,333 @@
-# ============================================================
-#  Izomap - Mesajlar (MiniMessage formatı)
-#  Renk/format için: https://docs.advntr.dev/minimessage/format.html
-# ============================================================
+# Izomap messages, in MiniMessage: https://docs.advntr.dev/minimessage/format.html
+# Placeholders and how to translate this file: https://zypec.github.io/izomap/wiki/#messages
 
 prefix: "<gradient:#5e60ce:#48bfe3><bold>Izomap</bold></gradient> <dark_gray>»</dark_gray> "
 
 general:
-  player-only: "<prefix> <red>Bu komut yalnızca oyuncular tarafından kullanılabilir."
-  reloaded: "<prefix> <green>Yapılandırma yeniden yüklendi."
-  # /help listesinde komutun yanında görünür; renk etiketi kullanma, düz metne çevrilir.
-  command-description: "Izomap kamera komutları"
+  player-only: "<prefix> <red>Only players can use this command."
+  reloaded: "<prefix> <green>Configuration reloaded."
+  # Shown beside the command in /help, as plain text.
+  command-description: "Izomap camera commands"
 
 camera:
-  created: "<prefix> <green>Kamera oluşturuldu: <white><name></white>"
-  removed: "<prefix> <yellow>Kamera silindi: <white><name></white>"
-  removed-all: "<prefix> <yellow><count> kamera silindi."
-  orphans-cleaned: "<prefix> <yellow><count> sahipsiz kamera modeli temizlendi. <gray>(Kaydı silinmiş ama dünyada kalmış entity'ler; yalnızca yüklü chunk'lar taranır.)"
-  moved: "<prefix> <green>Kamera taşındı: <white><name></white>"
-  not-found: "<prefix> <red>Kamera bulunamadı."
-  limit-reached: "<prefix> <red>Maksimum kamera sayısına ulaştın (<limit>)."
-  given-item: "<prefix> <green>Kamera yerleştirme eşyası envanterine eklendi."
-  item-dropped: "<prefix> <yellow>Envanterin dolu; kamera eşyası yere düştü."
-  # <count> = kamerayla birlikte silinen fotoğraf sayısı.
-  reset: "<prefix> <yellow>Kameranın nişanı sıfırlandı: <white><name></white> <gray>(zoom, yön ve eğim varsayılana döndü)"
-  picked-up: "<prefix> <green>Kamera toplandı: <white><name></white> <gray>(eşya geri verildi, <count> fotoğrafı silindi)"
-  picked-up-no-item: "<prefix> <yellow>Kamera söküldü: <white><name></white> <gray>(komutla oluşturulduğu için geri verilecek eşyası yok; <count> fotoğrafı silindi)"
-  name-taken: "<prefix> <red>Bu isimde bir kameran zaten var: <white><name></white>"
-  list-header: "<prefix> <gray>Kameralar (<count>):"
+  created: "<prefix> <green>Camera created: <white><name></white>"
+  removed: "<prefix> <yellow>Camera removed: <white><name></white>"
+  removed-all: "<prefix> <yellow>Removed <count> camera(s)."
+  orphans-cleaned: "<prefix> <yellow>Cleaned up <count> orphaned camera model(s). <gray>(Entities left in the world after their record was deleted; only loaded chunks are searched.)"
+  moved: "<prefix> <green>Camera moved: <white><name></white>"
+  not-found: "<prefix> <red>Camera not found."
+  limit-reached: "<prefix> <red>You have reached the maximum number of cameras (<limit>)."
+  given-item: "<prefix> <green>A camera item was added to your inventory."
+  item-dropped: "<prefix> <yellow>Your inventory is full; the camera item was dropped at your feet."
+  reset: "<prefix> <yellow>Camera aim reset: <white><name></white> <gray>(zoom, direction and tilt are back to their defaults)"
+  # <count> is the number of photos deleted with the camera.
+  picked-up: "<prefix> <green>Camera picked up: <white><name></white> <gray>(item returned, <count> photo(s) deleted)"
+  picked-up-no-item: "<prefix> <yellow>Camera taken down: <white><name></white> <gray>(it was made by command, so there is no item to return; <count> photo(s) deleted)"
+  name-taken: "<prefix> <red>You already have a camera called <white><name></white>."
+  list-header: "<prefix> <gray>Cameras (<count>):"
   list-entry: "<prefix> <dark_gray>› <white><name></white> <gray>(<ratio>, zoom <scale>x)"
-  list-empty: "<prefix> <gray>Henüz bir kameran yok."
-  # Ortografik projeksiyonda ışınlar paraleldir: yatay bakan bir kamera arazi
-  # yüzeyini göremez, yalnızca gökyüzü ile toprak kesitini görür.
-  shallow-pitch: "<prefix> <yellow>Kamera neredeyse yatay bakıyor (<pitch>°). İzometrik bir kare için eğimi <white>20-45°</white> arasına al; aksi halde fotoğrafın yarısı gökyüzü, yarısı toprak kesiti olur."
-  # Yalnızca izomap.focus izni olan ve odağı henüz açmamış oyuncuya, yukarıdaki
-  # uyarının ardından gönderilir.
-  shallow-pitch-focus: "<prefix> <gray>Bu kadraj derinliği en çok belli eden kadraj: çekim ekranındaki <white>Odak</white> düğmesiyle bir uzaklığı net bırakıp gerisini bulanıklaştırabilirsin."
-  item-name: "<gradient:#5e60ce:#48bfe3>Izomap Kamerası</gradient>"
+  list-empty: "<prefix> <gray>You have no cameras yet."
+  shallow-pitch: "<prefix> <yellow>The camera is looking almost level (<pitch>°). For an isometric shot tilt it between <white>20 and 45°</white>, or half the photo will be sky and half a cross-section of the ground."
+  # Sent after the line above, only to a player with izomap.focus who has not turned focus on.
+  shallow-pitch-focus: "<prefix> <gray>This is the framing depth shows best in: the <white>Focus</white> button on the capture screen keeps one distance sharp and blurs the rest."
+  item-name: "<gradient:#5e60ce:#48bfe3>Izomap Camera</gradient>"
   item-lore:
-    - "<gray>Bir bloğa <white>sağ tık</white> ile kamera yerleştir."
-  # Kameranın üstünde duran hologram. Satırlar sırayla yazılır: bir satırı silmek onu
-  # hologramdan kaldırır, listeyi tamamen boşaltmak hologramı boş bırakır (kapatmak
-  # için config.yml -> camera.hologram.enabled kullan).
-  # Yer tutucular: <name> <owner> <ratio> <zoom> <blocks> <yaw> <pitch> <filter> <style>
-  #                <sky> <photos>
+    - "<gray><white>Right-click</white> a block to place a camera."
+  # The hologram above a camera, one line per entry; an empty list leaves it blank.
+  # Placeholders: <name> <owner> <ratio> <zoom> <blocks> <yaw> <pitch> <filter> <style> <sky> <photos>
   hologram:
-    # Yalnızca çekim sürerken, yapılandırılmış satırların ALTINA eklenir.
-    # <percent> ve <bar> burada da kullanılabilir.
-    capturing: "<gold>◉ Fotoğraf çekiliyor <bar> %<percent>"
+    # Added below the lines while a photo is being taken. <percent> and <bar> work here.
+    capturing: "<gold>◉ Taking a photo <bar> <percent>%"
     lines:
       - "<aqua><name>"
-      - "<white><ratio> <gray>·</gray> <zoom>x <gray>(<blocks> blok)</gray>"
-      - "<yellow>Yön <yaw>° <dark_gray>·</dark_gray> Eğim <pitch>°"
-      - "<gray><photos> fotoğraf · <filter> · <style>"
+      - "<white><ratio> <gray>·</gray> <zoom>x <gray>(<blocks> blocks)</gray>"
+      - "<yellow>Facing <yaw>° <dark_gray>·</dark_gray> Tilt <pitch>°"
+      - "<gray><photos> photo(s) · <filter> · <style>"
 
-# Canlı önizleme: kamera başına tek harita, birden çok izleyici, tek "editör".
-# Editör kamerayı tık ile ayarlayan kişidir; diğerleri yalnızca izler.
+# The live preview: one map per camera, any number of viewers, one editor.
 preview:
-  started: "<prefix> <green>Önizleme açıldı: <white><camera></white> <gray>(sol elindeki harita canlı görüntüdür; <white>/izocam preview stop</white> ile kapat)"
-  already: "<prefix> <gray>Bu kameranın önizlemesini zaten izliyorsun."
-  offhand-full: "<prefix> <red>Önizleme için sol elin (offhand) boş olmalı."
-  not-active: "<prefix> <gray>Açık bir önizlemen yok."
-  busy: "<prefix> <yellow>Bu kamerayı şu an <white><editor></white> ayarlıyor; sen izleyici olarak eklendin."
-  ended-self: "<prefix> <gray>Önizleme kapatıldı."
-  ended-dropped: "<prefix> <gray>Haritayı bıraktın, önizleme kapatıldı."
-  ended-died: "<prefix> <gray>Öldüğün için önizleme kapatıldı."
-  ended-camera-removed: "<prefix> <yellow>Kamera silindiği için önizleme kapatıldı: <white><camera></white>"
-  # Önizleme boyunca saniyede bir yenilenen action bar satırı. <entries>, aşağıdaki
-  # entry/entry-active şablonlarının ayraçla birleştirilmiş hâlidir; ayarlanmakta olan
-  # özellik entry-active ile yazılır.
+  started: "<prefix> <green>Preview open: <white><camera></white> <gray>(the map in your off hand is the live view; close it with <white>/izocam preview stop</white>)"
+  already: "<prefix> <gray>You are already watching this camera."
+  offhand-full: "<prefix> <red>Your off hand has to be empty for the preview."
+  not-active: "<prefix> <gray>You have no preview open."
+  busy: "<prefix> <yellow><white><editor></white> is adjusting this camera right now; you joined as a viewer."
+  ended-self: "<prefix> <gray>Preview closed."
+  ended-dropped: "<prefix> <gray>You let go of the map, so the preview closed."
+  ended-died: "<prefix> <gray>The preview closed because you died."
+  ended-camera-removed: "<prefix> <yellow>The preview closed because the camera was removed: <white><camera></white>"
+  # Refreshed every second. <entries> is the entry templates below, joined by the separator;
+  # the property being adjusted uses entry-active.
   actionbar: "<entries>"
-  # Render bitene kadar action bar'da bunun yerine bu satır durur. Preview'ın
-  # yenilenmesi bir tık kadar sürmez; işareti olmayınca tık boşa gitmiş gibi görünür.
-  actionbar-rendering: "<entries><dark_gray>  ·  </dark_gray><yellow>⟳ Güncelleniyor</yellow>"
-  # Fotoğraf çekimi sürerken; preview render'ından uzun sürer ve satırı o kapar.
-  # <percent> = tamamlanan yüzde, <bar> = 10 kutuluk çubuk. İkisi de ışın yürüyüşünü
-  # sayar; chunk kopyalama ondan önce gelir ve o sırada değer 0'da bekler.
-  actionbar-capturing: "<entries><dark_gray>  ·  </dark_gray><gold><bold>◉ Çekiliyor <bar> %<percent></bold></gold>"
+  actionbar-rendering: "<entries><dark_gray>  ·  </dark_gray><yellow>⟳ Updating</yellow>"
+  # While a photo is being taken. <percent> is how much is done, <bar> a ten-box bar.
+  actionbar-capturing: "<entries><dark_gray>  ·  </dark_gray><gold><bold>◉ Shooting <bar> <percent>%</bold></gold>"
   actionbar-separator: "<dark_gray>  ·  </dark_gray>"
   entry: "<gray><label> <white><value></white></gray>"
   entry-active: "<yellow><bold><label> <value></bold></yellow>"
   value-angle: "<deg>°"
-  value-zoom: "<zoom>x <gray>(<blocks> blok)</gray>"
+  value-zoom: "<zoom>x <gray>(<blocks> blocks)</gray>"
   value-position: "<x>, <y>, <z>"
-  # Etiketler EditProperty adlarına göre aranır; eksik anahtar action bar'da görünür.
   property:
-    YAW: "Yön"
-    PITCH: "Eğim"
+    YAW: "Facing"
+    PITCH: "Tilt"
     ZOOM: "Zoom"
-    MOVE: "Hareket"
+    MOVE: "Move"
 
-# Renk efekti adları; anahtar ColorFilter sabitinin adıdır. Diske yalnızca sabit adı
-# yazılır, dolayısıyla buradaki metni değiştirmek kayıtlı kameraları etkilemez.
-# Buradaki renk, Dialog'daki "Renk: <değer>" butonunda da kullanılır: değerin rengini
-# değiştirmek istersen adının başındaki etiketi değiştir.
-# Filtre TANIMLARI filters.yml'dedir; burada yalnızca görünen adları durur. Oraya yeni
-# bir filtre eklersen adını da buraya ekle; eklemezsen ekranda kimliğiyle görünür.
-# Çerçeve adları; anahtar frames.yml'deki kimliktir. Karşılığı olmayan çerçeve
-# kimliğiyle görünür.
+# Decoration frame names, by their id in frames.yml. A frame with no name here shows its id.
 frame:
-  WOOD: "<#7A5A32>Ahşap"
-  GOLD: "<#E5C34C>Altın"
-  BLACK: "<dark_gray>Siyah"
-  MAT: "<white>Paspartu"
-  STONE: "<gray>Taş"
-  # Çerçeve işlemlerinin sonuçları.
-  applied: "<prefix> <green>Çerçeve takıldı: <frame> <gray>(<name>)"
-  applied-embedded: "<prefix> <green>Çerçeve takıldı: <frame> <gray>(<name>) — bu çerçeve fotoğrafa işlendi, artık değiştirilemez."
-  removed: "<prefix> <green>Çerçeve kaldırıldı: <white><name></white>"
-  locked: "<prefix> <yellow>Bu fotoğrafın çerçevesi fotoğrafa işlenmiş; değiştirilemez."
-  unknown: "<prefix> <red>Böyle bir çerçeve yok: <white><frame></white>"
-  not-allowed: "<prefix> <red>Bu çerçeveyi kullanamazsın: <frame>"
-  none-allowed: "<prefix> <yellow>Kullanabileceğin bir çerçeve yok."
-  failed: "<prefix> <red>Çerçeve uygulanamadı. Ayrıntı için sunucu log'una bak."
+  WOOD: "<#7A5A32>Wood"
+  GOLD: "<#E5C34C>Gold"
+  BLACK: "<dark_gray>Black"
+  MAT: "<white>Mat"
+  STONE: "<gray>Stone"
+  ROPE: "<#B08D57>Rope"
+  ORNATE: "<#D4AF37>Ornate"
+  applied: "<prefix> <green>Frame added: <frame> <gray>(<name>)"
+  applied-embedded: "<prefix> <green>Frame added: <frame> <gray>(<name>). It is now part of the photo and can no longer be changed."
+  removed: "<prefix> <green>Frame removed: <white><name></white>"
+  locked: "<prefix> <yellow>This photo's frame is part of the photo; it cannot be changed."
+  unknown: "<prefix> <red>There is no frame called <white><frame></white>."
+  not-allowed: "<prefix> <red>You cannot use this frame: <frame>"
+  none-allowed: "<prefix> <yellow>There is no frame you can use."
+  failed: "<prefix> <red>The frame could not be applied. The server log has the details."
 
-# Ayar adları; izin yetmediğinde hangi ayarın engellediğini söylemek için kullanılır.
+# Setting names, used to say which setting a missing permission blocks.
 setting:
-  style: "<white>Stil"
-  filter: "<white>Renk filtresi"
-  sky: "<white>Gökyüzü"
-  sky-bodies: "<white>Gök cisimleri"
-  ratio: "<white>En-boy oranı"
-  focus: "<white>Alan derinliği"
+  style: "<white>Style"
+  filter: "<white>Color filter"
+  sky: "<white>Sky"
+  sky-bodies: "<white>Sun, moon and stars"
+  ratio: "<white>Aspect ratio"
+  focus: "<white>Depth of field"
 
-# setting.focus ve setting.sky-bodies'in değeri; izinsiz çekim reddedilirken
-# "Alan derinliği: Açık" yazar.
+# The value of setting.focus and setting.sky-bodies in that same message. The key is quoted:
+# a bare on is read as the boolean true.
 focus:
-  on: "<green>Açık"
+  "on": "<green>On"
 
 sky-bodies:
-  on: "<green>Açık"
+  "on": "<green>On"
 
+# Color filter names, by their id in filters.yml. A filter with no name here shows its id.
 filter:
-  ORIGINAL: "<white>Orijinal"
-  WARM: "<gold>Sıcak"
-  COOL: "<aqua>Soğuk"
-  GRAYSCALE: "<gray>Siyah-Beyaz"
-  SEPIA: "<#C0955F>Sepya"
-  VIVID: "<green>Canlı"
+  ORIGINAL: "<white>Original"
+  WARM: "<gold>Warm"
+  COOL: "<aqua>Cool"
+  GRAYSCALE: "<gray>Black and white"
+  SEPIA: "<#C0955F>Sepia"
+  VIVID: "<green>Vivid"
   NOIR: "<dark_gray>Noir"
 
-# Gökyüzü seçenekleri; anahtar SkyOption sabitinin adıdır. Oyuncu HANGİ gökyüzünü
-# istediğini seçer, NASIL çizildiği config.yml -> photo.sky altındadır.
 sky:
-  NONE: "<gray>Şeffaf"
-  WORLD: "<white>Oyun saati"
-  DAWN: "<#FF9E6B>Şafak"
-  DAY: "<aqua>Gündüz"
-  DUSK: "<#FF7A4D>Gün batımı"
-  NIGHT: "<blue>Gece"
+  NONE: "<gray>Transparent"
+  WORLD: "<white>Game time"
+  DAWN: "<#FF9E6B>Dawn"
+  DAY: "<aqua>Day"
+  DUSK: "<#FF7A4D>Dusk"
+  NIGHT: "<blue>Night"
 
-# Çekim stili adları; anahtar PhotoStyle sabitinin adıdır. Stil, fotoğrafın ne kadarının
-# gerçekten ışınla çizildiğini belirler; şiddeti config.yml -> photo.style altındadır.
 style:
-  SHARP: "<white>Keskin"
-  FAST: "<yellow>Hızlı"
+  SHARP: "<white>Sharp"
+  FAST: "<yellow>Fast"
 
-# Hayalet yerleştirme modu: fotoğraf asılmadan önce nereye asılacağı seçilir.
+# Placing a photo: a ghost shows where it will hang until it is confirmed.
 placement:
-  started: "<prefix> <green>Yerleştirme modu: <white><name></white> <gray>— hayaleti istediğin yere getir, <white>sağ tık</white> ile onayla, <white>shift + sağ tık</white> ile vazgeç."
-  # Yerleştirme boyunca sol ele konan eşya. Sadece görsel değil: istemci boş ele sağ tık
-  # paketini göndermiyor, dolayısıyla onayın çalışması bu eşyaya bağlı.
-  item-name: "<gradient:#5e60ce:#48bfe3>Yerleştiriliyor</gradient> <dark_gray>—</dark_gray> <white><name></white>"
+  started: "<prefix> <green>Placing <white><name></white>. <gray>Aim the ghost where you want it, <white>right-click</white> to confirm, <white>shift + right-click</white> to cancel."
+  # Put in the off hand while placing. Not decoration: the client sends no right-click for an
+  # empty hand, so confirming depends on this item.
+  item-name: "<gradient:#5e60ce:#48bfe3>Placing</gradient> <dark_gray>·</dark_gray> <white><name></white>"
   item-lore:
-    - "<gray><white>Sağ tık</white> ile onayla."
-    - "<gray><white>Shift + sağ tık</white> ile vazgeç."
-  actionbar: "<green>Sağ tık: yerleştir</green> <dark_gray>·</dark_gray> <gray>Shift + sağ tık: iptal"
-  actionbar-blocked: "<red>Buraya sığmıyor</red> <dark_gray>·</dark_gray> <gray>Çerçevelerin yeri boş, arkası dolu olmalı"
-  blocked: "<prefix> <red>Buraya yerleştirilemez; hayalet yeşile dönene kadar başka bir yere bak."
-  not-active: "<prefix> <gray>Açık bir yerleştirmen yok."
-  ended-self: "<prefix> <gray>Yerleştirme iptal edildi."
-  ended-timeout: "<prefix> <gray>Yerleştirme zaman aşımına uğradı."
-  ended-died: "<prefix> <gray>Öldüğün için yerleştirme iptal edildi."
-  ended-world-change: "<prefix> <gray>Dünya değiştirdiğin için yerleştirme iptal edildi."
-  ended-photo-removed: "<prefix> <yellow>Fotoğraf silindiği için yerleştirme iptal edildi."
+    - "<gray><white>Right-click</white> to confirm."
+    - "<gray><white>Shift + right-click</white> to cancel."
+  actionbar: "<green>Right-click: place</green> <dark_gray>·</dark_gray> <gray>Shift + right-click: cancel"
+  actionbar-blocked: "<red>It does not fit here</red> <dark_gray>·</dark_gray> <gray>Frames need empty space with something solid behind"
+  blocked: "<prefix> <red>It cannot go here; look somewhere else until the ghost turns green."
+  not-active: "<prefix> <gray>You are not placing anything."
+  ended-self: "<prefix> <gray>Placement cancelled."
+  ended-timeout: "<prefix> <gray>Placement timed out."
+  ended-died: "<prefix> <gray>Placement cancelled because you died."
+  ended-world-change: "<prefix> <gray>Placement cancelled because you changed worlds."
+  ended-photo-removed: "<prefix> <yellow>Placement cancelled because the photo was deleted."
 
 photo:
-  capturing: "<prefix> <gray>Fotoğraf çekiliyor, lütfen bekle..."
-  captured: "<prefix> <green>Fotoğraf çekildi: <white><name></white> <gray>[<id>] (<ms>ms) — kameranın Fotoğraflar listesinden yerleştirebilirsin."
-  failed: "<prefix> <red>Fotoğraf çekimi başarısız oldu."
-  too-large: "<prefix> <red>Kadraj çok geniş: <white><required></white> chunk gerekiyor, sınır <white><budget></white> <gray>(settings.max-capture-area)</gray>. Yakınlaştırmayı (zoom) artır."
-  exporting: "<prefix> <gray>Fotoğraf dosyaya yazılıyor: <white><name></white>..."
-  saved: "<prefix> <green>Fotoğraf kaydedildi: <white><file></white> <gray>(<width>x<height>, <size> KB, <ms>ms)"
-  export-failed: "<prefix> <red>Fotoğraf dışa aktarılamadı. Ayrıntı için sunucu log'una bak."
-  ratio-set: "<prefix> <green>En-boy oranı ayarlandı: <white><ratio></white>"
-  invalid-ratio: "<prefix> <red>Geçersiz en-boy oranı. Seçenekler: 1:1, 16:9, 4:3"
-  # Limit kamera başınadır ve asılı olmayan fotoğrafları da sayar.
-  limit-reached: "<prefix> <red>Bu kamerayla en fazla <limit> fotoğrafın olabilir. <gray>Yenisini çekmek için listeden birini sil."
-  # Kamerada, oyuncunun iznine sahip olmadığı bir ayar duruyor (çoğunlukla başkası
-  # ayarlamıştır). Çekim ekranındaki butondan değiştirilebilir.
-  setting-not-allowed: "<prefix> <red>Bu ayarla fotoğraf çekemezsin: <setting> = <value>. <gray>Çekim ekranından değiştirip tekrar dene."
-  grid-not-allowed: "<prefix> <red><grid> ızgarası <white><tiles></white> harita eder; senin sınırın <white><limit></white>. <gray>Daha küçük bir ızgara seç."
+  capturing: "<prefix> <gray>Taking the photo, please wait..."
+  captured: "<prefix> <green>Photo taken: <white><name></white> <gray>[<id>] (<ms> ms). Hang it from the camera's Photos list."
+  failed: "<prefix> <red>The photo could not be taken."
+  too-large: "<prefix> <red>The frame is too wide: it needs <white><required></white> chunks and the limit is <white><budget></white> <gray>(settings.max-capture-area)</gray>. Zoom in."
+  exporting: "<prefix> <gray>Writing the photo to a file: <white><name></white>..."
+  saved: "<prefix> <green>Photo saved: <white><file></white> <gray>(<width>x<height>, <size> KB, <ms> ms)"
+  export-failed: "<prefix> <red>The photo could not be exported. The server log has the details."
+  ratio-set: "<prefix> <green>Aspect ratio set: <white><ratio></white>"
+  invalid-ratio: "<prefix> <red>That is not an aspect ratio. Choose 1:1, 16:9 or 4:3."
+  # The limit is per camera and counts photos that are not hung too.
+  limit-reached: "<prefix> <red>This camera can hold at most <limit> photo(s). <gray>Delete one from its list to take another."
+  # The camera has a setting the player has no permission for, usually set by someone else.
+  setting-not-allowed: "<prefix> <red>You cannot take a photo with <setting> set to <value>. <gray>Change it on the capture screen and try again."
+  grid-not-allowed: "<prefix> <red>A <grid> grid takes <white><tiles></white> maps and your limit is <white><limit></white>. <gray>Choose a smaller grid."
 
 map:
-  invalid-grid: "<prefix> <red>Bu en-boy oranı için geçersiz grid. <gray><ratio> için seçenekler: <white><grids></white></gray>"
-  created: "<prefix> <green><count> harita oluşturuldu (<grid>) ve envanterine eklendi. <gray>(<ms>ms)</gray>"
-  inventory-full: "<prefix> <yellow>Bazı haritalar envantere sığmadı ve yere düştü."
-  placed: "<prefix> <green>Fotoğraf yerleştirildi: <white><name></white> <gray>(<count> harita)"
-  place-blocked: "<prefix> <red>Yerleştirme başarısız: hedef alan artık boş değil. Başka bir yere bakarak tekrar dene."
-  still-loading: "<prefix> <yellow>Bu fotoğraf hâlâ yükleniyor; birazdan tekrar dene."
-  orphan-frame: "<prefix> <gray>Kaydı bulunmayan bir Izomap çerçevesi kaldırıldı."
-  orphan-frames-cleaned: "<prefix> <yellow><count> sahipsiz fotoğraf çerçevesi temizlendi. <gray>(Hiçbir kaydın sahiplenmediği çerçeveler; yalnızca yüklü chunk'lar taranır.)"
-  name-taken: "<prefix> <red>Bu isimde bir fotoğrafın zaten var: <white><name></white>"
-  photos-header: "<prefix> <gray>Fotoğraflar (<count>):"
-  photos-entry: "<prefix> <dark_gray>› <white><name></white> <gray>[<id>] <camera>, <grid> <dark_gray>— asılı değil"
-  photos-entry-placed: "<prefix> <dark_gray>› <white><name></white> <gray>[<id>] <camera>, <grid> <green>— asılı"
-  photos-empty: "<prefix> <gray>Henüz fotoğrafın yok."
-  photo-taken-down: "<prefix> <yellow>Fotoğraf duvardan indirildi: <white><name></white> <gray>(listede duruyor, yeniden asabilirsin)"
-  photo-not-placed: "<prefix> <gray>Bu fotoğraf zaten asılı değil: <white><name></white>"
-  photo-deleted: "<prefix> <yellow>Fotoğraf silindi: <white><name></white>"
-  photos-removed-all: "<prefix> <yellow><count> fotoğraf silindi."
-  photo-not-found: "<prefix> <red>Fotoğraf bulunamadı."
-  cleaned: "<prefix> <green><count> fotoğrafın çerçeveleri kayıp; asılı olmayanlara alındı."
-  photo-retaken: "<prefix> <green>Fotoğraf yeniden çekildi: <white><name></white> <gray>(kamera: <camera>, <ms>ms)"
-  photo-no-source: "<prefix> <red>Bu fotoğraf yeniden çekilemez: <white><camera></white> kamerası yok ve fotoğrafın kayıtlı çekim parametreleri de bulunmuyor. <gray>Bir kamera adı vererek dene: <white>/izocam retake with &lt;kamera&gt; &lt;kamera/foto&gt;</white>"
+  invalid-grid: "<prefix> <red>That grid does not fit this aspect ratio. <gray>For <ratio>: <white><grids></white></gray>"
+  created: "<prefix> <green><count> map(s) made (<grid>) and added to your inventory. <gray>(<ms> ms)</gray>"
+  inventory-full: "<prefix> <yellow>Some maps did not fit in your inventory and were dropped."
+  placed: "<prefix> <green>Photo hung: <white><name></white> <gray>(<count> maps)"
+  place-blocked: "<prefix> <red>The photo could not be hung: the spot is no longer free. Look somewhere else and try again."
+  still-loading: "<prefix> <yellow>This photo is still loading; try again in a moment."
+  orphan-frame: "<prefix> <gray>Removed an Izomap item frame that belonged to no photo."
+  orphan-frames-cleaned: "<prefix> <yellow>Cleaned up <count> orphaned photo frame(s). <gray>(Frames no record claims; only loaded chunks are searched.)"
+  name-taken: "<prefix> <red>You already have a photo called <white><name></white>."
+  photos-header: "<prefix> <gray>Photos (<count>):"
+  photos-entry: "<prefix> <dark_gray>› <white><name></white> <gray>[<id>] <camera>, <grid> <dark_gray>· not hung"
+  photos-entry-placed: "<prefix> <dark_gray>› <white><name></white> <gray>[<id>] <camera>, <grid> <green>· hung"
+  photos-empty: "<prefix> <gray>You have no photos yet."
+  photo-taken-down: "<prefix> <yellow>Photo taken off the wall: <white><name></white> <gray>(it stays in the list, so you can hang it again)"
+  photo-not-placed: "<prefix> <gray>This photo is not on a wall: <white><name></white>"
+  photo-deleted: "<prefix> <yellow>Photo deleted: <white><name></white>"
+  photos-removed-all: "<prefix> <yellow>Deleted <count> photo(s)."
+  photo-not-found: "<prefix> <red>Photo not found."
+  cleaned: "<prefix> <green><count> photo(s) had lost their frames and are now listed as not hung."
+  photo-retaken: "<prefix> <green>Photo retaken: <white><name></white> <gray>(camera <camera>, <ms> ms)"
+  photo-no-source: "<prefix> <red>This photo cannot be retaken: the camera <white><camera></white> is gone and the photo has no capture settings saved. <gray>Name a camera to shoot it with: <white>/izocam retake with &lt;camera&gt; &lt;camera/photo&gt;</white>"
 
 dialog:
-  title: "<gradient:#5e60ce:#48bfe3>Izomap Fotoğraf</gradient>"
-  # Kameranın o anki ayarları; hepsi kameraya tıklayarak değiştirilir, buradan değil.
-  # Yer tutucular: <camera> <ratio> <scale> <blocks> <yaw> <pitch>
-  info: "<gray>Kamera: <white><camera></white>  •  Oran: <white><ratio></white>  •  Zoom: <white><scale></white>x <dark_gray>(<blocks> blok)</dark_gray>  •  Yön: <white><yaw></white>°  •  Eğim: <white><pitch></white>°"
-  name-label: "Fotoğraf adı"
-  grid-label: "Yerleşim (grid)"
-  # Ayar butonları: tıklayınca sıradaki değere geçer. <value>, ilgili değerin
-  # filter./style./sky. altındaki adıdır ve rengini oradan alır.
-  filter-button: "Renk: <value>"
-  style-button: "Stil: <value>"
-  sky-button: "Gökyüzü: <value>"
-  # Gökyüzü kendi alt ekranında seçilir: altı seçenek ve gök cisimleri anahtarı.
-  sky-title: "<gradient:#5e60ce:#48bfe3>Gökyüzü</gradient>"
-  sky-body: "<gray>Fotoğrafın arkasında hangi gökyüzü olacak? <white>Oyun saati</white> çekim anındaki saati donduruyor."
-  sky-body-none: "<gray>Şeffaf gökyüzünde ışının çarpmadığı yer delik kalır; fotoğraf arka planı olmadan asılabilir. Gök cisimleri bu yüzden yalnızca gökyüzü olan fotoğraflarda çizilir."
+  title: "<gradient:#5e60ce:#48bfe3>Izomap Photo</gradient>"
+  # The camera's current settings; they are changed by clicking the camera, not here.
+  # Placeholders: <camera> <ratio> <scale> <blocks> <yaw> <pitch>
+  info: "<gray>Camera: <white><camera></white>  •  Ratio: <white><ratio></white>  •  Zoom: <white><scale></white>x <dark_gray>(<blocks> blocks)</dark_gray>  •  Facing: <white><yaw></white>°  •  Tilt: <white><pitch></white>°"
+  name-label: "Photo name"
+  grid-label: "Layout (grid)"
+  # Each click moves to the next value. <value> is its name under filter., style. or sky.
+  filter-button: "Color: <value>"
+  style-button: "Style: <value>"
+  sky-button: "Sky: <value>"
+  sky-title: "<gradient:#5e60ce:#48bfe3>Sky</gradient>"
+  sky-body: "<gray>Which sky goes behind the photo? <white>Game time</white> freezes the hour the photo is taken at."
+  sky-body-none: "<gray>A transparent sky leaves a hole wherever a ray hits nothing, so the photo can hang without a background. The sun, moon and stars need a sky to be drawn on."
   sky-option: "<value>"
   sky-option-active: "<value> <green>✔"
-  sky-bodies: "Gök cisimleri: <gray>Kapalı"
-  sky-bodies-active: "Gök cisimleri: <green>Açık ✔"
-  sky-back: "Geri"
-  grid-option: "<grid> — <count> harita (<wpx>x<hpx>px)"
-  capture-full: "<red>Limit dolu (<limit>)"
-  pickup-button: "<red>Kamerayı Topla"
-  # Yalnızca tık ile ayarlananları geri alır: zoom, yön, eğim.
-  reset-button: "<red>Ayarları Sıfırla"
-  pickup-title: "<gradient:#5e60ce:#48bfe3>Kamerayı Topla</gradient>"
-  pickup-body: "<white><name></white> sökülecek ve bu kamerayla çekilmiş <white><count></white> fotoğraf da silinecek. Fotoğraflar kameralarına bağlıdır; kamera gidince yeniden çekilemezler."
-  pickup-body-empty: "<white><name></white> sökülecek ve yerleştirme eşyası envanterine geri verilecek."
-  pickup-confirm: "Topla"
-  pickup-cancel: "Vazgeç"
-  ratio-button: "<gray>Oran: <ratio>"
-  ratio-button-active: "<bold><white>Oran: <ratio> ✔</white></bold>"
-  # ALAN DERİNLİĞİ. Üçler kuralının aksine bu fotoğrafa GİRER: açıkken slider'daki
-  # uzaklık net kalır, gerisi bulanıklaşır. Slider yalnızca efekt açıkken görünür ve
-  # değeri, dialog'da bir düğmeye basıldığında sunucuya ulaşır (canlı kanal yoktur).
-  focus-button: "Odak: <gray>Kapalı"
-  focus-button-active: "Odak: <green>Açık ✔"
-  focus-label: "Odak uzaklığı (blok)"
-  # Üçler kuralı: yalnızca önizlemeye çizilen 3x3 kadraj kılavuzu, fotoğrafa girmez.
-  thirds-button: "Üçler kuralı: <gray>Kapalı"
-  thirds-button-active: "Üçler kuralı: <green>Açık ✔"
-  # Çekim yapar ama duvara asmaz; asma işi Fotoğraflar listesinden yapılır.
-  capture: "<bold><green>Fotoğraf Çek</green></bold>"
-  photos-button: "Fotoğraflar (<count>)"
-  cancel: "İptal"
+  sky-bodies: "Sun, moon and stars: <gray>Off"
+  sky-bodies-active: "Sun, moon and stars: <green>On ✔"
+  sky-back: "Back"
+  grid-option: "<grid> · <count> maps (<wpx>x<hpx> px)"
+  capture-full: "<red>Limit reached (<limit>)"
+  pickup-button: "<red>Pick up camera"
+  # Undoes only what clicking the camera sets: zoom, direction and tilt.
+  reset-button: "<red>Reset aim"
+  pickup-title: "<gradient:#5e60ce:#48bfe3>Pick up camera</gradient>"
+  pickup-body: "<white><name></white> will be taken down, and the <white><count></white> photo(s) it took will be deleted with it. Photos belong to their camera and cannot be retaken without it."
+  pickup-body-empty: "<white><name></white> will be taken down and its item returned to your inventory."
+  pickup-confirm: "Pick up"
+  pickup-cancel: "Cancel"
+  ratio-button: "<gray>Ratio: <ratio>"
+  ratio-button-active: "<bold><white>Ratio: <ratio> ✔</white></bold>"
+  # Depth of field is part of the photo. The slider shows only while it is on, and its value
+  # reaches the server when a button on the screen is pressed.
+  focus-button: "Focus: <gray>Off"
+  focus-button-active: "Focus: <green>On ✔"
+  focus-label: "Focus distance (blocks)"
+  # A 3x3 guide drawn on the preview only, never on the photo.
+  thirds-button: "Rule of thirds: <gray>Off"
+  thirds-button-active: "Rule of thirds: <green>On ✔"
+  # Takes the photo without hanging it; hanging is done from the Photos list.
+  capture: "<bold><green>Take photo</green></bold>"
+  photos-button: "Photos (<count>)"
+  cancel: "Cancel"
 
-  # --- fotoğraf listesi ---
-  photos-title: "<gradient:#5e60ce:#48bfe3>Fotoğraflar</gradient>"
-  photos-body: "<gray><camera> kamerasıyla çekilen <white><count></white> fotoğraf. Satırdaki butonlar sırayla: yeniden adlandır, as/indir, sil, yeniden çek."
-  photos-empty: "<gray><camera> ile henüz fotoğraf çekmedin."
-  photos-back: "← Çekim ekranı"
-  photos-truncated: "<dark_gray><count> fotoğraf daha var; onlara <white>/izocam list photos</white> ile ulaşabilirsin."
-  # Butonlar dar olduğu için simge kullanılıyor; istediğin metni yazabilirsin.
+  photos-title: "<gradient:#5e60ce:#48bfe3>Photos</gradient>"
+  photos-body: "<gray><white><count></white> photo(s) taken with <camera>. The buttons on each row: rename, hang or take down, delete, retake."
+  photos-empty: "<gray>You have not taken a photo with <camera> yet."
+  photos-back: "← Capture screen"
+  photos-truncated: "<dark_gray><count> more photo(s); <white>/izocam list photos</white> shows them all."
   photo-name: "<name>"
-  photo-place: "⬛ As"
-  photo-unplace: "⇩ İndir"
-  photo-delete: "✖ Sil"
-  photo-retake: "⟳ Yeniden çek"
+  photo-place: "⬛ Hang"
+  photo-unplace: "⇩ Take down"
+  photo-delete: "✖ Delete"
+  photo-retake: "⟳ Retake"
 
-  rename-title: "Fotoğrafı yeniden adlandır"
-  rename-body: "<gray>Şu anki ad: <white><name></white>"
-  rename-confirm: "Kaydet"
+  rename-title: "Rename photo"
+  rename-body: "<gray>Current name: <white><name></white>"
+  rename-confirm: "Save"
 
-  delete-title: "Fotoğrafı sil"
-  delete-body: "<gray><white><name></white> kalıcı olarak silinecek: görüntüsü, çekim parametreleri ve asılıysa çerçeveleri. Geri alınamaz."
-  delete-confirm: "✖ Sil"
-  # Duvardaki fotoğrafa sağ tıklayınca açılan ekran.
-  wall-title: "<white>Fotoğraf: <name>"
-  wall-body: "<gray>Kamera: <white><camera></white> · Izgara: <white><grid></white>"
-  wall-frame-none: "<gray>Çerçeve: <white>yok"
-  wall-frame-current: "<gray>Çerçeve: <frame>"
-  wall-frame-locked: "<gray>Çerçeve: <frame> <dark_gray>(fotoğrafa işlenmiş, değiştirilemez)"
-  wall-retake: "<yellow>Yeniden çek"
-  wall-frame: "<aqua>Çerçeve tak"
-  wall-frame-change: "<aqua>Çerçeveyi değiştir"
-  wall-take-down: "<red>Duvardan kaldır"
-  frame-title: "<white>Çerçeve seç"
-  frame-body: "<gray>Çerçeve fotoğrafın dış kenarına çizilir; istediğin zaman değiştirebilir ya da kaldırabilirsin."
-  frame-body-embed: "<gray>Bu sunucuda çerçeve fotoğrafa <white>işlenir</white>: taktıktan sonra değiştiremezsin."
+  delete-title: "Delete photo"
+  delete-body: "<gray><white><name></white> will be deleted for good: its image, its capture settings and, if it is hung, its frames. This cannot be undone."
+  delete-confirm: "✖ Delete"
+  # The screen a right-click on a hung photo opens.
+  wall-title: "<white>Photo: <name>"
+  wall-body: "<gray>Camera: <white><camera></white> · Grid: <white><grid></white>"
+  wall-frame-none: "<gray>Frame: <white>none"
+  wall-frame-current: "<gray>Frame: <frame>"
+  wall-frame-locked: "<gray>Frame: <frame> <dark_gray>(part of the photo, cannot be changed)"
+  wall-retake: "<yellow>Retake"
+  wall-frame: "<aqua>Add a frame"
+  wall-frame-change: "<aqua>Change the frame"
+  wall-take-down: "<red>Take off the wall"
+  frame-title: "<white>Choose a frame"
+  frame-body: "<gray>The frame is drawn around the edge of the photo; you can change or remove it at any time."
+  frame-body-embed: "<gray>On this server a frame becomes <white>part of the photo</white>: once added it cannot be changed."
   frame-option: "<white><frame>"
   frame-option-active: "<green>✔ <frame>"
-  frame-remove: "<red>Çerçeveyi kaldır"
-  frame-back: "<gray>Geri"
-  delete-cancel: "Vazgeç"
+  frame-remove: "<red>Remove the frame"
+  frame-back: "<gray>Back"
+  delete-cancel: "Cancel"
 
-# ============================================================
-#  Konsol
-#  Sunucu log'una yazılan satırlar. MiniMessage burada da geçerlidir; konsol renk
-#  desteklemiyorsa etiketler görmezden gelinir. <reason>, bir işlem başarısız olduğunda
-#  Java'nın kendi hata metnini taşır ve çevrilemez.
-# ============================================================
+# Lines written to the server log. <reason> carries Java's own error text.
 log:
-  enabled: "Izomap etkinleştirildi."
-  disabled: "Izomap devre dışı bırakıldı."
-  no-reason: "sebep bildirilmedi"
+  enabled: "Izomap enabled."
+  disabled: "Izomap disabled."
+  no-reason: "no reason given"
 
-  # --- yükleme ---
-  cameras-loaded: "<count> kamera yüklendi."
-  photos-loaded: "<count> fotoğraf yüklendi."
-  frames-loaded: "<count> çerçeve yüklendi (frames.yml)."
-  frame-ring-invalid: "<frame> çerçevesinde geçersiz bir halka var (renk ya da kalınlık); o halka atlandı."
-  frame-art-invalid: "<frame> çerçevesinin edge satırları geçersiz (boş ya da eşit uzunlukta değil); çerçeve yüklenmedi."
-  frame-corner-invalid: "<frame> çerçevesinin corner bloğu kare değil ya da edge derinliğiyle aynı değil; köşe atlandı."
-  frame-texture-missing: "<frame> çerçevesinin PNG'si okunamadı: frames/<file>"
-  frame-texture-inset: "<frame> çerçevesinin inset değeri geçersiz (0'dan büyük ve kısa kenarın yarısından küçük olmalı); çerçeve yüklenmedi."
-  frame-failed: "<name> fotoğrafına çerçeve işlenemedi: <reason>"
-  photo-refresh-failed: "<name> fotoğrafının haritaları yenilenemedi: <reason>"
-  filters-loaded: "<count> renk filtresi yüklendi."
-  filter-unknown-op: "<file>: '<filter>' filtresindeki '<op>' işlemi tanınmadı, atlandı."
-  block-colors-ready: "<count> blok için harita temel rengi hazır."
-  # Olgunlaştıkça rengi değişen bloklar (buğday gibi); liste sunucuya sorularak bulunur.
-  state-colors-ready: "<count> bloğun rengi büyüme durumuna göre değişiyor; her durumu ayrı okundu."
-  # Vanilla'nın bloğa benzemeyen renkleri (settings.correct-vanilla-colors).
-  block-colors-corrected: "<count> bloğun harita rengi dokusuna daha yakın olanla değiştirildi."
-  block-colors-overridden: "<count> blok rengi override edildi."
-  # Hücresinin tamamını doldurmayan bloklar (photo.coverage.enabled).
-  coverage-ready: "<count> blok hücresinin tamamını doldurmuyor; ışın arkasını görüp rengini karıştıracak."
-  # Biome tint (photo.biome-tint).
-  biome-tints-ready: "<count> biome için çim/yaprak/su rengi sunucudan okundu."
-  biome-tints-overridden: "<count> biome rengi override edildi (biome-tints.yml)."
-  camera-world-missing: "Kamera '<camera>' atlandı: dünya yüklü değil (<world>)."
+  cameras-loaded: "Loaded <count> camera(s)."
+  photos-loaded: "Loaded <count> photo(s)."
+  frames-loaded: "Loaded <count> frame(s) from frames.yml."
+  frame-ring-invalid: "Frame <frame> has an invalid ring (color or width); that ring was skipped."
+  frame-art-invalid: "Frame <frame> has invalid edge rows (empty or of different lengths); the frame was not loaded."
+  frame-corner-invalid: "Frame <frame> has a corner that is not square or not as deep as its edge; the corner was skipped."
+  frame-texture-missing: "Could not read the PNG of frame <frame>: frames/<file>"
+  frame-texture-inset: "Frame <frame> has an invalid inset (it must be above 0 and below half the shorter side); the frame was not loaded."
+  frame-failed: "Could not draw the frame onto photo <name>: <reason>"
+  photo-refresh-failed: "Could not refresh the maps of photo <name>: <reason>"
+  filters-loaded: "Loaded <count> color filter(s)."
+  filter-unknown-op: "<file>: unknown operation '<op>' in filter '<filter>', skipped."
+  block-colors-ready: "Map base colors ready for <count> blocks."
+  state-colors-ready: "<count> block(s) change color as they grow; each state was read on its own."
+  block-colors-corrected: "Replaced the map color of <count> block(s) with one closer to their texture."
+  block-colors-overridden: "Overrode the color of <count> block(s)."
+  coverage-ready: "<count> block(s) do not fill their cell; rays will see past them and blend."
+  biome-tints-ready: "Read grass, foliage and water colors for <count> biome(s) from the server."
+  biome-tints-overridden: "Overrode the color of <count> biome(s) (biome-tints.yml)."
+  camera-world-missing: "Skipped camera '<camera>': its world is not loaded (<world>)."
 
-  # --- yapılandırma ---
-  risky-frame-shift: "<yellow>photo.frame-shift = <value>: kadraj kameranın üstüne kaydırılmış. Eğimi düşük (yatay ya da yukarı bakan) kameralarda hiçbir ışın araziye inmez ve fotoğraflar BOŞ çıkar. Önerilen değer 0.0 (kameranın baktığı nokta kadrajın merkezi olur)."
-  invalid-item-display-transform: "camera.item-display-transform = '<value>' geçersiz; NONE kullanılıyor. Geçerli değerler: <options>"
-  invalid-hologram-billboard: "camera.hologram.billboard = '<value>' geçersiz; CENTER kullanılıyor. Geçerli değerler: <options>"
-  invalid-hologram-background: "camera.hologram.background = '<value>' geçersiz; vanilla arka plan kullanılıyor. Beklenen: 'default', 'none' ya da #AARRGGBB."
-  unknown-base-colors: "<count> blok, bilinmeyen bir harita temel rengi bildirdi; en yakın renge eşlendi. (MapBaseColor tablosu güncellenmeli.)"
-  override-unknown-block: "<file>: bilinmeyen blok '<block>' atlandı."
-  override-invalid-color: "<file>: '<block>' için geçersiz renk '<color>' atlandı."
-  coverage-invalid: "<file>: '<block>' için geçersiz kaplama oranı '<value>' atlandı (0.0 ile 1.0 arasında bir sayı olmalı)."
-  tint-channel-invalid: "<file>: '<block>' için geçersiz tint kanalı '<channel>' atlandı. Beklenen: GRASS, FOLIAGE, WATER ya da NONE."
-  biome-tint-unknown: "<file>: bilinmeyen biome adı '<biome>' atlandı."
-  biome-tint-invalid: "<file>: '<biome>' için geçersiz renk '<color>' atlandı."
-  # Sunucunun iç yapısı bu sürümün okuduğu hâlde değilse; fotoğraf tintsiz çekilir.
-  biome-tint-unavailable: "<yellow>Biome renkleri sunucudan okunamadı, biome tint kapatıldı: <reason>"
-  biome-tint-no-reference: "<yellow>Referans biome '<biome>' bulunamadı, biome tint kapatıldı."
+  risky-frame-shift: "<yellow>photo.frame-shift = <value> moves the frame above the camera. With a level or upward camera no ray reaches the ground and photos come out EMPTY. 0.0 is recommended (the point the camera looks at becomes the center of the frame)."
+  invalid-item-display-transform: "camera.item-display-transform = '<value>' is not valid; using NONE. Valid values: <options>"
+  invalid-hologram-billboard: "camera.hologram.billboard = '<value>' is not valid; using CENTER. Valid values: <options>"
+  invalid-hologram-background: "camera.hologram.background = '<value>' is not valid; using the vanilla background. Expected 'default', 'none' or #AARRGGBB."
+  unknown-base-colors: "<count> block(s) reported an unknown map base color and were matched to the nearest one. (The MapBaseColor table needs updating.)"
+  override-unknown-block: "<file>: unknown block '<block>', skipped."
+  override-invalid-color: "<file>: invalid color '<color>' for '<block>', skipped."
+  coverage-invalid: "<file>: invalid coverage '<value>' for '<block>', skipped (it must be a number from 0.0 to 1.0)."
+  tint-channel-invalid: "<file>: invalid tint channel '<channel>' for '<block>', skipped. Expected GRASS, FOLIAGE, WATER or NONE."
+  biome-tint-unknown: "<file>: unknown biome '<biome>', skipped."
+  biome-tint-invalid: "<file>: invalid color '<color>' for '<biome>', skipped."
+  biome-tint-unavailable: "<yellow>Could not read biome colors from the server, so biome tint is off: <reason>"
+  biome-tint-no-reference: "<yellow>The reference biome '<biome>' was not found, so biome tint is off."
 
-  # --- render ---
-  # Eksik chunk kopyası, fotoğrafta chunk boyunda şeffaf bir delik bırakır.
-  chunks-incomplete: "Kadraja giren <requested> chunk'ın <missing> tanesinin kopyası alınamadı (<world>); o bölgeler fotoğrafta şeffaf kalacak. Muhtemel sebep: chunk hiç üretilmemiş (settings.generate-missing-chunks kapalı) ya da settings.load-missing-chunks kapalı."
-  # settings.render-timing açıkken her çekimde yazılır.
-  render-timing: "Render <width>x<height>, <samples>x örnekleme, <chunks> chunk — kopyalama <copy> ms, ışın yürüyüşü <render> ms."
-  map-render-failed: "Harita render'ı başarısız (<camera>): <reason>"
-  photo-render-failed: "Fotoğraf render'ı başarısız (<camera>): <reason>"
-  photo-recapture-failed: "Fotoğraf '<name>' yeniden çekilemedi: <reason>"
-  photo-unrestorable: "Fotoğraf '<name>' (<id>) ne ön bellekte var ne de çekim parametreleri kayıtlı; haritalar son hâlinde bırakıldı."
-  photo-unplaceable: "Fotoğraf '<name>' asılamadı, görüntüsü elde edilemedi: <reason>"
-  # Çerçeve bulunamadıysa dünyada kalmış olabilir; '/izocam cleanup' onu da toplar.
-  frames-missing: "Fotoğraf '<name>' (<id>) indirilirken <total> çerçevenin <missing> tanesi bulunamadı; dünyada kalmış olabilirler."
-  photo-export-failed: "Fotoğraf dışa aktarılamadı (<id>): <reason>"
+  # A missing chunk copy leaves a chunk-sized transparent hole in the photo.
+  chunks-incomplete: "<missing> of the <requested> chunks in the frame could not be copied (<world>); those parts of the photo will be transparent. Most likely the chunks were never generated (settings.generate-missing-chunks is off) or settings.load-missing-chunks is off."
+  # Written on every capture while settings.render-timing is on.
+  render-timing: "Render <width>x<height>, <samples>x sampling, <chunks> chunks: copy <copy> ms, ray walk <render> ms."
+  map-render-failed: "Map render failed (<camera>): <reason>"
+  photo-render-failed: "Photo render failed (<camera>): <reason>"
+  photo-recapture-failed: "Could not retake photo '<name>': <reason>"
+  photo-unrestorable: "Photo '<name>' (<id>) is neither cached nor has capture settings; its maps were left as they were."
+  photo-unplaceable: "Could not hang photo '<name>', its image is unavailable: <reason>"
+  # A frame that was not found may still be in the world; /izocam cleanup collects it.
+  frames-missing: "<missing> of the <total> frames of photo '<name>' (<id>) were not found while taking it down; they may still be in the world."
+  photo-export-failed: "Could not export photo (<id>): <reason>"
 
-  # --- disk ---
-  data-file-create-failed: "Veri dosyası oluşturulamadı: <file> (<reason>)"
-  data-file-save-failed: "Veri dosyası kaydedilemedi: <file> (<reason>)"
-  data-file-save-failed-sync: "Veri dosyası (sync) kaydedilemedi: <file> (<reason>)"
-  photo-cache-write-failed: "Fotoğraf ön belleği yazılamadı (<photo>): <reason>"
-  photo-cache-read-failed: "Fotoğraf ön belleği okunamadı (<photo>): <reason> — parametrelerden yeniden çekilecek."
-  photo-cache-delete-failed: "Fotoğraf ön belleği silinemedi (<photo>): <reason>"
-  photo-cache-scan-failed: "Fotoğraf ön belleği taranamadı: <reason>"
-  photo-cache-swept: "Sahipsiz <count> fotoğraf ön bellek dosyası silindi."
+  data-file-create-failed: "Could not create data file <file> (<reason>)"
+  data-file-save-failed: "Could not save data file <file> (<reason>)"
+  data-file-save-failed-sync: "Could not save data file <file> synchronously (<reason>)"
+  photo-cache-write-failed: "Could not write the photo cache (<photo>): <reason>"
+  photo-cache-read-failed: "Could not read the photo cache (<photo>): <reason>. It will be retaken from its settings."
+  photo-cache-delete-failed: "Could not delete the photo cache (<photo>): <reason>"
+  photo-cache-scan-failed: "Could not scan the photo cache: <reason>"
+  photo-cache-swept: "Deleted <count> orphaned photo cache file(s)."

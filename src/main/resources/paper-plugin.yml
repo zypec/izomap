@@ -1,39 +1,39 @@
 name: Izomap
 version: '${version}'
 main: dev.zypec.izomap.Izomap
-api-version: '26.2'
-description: Izometrik fotoğraf çekimi ve harita panosu eklentisi
+api-version: '${apiVersion}'
+description: Isometric photography for Minecraft servers, printed onto maps
 authors:
   - zypec
-website: https://zypec.dev
+website: https://zypec.github.io/izomap/
 permissions:
   izomap.camera:
-    description: Kamera oluşturma, ayarlama ve fotoğraf çekme
+    description: Create and adjust cameras, and take photos
     default: true
   izomap.admin:
-    description: Başkalarının kameraları üzerinde yönetim işlemleri
+    description: Manage other players' cameras and photos, and reload the configuration
     default: op
   izomap.export:
-    description: Fotoğrafı PNG olarak diske yazma
+    description: Write a photo to disk as a PNG
     default: op
   izomap.style.sharp:
-    description: "Keskin stil (her piksel için ışın); hızlı stil izin istemez"
+    description: The sharp style (a ray per pixel); the fast style needs no permission
     default: op
   izomap.focus:
-    description: "Alan derinliği (odak): görüntü üzerinde ikinci bir geçiş"
+    description: Depth of field
     default: op
   izomap.filter:
-    description: "Tüm renk filtreleri; tek filtre için izomap.filter.<KIMLIK>"
+    description: Every color filter; izomap.filter.<ID> for a single one
     default: op
   izomap.sky:
-    description: "Tüm gökyüzü seçenekleri; tek seçenek için izomap.sky.<AD>"
+    description: Every sky; izomap.sky.<NAME> for a single one
     default: op
   izomap.sky.bodies:
-    description: "Gökyüzüne güneş, ay ve yıldız çizme (bir gökyüzü seçeneği değil, anahtar)"
+    description: The sun, the moon and the stars in the sky
     default: op
   izomap.frame:
-    description: "Tüm çerçeveler; tek çerçeve için izomap.frame.<KIMLIK>"
+    description: Every decoration frame; izomap.frame.<ID> for a single one
     default: op
   izomap.ratio:
-    description: "Tüm en-boy oranları; tek oran için izomap.ratio.<AD>"
+    description: Every aspect ratio; izomap.ratio.<NAME> for a single one
     default: true
