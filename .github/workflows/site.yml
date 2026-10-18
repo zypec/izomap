@@ -1,0 +1,66 @@
+# Publishes the front page and the wiki to GitHub Pages, at https://zypec.github.io/izomap/.
+#
+# The wiki's reference is read off the files the plugin ships, so the site is built rather than
+# committed. The shell it is drawn with is the shared kit from zypec/zypec.github.io.
+name: site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'wiki/**'
+      - 'src/wiki/**'
+      - 'src/main/resources/**'
+      - 'build.gradle.kts'
+      - '.github/workflows/site.yml'
+  # Sent by zypec.github.io when the shared kit changes.
+  repository_dispatch:
+    types: [kit-changed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/checkout@v4
+        with:
+          repository: zypec/zypec.github.io
+          path: kit-source
+          sparse-checkout: kit
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Generate the site
+        run: ./gradlew generateWiki -Pkit="$GITHUB_WORKSPACE/kit-source/kit"
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

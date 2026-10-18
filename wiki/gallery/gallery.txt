@@ -1,0 +1,9 @@
+# The wiki's gallery, one picture a line with its caption after a bar. Every file in this folder
+# is copied to the site; the front page uses some that are not listed here.
+# The views are in shots.yml and are shot again with /izodev shots on the development server.
+dawn.png | Dawn over the town, the sun drawn where the shadows fall from
+night.png | The same view at night, with stars fixed to the sky
+town.png | Isometric, with sun shadows, ambient occlusion and block light
+village.png | A town by the lake: water shaded by its depth, flowers in their own colors
+focus.png | Depth of field, focused on the hilltop houses
+water.png | Lakes and a river: the shoreline draws itself

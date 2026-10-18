@@ -16,6 +16,8 @@ java {
     toolchain.languageVersion = JavaLanguageVersion.of(25)
 }
 
+val wiki: SourceSet by sourceSets.creating
+
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
@@ -34,6 +36,11 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
+    "wikiImplementation"("org.commonmark:commonmark:0.30.1")
+    "wikiImplementation"("org.commonmark:commonmark-ext-gfm-tables:0.30.1")
+    "wikiImplementation"("org.yaml:snakeyaml:2.7")
+    "wikiImplementation"("com.google.code.gson:gson:2.14.0")
 }
 
 tasks {
@@ -60,6 +67,24 @@ tasks {
             events("failed")
             showStandardStreams = false
         }
+    }
+
+    /**
+     * The site: front page and wiki, written to build/site. The wiki is drawn with the shared kit
+     * from zypec/zypec.github.io, read from the sibling checkout or from -Pkit=<its kit folder>.
+     */
+    register<JavaExec>("generateWiki") {
+        group = "documentation"
+        description = "Builds the front page and the wiki into build/site."
+        mainClass = "dev.zypec.izomap.wiki.WikiGenerator"
+        classpath = wiki.runtimeClasspath
+        val site = layout.buildDirectory.dir("site").get().asFile
+        val kit = providers.gradleProperty("kit").orElse(file("../zypec.github.io/kit").absolutePath)
+        args(site.absolutePath)
+        systemProperty("izomap.root", projectDir.absolutePath)
+        systemProperty("izomap.kit", file(kit.get()).absolutePath)
+        systemProperty("izomap.version", project.version.toString())
+        doFirst { site.deleteRecursively() }
     }
 
     /**

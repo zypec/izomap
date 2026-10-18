@@ -1,0 +1,7 @@
+/* Izomap's colors over the kit: the indigo-to-sky of its chat prefix. */
+:root{--accent:#5458c8;--accent-ink:#4447b3;--accent-soft:#5458c812;--accent-line:#5458c840}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--accent:#8e90f2;--accent-ink:#a4a6f6;--accent-soft:#8e90f217;
+  --accent-line:#8e90f245}}
+:root[data-theme=dark]{--accent:#8e90f2;--accent-ink:#a4a6f6;--accent-soft:#8e90f217;--accent-line:#8e90f245}
+header h1 img,header .home img{display:block;width:16px;height:16px}
+.home .hero figure img,.gallery img{image-rendering:pixelated}

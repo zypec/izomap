@@ -1,0 +1,16 @@
+# The wiki's guides, in order. A group after a bar files the page under it in the contents.
+getting-started | Guides
+taking-photos | Guides
+hanging-photos | Guides
+commands | Guides
+permissions | Guides
+configuration | Configuration
+rendering | Configuration
+block-colors | Customizing
+filters | Customizing
+frames | Customizing
+biome-tints | Customizing
+messages | Customizing
+performance | Running a server
+faq | Running a server
+about | hidden

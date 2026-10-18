@@ -1,0 +1,21 @@
+# The views every picture in this folder was shot from, on the development server
+# (./gradlew runServer). Copy this file to run/plugins/Izomap/dev-shots.yml and run
+# /izodev shots in the console; the PNGs land in run/plugins/Izomap/exports/.
+#
+# The server's config.yml had settings.max-capture-area: 2048, settings.render-threads: 8 and
+# photo.shading.sun-shadow, ambient-occlusion and block-light on. Everything else at its default.
+shots:
+  hero-dusk: {x: -65.02, y: 157.42, z: -87.60, yaw: -106.41, pitch: 3.0, zoom: 0.3149, grid: 16x9, sky: DUSK, filter: VIVID}
+  cathedral-night: {x: -65.02, y: 157.42, z: -87.60, yaw: -106.41, pitch: 3.0, zoom: 0.3149, grid: 8x5, sky: NIGHT}
+  cathedral-dawn: {x: -65.02, y: 157.42, z: -87.60, yaw: -70.0, pitch: 3.0, zoom: 0.3149, grid: 8x5, sky: DAWN}
+  town: {x: -6.28, y: 138.09, z: -123.72, yaw: 45, pitch: 35, zoom: 0.42, grid: 8x5, sky: DAY}
+  cherry-village: {x: 48.72, y: 133.09, z: -23.72, yaw: 45, pitch: 35, zoom: 0.6, grid: 8x5, sky: DAY}
+  towers-focus-2: {x: 100.96, y: 143.29, z: -160.96, yaw: 45, pitch: 32, zoom: 0.7, grid: 8x5, sky: DAY, focus: 80}
+  lakes: {x: -155.42, y: 134.71, z: -244.58, yaw: 45, pitch: 40, zoom: 0.42, grid: 8x5, sky: DAY}
+  filter-original: {x: -126.28, y: 129.09, z: -263.72, yaw: 45, pitch: 35, zoom: 0.6, grid: 4x3, sky: DAY, filter: ORIGINAL}
+  filter-warm: {x: -126.28, y: 129.09, z: -263.72, yaw: 45, pitch: 35, zoom: 0.6, grid: 4x3, sky: DAY, filter: WARM}
+  filter-cool: {x: -126.28, y: 129.09, z: -263.72, yaw: 45, pitch: 35, zoom: 0.6, grid: 4x3, sky: DAY, filter: COOL}
+  filter-grayscale: {x: -126.28, y: 129.09, z: -263.72, yaw: 45, pitch: 35, zoom: 0.6, grid: 4x3, sky: DAY, filter: GRAYSCALE}
+  filter-sepia: {x: -126.28, y: 129.09, z: -263.72, yaw: 45, pitch: 35, zoom: 0.6, grid: 4x3, sky: DAY, filter: SEPIA}
+  filter-vivid: {x: -126.28, y: 129.09, z: -263.72, yaw: 45, pitch: 35, zoom: 0.6, grid: 4x3, sky: DAY, filter: VIVID}
+  filter-noir: {x: -126.28, y: 129.09, z: -263.72, yaw: 45, pitch: 35, zoom: 0.6, grid: 4x3, sky: DAY, filter: NOIR}

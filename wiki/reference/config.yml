@@ -1,0 +1,437 @@
+# What the wiki says about each key of config.yml. The generator reads the keys and their
+# defaults from the shipped config.yml itself; this file only adds the words. A key missing here
+# is marked undocumented on the page, and an entry for a key config.yml no longer has is reported.
+#
+#   summary     one sentence, shown on the row
+#   detail      the rest, shown when the row is opened; paragraphs split by a blank line
+#   range       what values are accepted
+#   values      the choices, for a key that takes a word
+#   permission  the node that overrides or unlocks it
+#   example     a block a reader can copy
+
+settings.max-capture-area:
+  summary: The widest area one photo may cover, in blocks per side. The main cost limit.
+  range: 64 to 4096
+  detail: |
+    Every photo copies the chunks its frame covers on the main thread, then walks rays through
+    them. This number caps both: how far a ray may travel and how many chunks may be copied. The
+    cost grows with its square, so 512 is about 1,024 chunks and 1,024 about 4,096.
+
+    A photo that would need more is not taken; the player is told to zoom in. Raise it for big
+    landscape shots on a server with headroom, lower it on a busy one.
+
+settings.render-depth:
+  summary: How far below the reference ground the rays may reach, in blocks.
+  range: 0 to 1024
+  detail: |
+    The distance a ray travels is not a setting: it follows from the frame and the camera's tilt.
+    The reference ground is whichever is lower, sea level or the ground under the camera. This value
+    is how much further down a ray may go below it, which decides how deep into a valley or off a
+    cliff the far edge of the frame can see. The default is plenty for surface landscapes.
+
+settings.render-threads:
+  summary: How many threads one render is split across.
+  range: 1 to 16
+  detail: |
+    The image is cut into horizontal bands that are drawn in parallel. More threads make a single
+    photo faster but compete with the server for CPU. These threads never touch the main thread.
+
+settings.render-timing:
+  summary: Write how long every capture took to the console.
+  detail: |
+    Each line splits the time in two: copying chunks (main thread, bound by the disk) and walking
+    rays (the render pool, pure CPU). Use it to measure what a setting costs on your own server.
+    Off by default, because the live preview renders all the time and would fill the log.
+
+settings.load-missing-chunks:
+  summary: Load chunks the frame covers that are not loaded.
+  detail: |
+    Loading is asynchronous and never freezes the main thread. With this off, anything beyond the
+    server's view distance comes out as transparent holes.
+
+settings.generate-missing-chunks:
+  summary: Generate chunks that were never generated, so a photo can show them.
+  detail: Off by default. Taking a photo should not make the world bigger.
+
+settings.correct-vanilla-colors:
+  summary: Replace the vanilla map colors that look nothing like their block.
+  detail: |
+    A block's map color is assigned by hand in vanilla, not taken from its texture, and a few are
+    far off. All fourteen tuff blocks report a near-black brown although tuff is light gray-green,
+    and every flower is plain green. With this on, tuff is drawn as deepslate and each flower takes
+    the palette color closest to its petals: poppies red, dandelions yellow, cornflowers blue.
+
+    Turn it off and photos match a vanilla map exactly, that flaw included. block-colors.yml
+    overrides both.
+
+settings.max-cameras-per-player:
+  summary: How many cameras one player may own.
+  permission: izomap.max_cameras_by_player.<n>
+  detail: A permission replaces this number for whoever holds it, see [Permissions](#permissions).
+
+settings.max-photos-per-camera:
+  summary: How many photos one camera may hold, hung or not.
+  permission: izomap.max_photos_by_camera.<n>
+  detail: |
+    A permission replaces this number for whoever holds it, even when it is smaller, so a group
+    can be kept below the default. With several, the largest wins. `.0` allows none and
+    `.unlimited` removes the limit.
+
+settings.max-map-tiles:
+  summary: How many map tiles one photo may span (1x1 is 1, 4x2 is 8, 16x9 is 144).
+  permission: izomap.max_map_tiles.<n>
+  range: 1 to 4096
+  detail: |
+    This is the setting that decides what a photo costs: render time grows with the tile count and
+    nothing else grows as fast. The default of 12 allows every small grid up to 4x3 and leaves the
+    three large ones (8x4, 8x6, 16x9) to a permission.
+
+    The smallest grid of an aspect ratio always stays available even above the limit; otherwise
+    16:9, whose smallest grid is 8 tiles, could become a ratio nobody can use.
+
+camera.display-type:
+  summary: What the camera model in the world is drawn as.
+  values: ITEM_DISPLAY, BLOCK_DISPLAY
+
+camera.model-material:
+  summary: The item (or block) the camera model is drawn with, by material name.
+
+camera.item-display-transform:
+  summary: How the model item is held, which changes how it looks.
+  values: NONE, THIRDPERSON_RIGHTHAND, THIRDPERSON_LEFTHAND, FIRSTPERSON_RIGHTHAND, FIRSTPERSON_LEFTHAND, HEAD, GUI, GROUND, FIXED
+  detail: Ignored with BLOCK_DISPLAY. An invalid value falls back to NONE and is logged.
+
+camera.interaction-size:
+  summary: The side of the camera's click box at model scale 1.0.
+  range: 0.1 to 3.0
+  detail: |
+    The real box is this times `model-scale`, kept between 0.25 and 3.0, so a scaled-up camera can
+    be clicked on its body and a small one has no invisible clickable space around it.
+
+camera.zoom-step:
+  summary: How much one click zooms in or out, as a factor.
+  range: 1.01 to 4.0
+  detail: 1.25 zooms 25% per click. A factor rather than an amount, so a step feels the same at every zoom.
+
+camera.model-scale:
+  summary: The size of the camera model in the world.
+  range: 0.1 to 8.0
+  detail: It has nothing to do with the photo's zoom; it only makes the model bigger or smaller.
+
+camera.angle-step:
+  summary: How many degrees one click turns or tilts the camera.
+
+camera.move-step:
+  summary: How many blocks one click moves the camera in move mode.
+  range: 0.05 to 16.0
+  detail: |
+    The direction is where the player is looking: right-click pushes the camera that way, left-click
+    pulls it back. The view carries its own tilt, so height needs no mode of its own.
+
+camera.default-pitch:
+  summary: The tilt of a new camera, in degrees down.
+  detail: |
+    30 is the classic isometric angle. Rays are parallel, so a camera close to level cannot see the
+    ground's surface: the top of the frame becomes sky and the bottom a cross-section of the ground.
+    Stay between 20 and 45.
+
+camera.edit-lock-seconds:
+  summary: How long an idle editor keeps a camera before someone else can take it over.
+  range: 1 to 3600
+  detail: |
+    Only one player can adjust a camera at a time; the rest watch its preview. Without a timeout, a
+    player who clicked once and walked away would hold the camera for good.
+
+camera.model-rotation.x:
+  summary: Tilts the camera model forward or back, in degrees.
+  detail: For a custom model, turn it until it faces where the camera shoots. Applied in the order Y, X, Z.
+
+camera.model-rotation.y:
+  summary: Turns the camera model left or right, in degrees.
+
+camera.model-rotation.z:
+  summary: Rolls the camera model around the way it faces, in degrees.
+
+camera.hologram.enabled:
+  summary: Show an info hologram above each camera.
+  detail: |
+    What it says is in messages.yml, `camera.hologram.lines`: deleting a line there removes it from
+    the hologram. Turning this off removes existing holograms as their chunks load.
+
+camera.hologram.offset-y:
+  summary: How far above the camera the hologram floats, in blocks.
+  range: -4.0 to 8.0
+  detail: Multiplied by `model-scale`, so the hologram neither sinks into a large model nor floats away from a small one.
+
+camera.hologram.view-range:
+  summary: How far away the hologram can be seen, as a multiplier.
+  range: 0.1 to 10.0
+
+camera.hologram.billboard:
+  summary: How the hologram turns.
+  values: FIXED, VERTICAL, HORIZONTAL, CENTER
+  detail: CENTER always faces the viewer. An invalid value falls back to CENTER.
+
+camera.hologram.background:
+  summary: The hologram's background.
+  values: default, none, a #AARRGGBB or #RRGGBB color
+  detail: '"default" is the vanilla dark band; "none" or "transparent" draws none; #80000000 is half-transparent black.'
+
+dialog.body-width:
+  summary: The width of the capture screen's text and fields, in pixels.
+  range: 100 to 1024
+  detail: The info line carries the camera's name and five settings, and wraps onto three lines at the vanilla width.
+
+photo.default-aspect-ratio:
+  summary: The aspect ratio of a new camera.
+  values: RATIO_1_1, RATIO_16_9, RATIO_4_3
+
+photo.frame-height:
+  summary: How many blocks fit between the top and the bottom of the frame at zoom 1.
+  range: 4 to 512
+  detail: |
+    The camera's zoom divides it: the frame covers `frame-height / zoom` blocks, so 0.25x shows 192
+    blocks and 2x shows 24. The projection is orthographic, so this alone sets how big things are;
+    moving the camera closer does not.
+
+photo.frame-shift:
+  summary: Moves the frame up or down, as a fraction of its height.
+  range: -1.0 to 1.0
+  detail: |
+    0.0 keeps the point the camera looks at in the middle of the photo, which is what you want.
+    0.5 puts the camera at the bottom edge so the whole frame is above it; with a level or
+    upward-looking camera no ray then reaches the ground and photos come out empty. The plugin warns
+    in the log above 0.25.
+
+photo.supersampling:
+  summary: Anti-aliasing, as NxN rays per pixel.
+  range: 1 to 4
+  detail: 1 is off and fastest, 2 is recommended, 3 and 4 give cleaner edges. The cost is N squared.
+
+photo.shading.sun-shadow:
+  summary: Darken surfaces the sun cannot reach.
+  detail: |
+    Each hit sends a second ray towards the sun; if a block is in the way, the surface goes one
+    shade darker. The biggest visual gain of the three shading options, and the most expensive (a
+    second ray per hit). Without it a wall and the ground in front of it are equally bright and
+    nothing in the frame says where the light comes from.
+
+    The map palette has four shades per color and nothing between them, so every shading option
+    either moves a surface down a shade or does not.
+
+photo.shading.sun-yaw:
+  summary: The direction the sun shines from, in degrees.
+  detail: |
+    Fixed rather than tied to the game time: a fixed angle looks more like a render, and two shots
+    of the same place match. The sun drawn in the sky comes from this same direction.
+
+photo.shading.sun-pitch:
+  summary: How high the sun stands above the horizon, in degrees.
+  range: 1 to 89
+
+photo.shading.shadow-distance:
+  summary: How far a shadow ray travels before it gives up, in blocks.
+  range: 1 to 256
+  detail: A small value is cheaper, but the shadow of a distant tower never lands.
+
+photo.shading.ambient-occlusion:
+  summary: Darken inner corners that their neighbors close in.
+  detail: |
+    Reads four blocks per hit and casts no ray. The effect is subtle, but it is what makes an inner
+    corner read as a corner instead of a fold in a flat color.
+
+photo.shading.block-light:
+  summary: Darken surfaces that get little light, such as caves and interiors.
+  detail: |
+    The cheapest of the three: one read per hit, of light the chunk copy already carries (the copy
+    takes the light arrays only while this is on). Without it a mine is as bright as the field
+    outside; the sun shadow has no say indoors.
+
+    Sky light does not follow the time of day: an open surface reads 15 at night too, which matches
+    the fixed sun.
+
+photo.shading.light-dim-below:
+  summary: The light level below which a surface loses one shade.
+  range: 0 to 15
+
+photo.shading.light-dark-below:
+  summary: The light level below which a surface loses a second shade.
+  range: 0 to 15
+  detail: Pulled down to `light-dim-below` if it is set higher.
+
+photo.coverage.enabled:
+  summary: Let thin blocks blend into what is behind them instead of filling their whole cell.
+  detail: |
+    Rays used to treat every block as a full cube, so a single tuft of grass painted its entire
+    cell saturated green. With this on, thin blocks do not stop the ray: their color is mixed with
+    the block behind by how much of the cell they fill. Grass on grass, podzol under podzol, snow
+    under snow.
+
+    A correction rather than an effect, so it is on by default, and almost free: the ray reaches
+    the ground anyway. Which blocks and how much is in [Block colors](#block-colors).
+
+photo.biome-tint.enabled:
+  summary: Give grass, leaves and water the color of their biome.
+  detail: |
+    In game a swamp is dark green, a desert yellowish and a warm ocean turquoise. A vanilla map has
+    none of this, so this is a deliberate departure from it: a photo is there to show the
+    landscape. Colors are read from the server, so datapack biomes are right too. If the server's
+    internals do not match what the plugin reads, the tint switches itself off and says so in the
+    log. A biome without a known color is drawn as plains.
+
+photo.biome-tint.strength:
+  summary: How much of the biome color is applied.
+  range: 0.0 to 1.0
+  detail: 1.0 is all of it, 0.5 half way, 0.0 none. With a 244-color palette some biomes look the same at 1.0 and 0.7.
+
+photo.water.mode:
+  summary: How water is drawn.
+  values: FLAT, DEPTH, TRANSLUCENT
+  detail: |
+    FLAT is a single tone. DEPTH (the default, and what a vanilla map does) darkens the surface by
+    one or two shades with the water below it, so shallows are light, the deep sea dark and the
+    shoreline draws itself. TRANSLUCENT mixes the water with the bottom by depth, so sand and gravel
+    show through in the shallows; it works even with coverage off.
+
+    Ice, packed ice and cauldrons are surfaces of their own and are left out.
+
+photo.water.dim-deeper-than:
+  summary: Cells of water after which the surface loses one shade.
+  range: 1 to 256
+  detail: A ray going in at an angle passes more cells than the water is deep, so seen from a low camera a shallow lake reads a little deeper. Vanilla makes the same trade.
+
+photo.water.dark-deeper-than:
+  summary: Cells of water after which the surface loses a second shade.
+  range: 1 to 256
+  detail: Pulled up to `dim-deeper-than` if it is set lower.
+
+photo.water.surface-min:
+  summary: TRANSLUCENT only, the share the shallowest water keeps for itself.
+  range: 0.0 to 1.0
+  detail: At 0 a single cell of water is invisible.
+
+photo.water.opaque-depth:
+  summary: TRANSLUCENT only, the cells of water after which the bottom is hidden.
+  range: 1 to 256
+
+photo.focus.range:
+  summary: How deep the sharp band is, as a fraction of the frame height.
+  range: 0.02 to 8.0
+  detail: |
+    How far from the focus distance the blur reaches its maximum. A fraction of the frame rather
+    than blocks, so it scales with zoom. Smaller is a thinner band and stronger separation.
+
+    The projection has no lens, so this is not a simulated bokeh but a chosen look: tilt-shift on a
+    tilted camera, a subject lifted from its background on a level one.
+
+photo.focus.max-radius:
+  summary: The widest blur, as a fraction of the image height.
+  range: 0.0 to 0.05
+  detail: 0.015 is about 17 pixels on a 1152-pixel photo. A fraction so the 128-pixel preview and the full photo look alike. 0 turns the effect off.
+
+photo.focus.samples:
+  summary: How many points the blur disk is sampled from per pixel. The cost of the effect.
+  range: 4 to 128
+  detail: The cost grows with this number only, not with the radius. Few samples show dots in the blur, many are smoother and slower.
+
+photo.focus.dither:
+  summary: How far a blurred pixel may stray from its true color, to hide banding.
+  range: 0 to 128
+  detail: The blur makes in-between tones the palette does not have; dithering mixes two neighbors in a 4x4 pattern instead of banding. 0 turns it off.
+
+photo.frames.embed:
+  summary: Bake a decoration frame into the photo for good.
+  detail: |
+    Off (the default): the photo record keeps the frame's id and the edge is drawn on the way to the
+    maps, so the frame can be changed or removed. On: the edge is written into the photo's own
+    file; the photo needs nothing else, but the frame can never come off.
+
+    The choice is frozen into a photo the moment a frame is added. Changing it later does not undo
+    frames already baked in.
+
+photo.sky.colors.dawn:
+  summary: The sky color at dawn (tick 23000).
+photo.sky.colors.day:
+  summary: The sky color at noon (tick 6000).
+photo.sky.colors.dusk:
+  summary: The sky color at dusk (tick 12500).
+photo.sky.colors.night:
+  summary: The sky color at night (tick 18000).
+  detail: The color at any other hour is interpolated between these four, around the clock.
+
+photo.sky.gradient:
+  summary: Lighten the sky towards the horizon.
+  detail: Off gives a flat single-color sky.
+
+photo.sky.horizon-blend:
+  summary: How close the lowest row of the sky gets to white.
+  range: 0.0 to 1.0
+
+photo.sky.dither:
+  summary: How far a sky pixel may stray from its true color, to hide banding.
+  range: 0 to 128
+  detail: The palette has few blues, so a gradient bands; dithering mixes the two neighboring palette entries in a 4x4 pattern and the eye sees the tone between them. 0 is clean but banded.
+
+photo.sky.bodies.sun:
+  summary: Draw the sun in daytime skies.
+  detail: In the direction the shading's sun shines from, so shadows never fall towards it.
+
+photo.sky.bodies.moon:
+  summary: Draw the moon in night skies.
+  detail: Opposite the sun, in the phase of the world's day at capture.
+
+photo.sky.bodies.stars:
+  summary: Draw stars as the sky darkens.
+  detail: Fixed to world directions, so turning the camera does not slide them and the same camera always sees the same stars.
+
+photo.sky.bodies.sun-size:
+  summary: The sun's diameter as a fraction of the image height.
+  range: 0.0 to 1.0
+  detail: A fraction, so it is the same size on the 128-pixel preview and on a 2048-pixel photo.
+
+photo.sky.bodies.moon-size:
+  summary: The moon's diameter as a fraction of the image height.
+  range: 0.0 to 1.0
+
+photo.sky.bodies.star-density:
+  summary: The share of the sky that holds a star.
+  range: 0.0 to 0.5
+  detail: A few in a thousand is already a full sky.
+
+photo.sky.bodies.sun-color:
+  summary: The sun's color, rounded to the palette.
+
+photo.sky.bodies.moon-color:
+  summary: The moon's color, rounded to the palette.
+
+photo.sky.bodies.star-color:
+  summary: The stars' color, rounded to the palette.
+
+photo.style.fast-scale:
+  summary: The scale the FAST style renders at before it is enlarged.
+  detail: |
+    SHARP casts a ray for every pixel. FAST draws the image smaller and scales it up, so the rays
+    drop with the square of this value: 0.5 casts a quarter of them. The image softens by the same
+    amount; that is the price of the rays not cast, not an effect. Worth it on large grids.
+
+placement.distance:
+  summary: How many blocks in front of the player a photo is hung.
+  detail: The placement ghost stays at this distance and follows where the player looks.
+
+placement.invisible-frames:
+  summary: Make the item frames that hold a photo invisible.
+  detail: The photo then reads as one seamless picture with no borders between maps.
+
+placement.build-backing-wall:
+  summary: Build a block behind each frame that has nothing solid behind it.
+  detail: |
+    Off: a photo can be hung only where every frame already has a solid block behind it, and the
+    ghost turns red anywhere else.
+
+placement.backing-material:
+  summary: The block the backing wall is built from.
+  detail: The ghost previews the backing in this block, only where a block will really be built. A material that is not a block falls back to white concrete.
+
+placement.timeout-seconds:
+  summary: Seconds before an unconfirmed placement cancels itself.
+  range: 5 to 600

@@ -1,0 +1,22 @@
+# What the wiki shell needs to know about Izomap; see wiki.js in the kit for every field.
+title: Izomap
+order: [Guides, Configuration, Customizing, Running a server]
+foot: 'Izomap by <a href="https://zypec.github.io/" target="_blank" rel="noopener">zypec</a> · <a href="#about" data-t="about">About</a> · <a href="../">Izomap home</a>'
+home:
+  kicker: Isometric photography for Minecraft servers
+  title: Izomap
+  lede: 'Put a camera in your world, aim it with a live preview and print what it sees onto maps: from a single map to a 16x9 wall.'
+  image: ../gallery/hero.png
+  cta:
+    - {href: '#getting-started', label: Get started, primary: true}
+    - {href: '#configuration', label: Configuration}
+    - {href: '../', label: Izomap home}
+  tiles:
+    - {id: getting-started, title: Getting started, said: 'Install it, place a camera, take your first photo and hang it.', wide: true}
+    - {id: taking-photos, title: Taking photos, said: 'Aiming, the capture screen, skies, filters and depth of field.', wide: true}
+    - {id: permissions, title: Permissions, said: 'Decide who may take how expensive a photo.'}
+    - {id: rendering, title: Rendering, said: 'Shading, water, sky and focus, key by key.'}
+    - {id: performance, title: Performance, said: 'What a photo costs your server.'}
+    - {id: faq, title: FAQ, said: 'Empty photos, holes and odd colors.'}
+  galleryTitle: Gallery
+  galleryUnder: Every picture here is a photo the plugin took.
