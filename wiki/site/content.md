@@ -9,7 +9,8 @@
   The kinds this page knows:
 
   hero      kicker, title, badge, button: Words | address | primary (any number), note,
-            image: picture | what it shows, split: the words of the button that shows the maps; then the opening words
+            image: picture | what it shows, toggle: Name | picture | what it shows (a switch named Name, on
+            while the image shows, off for the other picture); then the opening words
   feature   name, icon (camera, cube, sun, focus, wall or sliders); then what it says. Features side by side form a grid
   step      name; then what it says. Steps side by side form a row
   gallery   picture: file | caption (any number); a picture opens large when clicked
@@ -24,8 +25,8 @@ title: Izomap
 badge: Coming soon
 button: Read the docs | wiki/ | primary
 note: Paper 26.3 · Java 25 · Free and open source, MIT
-image: gallery/hero.png | A cathedral and a town at dusk, the sun low over the sea, photographed by Izomap
-split: Show the 144 maps
+image: gallery/fog.png | A cathedral and a town at dusk, the land behind fading into the sky, photographed by Izomap
+toggle: Fog | gallery/hero.png | The same cathedral and town without fog, the sea open to the horizon
 
 Put a camera in your world, aim it with a live preview and take a photo of what it sees. Izomap casts a ray
 for every pixel, then prints the picture onto maps that hang on any wall: from a single map to a 16x9 mural,
@@ -112,7 +113,6 @@ picture: gallery/night.png | The same view at night, under stars fixed to the sk
 picture: gallery/town.png | Isometric, with sun shadows, ambient occlusion and block light
 picture: gallery/village.png | Water shaded by its depth, flowers in their own colors
 picture: gallery/focus.png | Depth of field, focused on the hilltop houses
-picture: gallery/fog.png | The cathedral at dusk with fog: the land behind fades into the sky
 picture: gallery/water.png | Lakes and a river: the shoreline draws itself
 :::
 

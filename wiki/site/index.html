@@ -7,7 +7,7 @@
 <meta name="description" content="Isometric photography for Minecraft servers: place a camera, aim it with a live preview, and print what it sees onto maps.">
 <meta property="og:title" content="Izomap">
 <meta property="og:description" content="Isometric photography for Minecraft servers, printed onto maps.">
-<meta property="og:image" content="https://zypec.github.io/izomap/gallery/hero.png">
+<meta property="og:image" content="https://zypec.github.io/izomap/gallery/fog.png">
 <link rel="icon" href="icon.svg">
 <script>
 try {
@@ -26,15 +26,15 @@ try {
 .cta{display:flex;gap:10px;flex-wrap:wrap}
 .shot{margin:0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--line);background:var(--stage);position:relative}
 .shot img{width:100%;height:auto;display:block}
-.shot .maps{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .25s;
-  background-image:linear-gradient(to right,#fff6 1px,transparent 1px),linear-gradient(to bottom,#fff6 1px,transparent 1px);
-  background-size:calc(100% / 16) calc(100% / 9)}
-.shot.split .maps{opacity:1}
+/* The other picture lies over the first, so switching is a fade with nothing to wait for. */
+.shot img.other{position:absolute;inset:0;opacity:0;transition:opacity .3s}
+.shot.off img.other{opacity:1}
 .shot figcaption{position:absolute;left:12px;bottom:12px;display:flex;gap:8px;align-items:center}
 .pill{border:1px solid #ffffff38;background:#0007;color:#f2f2f6;border-radius:999px;padding:6px 14px;cursor:pointer;
   font:inherit;font-size:13px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
 .pill:hover{background:#000a}
 .pill[aria-pressed=true]{border-color:#fff9}
+.pill b{font-weight:600}
 .soonbadge{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 18px;border-radius:999px;font-weight:600;
   font-size:15px;color:var(--accent-ink);background:var(--accent-soft);border:1px dashed var(--accent-line)}
 .soonbadge::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
@@ -76,7 +76,6 @@ dialog.lightbox p{color:#e8e8ee;margin:10px 2px 0;font-size:14px}
   .filters{grid-template-columns:1fr}
 }
 @media (max-width:520px){.gallery{grid-template-columns:1fr}}
-@media (max-width:640px){header nav a.roomy{display:none}}
 .content-error{color:var(--muted);padding:48px 0}
 .lede p,.notice p{margin:0}.lede p+p{margin-top:12px}
 /* The words under a section's heading, before what it shows, read as a note. */
@@ -125,14 +124,15 @@ const button = ([words, href, primary]) =>
 
 Content.kind('hero', block => {
   const [src, alt] = block.pairs('image')[0] || [];
+  const [name, other, otherAlt] = block.pairs('toggle')[0] || [];
   return `<section class="hero"><div><p class="kicker">${inline(block.one('kicker'))}</p><h1 class="brand">${inline(block.one('title'))}</h1>`
     + `<div class="lede">${block.html}</div><div class="cta">`
     + (block.one('badge') ? `<span class="soonbadge">${inline(block.one('badge'))}</span>` : '')
     + block.pairs('button').map(button).join('') + '</div>'
     + (block.one('note') ? `<p class="note" style="margin-top:14px">${inline(block.one('note'))}</p>` : '') + '</div>'
     + (src ? `<figure class="shot" id="hero"><img src="${escape(src)}" alt="${escape(alt || '')}" width="2048" height="1152">`
-      + '<div class="maps" aria-hidden="true"></div>'
-      + (block.one('split') ? `<figcaption><button class="pill" type="button" id="split" aria-pressed="false" data-off="${escape(block.one('split'))}">${inline(block.one('split'))}</button></figcaption>` : '')
+      + (other ? `<img class="other" src="${escape(other)}" alt="${escape(otherAlt || '')}" width="2048" height="1152" aria-hidden="true">`
+        + `<figcaption><button class="pill" type="button" id="toggle" aria-pressed="true">${inline(name)}: <b>On</b></button></figcaption>` : '')
       + '</figure>' : '') + '</section>';
 });
 
@@ -159,13 +159,18 @@ Content.kind('filters', block => {
 
 Content.kind('notice', block => `<div class="notice">${block.html}</div>`);
 
-/** What only works once the words are on the page: the 144 maps, the filters and the lightbox. */
+/** What only works once the words are on the page: the hero's switch, the filters and the lightbox. */
 document.addEventListener('contentready', () => {
-  const split = document.getElementById('split');
-  if (split) split.onclick = () => {
-    const on = document.getElementById('hero').classList.toggle('split');
-    split.setAttribute('aria-pressed', String(on));
-    split.textContent = on ? 'Hide the maps' : split.dataset.off;
+  const toggle = document.getElementById('toggle');
+  if (toggle) toggle.onclick = () => {
+    const hero = document.getElementById('hero');
+    const [first, other] = hero.querySelectorAll('img');
+    const on = hero.classList.toggle('off') === false;
+    toggle.setAttribute('aria-pressed', String(on));
+    toggle.querySelector('b').textContent = on ? 'On' : 'Off';
+    // Only the picture on show is read out.
+    first.toggleAttribute('aria-hidden', !on);
+    other.toggleAttribute('aria-hidden', on);
   };
 
   const filtered = document.getElementById('filtered');

@@ -1,12 +1,18 @@
 # What the wiki shell needs to know about Izomap; see wiki.js in the kit for every field.
 title: Izomap
 order: [Guides, Configuration, Customizing, Running a server]
+# The top bar, as on the front page; the rule is "The top bar" in the kit's README.
+front: ../
+links:
+  - {label: Docs, href: './', 'on': true}
+  - {label: Gallery, href: '../#gallery', roomy: true}
+  - {label: Portfolio, href: '../../'}
 foot: 'Izomap by <a href="https://zypec.github.io/" target="_blank" rel="noopener">zypec</a> · <a href="#about" data-t="about">About</a> · <a href="../">Izomap home</a>'
 home:
   kicker: Isometric photography for Minecraft servers
   title: Izomap
   lede: 'Put a camera in your world, aim it with a live preview and print what it sees onto maps: from a single map to a 16x9 wall.'
-  image: ../gallery/hero.png
+  image: ../gallery/fog.png
   cta:
     - {href: '#getting-started', label: Read the docs, primary: true}
     - {href: '#about', label: About}
