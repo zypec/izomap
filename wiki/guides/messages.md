@@ -4,7 +4,7 @@ Every piece of text Izomap shows is in `plugins/Izomap/messages.yml`: chat messa
 
 ### Format
 
-Messages are [MiniMessage](https://docs.advntr.dev/minimessage/format.html): `<gold>`, `<bold>`, `<gradient:#5e60ce:#48bfe3>`, `<#FF7A4D>`. Legacy `&` codes are not read.
+Messages are [MiniMessage](https://docs.advntr.dev/minimessage/format.html): `<gold>`, `<bold>`, `<gradient:#d9a60c:#ecbd2c>`, `<#FF7A4D>`. Legacy `&` codes are not read.
 
 - `<prefix>` inserts the `prefix` line at the top of the file.
 - Placeholders such as `<name>`, `<count>` or `<camera>` are filled in by the plugin. The comment above a message lists them where it is not obvious; a placeholder you remove simply does not appear.

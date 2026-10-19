@@ -1,7 +1,7 @@
 # Izomap messages, in MiniMessage: https://docs.advntr.dev/minimessage/format.html
 # Placeholders and how to translate this file: https://zypec.github.io/izomap/wiki/#messages
 
-prefix: "<gradient:#5e60ce:#48bfe3><bold>Izomap</bold></gradient> <dark_gray>»</dark_gray> "
+prefix: "<#d9a60c><bold>Izomap</bold></#d9a60c> <dark_gray>»</dark_gray> "
 
 general:
   player-only: "<prefix> <red>Only players can use this command."
@@ -32,7 +32,7 @@ camera:
   shallow-pitch: "<prefix> <yellow>The camera is looking almost level (<pitch>°). For an isometric shot tilt it between <white>20 and 45°</white>, or half the photo will be sky and half a cross-section of the ground."
   # Sent after the line above, only to a player with izomap.focus who has not turned focus on.
   shallow-pitch-focus: "<prefix> <gray>This is the framing depth shows best in: the <white>Focus</white> button on the capture screen keeps one distance sharp and blurs the rest."
-  item-name: "<gradient:#5e60ce:#48bfe3>Izomap Camera</gradient>"
+  item-name: "<#d9a60c>Izomap Camera</#d9a60c>"
   item-lore:
     - "<gray><white>Right-click</white> a block to place a camera."
   # The hologram above a camera, one line per entry; an empty list leaves it blank.
@@ -137,7 +137,7 @@ placement:
   started: "<prefix> <green>Placing <white><name></white>. <gray>Aim the ghost where you want it, <white>right-click</white> to confirm, <white>shift + right-click</white> to cancel."
   # Put in the off hand while placing. Not decoration: the client sends no right-click for an
   # empty hand, so confirming depends on this item.
-  item-name: "<gradient:#5e60ce:#48bfe3>Placing</gradient> <dark_gray>·</dark_gray> <white><name></white>"
+  item-name: "<#d9a60c>Placing</#d9a60c> <dark_gray>·</dark_gray> <white><name></white>"
   item-lore:
     - "<gray><white>Right-click</white> to confirm."
     - "<gray><white>Shift + right-click</white> to cancel."
@@ -191,7 +191,7 @@ map:
   photo-no-source: "<prefix> <red>This photo cannot be retaken: the camera <white><camera></white> is gone and the photo has no capture settings saved. <gray>Name a camera to shoot it with: <white>/izocam retake with &lt;camera&gt; &lt;camera/photo&gt;</white>"
 
 dialog:
-  title: "<gradient:#5e60ce:#48bfe3>Izomap Photo</gradient>"
+  title: "<#d9a60c>Izomap Photo</#d9a60c>"
   # The camera's current settings; they are changed by clicking the camera, not here.
   # Placeholders: <camera> <ratio> <scale> <blocks> <yaw> <pitch>
   info: "<gray>Camera: <white><camera></white>  •  Ratio: <white><ratio></white>  •  Zoom: <white><scale></white>x <dark_gray>(<blocks> blocks)</dark_gray>  •  Facing: <white><yaw></white>°  •  Tilt: <white><pitch></white>°"
@@ -201,7 +201,7 @@ dialog:
   filter-button: "Color: <value>"
   style-button: "Style: <value>"
   sky-button: "Sky: <value>"
-  sky-title: "<gradient:#5e60ce:#48bfe3>Sky</gradient>"
+  sky-title: "<#d9a60c>Sky</#d9a60c>"
   sky-body: "<gray>Which sky goes behind the photo? <white>Game time</white> freezes the hour the photo is taken at."
   sky-body-none: "<gray>A transparent sky leaves a hole wherever a ray hits nothing, so the photo can hang without a background. The sun, moon and stars need a sky to be drawn on."
   sky-option: "<value>"
@@ -214,7 +214,7 @@ dialog:
   pickup-button: "<red>Pick up camera"
   # Undoes only what clicking the camera sets: zoom, direction and tilt.
   reset-button: "<red>Reset aim"
-  pickup-title: "<gradient:#5e60ce:#48bfe3>Pick up camera</gradient>"
+  pickup-title: "<#d9a60c>Pick up camera</#d9a60c>"
   pickup-body: "<white><name></white> will be taken down, and the <white><count></white> photo(s) it took will be deleted with it. Photos belong to their camera and cannot be retaken without it."
   pickup-body-empty: "<white><name></white> will be taken down and its item returned to your inventory."
   pickup-confirm: "Pick up"
@@ -234,7 +234,7 @@ dialog:
   photos-button: "Photos (<count>)"
   cancel: "Cancel"
 
-  photos-title: "<gradient:#5e60ce:#48bfe3>Photos</gradient>"
+  photos-title: "<#d9a60c>Photos</#d9a60c>"
   photos-body: "<gray><white><count></white> photo(s) taken with <camera>. The buttons on each row: rename, hang or take down, delete, retake."
   photos-empty: "<gray>You have not taken a photo with <camera> yet."
   photos-back: "← Capture screen"
