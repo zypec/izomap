@@ -2,6 +2,7 @@ package dev.zypec.izomap.config;
 
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.render.FocusSpec;
+import dev.zypec.izomap.render.FogSpec;
 import dev.zypec.izomap.render.ShadingSpec;
 import dev.zypec.izomap.render.SkyBodiesSpec;
 import dev.zypec.izomap.render.WaterSpec;
@@ -433,6 +434,26 @@ public final class ConfigManager {
                 clamp(cfg().getDouble("photo.focus.max-radius", 0.015), 0.0, 0.05),
                 clamp(cfg().getInt("photo.focus.samples", 24), 4, 128),
                 clamp(cfg().getDouble("photo.focus.dither", 24.0), 0.0, 128.0));
+    }
+
+    /**
+     * Distance fog, off by default like the shading: it changes the picture, so it is
+     * the server's taste. {@code end} is kept past {@code start}, or the fade would have
+     * no length to happen over.
+     */
+    public FogSpec fog() {
+        if (!cfg().getBoolean("photo.fog.enabled", false))
+            return FogSpec.NONE;
+
+        var start = clamp(cfg().getDouble("photo.fog.start", 128.0), 0.0, 2048.0);
+        var end = clamp(cfg().getDouble("photo.fog.end", 2048.0), 1.0, 4096.0);
+        var color = cfg().getString("photo.fog.color", "sky");
+        return new FogSpec(true,
+                start,
+                Math.max(end, start + 1.0),
+                clamp(cfg().getDouble("photo.fog.strength", 1.0), 0.0, 1.0),
+                "sky".equalsIgnoreCase(color.trim()) ? FogSpec.SKY : parseRgb(color, FogSpec.SKY),
+                clamp(cfg().getDouble("photo.fog.dither", 24.0), 0.0, 128.0));
     }
 
     /**

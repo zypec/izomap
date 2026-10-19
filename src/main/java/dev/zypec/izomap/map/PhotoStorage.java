@@ -4,6 +4,7 @@ import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.render.CaptureSpec;
 import dev.zypec.izomap.render.ColorFilter;
 import dev.zypec.izomap.render.FocusSpec;
+import dev.zypec.izomap.render.FogSpec;
 import dev.zypec.izomap.render.PhotoStyle;
 import dev.zypec.izomap.render.ShadingSpec;
 import dev.zypec.izomap.render.SkyBodiesSpec;
@@ -141,6 +142,12 @@ public final class PhotoStorage extends YamlStorage {
         cfg.set(base + ".focus.max-radius", spec.focus().maxRadius());
         cfg.set(base + ".focus.samples", spec.focus().samples());
         cfg.set(base + ".focus.dither", spec.focus().dither());
+        cfg.set(base + ".fog.enabled", spec.fog().enabled());
+        cfg.set(base + ".fog.start", spec.fog().start());
+        cfg.set(base + ".fog.end", spec.fog().end());
+        cfg.set(base + ".fog.strength", spec.fog().strength());
+        cfg.set(base + ".fog.color", spec.fog().rgb());
+        cfg.set(base + ".fog.dither", spec.fog().dither());
         cfg.set(base + ".frame-height", spec.frameHeight());
         cfg.set(base + ".frame-shift", spec.frameShift());
         cfg.set(base + ".supersampling", spec.supersampling());
@@ -226,6 +233,21 @@ public final class PhotoStorage extends YamlStorage {
     }
 
     /**
+     * Reads the fog; a photo taken with none stays clear.
+     */
+    private static FogSpec readFog(ConfigurationSection s) {
+        if (s == null || !s.getBoolean("enabled", false))
+            return FogSpec.NONE;
+
+        return new FogSpec(true,
+                s.getDouble("start", 128.0),
+                s.getDouble("end", 2048.0),
+                s.getDouble("strength", 1.0),
+                s.getInt("color", FogSpec.SKY),
+                s.getDouble("dither", 24.0));
+    }
+
+    /**
      * Reads a capture spec; {@code null} for records written before it existed.
      */
     private CaptureSpec readSpec(ConfigurationSection s) {
@@ -244,6 +266,7 @@ public final class PhotoStorage extends YamlStorage {
                 readShading(s.getConfigurationSection("shading")),
                 readWater(s.getConfigurationSection("water")),
                 readFocus(s.getConfigurationSection("focus")),
+                readFog(s.getConfigurationSection("fog")),
                 s.getDouble("frame-height", 48.0), s.getDouble("frame-shift", 0.0),
                 s.getInt("supersampling", 1), s.getInt("max-capture-area", 512),
                 s.getInt("render-depth", 64));

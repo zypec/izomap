@@ -28,7 +28,7 @@ dev.zypec.izomap
 ├── config/         ConfigManager (typed config access), Messages (MiniMessage), Permissions, PermissionLimit
 ├── storage/        YamlStorage, the async YAML read/write base
 ├── camera/         camera model, entity lifecycle, clicks, command, persistence, status line
-├── render/         geometry, chunk snapshots, voxel walk, color pipeline, sky, focus, preview
+├── render/         geometry, chunk snapshots, voxel walk, color pipeline, sky, focus, fog, preview
 ├── map/            photo model, grids, slicing, MapView creation, hanging, frames, cache, export
 ├── place/          PlacementManager, the ghost shown before hanging
 ├── ui/             CameraDialogs, PhotoDialogs (Paper Dialog API)
@@ -457,6 +457,31 @@ Measured offline (2048x1152, 24 samples, 4 threads, Apple Silicon, synthetic ima
 254 to 273 ms, worst case 411 ms; 8/48/96 samples 273/635/1086 ms; the 128x128 preview at 48
 samples on one thread about 13 ms. The pass runs entirely in the async pool.
 
+### Fog (`FogPass`, `FogSpec`)
+
+A parallel projection has no perspective, so nothing tells near from far; fog gives that cue
+back. Server-wide (`photo.fog`), off by default, frozen into the spec like shading and water.
+
+- **Same depth as focus.** The walk records depth when either pass draws; fog reads it in blocks
+  from the camera plane, so `start`/`end` sit at the same place in the world at any zoom or grid.
+  The fade is a smoothstep between them, times `strength`.
+- **The sky is the fog color.** `color: sky` blends each row towards the sky's own undithered
+  color at that row (`Sky#rgbAt`), gradient included, so at `strength: 1` the far land melts into
+  the sky behind it and the horizon line disappears. Below 1 the far edge keeps a trace of itself
+  and the horizon reads as a line, which looked worse in every test shot. A photo with no sky gets
+  no fog unless a color is named.
+- **Palette again:** ordered 4x4 dither before the snap, scaled by the fog amount so a lightly
+  fogged surface snaps back to its own color. Sky pixels, holes and anything nearer than `start`
+  are copied as they are.
+- **Order: walk → fog → focus → style upscale.** Before the blur, so a defocused far hill is soft
+  and hazy at once.
+
+The defaults (128 to 2048 blocks) are tuned on the gallery's level dusk shot, where the sea starts
+about 1000 blocks out. A camera looking down sees a few hundred blocks at most and needs lower
+values to show any fog. The pass costs one palette snap per fogged pixel and runs in the async
+pool in row bands; the 16x9 shot (2048x1152, 8 threads) took 174 s in all, most of it chunk copy
+and walk.
+
 ### Advanced shading (`Shading`, `ShadingSpec`)
 
 All three are off by default (`photo.shading`). The palette has four shades per color, so each
@@ -781,7 +806,7 @@ rendered once from its saved `CaptureSpec` and the cache rewritten. A format cha
 version; no migration.
 
 **`CaptureSpec`** carries everything that decides the image by copy (world, position, angles, zoom,
-filter, style, sky, shading, water, focus, frame height and shift, supersampling, capture area,
+filter, style, sky, shading, water, focus, fog, frame height and shift, supersampling, capture area,
 render depth). Cost and scheduling settings (`render-threads`, chunk loading) stay in the config.
 A hung photo never changes when its camera turns, zooms, refilters or disappears. Records without a
 spec fall back to the camera once and get a spec written. Deleting a photo deletes its cache file;
@@ -926,6 +951,7 @@ table without a server, so the ray walk itself is testable.
 | `PartialCoverageTest` | Thin-block share, layer cap, the majority rule with nothing behind |
 | `WaterDepthTest` | Depth thresholds and how much a translucent bottom shows |
 | `FocusPassTest` | The depth of field pass |
+| `FogPassTest` | Near and sky pixels untouched, the fade growing with depth, strength capping it, the palette kept |
 | `ColorOpTest` | Filter operations |
 | `GridAndSlicingTest` | Tile order of the slicer, only visible once hung |
 | `FormatAndIdsTest` | Locale-independent numbers; malformed ids return `null` (a truncated UUID used to parse into a different one) |

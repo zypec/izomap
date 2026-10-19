@@ -6,4 +6,5 @@ night.png | The same view at night, with stars fixed to the sky
 town.png | Isometric, with sun shadows, ambient occlusion and block light
 village.png | A town by the lake: water shaded by its depth, flowers in their own colors
 focus.png | Depth of field, focused on the hilltop houses
+fog.png | The cathedral at dusk with fog: the land behind fades into the sky
 water.png | Lakes and a river: the shoreline draws itself

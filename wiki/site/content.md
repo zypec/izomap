@@ -112,6 +112,7 @@ picture: gallery/night.png | The same view at night, under stars fixed to the sk
 picture: gallery/town.png | Isometric, with sun shadows, ambient occlusion and block light
 picture: gallery/village.png | Water shaded by its depth, flowers in their own colors
 picture: gallery/focus.png | Depth of field, focused on the hilltop houses
+picture: gallery/fog.png | The cathedral at dusk with fog: the land behind fades into the sky
 picture: gallery/water.png | Lakes and a river: the shoreline draws itself
 :::
 

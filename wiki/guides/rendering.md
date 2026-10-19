@@ -26,6 +26,7 @@ A photo is saved as the image it was taken as, so changing these later never cha
 | `biome-tint.enabled` | Swamps look like swamps | Next to nothing, after the first pixel of each block and biome |
 | `water.mode: DEPTH` | Coastlines and depth | The cells of water each ray crosses |
 | `focus` | Tilt-shift and subject separation | A second pass over the image; `samples` sets it |
+| `fog.enabled` | Depth: far land fades into the sky | A light pass over the image |
 | A color filter | A look | Nothing |
 | A sky | A background | Nothing |
 

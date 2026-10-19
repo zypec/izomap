@@ -118,6 +118,18 @@ photo:
     samples: 24
     # Dithering of the blurred tones. 0 turns it off. 0-128.
     dither: 24.0
+  # Distance fog: far surfaces fade towards the sky, a cue of depth the parallel view lacks.
+  fog:
+    enabled: false
+    # Depth where the fog begins and where it is full, in blocks from the camera. 0-2048, 1-4096.
+    start: 128
+    end: 2048
+    # Share of the fog color at full depth. 0.0-1.0.
+    strength: 1.0
+    # "sky" takes the sky's color row by row; otherwise a #RRGGBB color.
+    color: sky
+    # Dithering of the fogged tones. 0 turns it off. 0-128.
+    dither: 24.0
   frames:
     # Bake a decoration frame into the photo for good instead of drawing it on the way out.
     embed: false

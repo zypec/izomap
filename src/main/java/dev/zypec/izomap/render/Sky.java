@@ -26,7 +26,7 @@ public final class Sky {
     /**
      * No sky: every miss stays a hole.
      */
-    public static final Sky NONE = new Sky(null, 0, SkyBodies.NONE);
+    public static final Sky NONE = new Sky(null, null, 0, SkyBodies.NONE);
 
     /**
      * Ordered dither thresholds, the standard 4x4 Bayer matrix scaled to -0.5..0.5.
@@ -45,11 +45,16 @@ public final class Sky {
      * Row-major {@code [row * 16 + (y % 4) * 4 + (x % 4)]} finished colors.
      */
     private final int[] table;
+    /**
+     * The undithered color of each row, off the palette, for whatever blends towards it.
+     */
+    private final int[] rows;
     private final int height;
     private final SkyBodies bodies;
 
-    private Sky(int[] table, int height, SkyBodies bodies) {
+    private Sky(int[] table, int[] rows, int height, SkyBodies bodies) {
         this.table = table;
+        this.rows = rows;
         this.height = height;
         this.bodies = bodies;
     }
@@ -71,12 +76,14 @@ public final class Sky {
             return NONE;
 
         var table = new int[height * CELL_SIZE];
+        var rows = new int[height];
         for (var row = 0; row < height; row++) {
             // Down the frame the sky pales towards the horizon, as it does in the world.
             var t = gradient && height > 1 ? (double) row / (height - 1) * horizonBlend : 0.0;
             var r = lerp((zenithRgb >> 16) & 0xFF, 0xFF, t);
             var g = lerp((zenithRgb >> 8) & 0xFF, 0xFF, t);
             var b = lerp(zenithRgb & 0xFF, 0xFF, t);
+            rows[row] = (clamp(r) << 16) | (clamp(g) << 8) | clamp(b);
 
             for (var cell = 0; cell < CELL_SIZE; cell++) {
                 var offset = ditherSpread > 0.0
@@ -86,7 +93,7 @@ public final class Sky {
                 table[row * CELL_SIZE + cell] = 0xFF000000 | converter.snap(rgb);
             }
         }
-        return new Sky(table, height, bodies);
+        return new Sky(table, rows, height, bodies);
     }
 
     /**
@@ -152,6 +159,16 @@ public final class Sky {
 
         var row = y < 0 ? 0 : Math.min(y, height - 1);
         return table[row * CELL_SIZE + (y & 3) * CELL + (x & 3)];
+    }
+
+    /**
+     * The sky's true color at this row (0xRRGGBB), without dither or bodies; {@code 0}
+     * when there is no sky.
+     */
+    public int rgbAt(int y) {
+        if (rows == null) return 0;
+
+        return rows[y < 0 ? 0 : Math.min(y, height - 1)];
     }
 
     private static double lerp(int from, int to, double t) {

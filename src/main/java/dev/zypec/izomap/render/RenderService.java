@@ -119,6 +119,7 @@ public final class RenderService {
                 plugin.config().shading(),
                 plugin.config().water(),
                 plugin.config().focus(focusEnabled, focusDistance),
+                plugin.config().fog(),
                 plugin.config().frameHeight(), plugin.config().frameShift(),
                 plugin.config().supersampling(), plugin.config().maxCaptureArea(),
                 plugin.config().renderDepth());
@@ -284,6 +285,7 @@ public final class RenderService {
                 SkyBodies.of(spec.sky(), geometry, toSun.getX(), toSun.getY(), toSun.getZ(), converter));
         var pipeline = ColorPipeline.of(spec.colorFilter(), converter, tints);
         var focus = spec.focus();
+        var fog = spec.fog();
         var supersampling = spec.supersampling();
         var threads = plugin.config().renderThreads();
         var executor = workers(threads);
@@ -305,8 +307,11 @@ public final class RenderService {
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                 try {
                     var result = walker.render(
-                            snapshot, geometry, pipeline, sky, shading, water, tints, supersampling, focus.draws(),
-                            progress, executor, threads);
+                            snapshot, geometry, pipeline, sky, shading, water, tints, supersampling,
+                            focus.draws() || fog.draws(), progress, executor, threads);
+                    // Before the blur, so a defocused far hill is soft and hazy at once
+                    // rather than a sharp line of fog drawn over a blur.
+                    result = FogPass.apply(result, fog, sky, converter, executor, threads);
                     // Before the scale-up, where the depth buffer still lines up with the
                     // pixels. The radius is a ratio of image height, so a FAST render
                     // blurs a smaller image by a smaller radius and the scale-up puts

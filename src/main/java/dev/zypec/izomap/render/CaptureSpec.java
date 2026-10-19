@@ -29,6 +29,8 @@ import java.util.UUID;
  *                       leaves it the single tone it used to be
  * @param focus          which distance stays sharp and how the rest softens, at capture
  *                       time; {@link FocusSpec#NONE} leaves the whole frame sharp
+ * @param fog            how distance fades towards the sky, at capture time;
+ *                       {@link FogSpec#NONE} draws no fog
  * @param frameHeight    {@code photo.frame-height} at capture time
  * @param frameShift     {@code photo.frame-shift} at capture time
  * @param supersampling  {@code photo.supersampling} at capture time
@@ -49,6 +51,7 @@ public record CaptureSpec(
         ShadingSpec shading,
         WaterSpec water,
         FocusSpec focus,
+        FogSpec fog,
         double frameHeight,
         double frameShift,
         int supersampling,

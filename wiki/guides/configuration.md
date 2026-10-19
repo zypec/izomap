@@ -1,6 +1,6 @@
 # Configuration
 
-Every key of `config.yml`, with its default. Open a row for what it does in detail. The keys that change how a photo looks (shading, water, sky, focus) are on [Rendering](#rendering).
+Every key of `config.yml`, with its default. Open a row for what it does in detail. The keys that change how a photo looks (shading, water, sky, focus, fog) are on [Rendering](#rendering).
 
 Edit `plugins/Izomap/config.yml` and run `/izocam reload`; no restart is needed. A value outside its range is pulled back into it.
 

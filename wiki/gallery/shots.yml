@@ -3,9 +3,11 @@
 # /izodev shots in the console; the PNGs land in run/plugins/Izomap/exports/.
 #
 # The server's config.yml had settings.max-capture-area: 2048, settings.render-threads: 8 and
-# photo.shading.sun-shadow, ambient-occlusion and block-light on. Everything else at its default.
+# photo.shading.sun-shadow, ambient-occlusion and block-light on. Everything else at its default,
+# except fog: photo.fog.enabled is on for the fog shot only.
 shots:
   hero-dusk: {x: -65.02, y: 157.42, z: -87.60, yaw: -106.41, pitch: 3.0, zoom: 0.3149, grid: 16x9, sky: DUSK, filter: VIVID}
+  fog: {x: -65.02, y: 157.42, z: -87.60, yaw: -106.41, pitch: 3.0, zoom: 0.3149, grid: 16x9, sky: DUSK, filter: VIVID}
   cathedral-night: {x: -65.02, y: 157.42, z: -87.60, yaw: -106.41, pitch: 3.0, zoom: 0.3149, grid: 8x5, sky: NIGHT}
   cathedral-dawn: {x: -65.02, y: 157.42, z: -87.60, yaw: -70.0, pitch: 3.0, zoom: 0.3149, grid: 8x5, sky: DAWN}
   town: {x: -6.28, y: 138.09, z: -123.72, yaw: 45, pitch: 35, zoom: 0.42, grid: 8x5, sky: DAY}

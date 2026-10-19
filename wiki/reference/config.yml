@@ -339,6 +339,46 @@ photo.focus.dither:
   range: 0 to 128
   detail: The blur makes in-between tones the palette does not have; dithering mixes two neighbors in a 4x4 pattern instead of banding. 0 turns it off.
 
+photo.fog.enabled:
+  summary: Fade far surfaces towards the sky.
+  detail: |
+    An isometric photo has no perspective: a hill far back is drawn the same size as one in front, so
+    nothing says which is further. Fog gives that cue back, the way haze does over a real landscape.
+    Off by default, since it changes the picture. It applies to every camera on the server.
+
+    Sky pixels are never touched, and nothing nearer than `start` is either.
+
+photo.fog.start:
+  summary: Depth where the fog begins, in blocks from the camera.
+  range: 0 to 2048
+  detail: |
+    Depth is measured along the view, from the camera's plane. A level camera sees far: its horizon
+    can be a capture area away (`settings.max-capture-area`). A camera looking down sees mostly the
+    ground under it, a few hundred blocks at most, so it needs a much lower `start` and `end` to
+    show any fog.
+
+photo.fog.end:
+  summary: Depth where the fog reaches its full strength, in blocks from the camera.
+  range: 1 to 4096
+  detail: The fade between `start` and `end` eases in and out, so it starts and stops on no visible line. Pushed past `start` if set lower.
+
+photo.fog.strength:
+  summary: Share of the fog color at `end` and beyond.
+  range: 0.0 to 1.0
+  detail: |
+    At 1.0 the furthest surfaces become the sky and the horizon dissolves. Below it they keep a trace
+    of their own color, and with `color: sky` the far edge of the world shows as a line against the
+    sky. 0 turns the fog off.
+
+photo.fog.color:
+  summary: The fog's color, `sky` or a `#RRGGBB` color.
+  detail: "`sky` takes the sky's own color at each row of the frame, gradient included, so far land melts into the sky behind it. A photo with no sky has no color to take, so it gets no fog unless one is named here."
+
+photo.fog.dither:
+  summary: How far a fogged pixel may stray from its true color, to hide banding.
+  range: 0 to 128
+  detail: A fogged tone is usually between two palette colors; dithering mixes the two in a 4x4 pattern instead of banding. It grows with the fog, so a lightly fogged surface keeps its own color. 0 turns it off.
+
 photo.frames.embed:
   summary: Bake a decoration frame into the photo for good.
   detail: |
