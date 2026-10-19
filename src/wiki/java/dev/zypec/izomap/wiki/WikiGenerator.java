@@ -107,9 +107,10 @@ public final class WikiGenerator {
                 .replace("__DATA__", json), StandardCharsets.UTF_8);
 
         Files.createDirectories(site.resolve("kit"));
-        for (var file : List.of("wiki.css", "wiki.js", "front.css", "theme.js"))
+        for (var file : List.of("wiki.css", "wiki.js", "front.css", "theme.js", "content.js"))
             Files.copy(kit.resolve(file), site.resolve("kit").resolve(file), StandardCopyOption.REPLACE_EXISTING);
-        for (var file : List.of("index.html", "accent.css", "icon.svg"))
+        // The front page is drawn from content.md by the kit's content.js: the page is how, the file is what.
+        for (var file : List.of("index.html", "content.md", "accent.css", "icon.svg"))
             Files.writeString(site.resolve(file), read(wiki.resolve("site").resolve(file)).replace("__VERSION__", version),
                     StandardCharsets.UTF_8);
 

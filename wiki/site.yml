@@ -8,9 +8,9 @@ home:
   lede: 'Put a camera in your world, aim it with a live preview and print what it sees onto maps: from a single map to a 16x9 wall.'
   image: ../gallery/hero.png
   cta:
-    - {href: '#getting-started', label: Get started, primary: true}
-    - {href: '#configuration', label: Configuration}
-    - {href: '../', label: Izomap home}
+    - {href: '#getting-started', label: Read the docs, primary: true}
+    - {href: '#about', label: About}
+    - {href: '../', label: Home}
   tiles:
     - {id: getting-started, title: Getting started, said: 'Install it, place a camera, take your first photo and hang it.', wide: true}
     - {id: taking-photos, title: Taking photos, said: 'Aiming, the capture screen, skies, filters and depth of field.', wide: true}
