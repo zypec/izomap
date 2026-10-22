@@ -24,5 +24,3 @@ home:
     - {id: rendering, title: Rendering, said: 'Shading, water, sky and focus, key by key.'}
     - {id: performance, title: Performance, said: 'What a photo costs your server.'}
     - {id: faq, title: FAQ, said: 'Empty photos, holes and odd colors.'}
-  galleryTitle: Gallery
-  galleryUnder: Every picture here is a photo the plugin took.

@@ -969,4 +969,5 @@ publishes it to <https://zypec.github.io/izomap/>.
   the page and reported by the build, and so are prose entries for keys that no longer exist.
 - `<!--permissions-->` expands to every node `paper-plugin.yml` declares.
 - Gallery pictures come from the development server: `wiki/gallery/shots.yml` lists their views and
-  `/izodev shots` reproduces them (see `CLAUDE.md`).
+  `/izodev shots` reproduces them (see `CLAUDE.md`). The folder is copied beside the site whole; the
+  pictures are shown on the front page only, not in the wiki.

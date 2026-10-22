@@ -41,10 +41,7 @@ public final class WikiGenerator {
     private record Guide(String id, String title, String group, String html, String text) {
     }
 
-    private record Media(String file, String caption, boolean video) {
-    }
-
-    private record Document(Map<String, Object> site, List<Guide> guides, List<Media> gallery) {
+    private record Document(Map<String, Object> site, List<Guide> guides) {
     }
 
     private static final Pattern CONFIG = Pattern.compile("<!--\\s*config:([a-z-]+)\\s*-->");
@@ -86,11 +83,11 @@ public final class WikiGenerator {
     }
 
     private void write(Path site) throws IOException {
-        var gallery = gallery(site.resolve("gallery"));
+        copyTree(wiki.resolve("gallery"), site.resolve("gallery"));
         var guides = guides();
         Map<String, Object> siteData = yaml(wiki.resolve("site.yml"));
 
-        var json = new GsonBuilder().disableHtmlEscaping().create().toJson(new Document(siteData, guides, gallery))
+        var json = new GsonBuilder().disableHtmlEscaping().create().toJson(new Document(siteData, guides))
                 .replace("</", "<\\/");
         var out = site.resolve("wiki");
         Files.createDirectories(out);
@@ -107,7 +104,7 @@ public final class WikiGenerator {
                 .replace("__DATA__", json), StandardCharsets.UTF_8);
 
         Files.createDirectories(site.resolve("kit"));
-        for (var file : List.of("wiki.css", "wiki.js", "front.css", "theme.js", "content.js"))
+        for (var file : List.of("wiki.css", "wiki.js", "front.css", "theme.js", "content.js", "lightbox.js"))
             Files.copy(kit.resolve(file), site.resolve("kit").resolve(file), StandardCopyOption.REPLACE_EXISTING);
         // The front page is drawn from content.md by the kit's content.js: the page is how, the file is what.
         for (var file : List.of("index.html", "content.md", "accent.css", "icon.svg"))
@@ -228,29 +225,9 @@ public final class WikiGenerator {
     // --- the gallery ------------------------------------------------------------------------------
 
     /**
-     * The pictures {@code gallery/gallery.txt} lists, one a line with its caption after a bar. The
-     * whole folder is copied beside the site, since the front page shows more of it than the
-     * wiki's gallery does.
+     * The gallery folder, copied whole beside the site for the front page, which is the one place
+     * its pictures are shown.
      */
-    private List<Media> gallery(Path into) throws IOException {
-        var listed = new ArrayList<Media>();
-        copyTree(wiki.resolve("gallery"), into);
-        for (var line : read(wiki.resolve("gallery/gallery.txt")).lines().map(String::strip)
-                .filter(entry -> !entry.isEmpty() && !entry.startsWith("#")).toList()) {
-            var split = line.indexOf('|');
-            var file = (split < 0 ? line : line.substring(0, split)).strip();
-            var caption = split < 0 ? null : line.substring(split + 1).strip();
-            var source = wiki.resolve("gallery").resolve(file);
-            if (!Files.isRegularFile(source)) {
-                System.out.println("wiki: the gallery lists " + file + ", which is not in wiki/gallery");
-                continue;
-            }
-            var lower = file.toLowerCase(Locale.ENGLISH);
-            listed.add(new Media("../gallery/" + file, caption, lower.endsWith(".mp4") || lower.endsWith(".webm")));
-        }
-        return listed;
-    }
-
     private static void copyTree(Path from, Path to) throws IOException {
         if (Files.isRegularFile(from)) {
             Files.copy(from, to, StandardCopyOption.REPLACE_EXISTING);
