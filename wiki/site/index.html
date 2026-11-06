@@ -19,9 +19,14 @@ try {
 <link rel="stylesheet" href="accent.css">
 <style>
 .hero{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:48px;align-items:center;padding:64px 0 40px}
-/* The name in ink, underlined in film yellow like a word marked on a contact sheet. */
+/* The name in ink, underlined in film yellow like a word marked on a contact sheet. As the page opens
+   the word comes into focus and the band is drawn under it from left to right, the stroke of a
+   marker; with reduced motion both are simply there. */
 .brand{font-size:76px;font-weight:700;letter-spacing:-.045em;line-height:1;margin:0 0 18px;width:fit-content;color:var(--ink);
-  background:linear-gradient(transparent 60%,#e3b12a 60% 90%,transparent 90%)}
+  background:linear-gradient(transparent 60%,#e3b12a 60% 90%,transparent 90%) no-repeat 0 0 / 100% 100%;
+  animation:brandin .7s cubic-bezier(.16,1,.3,1) .1s both,marker .85s cubic-bezier(.65,0,.25,1) .5s both}
+@keyframes brandin{from{opacity:0;filter:blur(8px);transform:translateY(.12em)}to{opacity:1;filter:none;transform:none}}
+@keyframes marker{from{background-size:0% 100%}to{background-size:100% 100%}}
 .kicker{font-family:var(--mono);font-size:12.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
 .cta{display:flex;gap:10px;flex-wrap:wrap}
 .shot{margin:0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--line);background:var(--stage);position:relative}
