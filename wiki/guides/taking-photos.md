@@ -50,11 +50,11 @@ Shift + left-click a camera, or `/izocam open <camera>`.
 
 | Row | Buttons |
 |---|---|
-| Fields | Photo name · Layout (grid) · Focus distance when focus is on |
+| Fields | Photo name, layout (grid), focus distance when focus is on |
 | 1 | Aspect ratio: 1:1, 16:9, 4:3 |
-| 2 | Color · Style · Sky |
-| 3 | Focus · Rule of thirds · Photos |
-| 4 | Take photo · Pick up camera · Reset aim |
+| 2 | Color, style, sky |
+| 3 | Focus, rule of thirds, photos |
+| 4 | Take photo, pick up camera, reset aim |
 
 The info line at the top says what will be shot: camera, ratio, zoom with the blocks it covers, facing and tilt. Those are set by clicking the camera, not here.
 

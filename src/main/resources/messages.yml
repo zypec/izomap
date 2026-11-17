@@ -42,9 +42,9 @@ camera:
     capturing: "<gold>◉ Taking a photo <bar> <percent>%"
     lines:
       - "<aqua><name>"
-      - "<white><ratio> <gray>·</gray> <zoom>x <gray>(<blocks> blocks)</gray>"
-      - "<yellow>Facing <yaw>° <dark_gray>·</dark_gray> Tilt <pitch>°"
-      - "<gray><photos> photo(s) · <filter> · <style>"
+      - "<white><ratio> <dark_gray>|</dark_gray> <zoom>x <gray>(<blocks> blocks)</gray>"
+      - "<yellow>Facing <yaw>° <dark_gray>|</dark_gray> Tilt <pitch>°"
+      - "<gray><photos> photo(s) <dark_gray>|</dark_gray> <filter> <dark_gray>|</dark_gray> <style>"
 
 # The live preview: one map per camera, any number of viewers, one editor.
 preview:
@@ -60,10 +60,10 @@ preview:
   # Refreshed every second. <entries> is the entry templates below, joined by the separator;
   # the property being adjusted uses entry-active.
   actionbar: "<entries>"
-  actionbar-rendering: "<entries><dark_gray>  ·  </dark_gray><yellow>⟳ Updating</yellow>"
+  actionbar-rendering: "<entries><dark_gray>  |  </dark_gray><yellow>⟳ Updating</yellow>"
   # While a photo is being taken. <percent> is how much is done, <bar> a ten-box bar.
-  actionbar-capturing: "<entries><dark_gray>  ·  </dark_gray><gold><bold>◉ Shooting <bar> <percent>%</bold></gold>"
-  actionbar-separator: "<dark_gray>  ·  </dark_gray>"
+  actionbar-capturing: "<entries><dark_gray>  |  </dark_gray><gold><bold>◉ Shooting <bar> <percent>%</bold></gold>"
+  actionbar-separator: "<dark_gray>  |  </dark_gray>"
   entry: "<gray><label> <white><value></white></gray>"
   entry-active: "<yellow><bold><label> <value></bold></yellow>"
   value-angle: "<deg>°"
@@ -137,12 +137,12 @@ placement:
   started: "<prefix> <green>Placing <white><name></white>. <gray>Aim the ghost where you want it, <white>right-click</white> to confirm, <white>shift + right-click</white> to cancel."
   # Put in the off hand while placing. Not decoration: the client sends no right-click for an
   # empty hand, so confirming depends on this item.
-  item-name: "<#d9a60c>Placing</#d9a60c> <dark_gray>·</dark_gray> <white><name></white>"
+  item-name: "<#d9a60c>Placing:</#d9a60c> <white><name></white>"
   item-lore:
     - "<gray><white>Right-click</white> to confirm."
     - "<gray><white>Shift + right-click</white> to cancel."
-  actionbar: "<green>Right-click: place</green> <dark_gray>·</dark_gray> <gray>Shift + right-click: cancel"
-  actionbar-blocked: "<red>It does not fit here</red> <dark_gray>·</dark_gray> <gray>Frames need empty space with something solid behind"
+  actionbar: "<green>Right-click: place</green> <dark_gray>|</dark_gray> <gray>Shift + right-click: cancel"
+  actionbar-blocked: "<red>It does not fit here</red> <dark_gray>|</dark_gray> <gray>Frames need empty space with something solid behind"
   blocked: "<prefix> <red>It cannot go here; look somewhere else until the ghost turns green."
   not-active: "<prefix> <gray>You are not placing anything."
   ended-self: "<prefix> <gray>Placement cancelled."
@@ -178,8 +178,8 @@ map:
   orphan-frames-cleaned: "<prefix> <yellow>Cleaned up <count> orphaned photo frame(s). <gray>(Frames no record claims; only loaded chunks are searched.)"
   name-taken: "<prefix> <red>You already have a photo called <white><name></white>."
   photos-header: "<prefix> <gray>Photos (<count>):"
-  photos-entry: "<prefix> <dark_gray>› <white><name></white> <gray>[<id>] <camera>, <grid> <dark_gray>· not hung"
-  photos-entry-placed: "<prefix> <dark_gray>› <white><name></white> <gray>[<id>] <camera>, <grid> <green>· hung"
+  photos-entry: "<prefix> <dark_gray>› <white><name></white> <gray>[<id>] <camera>, <grid> <dark_gray>(not hung)"
+  photos-entry-placed: "<prefix> <dark_gray>› <white><name></white> <gray>[<id>] <camera>, <grid> <green>(hung)"
   photos-empty: "<prefix> <gray>You have no photos yet."
   photo-taken-down: "<prefix> <yellow>Photo taken off the wall: <white><name></white> <gray>(it stays in the list, so you can hang it again)"
   photo-not-placed: "<prefix> <gray>This photo is not on a wall: <white><name></white>"
@@ -209,7 +209,7 @@ dialog:
   sky-bodies: "Sun, moon and stars: <gray>Off"
   sky-bodies-active: "Sun, moon and stars: <green>On ✔"
   sky-back: "Back"
-  grid-option: "<grid> · <count> maps (<wpx>x<hpx> px)"
+  grid-option: "<grid> (<count> maps, <wpx>x<hpx> px)"
   capture-full: "<red>Limit reached (<limit>)"
   pickup-button: "<red>Pick up camera"
   # Undoes only what clicking the camera sets: zoom, direction and tilt.
@@ -254,7 +254,7 @@ dialog:
   delete-confirm: "✖ Delete"
   # The screen a right-click on a hung photo opens.
   wall-title: "<white>Photo: <name>"
-  wall-body: "<gray>Camera: <white><camera></white> · Grid: <white><grid></white>"
+  wall-body: "<gray>Camera: <white><camera></white> <dark_gray>|</dark_gray> Grid: <white><grid></white>"
   wall-frame-none: "<gray>Frame: <white>none"
   wall-frame-current: "<gray>Frame: <frame>"
   wall-frame-locked: "<gray>Frame: <frame> <dark_gray>(part of the photo, cannot be changed)"

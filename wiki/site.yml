@@ -7,7 +7,7 @@ links:
   - {label: Docs, href: './', 'on': true}
   - {label: Gallery, href: '../#gallery', roomy: true}
   - {label: Portfolio, href: '../../'}
-foot: 'Izomap by <a href="https://zypec.github.io/" target="_blank" rel="noopener">zypec</a> · <a href="#about" data-t="about">About</a> · <a href="../">Izomap home</a>'
+foot: 'Izomap by <a href="https://zypec.github.io/" target="_blank" rel="noopener">zypec</a> | <a href="#about" data-t="about">About</a> | <a href="../">Izomap home</a>'
 home:
   kicker: Isometric photography for Minecraft servers
   title: Izomap

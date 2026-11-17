@@ -14,6 +14,9 @@ code they describe.
 - Player-facing English (messages, the wiki, shipped `.yml` comments) is spelled the **American**
   way (`color`, `gray`), like the config keys, and uses no em dash (—): a comma, a colon,
   parentheses or a new sentence instead. Javadoc and code comments are exempt.
+- The middle dot (·) is held to the same rule, for the same reason: as a separator it reads as
+  machine-written. A status line separates with `<dark_gray>|</dark_gray>`, a label with a colon,
+  and a count or a state beside a name goes in brackets.
 
 ## Documentation lives in the wiki
 

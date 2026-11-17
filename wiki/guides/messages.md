@@ -33,7 +33,7 @@ The lines above every camera are a list you can edit:
   hologram:
     lines:
       - "<aqua><name>"
-      - "<gray><photos> photo(s) · <filter>"</pre>
+      - "<gray><photos> photo(s) <dark_gray>|</dark_gray> <filter>"</pre>
 
 Placeholders: `<name>`, `<owner>`, `<ratio>`, `<zoom>`, `<blocks>`, `<yaw>`, `<pitch>`, `<filter>`, `<style>`, `<sky>`, `<photos>`. Delete a line to remove it. `camera.hologram.enabled` in `config.yml` turns holograms off entirely.
 
