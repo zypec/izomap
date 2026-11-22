@@ -4,7 +4,6 @@ order: [Guides, Configuration, Customizing, Running a server]
 # The top bar, as on the front page; the rule is "The top bar" in the kit's README.
 front: ../
 links:
-  - {label: Gallery, href: '../#gallery', roomy: true}
   - {label: Docs, href: './', 'on': true}
   - {label: Portfolio, href: '../../'}
 foot: 'Izomap by <a href="https://zypec.github.io/" target="_blank" rel="noopener">zypec</a> | <a href="#about" data-t="about">About</a> | <a href="../">Izomap home</a>'
