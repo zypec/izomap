@@ -39,9 +39,10 @@ try {
 .pill:hover{background:#000a}
 .pill[aria-pressed=true]{border-color:#fff9}
 .pill b{font-weight:600}
-.soonbadge{display:inline-flex;align-items:center;gap:8px;height:44px;padding:0 18px;border-radius:999px;font-weight:600;
-  font-size:15px;color:var(--accent-ink);background:var(--accent-soft);border:1px dashed var(--accent-line)}
-.soonbadge::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+/* What is not out yet sits beside the button as words, set like the links beside a primary button but
+   underlined with dots, since it leads nowhere yet. */
+.soonbadge{display:inline-flex;align-items:center;height:44px;padding:0 10px;font-weight:600;font-size:15px;color:var(--muted);
+  text-decoration:underline dotted;text-decoration-color:var(--line-2);text-decoration-thickness:2px;text-underline-offset:6px;cursor:default}
 .features{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:20px}
 .feature{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);padding:22px}
 .feature b{display:block;font-size:16.5px;letter-spacing:-.01em;margin-bottom:6px}
@@ -129,8 +130,8 @@ Content.kind('hero', block => {
   const [name, other, otherAlt] = block.pairs('toggle')[0] || [];
   return `<section class="hero"><div><p class="kicker">${inline(block.one('kicker'))}</p><h1 class="brand">${inline(block.one('title'))}</h1>`
     + `<div class="lede">${block.html}</div><div class="cta">`
-    + (block.one('badge') ? `<span class="soonbadge">${inline(block.one('badge'))}</span>` : '')
-    + block.pairs('button').map(button).join('') + '</div>'
+    + block.pairs('button').map(button).join('')
+    + (block.one('badge') ? `<span class="soonbadge">${inline(block.one('badge'))}</span>` : '') + '</div>'
     + (block.one('note') ? `<p class="note" style="margin-top:14px">${inline(block.one('note'))}</p>` : '') + '</div>'
     + (src ? `<figure class="shot" id="hero"><img src="${escape(src)}" alt="${escape(alt || '')}" width="2048" height="1152">`
       + (other ? `<img class="other" src="${escape(other)}" alt="${escape(otherAlt || '')}" width="2048" height="1152" aria-hidden="true">`
