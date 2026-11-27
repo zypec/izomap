@@ -67,10 +67,10 @@ The grid is how many maps the photo spans, and it follows the aspect ratio:
 | Ratio | Grids |
 |---|---|
 | 1:1 | 1x1, 2x2, 3x3 |
-| 16:9 | 4x2, 8x4, 16x9 |
-| 4:3 | 4x3, 8x6 |
+| 16:9 | 1x1, 4x2, 8x4, 16x9 |
+| 4:3 | 1x1, 4x3, 8x6 |
 
-Each map is 128x128 pixels, so a 16x9 photo is 2048x1152. The tile count is the cost: it decides how long a photo takes far more than anything else. `settings.max-map-tiles` (12 by default) limits it, and a permission can raise it per group.
+Each map is 128x128 pixels, so a 16x9 photo is 2048x1152. A 16:9 or 4:3 photo on a single map is 128x72 or 128x96, centered, with the map's own background showing above and below it, the way the preview shows it. The tile count is the cost: it decides how long a photo takes far more than anything else. `settings.max-map-tiles` (12 by default) limits it, and a permission can raise it per group.
 
 ### Style
 
@@ -84,7 +84,11 @@ Filters change colors before they are matched to the map palette: **Original**, 
 
 Rays that hit nothing leave transparent pixels, so a photo can hang without a background. Pick a sky to paint them instead: **Game time** freezes the hour the photo is taken at; **Dawn**, **Day**, **Dusk** and **Night** are fixed.
 
-The sky screen has a second switch, **Sun, moon and stars** (`izomap.sky.bodies`). The sun is drawn where the shading's sun shines from, the moon opposite it in the phase of the world's day, and stars appear as the sky darkens, fixed to the world so they never slide when the camera turns.
+The sky screen has a second switch, **Sun, moon and stars** (`izomap.sky.bodies`). The sun is drawn where the camera's sun stands, the moon opposite it in the phase of the world's day, and stars appear as the sky darkens, fixed to the world so they never slide when the camera turns.
+
+### The sun
+
+Each camera has its own sun: where its light comes from and how high it stands. It casts the shadows when the server has `photo.shading.sun-shadow` on, and it is the sun drawn in the sky. While either applies, the sky screen shows two sliders, **Sun direction** (degrees around the horizon, the same as the camera's facing) and **Sun height** (1 to 89 degrees). A new camera starts at the server's `photo.shading.sun-yaw` and `sun-pitch`. Like the focus slider, their values reach the server when you press a button on the screen.
 
 ### Depth of field
 

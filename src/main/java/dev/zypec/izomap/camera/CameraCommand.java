@@ -10,21 +10,16 @@ import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.mojang.brigadier.tree.LiteralCommandNode;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.config.Permissions;
-import dev.zypec.izomap.map.GridLayouts;
-import dev.zypec.izomap.map.GridOption;
-import dev.zypec.izomap.map.ImageSlicer;
-import dev.zypec.izomap.map.MapService;
 import dev.zypec.izomap.map.Photo;
 import dev.zypec.izomap.map.PhotoManager;
+import dev.zypec.izomap.place.Protection;
 import dev.zypec.izomap.render.AspectRatio;
-import dev.zypec.izomap.render.CaptureTooLargeException;
-import dev.zypec.izomap.render.RenderService;
 import dev.zypec.izomap.ui.CameraDialogs;
-import dev.zypec.izomap.util.Failures;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
@@ -32,7 +27,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 /**
  * Brigadier command tree for {@code /izocam}.
@@ -45,7 +39,6 @@ import java.util.stream.Collectors;
  *   <li>{@code item} – gives the camera placement item.</li>
  *   <li>{@code pickup <name>} – takes a camera back, item and all.</li>
  *   <li>{@code ratio <name> <ratio>} – sets the aspect ratio.</li>
- *   <li>{@code maps <name> <grid>} – puts the map items in the inventory.</li>
  *   <li>{@code preview <name> | stop} – watches a camera's live view, or stops.</li>
  *   <li>{@code open <name>} – opens the capture dialog.</li>
  *   <li>{@code unplace <camera/photo>} – takes a photo off the wall, keeping it in the list.</li>
@@ -62,17 +55,13 @@ public final class CameraCommand {
 
     private final Izomap plugin;
     private final CameraManager manager;
-    private final RenderService renderService;
-    private final MapService mapService;
     private final PhotoManager photoManager;
     private final CameraDialogs dialogs;
 
-    private CameraCommand(Izomap plugin, CameraManager manager, RenderService renderService,
-                          MapService mapService, PhotoManager photoManager, CameraDialogs dialogs) {
+    private CameraCommand(Izomap plugin, CameraManager manager, PhotoManager photoManager,
+                          CameraDialogs dialogs) {
         this.plugin = plugin;
         this.manager = manager;
-        this.renderService = renderService;
-        this.mapService = mapService;
         this.photoManager = photoManager;
         this.dialogs = dialogs;
     }
@@ -80,9 +69,9 @@ public final class CameraCommand {
     /**
      * Registers the command on the plugin lifecycle.
      */
-    public static void register(Izomap plugin, CameraManager manager, RenderService renderService,
-                                MapService mapService, PhotoManager photoManager, CameraDialogs dialogs) {
-        CameraCommand command = new CameraCommand(plugin, manager, renderService, mapService, photoManager, dialogs);
+    public static void register(Izomap plugin, CameraManager manager, PhotoManager photoManager,
+                                CameraDialogs dialogs) {
+        CameraCommand command = new CameraCommand(plugin, manager, photoManager, dialogs);
         plugin.getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event ->
                 event.registrar().register(
                         command.build(),
@@ -122,12 +111,6 @@ public final class CameraCommand {
                                 .then(Commands.argument("ratio", StringArgumentType.greedyString())
                                         .suggests(this::suggestRatios)
                                         .executes(this::setRatio))))
-                .then(Commands.literal("maps")
-                        .then(Commands.argument("name", StringArgumentType.word())
-                                .suggests(this::suggestOwnedNames)
-                                .then(Commands.argument("grid", StringArgumentType.word())
-                                        .suggests(this::suggestGrids)
-                                        .executes(this::makeMaps))))
                 .then(Commands.literal("preview")
                         .then(Commands.literal("stop").executes(this::previewStop))
                         .then(Commands.argument("name", StringArgumentType.word())
@@ -184,11 +167,11 @@ public final class CameraCommand {
             return 0;
         }
 
-        var eye = player.getEyeLocation();
-        var direction = eye.getDirection();
-        var anchor = eye.add(direction.multiply(2.0));
-        anchor.setYaw(player.getLocation().getYaw());
-        anchor.setPitch(0.0f);
+        var anchor = inFrontOf(player);
+        if (!Protection.mayBuild(player, anchor.getBlock(), manager.createCameraItem())) {
+            plugin.messages().send(player, "camera.protected");
+            return 0;
+        }
 
         var camera = manager.create(player, name, anchor);
         if (camera == null) {
@@ -217,16 +200,27 @@ public final class CameraCommand {
         var player = requirePlayer(ctx);
         var camera = camera(ctx, player);
 
-        var eye = player.getEyeLocation();
-        var direction = eye.getDirection();
-        var anchor = eye.add(direction.multiply(2.0));
-        anchor.setYaw(player.getLocation().getYaw());
-        anchor.setPitch(0.0f);
+        var anchor = inFrontOf(player);
+        if (!Protection.mayBuild(player, anchor.getBlock(), manager.createCameraItem())) {
+            plugin.messages().send(player, "camera.protected");
+            return 0;
+        }
 
         manager.move(camera, anchor);
         plugin.preview().refresh(player, camera);
         plugin.messages().send(player, "camera.moved", Placeholder.unparsed("name", camera.name()));
         return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * Where a camera made or moved by command goes: two blocks along the player's view.
+     */
+    private static Location inFrontOf(Player player) {
+        var eye = player.getEyeLocation();
+        var anchor = eye.add(eye.getDirection().multiply(2.0));
+        anchor.setYaw(player.getLocation().getYaw());
+        anchor.setPitch(0.0f);
+        return anchor;
     }
 
     private int removeAllCameras(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
@@ -332,66 +326,6 @@ public final class CameraCommand {
         manager.applyAndPersist(camera);
         plugin.preview().refresh(player, camera);
         plugin.messages().send(player, "photo.ratio-set", Placeholder.unparsed("ratio", ratio.label()));
-        return Command.SINGLE_SUCCESS;
-    }
-
-    private int makeMaps(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
-        var player = requirePlayer(ctx);
-        var camera = camera(ctx, player);
-
-        var grid = GridOption.parse(StringArgumentType.getString(ctx, "grid"));
-        if (grid == null || !GridLayouts.isValid(camera.aspectRatio(), grid)) {
-            var options = GridLayouts.optionsFor(camera.aspectRatio()).stream()
-                    .map(GridOption::label)
-                    .collect(Collectors.joining(", "));
-            plugin.messages().send(player, "map.invalid-grid",
-                    Placeholder.unparsed("ratio", camera.aspectRatio().label()),
-                    Placeholder.unparsed("grids", options));
-            return 0;
-        }
-        // The same gate the capture screen goes through; this path renders straight to
-        // maps and would otherwise be the way around every permission.
-        if (!photoManager.mayCapture(player, camera, grid))
-            return 0;
-
-        plugin.messages().send(player, "photo.capturing");
-        var start = System.currentTimeMillis();
-        var world = camera.anchor().getWorld();
-
-        renderService.capture(camera, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
-            if (error != null || result == null || world == null) {
-                if (Failures.unwrap(error) instanceof CaptureTooLargeException tooLarge) {
-                    plugin.runOnMain(() -> plugin.messages().send(player, "photo.too-large",
-                            Placeholder.unparsed("required", String.valueOf(tooLarge.required())),
-                            Placeholder.unparsed("budget", String.valueOf(tooLarge.budget()))));
-                    return;
-                }
-                plugin.messages().warn("log.map-render-failed",
-                        Placeholder.unparsed("camera", camera.name()),
-                        Placeholder.unparsed("reason", plugin.messages().reason(error)));
-                plugin.runOnMain(() -> plugin.messages().send(player, "photo.failed"));
-                return;
-            }
-            plugin.runOnMain(() -> {
-                var tiles = ImageSlicer.slice(result, grid);
-                var maps = mapService.createMapItems(world, tiles);
-                boolean overflow = false;
-                for (var map : maps) {
-                    if (!player.getInventory().addItem(map).isEmpty()) {
-                        player.getWorld().dropItemNaturally(player.getLocation(), map);
-                        overflow = true;
-                    }
-                }
-                long ms = System.currentTimeMillis() - start;
-                plugin.messages().send(player, "map.created",
-                        Placeholder.unparsed("count", String.valueOf(maps.size())),
-                        Placeholder.unparsed("grid", grid.label()),
-                        Placeholder.unparsed("ms", String.valueOf(ms)));
-                if (overflow) {
-                    plugin.messages().send(player, "map.inventory-full");
-                }
-            });
-        });
         return Command.SINGLE_SUCCESS;
     }
 
@@ -567,25 +501,6 @@ public final class CameraCommand {
         for (AspectRatio ratio : AspectRatio.values()) {
             if (ratio.label().startsWith(prefix)) {
                 builder.suggest(ratio.label());
-            }
-        }
-        return builder.buildFuture();
-    }
-
-    // Suggests grids valid for the aspect ratio of the camera named in the previous argument.
-    private CompletableFuture<Suggestions> suggestGrids(
-            CommandContext<CommandSourceStack> ctx, SuggestionsBuilder builder) {
-        var sender = ctx.getSource().getSender();
-        if (sender instanceof Player player) {
-            String name = StringArgumentType.getString(ctx, "name");
-            Camera camera = manager.byOwnerAndName(player.getUniqueId(), name).orElse(null);
-            if (camera != null) {
-                String prefix = builder.getRemaining();
-                for (GridOption option : GridLayouts.optionsFor(camera.aspectRatio())) {
-                    if (option.label().startsWith(prefix)) {
-                        builder.suggest(option.label());
-                    }
-                }
             }
         }
         return builder.buildFuture();

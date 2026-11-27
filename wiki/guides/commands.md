@@ -1,6 +1,6 @@
 # Commands
 
-Every command is under `/izocam` (also `/izocamera`) and needs `izomap.camera` unless the table says otherwise. Every argument is suggested as you type; grid suggestions follow the camera's aspect ratio.
+Every command is under `/izocam` (also `/izocamera`) and needs `izomap.camera` unless the table says otherwise. Every argument is suggested as you type.
 
 ### Cameras
 
@@ -24,7 +24,6 @@ A photo is named `<camera>/<photo>`, for example `garden/sunset`; the photo name
 
 | Command | Does |
 |---|---|
-| `/izocam maps <camera> <grid>` | Takes a photo and gives you the map items instead of hanging them |
 | `/izocam list photos` | Lists your photos and whether they are hung |
 | `/izocam unplace <photo>` | Takes a photo off the wall; it stays in the list |
 | `/izocam retake <photo>` | Shoots a hung photo again with its own camera |

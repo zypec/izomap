@@ -12,6 +12,8 @@ Settings with a list of options are asked twice: `izomap.filter` grants every fi
 
 The cheapest value of each setting is free: the **Original** filter, the **Transparent** sky and the **Fast** style need no node. A new camera placed by a player without `izomap.style.sharp` starts in fast style, so nobody is handed a camera they cannot shoot with.
 
+`izomap.backing` is about building, not cost: with it, a block is built behind any frame that has nothing to hang on (`placement.build-backing-wall`). That block comes from nowhere, so it is for operators by default; everybody else hangs photos on walls that already stand. Where a player may build at all is left to your protection plugin, which Izomap asks before every camera, frame and block it puts up.
+
 ### Number limits
 
 Three limits from `config.yml` can be set per player with a number at the end of a node:
@@ -28,7 +30,7 @@ Three limits from `config.yml` can be set per player with a number at the end of
 
 These nodes are deliberately not declared by the plugin, so a wildcard such as `izomap.*` does not hand anybody a number. Only nodes you actually assign count.
 
-`max_map_tiles` is the one that matters most. A 1x1 photo is one tile and a 16x9 one is 144, and the time a photo takes grows with the tile count. The smallest grid of each ratio stays available above the limit.
+`max_map_tiles` is the one that matters most. A 1x1 photo is one tile and a 16x9 one is 144, and the time a photo takes grows with the tile count. The smallest grid of each ratio (one map) stays available above the limit.
 
 ### A starting point
 

@@ -55,7 +55,7 @@ class PartialCoverageTest {
                 4.0, 4.0, 200.0, EYE_Y, 0.0, 1, 1);
         var result = new IsometricRenderer(table).render(
                 snapshot, geometry, pipeline, Sky.NONE, Shading.NONE, Water.FLAT, BiomeTints.NONE,
-                1, false, null, Runnable::run, 1);
+                1, false, null, null, Runnable::run, 1);
         return result.argb()[0];
     }
 

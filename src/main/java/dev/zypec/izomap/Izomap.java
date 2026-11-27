@@ -88,7 +88,7 @@ public final class Izomap extends JavaPlugin {
                 new PhotoFrameListener(this, photoManager, photoKeys, photoDialogs), this);
         getServer().getPluginManager().registerEvents(previewManager, this);
         getServer().getPluginManager().registerEvents(placementManager, this);
-        CameraCommand.register(this, cameraManager, renderService, mapService, photoManager, cameraDialogs);
+        CameraCommand.register(this, cameraManager, photoManager, cameraDialogs);
         if (DevShots.enabled())
             DevShots.register(this);
 

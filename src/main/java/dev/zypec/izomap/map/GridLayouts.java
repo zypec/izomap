@@ -10,8 +10,9 @@ import java.util.List;
 /**
  * Grid options valid for each aspect ratio.
  *
- * <p>The chosen grid's pixel size is the render resolution; the photo fills the grid
- * exactly, with no letterboxing.</p>
+ * <p>The chosen grid's picture size is the render resolution. Every ratio can be shot
+ * on a single map, letterboxed when it is not square; the larger grids are filled
+ * exactly.</p>
  */
 public final class GridLayouts {
 
@@ -25,10 +26,12 @@ public final class GridLayouts {
                     new GridOption(2, 2),
                     new GridOption(3, 3));
             case RATIO_16_9 -> List.of(
+                    GridOption.fitted(1, 1, ratio),
                     new GridOption(4, 2),
                     new GridOption(8, 4),
                     new GridOption(16, 9));
             case RATIO_4_3 -> List.of(
+                    GridOption.fitted(1, 1, ratio),
                     new GridOption(4, 3),
                     new GridOption(8, 6));
         };
@@ -37,10 +40,9 @@ public final class GridLayouts {
     /**
      * The options a player may actually shoot at this ratio.
      *
-     * <p>The smallest one is kept whatever the allowance says. A ratio whose cheapest
-     * grid is already over the limit — 16:9 starts at eight tiles — would otherwise
-     * become a ratio with no grid at all, and the capture screen would offer an empty
-     * dropdown rather than an explanation.</p>
+     * <p>The smallest one is kept whatever the allowance says. A limit below one tile
+     * would otherwise leave a ratio with no grid at all, and the capture screen would
+     * offer an empty dropdown rather than an explanation.</p>
      */
     public static List<GridOption> allowedFor(Player player, AspectRatio ratio, int configuredLimit) {
         var all = optionsFor(ratio);
@@ -56,9 +58,15 @@ public final class GridLayouts {
     }
 
     /**
-     * Whether the grid is valid for the ratio.
+     * The ratio's grid with this label, or {@code null} when it has none. Looked up
+     * rather than parsed: the same label is a filled grid for one ratio and a
+     * letterboxed one for another.
      */
-    public static boolean isValid(AspectRatio ratio, GridOption option) {
-        return optionsFor(ratio).contains(option);
+    public static GridOption find(AspectRatio ratio, String label) {
+        for (var option : optionsFor(ratio)) {
+            if (option.label().equalsIgnoreCase(label == null ? "" : label.trim()))
+                return option;
+        }
+        return null;
     }
 }

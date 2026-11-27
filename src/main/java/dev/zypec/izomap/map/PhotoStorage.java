@@ -58,6 +58,8 @@ public final class PhotoStorage extends YamlStorage {
             cfg.set(base + ".name", p.name());
             cfg.set(base + ".camera", p.cameraName());
             cfg.set(base + ".grid", p.grid().label());
+            if (p.grid().letterboxed())
+                cfg.set(base + ".picture", p.grid().pictureLabel());
             if (p.frameId() != null) {
                 cfg.set(base + ".frame.id", p.frameId());
                 cfg.set(base + ".frame.embedded", p.frameEmbedded());
@@ -303,7 +305,7 @@ public final class PhotoStorage extends YamlStorage {
 
     private Photo readOne(UUID id, ConfigurationSection s) {
         var owner = Ids.parse(s.getString("owner"));
-        var grid = GridOption.parse(s.getString("grid"));
+        var grid = GridOption.parse(s.getString("grid"), s.getString("picture"));
         if (owner == null || grid == null)
             return null;
 

@@ -9,7 +9,6 @@ import org.bukkit.inventory.meta.MapMeta;
 import org.bukkit.map.MapView;
 
 import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Builds {@link MapView}s and filled map items from tiles.
@@ -61,23 +60,5 @@ public final class MapService {
         var item = ItemStack.of(Material.FILLED_MAP);
         item.editMeta(MapMeta.class, meta -> meta.setMapView(view));
         return item;
-    }
-
-    /**
-     * Creates a filled map item for a single tile.
-     */
-    private ItemStack createMapItem(World world, MapTile tile) {
-        return itemFor(createMapView(world, tile.argb()));
-    }
-
-    /**
-     * Converts a tile list to map items, preserving grid order.
-     */
-    public List<ItemStack> createMapItems(World world, List<MapTile> tiles) {
-        List<ItemStack> items = new ArrayList<>(tiles.size());
-        for (var tile : tiles) {
-            items.add(createMapItem(world, tile));
-        }
-        return items;
     }
 }

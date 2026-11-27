@@ -34,6 +34,9 @@ permissions:
   izomap.frame:
     description: Every decoration frame; izomap.frame.<ID> for a single one
     default: op
+  izomap.backing:
+    description: Build a block behind a photo's frames where they have nothing to hang on
+    default: op
   izomap.ratio:
     description: Every aspect ratio; izomap.ratio.<NAME> for a single one
     default: true

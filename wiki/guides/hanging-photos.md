@@ -13,10 +13,16 @@ Commands name a photo as `<camera>/<photo>`, for example `garden/sunset`. The ph
 **Hang** starts placement mode. A ghost of the frames, only visible to you, follows your view `placement.distance` blocks ahead:
 
 - **Green** means it fits. **Right-click** hangs the photo.
-- **Red** means a frame would land in a block, or (with `build-backing-wall` off) a frame has nothing solid behind it.
+- **Red** means it cannot go there, and the action bar says why: a frame would land in a block, a frame has nothing solid behind it to hang on, or you may not build there.
 - **Shift + right-click** or `/izocam cancel` stops. Dying, changing worlds, leaving and `placement.timeout-seconds` stop it too.
 
 The ghost shows two layers: glass where each item frame will be, and a block outline behind the frames that need a backing block built. Where your wall already stands, no backing is shown and none is built.
+
+Backing blocks are built only with `izomap.backing` (operators by default) and `placement.build-backing-wall` on, since the block comes from nowhere. Without them a photo hangs only where every frame already has a solid block behind it.
+
+### Protected areas
+
+Hanging a photo builds in the world the way a player does, so region and claim plugins decide where it may go: WorldGuard, GriefPrevention, Lands, Towny and any other plugin that guards block and item frame placement. Every backing block and every item frame is asked about as it goes up. If any part is refused, everything already put up comes back down, the ghost turns red there and you can aim somewhere else. Cameras ask the same before they are placed or moved.
 
 While placing, an item frame sits in your off hand. It is how your right-click reaches the server (the game sends nothing for a right-click with two empty hands); you get your own off-hand item back when placement ends.
 
@@ -53,14 +59,12 @@ A photo also keeps every setting that shaped it: shading, water, sky, focus. Cha
 - **Delete** removes it for good: its image, its settings and its frames. It asks first.
 - `/izocam remove all photos` deletes every photo you own.
 
-### Getting the maps as items
-
-`/izocam maps <camera> <grid>` takes a photo and gives you the map items instead of hanging them, to place by hand or to give away.
-
 ### Exporting to a PNG
 
 `/izocam export <camera>/<photo>` writes the photo at full size to `plugins/Izomap/exports/` (`izomap.export`). `/izocam export as <file> <camera>/<photo>` names the file. The images on this site were made this way.
 
 ### Cleaning up
 
-If a world was edited outside the game, or a server crashed at the wrong moment, frames can outlive their photo or a photo can lose its frames. `/izocam cleanup` fixes both around you: photos whose frames are gone are listed as not hung, and frames and camera models no record claims are removed. It searches loaded chunks only, so run it where the problem is.
+If a world was edited outside the game, or a server crashed at the wrong moment, frames can outlive their photo or a photo can lose its frames. An Izomap item frame that no photo claims is removed on its own when its chunk loads, and once more across loaded chunks at startup.
+
+`/izocam cleanup` fixes the rest around you: photos whose frames are gone are listed as not hung, and frames and camera models no record claims are removed. It searches loaded chunks only, so run it where the problem is. It is also the way to clear frames when the server has no photos at all, since then nothing is removed on its own: an empty photo list is what a damaged `photos.yml` looks like, and sweeping then would take every photo off its wall.

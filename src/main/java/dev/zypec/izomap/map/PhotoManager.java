@@ -5,6 +5,7 @@ import dev.zypec.izomap.camera.Camera;
 import dev.zypec.izomap.camera.CameraManager;
 import dev.zypec.izomap.config.PermissionLimit;
 import dev.zypec.izomap.config.Permissions;
+import dev.zypec.izomap.map.PlacementArea.Fit;
 import dev.zypec.izomap.render.CaptureProgress;
 import dev.zypec.izomap.render.CaptureTooLargeException;
 import dev.zypec.izomap.render.RenderResult;
@@ -14,6 +15,7 @@ import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
 
@@ -27,6 +29,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Consumer;
 
 /**
  * Runtime management of photos: capture, slicing, hanging, persistence and restoring
@@ -93,10 +96,26 @@ public final class PhotoManager {
         storage.load().thenRun(() -> plugin.runOnMain(() -> {
             ingest(storage.readAll());
             loaded = true;
+            sweepLoadedWorlds();
             restoreAll();
             cache.retainOnly(photos.keySet());
             photosChanged();
         }));
+    }
+
+    /**
+     * Clears the orphans in chunks that loaded before the records did; their load event
+     * came while an unknown frame could not yet be told from one still waiting for its
+     * record.
+     */
+    private void sweepLoadedWorlds() {
+        var removed = 0;
+        for (var world : plugin.getServer().getWorlds())
+            removed += sweepOrphanFrames(world.getEntities());
+
+        if (removed > 0)
+            plugin.messages().info("log.orphan-frames-swept",
+                    Placeholder.unparsed("count", String.valueOf(removed)));
     }
 
     /**
@@ -442,19 +461,29 @@ public final class PhotoManager {
     /**
      * Hangs the photo in the area the player lined up with the ghost preview. Must be
      * started on the main thread.
+     *
+     * @param done told on the main thread how it went: {@link Fit#FITS} once hung, the
+     *             reason it was refused, or {@code null} when the photo could not be
+     *             hung at all (its image failed, or it was deleted meanwhile)
      */
-    public void place(Player player, Photo photo, PlacementArea area) {
+    public void place(Player player, Photo photo, PlacementArea area, Consumer<Fit> done) {
         image(photo).whenComplete((result, error) -> {
             if (error != null || result == null) {
                 plugin.messages().warn("log.photo-unplaceable",
                         Placeholder.unparsed("name", photo.name()),
                         Placeholder.unparsed("reason", plugin.messages().reason(error)));
-                plugin.runOnMain(() -> plugin.messages().send(player, "photo.failed"));
+                plugin.runOnMain(() -> {
+                    plugin.messages().send(player, "photo.failed");
+                    done.accept(null);
+                });
                 return;
             }
             plugin.runOnMain(() -> {
                 var current = photos.get(photo.id());
-                if (current == null) return; // deleted while the image was being fetched
+                if (current == null) {
+                    done.accept(null); // deleted while the image was being fetched
+                    return;
+                }
 
                 // Placing an already hanging photo moves it; the old frames have to go
                 // first or they stay behind with nothing pointing at them.
@@ -462,23 +491,37 @@ public final class PhotoManager {
                 if (moved)
                     removeFrames(current);
 
-                var placement = placer.place(area, current.id(), current.grid(),
+                var hung = placer.place(player, area, current.id(), current.grid(),
                         ImageSlicer.slice(result, current.grid()));
-                if (placement == null) {
+                if (hung.placement() == null) {
                     // The old frames are already down, so the record cannot keep
                     // claiming them; the photo lands back in the unplaced list.
                     if (moved)
                         replace(current.withPlacement(null));
 
-                    plugin.messages().send(player, "map.place-blocked");
+                    plugin.messages().send(player, switch (hung.refusal()) {
+                        case PROTECTED -> "map.place-protected";
+                        case NO_SUPPORT -> "map.place-no-support";
+                        default -> "map.place-blocked";
+                    });
+                    done.accept(hung.refusal());
                     return;
                 }
-                replace(current.withPlacement(placement));
+                replace(current.withPlacement(hung.placement()));
                 plugin.messages().send(player, "map.placed",
                         Placeholder.unparsed("name", current.name()),
-                        Placeholder.unparsed("count", String.valueOf(placement.mapIds().size())));
+                        Placeholder.unparsed("count", String.valueOf(hung.placement().mapIds().size())));
+                done.accept(Fit.FITS);
             });
         });
+    }
+
+    /**
+     * Whether this player's photos get a backing block where nothing is there to hang
+     * on; the ghost preview shows one only then.
+     */
+    public boolean buildsBacking(Player player) {
+        return placer.buildsBacking(player);
     }
 
     /**
@@ -622,10 +665,26 @@ public final class PhotoManager {
      * orphan only once every record is in.</p>
      */
     public int removeOrphanFrames(World world) {
-        if (!loaded) return 0;
+        return loaded ? removeOrphans(world.getEntities()) : 0;
+    }
 
+    /**
+     * The same sweep without being asked, over entities that have just loaded and, once
+     * {@code photos.yml} is in, over everything loaded already. A frame nothing claims is
+     * worth nothing and nobody would ever take it down otherwise.
+     *
+     * <p>Skipped while there are no records at all. An empty set is what a
+     * {@code photos.yml} that failed to parse looks like, and sweeping then would take
+     * every photo on the server off its wall; {@code /izocam cleanup} still clears them
+     * when asked.</p>
+     */
+    public int sweepOrphanFrames(Iterable<? extends Entity> entities) {
+        return loaded && !photos.isEmpty() ? removeOrphans(entities) : 0;
+    }
+
+    private int removeOrphans(Iterable<? extends Entity> entities) {
         var removed = 0;
-        for (var entity : world.getEntities()) {
+        for (var entity : entities) {
             if (!(entity instanceof ItemFrame frame))
                 continue;
 

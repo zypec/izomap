@@ -62,6 +62,14 @@ public final class Camera {
     private boolean focusEnabled;
     private float focusDistance;
 
+    /**
+     * Where the sun stands for this camera's shots: the direction its light comes from
+     * and its height, in degrees. It casts the shadows and is the sun drawn in the sky,
+     * so it is part of the picture and belongs to the camera rather than the server.
+     */
+    private float sunYaw;
+    private float sunPitch;
+
     /** Id of the reused preview map, or {@link #NO_PREVIEW_MAP}. */
     private int previewMapId = NO_PREVIEW_MAP;
 
@@ -73,6 +81,9 @@ public final class Camera {
      * when it starts again.
      */
     private transient CaptureProgress captureProgress;
+
+    public static final float MIN_SUN_PITCH = 1.0f;
+    public static final float MAX_SUN_PITCH = 89.0f;
 
     public Camera(UUID id, UUID owner, String name, Location anchor) {
         this.id = id;
@@ -257,6 +268,27 @@ public final class Camera {
 
     public void focusDistance(float focusDistance) {
         this.focusDistance = Math.max(0.0f, focusDistance);
+    }
+
+    public float sunYaw() {
+        return sunYaw;
+    }
+
+    public void sunYaw(float sunYaw) {
+        var yaw = sunYaw % 360.0f;
+        this.sunYaw = yaw < 0.0f ? yaw + 360.0f : yaw;
+    }
+
+    public float sunPitch() {
+        return sunPitch;
+    }
+
+    /**
+     * Kept above the horizon and short of straight up: a sun at 0 lights nothing from
+     * above, and at 90 the shadow ray has no direction to fall in.
+     */
+    public void sunPitch(float sunPitch) {
+        this.sunPitch = Math.max(MIN_SUN_PITCH, Math.min(MAX_SUN_PITCH, sunPitch));
     }
 
     /**

@@ -77,6 +77,15 @@ public final class ConfigManager {
     }
 
     /**
+     * Main-thread time a capture may spend copying chunks per tick, in milliseconds. The
+     * copy carries on in the next tick, so this trades a capture's wait for the
+     * server's tick time.
+     */
+    public int chunkCopyBudgetMs() {
+        return clamp(cfg().getInt("settings.chunk-copy-budget-ms", 8), 1, 50);
+    }
+
+    /**
      * Whether every capture logs how long it took, split into copying the chunks and
      * walking the rays. The measurement new render stages are compared against; off by
      * default because a live preview renders continuously.

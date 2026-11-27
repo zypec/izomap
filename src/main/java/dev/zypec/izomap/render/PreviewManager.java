@@ -133,16 +133,15 @@ public final class PreviewManager implements Listener {
         private UUID editor;
         private long editorTouchedAt;
         /**
-         * One render at a time per camera; click spam from every watcher collapses
-         * into {@link #pending} instead of queuing up.
+         * The render under way, called off as soon as a newer change arrives: only the
+         * camera's latest state is worth drawing, so a burst of clicks never queues.
          */
-        private boolean rendering;
+        private RenderCancellation running;
         /**
-         * A change arrived mid-render, so one more render is owed once this one lands.
-         * Dropping it outright used to leave the preview on the state the render
-         * started from: the last click of a burst was the one that never showed.
+         * Counts renders started, so a render that lost the race to a newer one can tell
+         * that its image is no longer wanted.
          */
-        private boolean pending;
+        private long generation;
         /**
          * Takes the action bar over from the status line until it expires.
          */
@@ -242,6 +241,7 @@ public final class PreviewManager implements Listener {
         if (session == null) {
             return;
         }
+        cancelRender(session);
         if (session.editor != null) {
             watchedCamera.remove(session.editor);
         }
@@ -322,6 +322,17 @@ public final class PreviewManager implements Listener {
     private void discardIfIdle(PreviewSession session) {
         if (session.editor == null && session.watchers.isEmpty()) {
             sessions.remove(session.cameraId);
+            cancelRender(session);
+        }
+    }
+
+    /**
+     * Stops a render nobody is left to look at.
+     */
+    private static void cancelRender(PreviewSession session) {
+        if (session.running != null) {
+            session.running.cancel();
+            session.running = null;
         }
     }
 
@@ -333,31 +344,43 @@ public final class PreviewManager implements Listener {
 
     // --- rendering ---
 
+    /**
+     * Draws the camera as it is now, calling off any render still working on an older
+     * state. Main thread only.
+     *
+     * <p>Folding changes into one more render after the running one used to make the
+     * last click of a burst wait for a frame nobody wanted any more. Cancelling stops the
+     * old copy within a tick and its ray walk within a row, and the new render starts at
+     * once.</p>
+     */
     private void render(Camera camera, PreviewSession session) {
         if (session == null || session.view == null || session.watchers.isEmpty()) {
             return;
         }
-        if (session.rendering) {
-            // Whatever changed now is rendered as soon as the running one is done.
-            session.pending = true;
-            return;
-        }
-        session.rendering = true;
-        session.pending = false;
+        if (session.running != null)
+            session.running.cancel();
+
+        var cancellation = new RenderCancellation();
+        var generation = ++session.generation;
+        session.running = cancellation;
 
         CompletableFuture<RenderResult> capture;
         try {
-            capture = renderService.capture(camera,
-                    previewWidth(camera.aspectRatio()), previewHeight(camera.aspectRatio()));
+            capture = renderService.capture(renderService.specFor(camera),
+                    previewWidth(camera.aspectRatio()), previewHeight(camera.aspectRatio()),
+                    null, cancellation);
         } catch (RuntimeException ex) {
-            // Without releasing the lock here a synchronous failure freezes the preview.
-            session.rendering = false;
+            // Without releasing the seat here a synchronous failure freezes the preview.
+            session.running = null;
             throw ex;
         }
 
         capture.whenComplete((result, error) ->
                 plugin.runOnMain(() -> {
-                    session.rendering = false;
+                    if (generation != session.generation)
+                        return; // a newer render owns the map now
+
+                    session.running = null;
                     if (error == null && result != null) {
                         mapService.applyTile(session.view, tileFrom(result, camera.thirdsGuide()));
                     } else if (Failures.unwrap(error) instanceof CaptureTooLargeException tooLarge) {
@@ -366,26 +389,11 @@ public final class PreviewManager implements Listener {
                                 Placeholder.unparsed("required", String.valueOf(tooLarge.required())),
                                 Placeholder.unparsed("budget", String.valueOf(tooLarge.budget()))));
                     }
-                    renderPending(session);
                     // The status task only comes round once a second; without this the
                     // "rendering" mark would linger after the image already changed.
                     if (session.notice == null)
                         showStatus(session);
                 }));
-    }
-
-    /**
-     * Runs the render owed to the changes that arrived while the last one was running.
-     * Main thread only.
-     */
-    private void renderPending(PreviewSession session) {
-        if (!session.pending)
-            return;
-
-        session.pending = false;
-        var camera = plugin.cameras().byId(session.cameraId);
-        if (camera != null)
-            render(camera, session);
     }
 
     private void actionBar(PreviewSession session, Component message) {
@@ -405,7 +413,7 @@ public final class PreviewManager implements Listener {
      */
     public void showStatus(Camera camera, Player actor) {
         var session = sessions.get(camera.id());
-        var line = CameraStatus.line(plugin, camera, session != null && session.rendering);
+        var line = CameraStatus.line(plugin, camera, session != null && session.running != null);
         if (session != null) {
             actionBar(session, line);
         }
@@ -462,7 +470,7 @@ public final class PreviewManager implements Listener {
     private void showStatus(PreviewSession session) {
         var camera = plugin.cameras().byId(session.cameraId);
         if (camera != null)
-            actionBar(session, CameraStatus.line(plugin, camera, session.rendering));
+            actionBar(session, CameraStatus.line(plugin, camera, session.running != null));
     }
 
     /**

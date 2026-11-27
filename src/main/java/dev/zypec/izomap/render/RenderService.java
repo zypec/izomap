@@ -3,7 +3,6 @@ package dev.zypec.izomap.render;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.camera.Camera;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
-import org.bukkit.ChunkSnapshot;
 import org.bukkit.Location;
 import org.bukkit.World;
 import org.bukkit.util.BoundingBox;
@@ -14,6 +13,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -101,7 +101,7 @@ public final class RenderService {
     public CaptureSpec specFor(Camera camera) {
         return specFor(camera.anchor(), camera.camYaw(), camera.camPitch(), camera.zoom(),
                 camera.colorFilter(), camera.style(), camera.sky(), camera.skyBodies(),
-                camera.focusEnabled(), camera.focusDistance());
+                camera.focusEnabled(), camera.focusDistance(), camera.sunYaw(), camera.sunPitch());
     }
 
     /**
@@ -109,14 +109,15 @@ public final class RenderService {
      */
     public CaptureSpec specFor(Location anchor, float yaw, float pitch, float zoom,
                                ColorFilter colorFilter, PhotoStyle style, SkyOption sky,
-                               boolean skyBodies, boolean focusEnabled, double focusDistance) {
+                               boolean skyBodies, boolean focusEnabled, double focusDistance,
+                               float sunYaw, float sunPitch) {
         var world = anchor.getWorld();
         return new CaptureSpec(
                 world != null ? world.getUID() : null,
                 anchor.getX(), anchor.getY(), anchor.getZ(),
                 yaw, pitch, zoom, colorFilter, style,
                 skyFor(sky, skyBodies && sky.draws(), world),
-                plugin.config().shading(),
+                plugin.config().shading().withSun(sunYaw, sunPitch),
                 plugin.config().water(),
                 plugin.config().focus(focusEnabled, focusDistance),
                 plugin.config().fog(),
@@ -214,9 +215,40 @@ public final class RenderService {
      */
     public CompletableFuture<RenderResult> capture(CaptureSpec spec, int widthPx, int heightPx,
                                                    CaptureProgress progress) {
+        return capture(spec, widthPx, heightPx, progress, null);
+    }
+
+    /**
+     * The same, stopping early once {@code cancellation} is called off: the future then
+     * fails with a {@link CancellationException}.
+     */
+    public CompletableFuture<RenderResult> capture(CaptureSpec spec, int widthPx, int heightPx,
+                                                   CaptureProgress progress,
+                                                   RenderCancellation cancellation) {
         var world = spec.worldId() != null ? plugin.getServer().getWorld(spec.worldId()) : null;
         if (world == null)
             return CompletableFuture.failedFuture(new IllegalStateException("Camera world is not loaded."));
+
+        // The ray distance reads the ground under the camera, and reading an unloaded
+        // chunk loads it on the spot: 400 ms of main thread for a camera nobody stands
+        // near. It is loaded off the thread first; the callback runs back on it.
+        var cx = (int) Math.floor(spec.x()) >> 4;
+        var cz = (int) Math.floor(spec.z()) >> 4;
+        if (!world.isChunkLoaded(cx, cz))
+            return world.getChunkAtAsync(cx, cz, false)
+                    .thenCompose(chunk -> captureLoaded(world, spec, widthPx, heightPx, progress, cancellation));
+
+        return captureLoaded(world, spec, widthPx, heightPx, progress, cancellation);
+    }
+
+    /**
+     * The capture once the camera's own chunk has been loaded, or found missing.
+     */
+    private CompletableFuture<RenderResult> captureLoaded(World world, CaptureSpec spec, int widthPx, int heightPx,
+                                                          CaptureProgress progress,
+                                                          RenderCancellation cancellation) {
+        if (cancellation != null && cancellation.cancelled())
+            return CompletableFuture.failedFuture(new CancellationException("Render cancelled."));
 
         var anchor = new Location(world, spec.x(), spec.y(), spec.z());
 
@@ -301,17 +333,19 @@ public final class RenderService {
         var walker = renderer;
         var requestedAt = System.nanoTime();
         return snapshotChunks(world, chunkKeys, minY, maxY,
-                spec.shading().blockLight(), tints.enabled()).thenCompose(snapshot -> {
+                spec.shading().blockLight(), tints.enabled(), cancellation).thenCompose(snapshot -> {
             var capturedAt = System.nanoTime();
             CompletableFuture<RenderResult> future = new CompletableFuture<>();
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                 try {
                     var result = walker.render(
                             snapshot, geometry, pipeline, sky, shading, water, tints, supersampling,
-                            focus.draws() || fog.draws(), progress, executor, threads);
+                            focus.draws() || fog.draws(), progress, cancellation, executor, threads);
+                    if (cancellation != null) cancellation.check();
                     // Before the blur, so a defocused far hill is soft and hazy at once
                     // rather than a sharp line of fog drawn over a blur.
                     result = FogPass.apply(result, fog, sky, converter, executor, threads);
+                    if (cancellation != null) cancellation.check();
                     // Before the scale-up, where the depth buffer still lines up with the
                     // pixels. The radius is a ratio of image height, so a FAST render
                     // blurs a smaller image by a smaller radius and the scale-up puts
@@ -356,56 +390,22 @@ public final class RenderService {
     /**
      * Collects copies of the required chunks. Started on the main thread.
      *
-     * <p>Loaded chunks are copied straight away; the rest go through Paper's async
-     * chunk API so the server never reads or generates chunks on the main thread.</p>
+     * <p>Loaded chunks are copied a time budget per tick, the rest go through Paper's
+     * async chunk API first; see {@link ChunkCopier}.</p>
      *
      * <p>{@code light} copies the sky and block light arrays along with the blocks.
      * Paper's three-argument overload takes them <b>by default</b>, so every render used
      * to pay for light it never read; it is now asked for only when the shading darkens
      * by it.</p>
-     *
-     * <p>The copy is taken <b>inside the load callback</b>. Paper defines the
-     * {@code getChunkAtAsync} future as "always executed synchronously on the main
-     * Server Thread", so {@code thenApply} runs there at a moment the chunk is
-     * certainly loaded. Deferring the copy by a tick does not work: async loading
-     * holds no ticket, the chunk can unload again in between, and the photo ends up
-     * with chunk-sized holes.</p>
      */
     private CompletableFuture<WorldSnapshot> snapshotChunks(World world, Set<Long> keys,
                                                             int minY, int maxY,
-                                                            boolean light, boolean biomes) {
-        var load = plugin.config().loadMissingChunks();
-        var generate = plugin.config().generateMissingChunks();
-
-        List<ChunkSnapshot> ready = new ArrayList<>(keys.size());
-        List<CompletableFuture<ChunkSnapshot>> loading = new ArrayList<>();
-        for (var key : keys) {
-            var cx = WorldSnapshot.chunkX(key);
-            var cz = WorldSnapshot.chunkZ(key);
-            if (world.isChunkLoaded(cx, cz)) {
-                ready.add(world.getChunkAt(cx, cz).getChunkSnapshot(false, biomes, false, light));
-            } else if (load) {
-                // With generate=false, an ungenerated chunk completes the future as null.
-                loading.add(world.getChunkAtAsync(cx, cz, generate).thenApply(
-                        chunk -> chunk == null ? null : chunk.getChunkSnapshot(false, biomes, false, light)));
-            }
-        }
-
+                                                            boolean light, boolean biomes,
+                                                            RenderCancellation cancellation) {
         var requested = keys.size();
-        if (loading.isEmpty()) {
-            warnIfIncomplete(world, requested, ready.size());
-            return CompletableFuture.completedFuture(WorldSnapshot.of(ready, minY, maxY));
-        }
-
-        return CompletableFuture.allOf(loading.toArray(new CompletableFuture<?>[0])).thenApply(ignored -> {
-            for (var future : loading) {
-                var snapshot = future.getNow(null);
-                if (snapshot != null) {
-                    ready.add(snapshot);
-                }
-            }
-            warnIfIncomplete(world, requested, ready.size());
-            return WorldSnapshot.of(ready, minY, maxY);
+        return ChunkCopier.copy(plugin, world, keys, light, biomes, cancellation).thenApply(copied -> {
+            warnIfIncomplete(world, requested, copied.size());
+            return WorldSnapshot.of(copied, minY, maxY);
         });
     }
 
@@ -437,7 +437,12 @@ public final class RenderService {
      * distance is already bounded by {@code settings.max-capture-area}.</p>
      */
     private static double floorReference(World world, Location anchor, double eyeY) {
-        return Math.min(eyeY, Math.min(world.getSeaLevel(), world.getHighestBlockYAt(anchor)));
+        var floor = Math.min(eyeY, world.getSeaLevel());
+        // Never loads a chunk for this; a capture has loaded it already, and a camera
+        // whose chunk could not be had falls back on sea level.
+        if (!world.isChunkLoaded(anchor.getBlockX() >> 4, anchor.getBlockZ() >> 4))
+            return floor;
+        return Math.min(floor, world.getHighestBlockYAt(anchor));
     }
 
     /**

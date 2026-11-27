@@ -197,6 +197,9 @@ public final class CameraManager {
         camera.camYaw(owner.getLocation().getYaw());
         camera.camPitch((float) plugin.config().defaultPitch());
         camera.aspectRatio(AspectRatio.fromString(plugin.config().defaultAspectRatio(), AspectRatio.RATIO_1_1));
+        var sun = plugin.config().shading();
+        camera.sunYaw(sun.sunYaw());
+        camera.sunPitch(sun.sunPitch());
         // A camera starts on the sharp style, which not everyone may shoot with. Handing
         // a player a camera their own capture would be refused for is a bad first
         // minute, so a creator without the permission gets the free style instead.

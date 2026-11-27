@@ -8,6 +8,8 @@ settings:
   render-depth: 64
   # Threads one render is split across. 1-16.
   render-threads: 4
+  # Main-thread milliseconds per tick a capture may spend copying chunks. 1-50.
+  chunk-copy-budget-ms: 8
   # Log how long each capture took (chunk copy and ray walk).
   render-timing: false
   # Load chunks the frame covers that are not loaded (asynchronously).
@@ -78,7 +80,7 @@ photo:
   shading:
     # A second ray towards the sun; a blocked surface goes one shade darker.
     sun-shadow: false
-    # Direction and height of the sun, in degrees. Pitch 1-89.
+    # A new camera's sun: direction and height in degrees (cameras set their own). Pitch 1-89.
     sun-yaw: 135.0
     sun-pitch: 60.0
     # How far a shadow ray travels, in blocks. 1-256.
@@ -168,7 +170,7 @@ placement:
   distance: 3
   # Make the item frames invisible.
   invisible-frames: true
-  # Build a block behind each frame that has none.
+  # Build a block behind each frame that has none. Permission: izomap.backing
   build-backing-wall: true
   # Block the backing wall is built from.
   backing-material: STONE

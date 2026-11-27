@@ -2,6 +2,7 @@ package dev.zypec.izomap.camera;
 
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.config.Permissions;
+import dev.zypec.izomap.place.Protection;
 import dev.zypec.izomap.render.PreviewManager;
 import dev.zypec.izomap.ui.CameraDialogs;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -153,7 +154,12 @@ public final class CameraListener implements Listener {
         event.setCancelled(true);
         var player = event.getPlayer();
 
-        var anchor = clicked.getRelative(face).getLocation().add(0.5, 0.0, 0.5);
+        var target = clicked.getRelative(face);
+        if (!Protection.mayBuild(player, target, held)) {
+            plugin.messages().send(player, "camera.protected");
+            return;
+        }
+        var anchor = target.getLocation().add(0.5, 0.0, 0.5);
         anchor.setYaw(player.getLocation().getYaw());
         anchor.setPitch(0.0f);
 
@@ -250,7 +256,14 @@ public final class CameraListener implements Listener {
             case MOVE -> {
                 var step = player.getEyeLocation().getDirection()
                         .multiply(direction * plugin.config().moveStep());
-                manager.reposition(camera, clampToWorld(camera.anchor().add(step)));
+                var to = clampToWorld(camera.anchor().add(step));
+                // Asked only on entering a new block: within one the answer cannot change.
+                if (!to.getBlock().equals(camera.anchor().getBlock())
+                    && !Protection.mayBuild(player, to.getBlock(), manager.createCameraItem())) {
+                    plugin.messages().send(player, "camera.protected");
+                    return;
+                }
+                manager.reposition(camera, to);
             }
         }
         manager.applyAndPersist(camera);

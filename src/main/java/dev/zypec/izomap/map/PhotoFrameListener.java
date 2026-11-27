@@ -13,6 +13,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.hanging.HangingBreakByEntityEvent;
 import org.bukkit.event.hanging.HangingBreakEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.world.EntitiesLoadEvent;
 import org.bukkit.inventory.EquipmentSlot;
 
 /**
@@ -44,6 +45,15 @@ public final class PhotoFrameListener implements Listener {
         this.photos = photos;
         this.keys = keys;
         this.dialogs = dialogs;
+    }
+
+    /**
+     * Takes down frames no photo claims as their chunk loads, so leftovers from a lost
+     * record or an interrupted move do not wait for somebody to hit them.
+     */
+    @EventHandler
+    public void onEntitiesLoad(EntitiesLoadEvent event) {
+        photos.sweepOrphanFrames(event.getEntities());
     }
 
     // HangingBreakByEntityEvent extends HangingBreakEvent, so one handler covers both.

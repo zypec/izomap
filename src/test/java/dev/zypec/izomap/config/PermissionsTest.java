@@ -118,8 +118,8 @@ class PermissionsTest {
     @Test
     @DisplayName("a ratio always keeps its smallest grid, however tight the allowance")
     void smallestGridSurvives() {
-        // 16:9 starts at eight tiles, so a limit of four would leave it with none.
-        var options = GridLayouts.allowedFor(playerWith(), AspectRatio.RATIO_16_9, 4);
-        assertEquals(List.of(new GridOption(4, 2)), options);
+        // Below one tile nothing would be left at all.
+        var options = GridLayouts.allowedFor(playerWith(), AspectRatio.RATIO_16_9, 0);
+        assertEquals(List.of(GridOption.fitted(1, 1, AspectRatio.RATIO_16_9)), options);
     }
 }

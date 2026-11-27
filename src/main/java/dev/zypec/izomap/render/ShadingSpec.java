@@ -41,6 +41,15 @@ public record ShadingSpec(
             new ShadingSpec(false, 0.0f, 0.0f, 0, false, false, 0, 0);
 
     /**
+     * The same shading with the sun put somewhere else; the sun belongs to the camera,
+     * everything else here to the server.
+     */
+    public ShadingSpec withSun(float yaw, float pitch) {
+        return new ShadingSpec(sunShadow, yaw, pitch, shadowDistance, ambientOcclusion,
+                blockLight, dimBelow, darkBelow);
+    }
+
+    /**
      * Whether the walk has to do anything extra at all.
      */
     public boolean enabled() {

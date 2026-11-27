@@ -36,6 +36,15 @@ settings.render-threads:
     The image is cut into horizontal bands that are drawn in parallel. More threads make a single
     photo faster but compete with the server for CPU. These threads never touch the main thread.
 
+settings.chunk-copy-budget-ms:
+  summary: How long a capture may copy chunks on the main thread in one tick.
+  detail: |
+    A photo needs a copy of every chunk it covers, and only the main thread may take it. The copy
+    stops when this many milliseconds are spent and carries on in the next tick, so a horizon shot
+    of thousands of chunks spreads over many ticks instead of freezing the server for seconds. A
+    tick is 50 ms; at 8, a capture leaves the server most of each one. Raise it to take photos
+    faster on a quiet server, lower it on a busy one. At least one chunk is copied per tick.
+
 settings.render-timing:
   summary: Write how long every capture took to the console.
   detail: |
@@ -220,13 +229,14 @@ photo.shading.sun-shadow:
     either moves a surface down a shade or does not.
 
 photo.shading.sun-yaw:
-  summary: The direction the sun shines from, in degrees.
+  summary: Where a new camera's sun shines from, in degrees.
   detail: |
+    Each camera has its own sun, set with the sliders on its sky screen; this is where it starts.
     Fixed rather than tied to the game time: a fixed angle looks more like a render, and two shots
-    of the same place match. The sun drawn in the sky comes from this same direction.
+    of the same place match. The sun drawn in the sky comes from the same direction.
 
 photo.shading.sun-pitch:
-  summary: How high the sun stands above the horizon, in degrees.
+  summary: How high a new camera's sun stands above the horizon, in degrees.
   range: 1 to 89
 
 photo.shading.shadow-distance:
@@ -465,8 +475,10 @@ placement.invisible-frames:
 placement.build-backing-wall:
   summary: Build a block behind each frame that has nothing solid behind it.
   detail: |
-    Off: a photo can be hung only where every frame already has a solid block behind it, and the
-    ghost turns red anywhere else.
+    Only for players with `izomap.backing` (operators by default): the block comes from nowhere,
+    which in survival is free building material. Off, or without the permission, a photo can be
+    hung only where every frame already has a solid block behind it, and the ghost turns red
+    anywhere else. Protection plugins are asked about every block built.
 
 placement.backing-material:
   summary: The block the backing wall is built from.

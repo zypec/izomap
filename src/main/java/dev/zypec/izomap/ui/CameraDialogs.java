@@ -53,12 +53,21 @@ public final class CameraDialogs {
     private static final String INPUT_GRID = "grid";
     private static final String INPUT_RENAME = "new_name";
     private static final String INPUT_FOCUS = "focus";
+    private static final String INPUT_SUN_YAW = "sun_yaw";
+    private static final String INPUT_SUN_PITCH = "sun_pitch";
 
     /**
      * How the focus slider prints itself: the label, then the value. Minecraft fills the
      * two {@code %s} itself, so this is a format and not a message.
      */
     private static final String FOCUS_FORMAT = "%s: %s";
+    private static final String ANGLE_FORMAT = "%s: %s°";
+
+    /**
+     * Degrees per notch of the sun's direction slider: finer than this moves a shadow by
+     * less than a block on anything the frame can hold.
+     */
+    private static final float SUN_YAW_STEP = 5.0f;
 
     /**
      * Buttons per row on the capture screen: the ratios, the three look settings and
@@ -168,7 +177,7 @@ public final class CameraDialogs {
 
         // The one setting with a screen of its own: it is two questions now (which sky,
         // and what is in it), and a button that cycles cannot ask two.
-        if (skyChoices(viewer, camera).size() > 1 || maySeeBodies(viewer, camera)) {
+        if (skyChoices(viewer, camera).size() > 1 || maySeeBodies(viewer, camera) || sunShows(camera)) {
             buttons.add(button(plugin.messages().get("dialog.sky-button",
                             Placeholder.component("value", plugin.messages().getOr(
                                     "sky." + camera.sky().name(), camera.sky().name()))),
@@ -265,10 +274,8 @@ public final class CameraDialogs {
                             current ? "dialog.sky-option-active" : "dialog.sky-option",
                             Placeholder.component("value", plugin.messages().getOr(
                                     "sky." + option.name(), option.name()))),
-                    (view, audience) -> onPlayer(audience, p -> {
-                        apply(p, camera, target -> target.sky(option));
-                        openCaptureDialog(p, camera, photoName);
-                    })));
+                    (view, audience) -> onSkyScreen(view, audience, camera, target -> target.sky(option),
+                            p -> openCaptureDialog(p, camera, photoName))));
         }
 
         // Nothing to carry the bodies on a transparent sky, so the switch is not offered
@@ -276,23 +283,75 @@ public final class CameraDialogs {
         if (camera.sky().draws() && maySeeBodies(player, camera)) {
             buttons.add(button(plugin.messages().get(camera.skyBodies()
                             ? "dialog.sky-bodies-active" : "dialog.sky-bodies"),
-                    (view, audience) -> onPlayer(audience, p -> {
-                        apply(p, camera, target -> target.skyBodies(!target.skyBodies()));
-                        openSkyDialog(p, camera, photoName);
-                    })));
+                    (view, audience) -> onSkyScreen(view, audience, camera,
+                            target -> target.skyBodies(!target.skyBodies()),
+                            p -> openSkyDialog(p, camera, photoName))));
         }
         buttons.add(button(plugin.messages().get("dialog.sky-back"),
-                (view, audience) -> onPlayer(audience, p -> openCaptureDialog(p, camera, photoName))));
+                (view, audience) -> onSkyScreen(view, audience, camera, target -> {
+                }, p -> openCaptureDialog(p, camera, photoName))));
+
+        var width = plugin.config().dialogBodyWidth();
+        List<DialogBody> body = new ArrayList<>();
+        body.add(DialogBody.plainMessage(plugin.messages().get(
+                camera.sky().draws() ? "dialog.sky-body" : "dialog.sky-body-none"), width));
+        List<DialogInput> inputs = new ArrayList<>();
+        if (sunShows(camera)) {
+            body.add(DialogBody.plainMessage(plugin.messages().get("dialog.sun-body"), width));
+            inputs.add(DialogInput.numberRange(INPUT_SUN_YAW, plugin.messages().get("dialog.sun-yaw-label"),
+                            0.0f, 360.0f - SUN_YAW_STEP)
+                    .width(width)
+                    .labelFormat(ANGLE_FORMAT)
+                    .initial(Math.round(camera.sunYaw() / SUN_YAW_STEP) * SUN_YAW_STEP % 360.0f)
+                    .step(SUN_YAW_STEP)
+                    .build());
+            inputs.add(DialogInput.numberRange(INPUT_SUN_PITCH, plugin.messages().get("dialog.sun-pitch-label"),
+                            Camera.MIN_SUN_PITCH, Camera.MAX_SUN_PITCH)
+                    .width(width)
+                    .labelFormat(ANGLE_FORMAT)
+                    .initial((float) Math.round(camera.sunPitch()))
+                    .step(1.0f)
+                    .build());
+        }
 
         Dialog dialog = Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(plugin.messages().get("dialog.sky-title"))
-                        .body(List.of(DialogBody.plainMessage(plugin.messages().get(
-                                camera.sky().draws() ? "dialog.sky-body" : "dialog.sky-body-none"),
-                                plugin.config().dialogBodyWidth())))
+                        .body(body)
+                        .inputs(inputs)
                         .build())
                 .type(DialogType.multiAction(buttons, cancelButton(), COLUMNS)));
 
         player.showDialog(dialog);
+    }
+
+    /**
+     * Whether the sun's position changes anything in this camera's photo: it casts the
+     * shadows when the server has them on, and it is the sun drawn in the sky. With
+     * neither, sliders for it would move nothing.
+     */
+    private boolean sunShows(Camera camera) {
+        return plugin.config().shading().sunShadow()
+               || (camera.skyBodies() && plugin.config().skyBodies().sun());
+    }
+
+    /**
+     * A sky screen button: the sun's sliders travel with every press, since the dialog
+     * only sends them along with one, then the button's own change.
+     */
+    private void onSkyScreen(DialogResponseView view, Audience audience, Camera camera,
+                             Consumer<Camera> change, Consumer<Player> then) {
+        Float yaw = view.getFloat(INPUT_SUN_YAW);
+        Float pitch = view.getFloat(INPUT_SUN_PITCH);
+        onPlayer(audience, p -> {
+            apply(p, camera, target -> {
+                if (yaw != null)
+                    target.sunYaw(yaw);
+                if (pitch != null)
+                    target.sunPitch(pitch);
+                change.accept(target);
+            });
+            then.accept(p);
+        });
     }
 
     /**
@@ -615,7 +674,7 @@ public final class CameraDialogs {
     private static List<Object> imageState(Camera camera) {
         return List.of(camera.aspectRatio(), camera.thirdsGuide(), camera.zoom(),
                 camera.colorFilter(), camera.style(), camera.sky(), camera.skyBodies(),
-                camera.focusEnabled(), camera.focusDistance());
+                camera.focusEnabled(), camera.focusDistance(), camera.sunYaw(), camera.sunPitch());
     }
 
     /**
@@ -657,8 +716,8 @@ public final class CameraDialogs {
                 cameraManager.applyAndPersist(camera);
             }
 
-            GridOption grid = GridOption.parse(gridLabel);
-            if (grid == null || !GridLayouts.isValid(camera.aspectRatio(), grid)) {
+            GridOption grid = GridLayouts.find(camera.aspectRatio(), gridLabel);
+            if (grid == null) {
                 grid = GridLayouts.optionsFor(camera.aspectRatio()).get(0);
             }
             photoManager.capture(player, camera, name, grid);

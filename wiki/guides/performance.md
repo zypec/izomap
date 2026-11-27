@@ -11,11 +11,13 @@ A photo is taken in two halves, and only one of them touches the main thread.
 | **Chunk copy** | Main | Disk (loading) and memory | The area the frame covers |
 | **Ray walk** | Render pool | CPU | Pixels × supersampling², and how far each ray travels |
 
-Chunks that are not loaded are loaded asynchronously, and each one is copied the moment it arrives. The ray walk runs on `settings.render-threads` threads of its own and never blocks a tick. Turn on `settings.render-timing` to see both halves of every capture in the log.
+The copy runs on the main thread `settings.chunk-copy-budget-ms` (8 ms by default) per tick and carries on in the next one, so even a horizon shot of thousands of chunks never takes more than that from a tick. Chunks that are not loaded are loaded asynchronously first. The ray walk runs on `settings.render-threads` threads of its own and never blocks a tick. Turn on `settings.render-timing` to see both halves of every capture in the log.
 
 ### Measured
 
 On an Apple M3 Pro, Paper 26.3, the world the gallery was shot in, `render-threads: 8`, `supersampling: 2`, sun shadow, ambient occlusion and block light all on, water in `DEPTH` mode. One player online.
+
+The table was measured before the copy was spread over ticks, when it ran in one go; the copy times are what it cost in one block, and now spread out.
 
 | Shot | Size | Chunks | Copy | Ray walk |
 |---|---|---:|---:|---:|
@@ -29,7 +31,7 @@ On an Apple M3 Pro, Paper 26.3, the world the gallery was shot in, `render-threa
 Two things stand out:
 
 - **The tilt matters as much as the size.** A camera looking down stops its rays on the ground after a few dozen blocks. A camera looking at the horizon sends them out to `settings.max-capture-area`, through thousands of chunks, and the same pixel count costs ten times as much.
-- **The copy is small next to the walk**, but it is the half that runs on the main thread. Keep `settings.max-capture-area` where a horizon shot's copy stays acceptable for your server.
+- **The copy is small next to the walk**, and it is the half that runs on the main thread. It is spread over ticks, so what you choose is how long a capture waits: lower `settings.chunk-copy-budget-ms` on a busy server, raise it on a quiet one.
 
 ### The settings that decide the cost
 
@@ -55,4 +57,4 @@ Filters, skies, biome tint and partial coverage cost next to nothing.
 
 ### The live preview
 
-The preview renders a single 128x128 map at the camera's ratio, once per change, however many players watch. Changes that arrive while a render runs are folded into one more render, never queued one by one, so clicking fast costs no more than clicking once.
+The preview renders a single 128x128 map at the camera's ratio, once per change, however many players watch. A change that arrives while a render runs calls that render off (its copy stops within a tick, its rays within a row) and starts one of the camera as it is now. Nothing queues, so clicking fast costs no more than clicking once.

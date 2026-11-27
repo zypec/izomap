@@ -111,7 +111,9 @@ public final class DevShots {
                 PhotoStyle.valueOf(shot.getString("style", "SHARP").toUpperCase(Locale.ROOT)),
                 SkyOption.valueOf(shot.getString("sky", "DAY").toUpperCase(Locale.ROOT)),
                 shot.getBoolean("bodies", true),
-                shot.contains("focus"), shot.getDouble("focus", 0.0));
+                shot.contains("focus"), shot.getDouble("focus", 0.0),
+                (float) shot.getDouble("sun-yaw", plugin.config().shading().sunYaw()),
+                (float) shot.getDouble("sun-pitch", plugin.config().shading().sunPitch()));
 
         var grid = shot.getString("grid", "4x2").split("x");
         var width = Integer.parseInt(grid[0]) * 128;

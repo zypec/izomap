@@ -4,6 +4,7 @@ import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.map.GridOption;
 import dev.zypec.izomap.map.Photo;
 import dev.zypec.izomap.map.PlacementArea;
+import dev.zypec.izomap.map.PlacementArea.Fit;
 import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
@@ -64,8 +65,8 @@ import java.util.stream.Stream;
  *       full block and the grid read as one continuous sheet. Always shown: it is the
  *       photo, and it is what the player is actually aiming.</li>
  *   <li><b>Backing layer.</b> A full block behind a tile, shown <b>only for the cells
- *       that would really be filled in</b> — {@code build-backing-wall} on and that
- *       block empty. Hanging on a wall the player built themselves promises no blocks,
+ *       that would really be filled in</b> — {@code build-backing-wall} on, the player
+ *       holding {@code izomap.backing}, and that block empty. Hanging on a wall the player built themselves promises no blocks,
  *       so it shows none; previously this layer was the only thing drawn and it stood
  *       in the frame cell, which made every placement look like it would bury the
  *       wall.</li>
@@ -175,15 +176,35 @@ public final class PlacementManager implements Listener {
          * What the offhand held before the marker took its place.
          */
         private final ItemStack offhand;
+        /**
+         * Whether a backing block would be built for this player at all: the server's
+         * setting and their permission.
+         */
+        private final boolean buildsBacking;
         private PlacementArea area;
-        private boolean fits;
+        private Fit fit;
+        /**
+         * Where a protection plugin last refused this photo. Only trying tells, so the
+         * ghost stays red there until the player aims somewhere else.
+         */
+        private PlacementArea refused;
+        /**
+         * A confirmation is being carried out; further clicks wait for its answer.
+         */
+        private boolean confirming;
 
-        private Session(UUID photoId, GridOption grid, long expiresAt, ItemStack offhand) {
+        private Session(UUID photoId, GridOption grid, long expiresAt, ItemStack offhand,
+                        boolean buildsBacking) {
             this.photoId = photoId;
             this.grid = grid;
             this.backingShown = new boolean[grid.tileCount()];
             this.expiresAt = expiresAt;
             this.offhand = offhand;
+            this.buildsBacking = buildsBacking;
+        }
+
+        private boolean fits() {
+            return fit == Fit.FITS;
         }
     }
 
@@ -202,9 +223,9 @@ public final class PlacementManager implements Listener {
 
         var timeout = plugin.config().placementTimeoutSeconds() * 1000L;
         var session = new Session(photo.id(), photo.grid(), System.currentTimeMillis() + timeout,
-                player.getInventory().getItemInOffHand().clone());
+                player.getInventory().getItemInOffHand().clone(), plugin.photos().buildsBacking(player));
         session.area = PlacementArea.inFrontOf(player, plugin.config().placementDistance());
-        session.fits = session.area.fits(session.grid, plugin.config().buildBackingWall());
+        session.fit = fitOf(session, session.area);
 
         spawnGhosts(player, session);
         player.getInventory().setItemInOffHand(marker(photo));
@@ -216,22 +237,51 @@ public final class PlacementManager implements Listener {
     }
 
     /**
-     * Ends the player's session and hangs the photo, or explains why it cannot.
+     * Hangs the photo where the ghost stands and ends the session, or explains why it
+     * cannot.
+     *
+     * <p>The session stays open until the answer is in. Whether a protection plugin lets
+     * the photo up is only known by trying, and a refusal should leave the player aiming
+     * rather than send them back to the photo list.</p>
      */
     public void confirm(Player player) {
         var session = sessions.get(player.getUniqueId());
-        if (session == null) return;
+        if (session == null || session.confirming) return;
 
-        if (!session.fits) {
+        if (!session.fits()) {
             player.sendActionBar(plugin.messages().get("placement.blocked"));
             return;
         }
         var photo = plugin.photos().byId(session.photoId).orElse(null);
-        var area = session.area;
-        end(player, null);
-        if (photo != null) {
-            plugin.photos().place(player, photo, area);
+        if (photo == null) {
+            end(player, null);
+            return;
         }
+        var area = session.area;
+        session.confirming = true;
+        plugin.photos().place(player, photo, area, outcome -> {
+            if (sessions.get(player.getUniqueId()) != session)
+                return; // ended some other way meanwhile
+
+            session.confirming = false;
+            if (outcome == null || outcome == Fit.FITS) {
+                end(player, null);
+                return;
+            }
+            if (outcome == Fit.PROTECTED)
+                session.refused = area;
+            updateGhosts(player, session, session.area, fitOf(session, session.area));
+            showStatus(player, session);
+        });
+    }
+
+    /**
+     * Whether the photo fits there for this session's player.
+     */
+    private Fit fitOf(Session session, PlacementArea area) {
+        if (area.equals(session.refused))
+            return Fit.PROTECTED;
+        return area.fit(session.grid, session.buildsBacking);
     }
 
     /**
@@ -316,8 +366,8 @@ public final class PlacementManager implements Listener {
         var paneData = paneFacing(forward);
         var flush = flushWithWall(forward);
         var backingData = backingMaterial().createBlockData();
-        var buildsBacking = plugin.config().buildBackingWall();
-        var color = session.fits ? VALID : BLOCKED;
+        var buildsBacking = session.buildsBacking;
+        var color = session.fits() ? VALID : BLOCKED;
 
         for (var row = 0; row < session.grid.rows(); row++) {
             for (var col = 0; col < session.grid.cols(); col++) {
@@ -354,7 +404,7 @@ public final class PlacementManager implements Listener {
      * Moves the ghosts onto the area and recolors them, both only when something
      * actually changed, then re-decides which backing blocks are still promised.
      */
-    private void updateGhosts(Player player, Session session, PlacementArea area, boolean fits) {
+    private void updateGhosts(Player player, Session session, PlacementArea area, Fit fit) {
         if (!area.equals(session.area)) {
             // Turning to another wall turns the panes with it; walking keeps them as is.
             var turned = area.forward() != session.area.forward();
@@ -380,13 +430,12 @@ public final class PlacementManager implements Listener {
             }
             session.area = area;
         }
-        if (fits != session.fits) {
-            var color = fits ? VALID : BLOCKED;
+        if ((fit == Fit.FITS) != session.fits()) {
+            var color = fit == Fit.FITS ? VALID : BLOCKED;
             for (var ghost : ghosts(session))
                 ghost.setGlowColorOverride(color);
-
-            session.fits = fits;
         }
+        session.fit = fit;
         refreshBackings(player, session);
     }
 
@@ -511,7 +560,7 @@ public final class PlacementManager implements Listener {
                 continue;
             }
             var area = PlacementArea.inFrontOf(player, plugin.config().placementDistance());
-            updateGhosts(player, session, area, area.fits(session.grid, plugin.config().buildBackingWall()));
+            updateGhosts(player, session, area, fitOf(session, area));
             if (ticks % STATUS_EVERY == 0) {
                 showStatus(player, session);
             }
@@ -521,8 +570,12 @@ public final class PlacementManager implements Listener {
     }
 
     private void showStatus(Player player, Session session) {
-        player.sendActionBar(plugin.messages().get(
-                session.fits ? "placement.actionbar" : "placement.actionbar-blocked"));
+        player.sendActionBar(plugin.messages().get(switch (session.fit) {
+            case FITS -> "placement.actionbar";
+            case NO_SUPPORT -> "placement.actionbar-no-support";
+            case PROTECTED -> "placement.actionbar-protected";
+            case OCCUPIED -> "placement.actionbar-blocked";
+        }));
     }
 
     // --- gestures ---

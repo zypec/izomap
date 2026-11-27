@@ -62,25 +62,43 @@ public record PlacementArea(World world, Block base, BlockFace right, BlockFace 
     }
 
     /**
+     * Whether a photo can hang here, and if not, why.
+     */
+    public enum Fit {
+        FITS,
+        /** A frame cell is taken. */
+        OCCUPIED,
+        /** A frame would have nothing to hang on, and no block may be built for it. */
+        NO_SUPPORT,
+        /** A protection plugin refused it; only known once placing is tried. */
+        PROTECTED
+    }
+
+    /**
      * Whether the grid has room here.
      *
-     * <p>Every frame block must be free either way. What sits <i>behind</i> them only
-     * matters when no wall is built: an item frame needs something to hang on, and
-     * without this check the photo would go up and quietly fall off. With the wall
-     * turned on the gaps are filled in, and an existing block is left in place and
-     * used as the backing.</p>
+     * <p>Every frame block must be free. Behind each one there has to be something solid
+     * to hang on, or, when {@code mayBuildBacking}, nothing at all, since a block will be
+     * built there. Anything else behind it (a torch, a tuft of grass) would let the frame
+     * go up and quietly fall off.</p>
+     *
+     * @param mayBuildBacking whether a backing block may be built for this player: the
+     *                        server's {@code build-backing-wall} and their permission
      */
-    public boolean fits(GridOption grid, boolean buildBackingWall) {
+    public Fit fit(GridOption grid, boolean mayBuildBacking) {
+        var supported = true;
         for (var row = 0; row < grid.rows(); row++) {
             for (var col = 0; col < grid.cols(); col++) {
                 var block = frameBlock(grid, col, row);
                 if (!block.isEmpty())
-                    return false;
-                if (!buildBackingWall && !block.getRelative(forward).getType().isSolid())
-                    return false;
+                    return Fit.OCCUPIED;
+
+                var behind = block.getRelative(forward);
+                if (!behind.getType().isSolid() && !(mayBuildBacking && behind.isEmpty()))
+                    supported = false;
             }
         }
-        return true;
+        return supported ? Fit.FITS : Fit.NO_SUPPORT;
     }
 
     /**

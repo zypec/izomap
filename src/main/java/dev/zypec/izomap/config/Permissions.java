@@ -51,6 +51,12 @@ public final class Permissions {
      */
     public static final String SKY_BODIES = "izomap.sky.bodies";
 
+    /**
+     * Having a block built behind a photo's frames where nothing is there to hang them
+     * on. The block comes from nowhere, so in survival it is free building material.
+     */
+    public static final String BACKING = "izomap.backing";
+
     /** Area nodes; a single option is {@code <area>.<NAME>}. */
     public static final String FILTER = "izomap.filter";
     public static final String SKY = "izomap.sky";
@@ -112,6 +118,14 @@ public final class Permissions {
      */
     public static boolean edit(Player who, Camera camera) {
         return camera.owner().equals(who.getUniqueId()) || who.hasPermission(ADMIN);
+    }
+
+    /**
+     * Whether a backing block may be built for this player's photos. Without it a photo
+     * hangs only where every frame has a solid block behind it already.
+     */
+    public static boolean backing(Permissible who) {
+        return who.hasPermission(BACKING);
     }
 
     public static boolean ratio(Permissible who, AspectRatio ratio) {

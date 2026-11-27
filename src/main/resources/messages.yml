@@ -24,6 +24,8 @@ camera:
   picked-up: "<prefix> <green>Camera picked up: <white><name></white> <gray>(item returned, <count> photo(s) deleted)"
   picked-up-no-item: "<prefix> <yellow>Camera taken down: <white><name></white> <gray>(it was made by command, so there is no item to return; <count> photo(s) deleted)"
   name-taken: "<prefix> <red>You already have a camera called <white><name></white>."
+  # A protection plugin (WorldGuard, GriefPrevention and the like) refused the spot.
+  protected: "<prefix> <red>You cannot build here, so a camera cannot go here."
   # Clicking somebody else's camera: anyone may watch it, only its owner may adjust it.
   view-only: "<prefix> <gray><white><name></white> is <white><owner></white>'s camera: you can watch it, not adjust it."
   list-header: "<prefix> <gray>Cameras (<count>):"
@@ -142,7 +144,9 @@ placement:
     - "<gray><white>Right-click</white> to confirm."
     - "<gray><white>Shift + right-click</white> to cancel."
   actionbar: "<green>Right-click: place</green> <dark_gray>|</dark_gray> <gray>Shift + right-click: cancel"
-  actionbar-blocked: "<red>It does not fit here</red> <dark_gray>|</dark_gray> <gray>Frames need empty space with something solid behind"
+  actionbar-blocked: "<red>It does not fit here</red> <dark_gray>|</dark_gray> <gray>Frames need empty space"
+  actionbar-no-support: "<red>Nothing to hang on</red> <dark_gray>|</dark_gray> <gray>Every frame needs a solid block behind it"
+  actionbar-protected: "<red>You cannot build here</red> <dark_gray>|</dark_gray> <gray>Look somewhere else"
   blocked: "<prefix> <red>It cannot go here; look somewhere else until the ghost turns green."
   not-active: "<prefix> <gray>You are not placing anything."
   ended-self: "<prefix> <gray>Placement cancelled."
@@ -168,11 +172,11 @@ photo:
   grid-not-allowed: "<prefix> <red>A <grid> grid takes <white><tiles></white> maps and your limit is <white><limit></white>. <gray>Choose a smaller grid."
 
 map:
-  invalid-grid: "<prefix> <red>That grid does not fit this aspect ratio. <gray>For <ratio>: <white><grids></white></gray>"
-  created: "<prefix> <green><count> map(s) made (<grid>) and added to your inventory. <gray>(<ms> ms)</gray>"
-  inventory-full: "<prefix> <yellow>Some maps did not fit in your inventory and were dropped."
   placed: "<prefix> <green>Photo hung: <white><name></white> <gray>(<count> maps)"
   place-blocked: "<prefix> <red>The photo could not be hung: the spot is no longer free. Look somewhere else and try again."
+  place-no-support: "<prefix> <red>The photo could not be hung: a frame has nothing solid behind it to hang on."
+  # A protection plugin (WorldGuard, GriefPrevention and the like) refused a frame or a backing block.
+  place-protected: "<prefix> <red>You cannot build here, so the photo cannot be hung here. Look somewhere else and try again."
   still-loading: "<prefix> <yellow>This photo is still loading; try again in a moment."
   orphan-frame: "<prefix> <gray>Removed an Izomap item frame that belonged to no photo."
   orphan-frames-cleaned: "<prefix> <yellow>Cleaned up <count> orphaned photo frame(s). <gray>(Frames no record claims; only loaded chunks are searched.)"
@@ -209,6 +213,11 @@ dialog:
   sky-bodies: "Sun, moon and stars: <gray>Off"
   sky-bodies-active: "Sun, moon and stars: <green>On ✔"
   sky-back: "Back"
+  # The sun's sliders show while it matters: shadows on, or the sun drawn in the sky. Their
+  # values reach the server when a button on the screen is pressed.
+  sun-body: "<gray>The sun casts the shadows and is drawn in the sky from where it stands here."
+  sun-yaw-label: "Sun direction"
+  sun-pitch-label: "Sun height"
   grid-option: "<grid> (<count> maps, <wpx>x<hpx> px)"
   capture-full: "<red>Limit reached (<limit>)"
   pickup-button: "<red>Pick up camera"
@@ -279,6 +288,7 @@ log:
 
   cameras-loaded: "Loaded <count> camera(s)."
   photos-loaded: "Loaded <count> photo(s)."
+  orphan-frames-swept: "Removed <count> photo frame(s) no photo claims any more."
   frames-loaded: "Loaded <count> frame(s) from frames.yml."
   frame-ring-invalid: "Frame <frame> has an invalid ring (color or width); that ring was skipped."
   frame-art-invalid: "Frame <frame> has invalid edge rows (empty or of different lengths); the frame was not loaded."

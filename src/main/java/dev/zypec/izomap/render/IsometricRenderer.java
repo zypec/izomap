@@ -48,6 +48,8 @@ public final class IsometricRenderer {
      *                      {@link BiomeTints#NONE} leaves every block its own colour
      * @param progress      told as each row finishes, or {@code null} when nobody is
      *                      watching the capture
+     * @param cancellation  asked before each row; {@code null} when the render cannot be
+     *                      called off
      * @param supersampling antialiasing rays per pixel (NxN); 1 disables it
      * @param withDepth     whether to record how far each pixel is, for {@link FocusPass}
      * @param executor      pool the row bands are dispatched to
@@ -56,7 +58,8 @@ public final class IsometricRenderer {
     public RenderResult render(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
                                Sky sky, Shading shading, Water water, BiomeTints tints,
                                int supersampling, boolean withDepth,
-                               CaptureProgress progress, Executor executor, int threads) {
+                               CaptureProgress progress, RenderCancellation cancellation,
+                               Executor executor, int threads) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
         final var argb = new int[w * h];
@@ -69,7 +72,7 @@ public final class IsometricRenderer {
 
         var bands = Math.max(1, Math.min(threads, h));
         if (bands == 1) {
-            renderBand(snapshot, geo, pipeline, sky, shading, water, tints, samples, progress, argb, depth, 0, h);
+            renderBand(snapshot, geo, pipeline, sky, shading, water, tints, samples, progress, cancellation, argb, depth, 0, h);
             return new RenderResult(w, h, argb, depth);
         }
 
@@ -80,9 +83,9 @@ public final class IsometricRenderer {
             final int from = band * rowsPerBand;
             final int to = Math.min(h, from + rowsPerBand);
             pending[band] = CompletableFuture.runAsync(
-                    () -> renderBand(snapshot, geo, pipeline, sky, shading, water, tints, samples, progress, argb, depth, from, to), executor);
+                    () -> renderBand(snapshot, geo, pipeline, sky, shading, water, tints, samples, progress, cancellation, argb, depth, from, to), executor);
         }
-        renderBand(snapshot, geo, pipeline, sky, shading, water, tints, samples, progress, argb, depth, (bands - 1) * rowsPerBand, h);
+        renderBand(snapshot, geo, pipeline, sky, shading, water, tints, samples, progress, cancellation, argb, depth, (bands - 1) * rowsPerBand, h);
         CompletableFuture.allOf(pending).join();
 
         return new RenderResult(w, h, argb, depth);
@@ -93,7 +96,7 @@ public final class IsometricRenderer {
      */
     private void renderBand(WorldSnapshot snapshot, RenderGeometry geo, ColorPipeline pipeline,
                             Sky sky, Shading shading, Water water, BiomeTints tints,
-                            int samples, CaptureProgress progress,
+                            int samples, CaptureProgress progress, RenderCancellation cancellation,
                             int[] argb, float[] depth, int yFrom, int yTo) {
         final var w = geo.widthPx();
         final var h = geo.heightPx();
@@ -116,6 +119,7 @@ public final class IsometricRenderer {
         final var run = new WaterRun();
 
         for (var py = yFrom; py < yTo; py++) {
+            if (cancellation != null) cancellation.check();
             for (var px = 0; px < w; px++) {
                 int hits = 0, sumR = 0, sumG = 0, sumB = 0;
                 var sumDistance = 0.0;

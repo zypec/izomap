@@ -30,7 +30,7 @@ dev.zypec.izomap
 ├── camera/         camera model, entity lifecycle, clicks, command, persistence, status line
 ├── render/         geometry, chunk snapshots, voxel walk, color pipeline, sky, focus, fog, preview
 ├── map/            photo model, grids, slicing, MapView creation, hanging, frames, cache, export
-├── place/          PlacementManager, the ghost shown before hanging
+├── place/          PlacementManager (the ghost shown before hanging), Protection (asking region plugins)
 ├── ui/             CameraDialogs, PhotoDialogs (Paper Dialog API)
 ├── dev/            DevShots, registered only with -Dizomap.dev=true
 └── util/           small helpers that cross packages (Ids, Failures, Format)
@@ -373,8 +373,8 @@ resolved into a 16-entry cell beforehand: painting a sky pixel is one array read
 and the camera's axes. Each is placed by projecting a world direction onto the camera basis
 (`u = dot(dir, right)`, `v = dot(dir, up)`, visible when `dot(dir, direction) > 0`):
 
-- the **sun** is drawn in the shading sun's direction (`sun-yaw`/`sun-pitch`), so shadows never
-  fall towards it;
+- the **sun** is drawn in the shading sun's direction (the camera's own, §3 Advanced shading), so
+  shadows never fall towards it;
 - the **moon** opposite it, in the phase of the world's day;
 - **stars** are a deterministic hash over direction space: the same camera sees the same stars and
   a panorama does not slide them. They fade in only as the sky darkens.
@@ -488,8 +488,15 @@ All three are off by default (`photo.shading`). The palette has four shades per 
 technique moves a surface down one or two shades; steps add up and stop at the darkest.
 
 - **Sun shadow** (`sun-shadow`): a second ray per **hit** towards the sun, same DDA, up to
-  `shadow-distance`. The biggest visual gain. The sun is fixed (`sun-yaw`/`sun-pitch`), not tied to
-  the clock: it looks like a render and two shots of a place match.
+  `shadow-distance`. The biggest visual gain. The sun is fixed, not tied to the clock: it looks like
+  a render and two shots of a place match.
+
+**The sun belongs to the camera.** Where it stands decides the shadows and where it is drawn in the
+sky, so it is part of the picture, like the filter. `Camera#sunYaw`/`#sunPitch` start at
+`photo.shading.sun-yaw`/`sun-pitch` and are set with two sliders on the sky screen (§6);
+`RenderService#specFor` lays them over the server's shading with `ShadingSpec#withSun`, so a
+photo freezes its own sun. The sliders show only while the sun changes something: `sun-shadow` on,
+or the sun drawn in the camera's sky. Everything else in `ShadingSpec` stays the server's.
 - **Ambient occlusion** (`ambient-occlusion`): four snapshot reads per hit, no ray. If three of the
   four neighbors of the cell in front of the surface are solid, one shade down. Three, because two
   means a wall running along the surface and would darken half of every building.
@@ -536,15 +543,40 @@ alpha is a **majority vote**: fewer than half the rays hit and the pixel stays t
 - Unloaded chunks are loaded with `getChunkAtAsync` when `settings.load-missing-chunks` is on;
   `settings.generate-missing-chunks` is off by default (photos should not grow the world).
 
-**The copy is taken in the load callback.** `getChunkAtAsync` does not hold the chunk with a ticket:
-once the future completes it may unload. Copying "when all are done, next tick" left random
-chunk-sized holes. The copy is taken in the future's own continuation, which Paper runs on the main
-thread while the chunk is certainly loaded:
+**The copy is spread over ticks (`ChunkCopier`).** Copying every loaded chunk at once put the whole
+copy in one tick: 300 to 700 chunks for a top-down shot, 5,000 to 6,000 for a horizon, 2 to 3 s
+measured on the development server. The copier now copies until `settings.chunk-copy-budget-ms`
+(8 by default) is spent and continues in the next tick, at least one chunk per tick. The first
+slice runs inside `capture` itself, so a preview's few dozen chunks finish without waiting a tick.
+Unloaded chunks are loaded at most 32 at a time (`MAX_LOADING`): Paper finishes every load on the
+main thread, and thousands requested together landed as one long tick.
 
-```java
-world.getChunkAtAsync(cx, cz, generate)
-     .thenApply(chunk -> chunk == null ? null : chunk.getChunkSnapshot(false, false, false))
-```
+**The camera's own chunk is loaded first, asynchronously.** The ray distance reads the ground under
+the camera (`getHighestBlockYAt`), which loads an unloaded chunk on the spot: 420 ms of main thread
+measured for a camera nobody stood near. `capture` loads it with `getChunkAtAsync` and goes on in
+the callback; `floorReference` itself never loads one (an unloadable chunk falls back on sea level).
+
+Measured on the development server, no player online, `/izodev` and RCON `mspt` sampled each
+second: the cathedral horizon view at 4x2 (6,289 chunks, all cold) peaked at a 546 ms tick before
+and 308 ms after, the copy spreading over 6 s instead of 2.7 s; what is left is Paper's own work
+loading and unloading thousands of chunks. Loaded chunks copy at about 0.03 ms each (458 in
+14.6 ms), so the case the budget is for is a horizon shot over chunks players keep loaded: some
+200 ms in one tick before, 8 ms per tick now.
+
+Two ways a queued chunk could be lost between ticks, two answers:
+
+- **Loaded when the capture began, unloaded by its turn.** It holds no ticket of ours; the copier
+  loads it again asynchronously instead of skipping it (it exists, its turn only came late).
+- **Loaded by the copier.** `getChunkAtAsync` holds no ticket either, and the chunk could unload
+  while it waits in the queue. A plugin chunk ticket is added in the load callback (which Paper
+  runs on the main thread while the chunk is loaded) and removed right after the copy.
+
+Copying "when all are done, next tick" without a ticket is what left random chunk-sized holes in
+early versions.
+
+**A render can be called off** (`RenderCancellation`): the copier asks between ticks, the walk
+before every row, `RenderService` between passes; the future then fails with a
+`CancellationException`. Only the preview uses it (§5).
 
 Missing copies are logged by `RenderService#warnIfIncomplete`.
 
@@ -649,8 +681,11 @@ the preview cleanly), swapped or moved; it is removed on quit and cleaned on joi
   `actionbar-capturing` shows `<percent>`/`<bar>` from `CaptureProgress` during a capture (they count
   ray-walk rows, so they sit at 0 during the chunk copy). A half-second task refreshes hologram and
   status only while a shutter is open.
-- **At most one pending render.** Changes during a render are folded into a `pending` flag and one
-  more render runs after it. Dropping them used to leave the preview stuck on a stale frame.
+- **Only the latest state is rendered.** A change that arrives while a render runs cancels it and
+  starts a new one at once; a generation counter makes a late result from a cancelled render drop
+  itself. The old copy stops within a tick and its walk within a row, so a burst of clicks never
+  queues and the last click is never left waiting behind a frame nobody wants. (Before, changes
+  were folded into one more render after the running one, which still had to finish.)
 - **The camera's own ratio**, letterboxed on the square map: it shows the real frame and the real
   cost (a 16:9 photo needs about 1.8x the chunks of a 1:1 preview), so the budget fails before
   placement rather than after.
@@ -662,11 +697,17 @@ the preview cleanly), swapped or moved; it is removed on quit and cleaned on joi
 | Ratio | Grids (`GridLayouts`) |
 |---|---|
 | 1:1 | 1x1, 2x2, 3x3 |
-| 16:9 | 4x2, 8x4, 16x9 |
-| 4:3 | 4x3, 8x6 |
+| 16:9 | 1x1 (128x72), 4x2, 8x4, 16x9 |
+| 4:3 | 1x1 (128x96), 4x3, 8x6 |
 
-The render is done at the grid's exact pixel size (`cols*128 × rows*128`), no letterbox.
-`ImageSlicer` cuts row-major 128x128 `MapTile`s. `MapService` makes locked, untracked `MapView`s
+`GridOption` carries the picture size beside the tile count. The larger grids are filled exactly
+(`cols*128 × rows*128`); a single map for 16:9 or 4:3 holds the largest picture of that ratio
+(`GridOption#fitted`), centred, the rest transparent so the map's background shows as bars, the
+way the preview letterboxes. The render is done at the picture size, so the photo, its cache file
+and its export are 128x72, and only `ImageSlicer` knows about the bars when it cuts row-major
+128x128 `MapTile`s. Because the same label is a filled grid for one ratio and a letterboxed one
+for another, the capture screen looks its grid up (`GridLayouts#find`) rather than parsing it, and
+`photos.yml` stores a letterboxed grid's `picture: 128x72` beside its `grid`. `MapService` makes locked, untracked `MapView`s
 with a one-shot `TileMapRenderer` (`MapCanvas#setPixelColor`, transparent pixels skipped).
 
 ### Taking and hanging are separate
@@ -691,12 +732,13 @@ Two inputs (name, grid) and a three-column button grid:
   is aimed at (starting at zero would put the focus plane at the lens and blur everything). Its value
   arrives with the next button press (`DialogResponseView#getFloat`); there is no live channel.
 - **Color and style are cycle buttons**, not dropdowns: a button can show the current value. The sky
-  has its own screen (§3).
+  has its own screen (§3), which also carries the sun's two sliders (direction 0 to 355 in steps of
+  5, height 1 to 89) while the sun matters; every button on it sends them.
 - **Emphasis lives in `messages.yml`:** a value's color is in its own name, the button template only
   inserts `<value>`.
 - **Reset aim** undoes only what clicks set: zoom, facing, tilt.
 - **A button renders only on a real change.** `CameraDialogs#applyForm` compares the image-defining
-  fields (ratio, thirds, zoom, filter, style, sky, bodies, focus, focus distance) before and after;
+  fields (ratio, thirds, zoom, filter, style, sky, bodies, focus, focus distance, sun) before and after;
   nothing changed means no save and no render. Navigation buttons used to trigger a full chunk copy.
 - **Zoom is not set in the dialog.** A second way to set it rounded the clicked value to the nearest
   preset whenever any button was pressed. The info line (`dialog.info`) summarizes instead.
@@ -719,8 +761,15 @@ when it fits and red when not (`Display#setGlowColorOverride`).
   is not persistent: a crash must not leave a wall of floating blocks.
 - Updates every two ticks, teleporting only when the area really changed (a 16x9 grid with two
   layers is 288 entities).
-- **Fit** is `PlacementArea#fits`: frame cells empty; with `build-backing-wall` off, something solid
-  behind each.
+- **Fit** is `PlacementArea#fit`, which says why not: `OCCUPIED` (a frame cell is taken),
+  `NO_SUPPORT` (behind a frame is neither solid nor, when a backing block may be built, empty) or
+  `PROTECTED`. The action bar names it.
+- **Backing needs `izomap.backing`** as well as `build-backing-wall`: the block comes from nowhere.
+  `MapPlacer#buildsBacking` is the one place that says so; the ghost shows backing only then.
+- **Protection is only known by trying** (below), so the ghost cannot ask it each update. A confirm
+  keeps the session open until `PhotoManager#place` answers; on `PROTECTED` the area is remembered,
+  the ghost stays red there until the player aims elsewhere, and they can try again. Clicks during
+  the answer are ignored.
 - **Confirm** is a right-click anywhere, **cancel** shift + right-click; also `/izocam cancel`,
   death, world change, quit, the photo being deleted and `placement.timeout-seconds`. `cancelAll` on
   shutdown. The live preview closes when placement starts (both want the action bar).
@@ -737,9 +786,21 @@ swaps and moves are blocked, on death it is swapped back, on join it is cleaned)
 
 `placement.distance` blocks along the player's view, a grid facing the player with the image's
 orientation preserved. The bottom row sits **one block below eye level** (`ANCHOR_DROP = 1`); the
-ghost and the real placement share the calculation. Placement is non-destructive: `fits` is checked
-again and nothing changes if it fails. With `build-backing-wall`, empty blocks behind frames are
-filled; solid ones are used as they are.
+ghost and the real placement share the calculation. Placement is non-destructive: `fit` is checked
+again and nothing changes if it fails. With backing allowed, empty blocks behind frames are filled;
+solid ones are used as they are.
+
+**Protection plugins decide by the events a player would fire** (`place.Protection`), so WorldGuard,
+GriefPrevention, Lands, Towny and the rest are covered with no dependency on any. Each piece is put
+up the vanilla way: a backing block is set and a `BlockPlaceEvent` fired with its replaced state, a
+frame is spawned and a `HangingPlaceEvent` fired. The event describes a change really made, so
+block loggers record the truth. The first cancel takes everything put up so far back down (frames
+removed, block states restored newest first) and the photo is refused whole. Maps are made only
+after every piece passed, since a map id is spent for good.
+
+Cameras are not blocks, so they ask with a `BlockPlaceEvent` on the anchor block that changes
+nothing (`Protection#mayBuild`), the question every protection plugin answers: before one is placed
+with the item, made or moved by command, and when a move click enters a new block.
 
 ### Decoration frames (`PhotoFrames`, `frames.yml`)
 
@@ -782,6 +843,13 @@ the photo stays in the list. Attacking and rotating frames are blocked. Frames a
 **their own PDC tag** (`izomap:photo_id` + `izomap:tile_index`), so protection works before
 `photos.yml` loads ("still loading"); a tagged frame with no record after loading is an orphan and
 is removed without drops.
+
+**Orphans are swept without being asked** (`PhotoManager#sweepOrphanFrames`): on every
+`EntitiesLoadEvent`, and once over every loaded world when `photos.yml` has been read (chunks loaded
+before that could not tell an orphan from a frame whose record had not arrived). An orphan is a
+tagged frame no placed record claims by id. **Nothing is swept while there are no records at
+all:** that is what a `photos.yml` that failed to parse looks like, and sweeping then would take
+every photo on the server down. `/izocam cleanup` still clears them on request.
 
 `/izocam cleanup` works both ways: `cleanupOwned` moves records whose frames are gone to "not hung",
 `removeOrphanFrames` removes frames no record claims (no record, a record saying "not hung", or a
@@ -845,6 +913,8 @@ declares them and their defaults.
 
 - **Area or single option.** `izomap.filter` grants every filter, `izomap.filter.WARM` one; either
   passes. Same for sky, ratio and frame.
+- **`izomap.backing`** is about building, not cost: it lets a backing block be built (§6). Operators
+  by default.
 - **The cheapest value is free:** `ORIGINAL` filter, `NONE` sky, `FAST` style. A player with no
   node can still shoot: permissions decide **how expensive** a photo may be. A new camera placed by a
   player without `izomap.style.sharp` starts in `FAST`.
@@ -888,8 +958,8 @@ shipped user file carries a `version:` key for that purpose; nothing reads it ye
 | `frames.yml` | Decoration frames |
 | `block-colors.yml` | Color overrides, coverage, tint channels |
 | `biome-tints.yml` | Biome color overrides |
-| `cameras.yml` | Cameras: position, angles, zoom, ratio, filter, style, sky, bodies, thirds, focus, entity ids, preview map id |
-| `photos.yml` | Photos: name, camera, grid, `capture` spec; when hung, `placement` with map ids, frame ids and anchor |
+| `cameras.yml` | Cameras: position, angles, zoom, ratio, filter, style, sky, bodies, thirds, focus, sun, entity ids, preview map id |
+| `photos.yml` | Photos: name, camera, grid (and `picture` when letterboxed), `capture` spec; when hung, `placement` with map ids, frame ids and anchor |
 | `photos/<uuid>.izm` | The photo's image (binary) |
 | `exports/<name>.png` | `/izocam export` output; never read back |
 
@@ -953,7 +1023,7 @@ table without a server, so the ray walk itself is testable.
 | `FocusPassTest` | The depth of field pass |
 | `FogPassTest` | Near and sky pixels untouched, the fade growing with depth, strength capping it, the palette kept |
 | `ColorOpTest` | Filter operations |
-| `GridAndSlicingTest` | Tile order of the slicer, only visible once hung |
+| `GridAndSlicingTest` | Tile order of the slicer, only visible once hung; a letterboxed picture centred between transparent bars and its size surviving `photos.yml` |
 | `FormatAndIdsTest` | Locale-independent numbers; malformed ids return `null` (a truncated UUID used to parse into a different one) |
 
 ## 11. The site
