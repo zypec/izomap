@@ -486,7 +486,9 @@ public final class CameraCommand {
         CommandSender sender = ctx.getSource().getSender();
         if (sender instanceof Player player) {
             String prefix = builder.getRemainingLowerCase();
-            for (Camera c : manager.ownedBy(player.getUniqueId())) {
+            // An admin may act on anybody's camera, so they are offered every one.
+            var cameras = player.hasPermission(PERM_ADMIN) ? manager.all() : manager.ownedBy(player.getUniqueId());
+            for (Camera c : cameras) {
                 if (c.name().toLowerCase(Locale.ROOT).startsWith(prefix)) {
                     builder.suggest(c.name());
                 }
@@ -557,15 +559,36 @@ public final class CameraCommand {
                 message);
     }
 
+    /**
+     * The camera the player named: their own first. An admin may name anybody's, as long
+     * as only one camera answers to it. Anybody else naming a camera that exists but is
+     * not theirs is told whose it is, since "not found" for a camera in plain sight reads
+     * as the plugin having lost it.
+     */
     private Camera camera(CommandContext<CommandSourceStack> ctx, Player player) throws CommandSyntaxException {
         var name = StringArgumentType.getString(ctx, "name");
-        var camera = manager.byOwnerAndName(player.getUniqueId(), name).orElse(null);
-        if (camera == null) {
-            var message = plugin.messages().asVanilla("camera.not-found");
-            throw new CommandSyntaxException(
-                    new SimpleCommandExceptionType(message),
-                    message);
-        }
-        return camera;
+        var own = manager.byOwnerAndName(player.getUniqueId(), name).orElse(null);
+        if (own != null)
+            return own;
+
+        var others = manager.named(name);
+        if (others.size() == 1 && player.hasPermission(PERM_ADMIN))
+            return others.getFirst();
+
+        var message = others.isEmpty()
+                ? plugin.messages().asVanilla("camera.not-found")
+                : others.size() > 1 && player.hasPermission(PERM_ADMIN)
+                ? plugin.messages().asVanilla("camera.ambiguous",
+                        Placeholder.unparsed("name", name),
+                        Placeholder.unparsed("count", String.valueOf(others.size())))
+                : plugin.messages().asVanilla("camera.not-yours",
+                        Placeholder.unparsed("name", others.getFirst().name()),
+                        Placeholder.unparsed("owner", ownerName(others.getFirst())));
+        throw new CommandSyntaxException(new SimpleCommandExceptionType(message), message);
+    }
+
+    private String ownerName(Camera camera) {
+        var name = plugin.getServer().getOfflinePlayer(camera.owner()).getName();
+        return name != null ? name : camera.owner().toString();
     }
 }

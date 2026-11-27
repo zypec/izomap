@@ -138,6 +138,18 @@ public final class CameraManager {
                 .findFirst();
     }
 
+    /**
+     * Every camera with this name, whoever owns it.
+     */
+    public List<Camera> named(String name) {
+        List<Camera> out = new ArrayList<>();
+        for (var camera : byId.values()) {
+            if (camera.name().equalsIgnoreCase(name))
+                out.add(camera);
+        }
+        return out;
+    }
+
     public List<Camera> ownedBy(UUID owner) {
         List<Camera> out = new ArrayList<>();
         for (Camera c : byId.values()) {

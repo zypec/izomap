@@ -13,6 +13,7 @@ import java.util.concurrent.CancellationException;
 public final class RenderCancellation {
 
     private volatile boolean cancelled;
+    private volatile boolean walking;
 
     public void cancel() {
         cancelled = true;
@@ -20,6 +21,18 @@ public final class RenderCancellation {
 
     public boolean cancelled() {
         return cancelled;
+    }
+
+    /**
+     * Whether the chunks are copied and the rays are being walked: the cheap rest of a
+     * preview, which is not worth throwing away.
+     */
+    public boolean walking() {
+        return walking;
+    }
+
+    void walking(boolean walking) {
+        this.walking = walking;
     }
 
     /**

@@ -16,6 +16,9 @@ camera:
   orphans-cleaned: "<prefix> <yellow>Cleaned up <count> orphaned camera model(s). <gray>(Entities left in the world after their record was deleted; only loaded chunks are searched.)"
   moved: "<prefix> <green>Camera moved: <white><name></white>"
   not-found: "<prefix> <red>Camera not found."
+  # Commands reach only your own cameras; an admin reaches anybody's when the name is unique.
+  not-yours: "<prefix> <red><white><name></white> is <white><owner></white>'s camera; commands only reach your own."
+  ambiguous: "<prefix> <red><count> players have a camera called <white><name></white>; rename one to reach it by command."
   limit-reached: "<prefix> <red>You have reached the maximum number of cameras (<limit>)."
   given-item: "<prefix> <green>A camera item was added to your inventory."
   item-dropped: "<prefix> <yellow>Your inventory is full; the camera item was dropped at your feet."

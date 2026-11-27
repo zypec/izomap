@@ -2,6 +2,8 @@
 
 Every command is under `/izocam` (also `/izocamera`) and needs `izomap.camera` unless the table says otherwise. Every argument is suggested as you type.
 
+A camera name reaches your own cameras. A player with `izomap.admin` reaches anybody's, as long as only one camera has that name. Naming somebody else's camera tells you whose it is. A camera belongs to the account that placed it: if a server switches `online-mode`, players get new accounts and their old cameras stay with the old ones.
+
 ### Cameras
 
 | Command | Does |

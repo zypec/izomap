@@ -20,8 +20,9 @@ import java.util.concurrent.CompletableFuture;
  * copy now runs until {@code settings.chunk-copy-budget-ms} is spent and carries on in
  * the next tick; at least one chunk is copied per tick so a capture always moves.</p>
  *
- * <p>Chunks that are not loaded are loaded asynchronously, {@link #MAX_LOADING} at a
- * time, and queued for the copy as they arrive.</p>
+ * <p>Chunks that are not loaded are all requested asynchronously at once and queued for
+ * the copy as they arrive. Asking for them a few dozen at a time was tried and made a
+ * wide frame take minutes to load without making the longest tick any shorter.</p>
  *
  * <p>A chunk may unload between ticks. One that was loaded when the capture started
  * holds no ticket of ours, so if it is gone by its turn it is loaded again
@@ -33,13 +34,6 @@ import java.util.concurrent.CompletableFuture;
  * there too.</p>
  */
 final class ChunkCopier {
-
-    /**
-     * Async loads allowed in flight at once. Paper finishes every load on the main
-     * thread, so asking for thousands together turned the copy's smooth ticks into one
-     * long one as they landed.
-     */
-    private static final int MAX_LOADING = 32;
 
     private record Pending(int x, int z, boolean ticketed) {
     }
@@ -57,7 +51,8 @@ final class ChunkCopier {
 
     private final ArrayDeque<Pending> queue = new ArrayDeque<>();
     /**
-     * Chunks waiting for a free load slot, as packed keys.
+     * Chunks to request, as packed keys: everything unloaded at the start, and anything
+     * that unloaded before its turn.
      */
     private final ArrayDeque<Long> toLoad = new ArrayDeque<>();
     private final List<ChunkSnapshot> copied = new ArrayList<>();
@@ -112,10 +107,10 @@ final class ChunkCopier {
     }
 
     /**
-     * Starts loads until the slots are full.
+     * Requests every chunk waiting to be loaded.
      */
     private void requestMore() {
-        while (loading < MAX_LOADING && !toLoad.isEmpty()) {
+        while (!toLoad.isEmpty()) {
             var key = toLoad.poll();
             request(WorldSnapshot.chunkX(key), WorldSnapshot.chunkZ(key));
         }
@@ -129,7 +124,14 @@ final class ChunkCopier {
         loading++;
         world.getChunkAtAsync(x, z, generate).whenComplete((chunk, error) -> {
             loading--;
-            if (result.isDone()) return;
+            if (result.isDone()) {
+                // Called off, but the load was paid for: the next render of the same
+                // preview, which is why this one was called off, gets the copy.
+                if (cache != null && chunk != null && error == null)
+                    cache.put(world.getUID(), WorldSnapshot.key(x, z),
+                            chunk.getChunkSnapshot(false, biomes, false, light), light, biomes);
+                return;
+            }
 
             if (chunk != null && error == null) {
                 world.addPluginChunkTicket(x, z, plugin);

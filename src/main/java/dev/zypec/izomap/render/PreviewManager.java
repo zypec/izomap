@@ -148,6 +148,13 @@ public final class PreviewManager implements Listener {
          */
         private long generation;
         /**
+         * A change arrived while the running render was already walking its rays. That
+         * part is quick, so the render is let finish and one more follows with the
+         * latest state; cancelling there too left a player who kept clicking with no
+         * frame at all.
+         */
+        private boolean pending;
+        /**
          * Takes the action bar over from the status line until it expires.
          */
         private Component notice;
@@ -356,15 +363,22 @@ public final class PreviewManager implements Listener {
      *
      * <p>Folding changes into one more render after the running one used to make the
      * last click of a burst wait for a frame nobody wanted any more. Cancelling stops the
-     * old copy within a tick and its ray walk within a row, and the new render starts at
-     * once.</p>
+     * old copy within a tick, and the new render starts at once. A render already past
+     * its copy is let finish, with one more queued behind it, since what is left of it is
+     * quick and cancelling there too left a player who kept clicking with no frame.</p>
      */
     private void render(Camera camera, PreviewSession session) {
         if (session == null || session.view == null || session.watchers.isEmpty()) {
             return;
         }
-        if (session.running != null)
+        if (session.running != null) {
+            if (session.running.walking()) {
+                session.pending = true;
+                return;
+            }
             session.running.cancel();
+        }
+        session.pending = false;
 
         var cancellation = new RenderCancellation();
         var generation = ++session.generation;
@@ -394,6 +408,14 @@ public final class PreviewManager implements Listener {
                         notice(session, plugin.messages().get("photo.too-large",
                                 Placeholder.unparsed("required", String.valueOf(tooLarge.required())),
                                 Placeholder.unparsed("budget", String.valueOf(tooLarge.budget()))));
+                    }
+                    if (session.pending) {
+                        session.pending = false;
+                        var latest = plugin.cameras().byId(session.cameraId);
+                        if (latest != null) {
+                            render(latest, session);
+                            return;
+                        }
                     }
                     // The status task only comes round once a second; without this the
                     // "rendering" mark would linger after the image already changed.

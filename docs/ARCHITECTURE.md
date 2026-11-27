@@ -602,8 +602,10 @@ copy in one tick: 300 to 700 chunks for a top-down shot, 5,000 to 6,000 for a ho
 measured on the development server. The copier now copies until `settings.chunk-copy-budget-ms`
 (8 by default) is spent and continues in the next tick, at least one chunk per tick. The first
 slice runs inside `capture` itself, so a preview's few dozen chunks finish without waiting a tick.
-Unloaded chunks are loaded at most 32 at a time (`MAX_LOADING`): Paper finishes every load on the
-main thread, and thousands requested together landed as one long tick.
+Unloaded chunks are all requested at once. A cap of 32 loads in flight was tried: the longest tick
+did not get shorter (389 ms before, 398 after, same view) and a preview of a wide frame (10,000
+chunks) took minutes to fill, so it was removed. A load that lands after its render was called off
+is still copied into the preview's chunk cache, since the render that replaced it wants it.
 
 **The camera's own chunk is loaded first, asynchronously.** The ray distance reads the ground under
 the camera (`getHighestBlockYAt`), which loads an unloaded chunk on the spot: 420 ms of main thread
@@ -744,11 +746,11 @@ the preview cleanly), swapped or moved; it is removed on quit and cleaned on joi
   `actionbar-capturing` shows `<percent>`/`<bar>` from `CaptureProgress` during a capture (they count
   ray-walk rows, so they sit at 0 during the chunk copy). A half-second task refreshes hologram and
   status only while a shutter is open.
-- **Only the latest state is rendered.** A change that arrives while a render runs cancels it and
-  starts a new one at once; a generation counter makes a late result from a cancelled render drop
-  itself. The old copy stops within a tick and its walk within a row, so a burst of clicks never
-  queues and the last click is never left waiting behind a frame nobody wants. (Before, changes
-  were folded into one more render after the running one, which still had to finish.)
+- **Only the latest state is rendered.** A change that arrives while a render is still copying
+  cancels it and starts a new one at once; a generation counter makes a late result from a
+  cancelled render drop itself. A render already walking its rays is let finish, with a `pending`
+  flag for one more of the latest state: the walk of a 128 pixel map is quick, and cancelling
+  there too left a player who kept clicking with no frame at all. Nothing queues beyond that one.
 - **Chunk copies are kept five seconds** (`ChunkCache`, per session): every click used to copy the
   whole frame again, though turning by 15 degrees changes a handful of chunks. A copy younger than
   five seconds taken with the same extras (light, biomes) is used again, so the preview lags a
@@ -969,6 +971,12 @@ bare name is accepted only when exactly one photo answers.
 
 Brigadier, registered on `LifecycleEvents.COMMANDS`. The wiki's Commands page is the user-facing
 list. Every argument has suggestions; grid suggestions follow the previous argument's camera ratio.
+
+**Camera names reach the caller's own cameras.** An admin reaches anybody's when exactly one camera
+has the name, and is offered every name. Anybody naming a camera that exists but is someone else's
+is told whose it is (`camera.not-yours`): "not found" for a camera in plain sight read as the plugin
+having lost it, when the camera had been made under another UUID (an offline-mode account, before
+the server went online).
 
 **Photo references are `<camera>/<photo>`.** Resolution order: `camera/photo`, bare photo name (names
 are unique per player), short id. The reference argument is **greedy** (names may contain spaces,

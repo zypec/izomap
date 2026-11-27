@@ -378,6 +378,7 @@ public final class RenderService {
         return snapshotChunks(world, chunkKeys, minY, maxY,
                 spec.shading().readsLight(), tints.enabled(), cancellation, cache).thenCompose(snapshot -> {
             var capturedAt = System.nanoTime();
+            if (cancellation != null) cancellation.walking(true);
             CompletableFuture<RenderResult> future = new CompletableFuture<>();
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                 try {
