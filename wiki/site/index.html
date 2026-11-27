@@ -133,10 +133,27 @@ try {
 .filters figure{margin:0;position:relative;border-radius:12px;overflow:hidden;background:var(--stage);box-shadow:0 0 0 1px var(--line)}
 .filters img{width:100%;height:auto;display:block}
 .filters figure .hud{top:0;background:linear-gradient(#0009,transparent)}
-.chips{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0}
-.chips button{border:1px solid var(--line-2);background:var(--panel);color:var(--ink-2);border-radius:8px;padding:7px 11px;
-  font:500 12.5px/1 var(--hud);letter-spacing:.05em;text-transform:uppercase;cursor:pointer}
-.chips button[aria-pressed=true]{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-soft)}
+/* The filters are one island of glass, as the bar is: each filter an icon, the chosen one with its name
+   beside it on film yellow. Choosing another slides the yellow over to it while its name opens and the
+   last one's closes. */
+.filters>*{min-width:0}
+.filterisland{position:relative;display:flex;width:fit-content;align-items:center;gap:2px;margin:16px 0;padding:5px;max-width:100%;border-radius:999px;
+  overflow-x:auto;scrollbar-width:none;background:var(--glass);backdrop-filter:var(--glass-filter);-webkit-backdrop-filter:var(--glass-filter);
+  box-shadow:inset 0 1px 0 var(--glass-rim),inset 0 0 0 1px color-mix(in srgb,var(--glass-rim) 28%,transparent),var(--glass-shadow)}
+.filterisland::-webkit-scrollbar{display:none}
+.filterisland .glide{position:absolute;top:5px;bottom:5px;left:0;width:0;border-radius:999px;background:#e3b12a;
+  box-shadow:0 4px 14px -6px #b07f0099;pointer-events:none}
+.filterisland button{position:relative;display:inline-flex;align-items:center;height:40px;padding:0 11px;border:0;border-radius:999px;
+  background:none;color:var(--ink-2);cursor:pointer;flex:none;transition:color .3s}
+.filterisland button:hover{color:var(--ink)}
+.filterisland button[aria-pressed=true]{color:#1b1406}
+.filterisland button:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.filterisland svg{width:18px;height:18px;flex:none}
+.filterisland .label{max-width:0;opacity:0;overflow:hidden;white-space:nowrap;font:500 12.5px/1 var(--hud);letter-spacing:.05em;
+  text-transform:uppercase;transition:max-width .42s var(--spring),opacity .25s,margin .42s var(--spring)}
+.filterisland button[aria-pressed=true] .label{max-width:var(--w);opacity:1;margin-left:8px;transition-delay:0s,.08s,0s}
+@media (prefers-reduced-motion:reduce){.filterisland .label,.filterisland button{transition:none}}
+@media (max-width:560px){.filterisland button{height:36px;padding:0 9px}.filterisland svg{width:17px;height:17px}.filterisland .label{font-size:11.5px}}
 
 /* ── What is coming, on the camera's screen. ── */
 .notice{display:flex;gap:14px;align-items:flex-start;padding:18px 20px;border-radius:var(--r);background:var(--stage);color:#ece6d6;
@@ -242,6 +259,17 @@ Content.kind('gallery', block => `<div class="gallery" id="pictures">` + block.p
   + '<span class="edge" aria-hidden="true"><span>IZOMAP 128</span><span class="n"></span></span></div>'
   + (caption ? `<figcaption>${inline(caption)}${shot ? `<span class="shot">${inline(shot)}</span>` : ''}</figcaption>` : '') + '</figure>').join('') + '</div>');
 
+/** What each shipped filter does to a picture, drawn small. */
+const FILTER_ICONS = {
+  original: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/>',
+  warm: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
+  cool: '<path d="M12 2.5v19M3.8 7.2l16.4 9.6M3.8 16.8l16.4-9.6"/><path d="m9.5 4 2.5 2 2.5-2M9.5 20l2.5-2 2.5 2"/>',
+  vivid: '<path d="M12 3c3.5 4.2 6 7.4 6 10.5a6 6 0 0 1-12 0C6 10.4 8.5 7.2 12 3z"/><path d="M9.5 14a2.5 2.5 0 0 0 2.5 2.5"/>',
+  sepia: '<path d="M7 3h10M7 21h10M8 3c0 4 8 5 8 9s-8 5-8 9M16 3c0 4-8 5-8 9"/>',
+  grayscale: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
+  noir: '<path d="M19.5 14.5A8 8 0 1 1 9.5 4.5a6.5 6.5 0 0 0 10 10z"/>',
+};
+
 Content.kind('filters', block => {
   const filters = block.pairs('filter'), folder = block.one('folder');
   const [first, firstName] = filters[0] || [];
@@ -249,8 +277,11 @@ Content.kind('filters', block => {
   return `<div class="filters" data-folder="${escape(folder)}"><figure><img id="filtered" src="${escape(folder + first + '.png')}"`
     + ` alt="A lake and its shores through the ${escape(firstName || '')} filter" width="512" height="384">`
     + `<div class="hud top"><span class="read"><span>Filter</span><b id="filtername" style="font-weight:500">${inline(firstName || '')}</b></span></div></figure>`
-    + `<div><div class="lede" style="font-size:17px">${block.html}</div><div class="chips" id="filterchips" role="group" aria-label="Filter">`
-    + filters.map(([id, name], i) => `<button type="button" data-f="${escape(id)}" aria-pressed="${i === 0}">${inline(name)}</button>`).join('')
+    + `<div><div class="lede" style="font-size:17px">${block.html}</div><div class="filterisland" id="filterchips" role="group" aria-label="Filter">`
+    + '<span class="glide" aria-hidden="true"></span>'
+    + filters.map(([id, name], i) => `<button type="button" data-f="${escape(id)}" aria-pressed="${i === 0}" aria-label="${escape(name)}" title="${escape(name)}">`
+      + `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${FILTER_ICONS[id] || FILTER_ICONS.original}</svg>`
+      + `<span class="label" aria-hidden="true">${inline(name)}</span></button>`).join('')
     + `</div>${href ? `<a href="${escape(href)}">${inline(words)}</a>` : ''}</div></div>`;
 });
 
@@ -272,17 +303,41 @@ document.addEventListener('contentready', () => {
   if (grid) grid.onclick = () => grid.setAttribute('aria-pressed', String(hero.classList.toggle('grid')));
 
   const filtered = document.getElementById('filtered');
+  const island = document.getElementById('filterchips');
   const folder = filtered && filtered.closest('.filters').dataset.folder;
-  document.querySelectorAll('#filterchips button').forEach(button => {
-    button.onclick = () => {
-      document.querySelectorAll('#filterchips button').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
-      filtered.src = `${folder}${button.dataset.f}.png`;
-      filtered.alt = `A lake and its shores through the ${button.textContent} filter`;
-      document.getElementById('filtername').textContent = button.textContent;
+  if (island) {
+    const buttons = [...island.querySelectorAll('button')], glide = island.querySelector('.glide');
+    // Each name opens to its own width, so it is measured once it is drawn.
+    for (const label of island.querySelectorAll('.label')) label.style.setProperty('--w', `${label.scrollWidth}px`);
+    const place = () => {
+      const on = island.querySelector('[aria-pressed=true]');
+      glide.style.transform = `translateX(${on.offsetLeft}px)`;
+      glide.style.width = `${on.offsetWidth}px`;
     };
-    // Every filter at once, so switching never waits on the network.
-    new Image().src = `${folder}${button.dataset.f}.png`;
-  });
+    // While the names open and close the buttons change width, so the yellow follows the chosen one frame
+    // by frame until they settle.
+    let until = 0, chosen = null;
+    const reveal = () => chosen?.scrollIntoView({block: 'nearest', inline: 'nearest',
+      behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'});
+    // Once the name has opened, the island scrolls to show all of it where it is narrower than the filters.
+    const follow = () => { place(); if (performance.now() < until) requestAnimationFrame(follow); else reveal(); };
+    place();
+    addEventListener('resize', place);
+    buttons.forEach(button => {
+      button.onclick = () => {
+        buttons.forEach(other => other.setAttribute('aria-pressed', String(other === button)));
+        const name = button.getAttribute('aria-label');
+        filtered.src = `${folder}${button.dataset.f}.png`;
+        filtered.alt = `A lake and its shores through the ${name} filter`;
+        document.getElementById('filtername').textContent = name;
+        chosen = button;
+        until = performance.now() + 520;
+        requestAnimationFrame(follow);
+      };
+      // Every filter at once, so switching never waits on the network.
+      new Image().src = `${folder}${button.dataset.f}.png`;
+    });
+  }
 
   Lightbox.wire('#pictures figure');
 });
