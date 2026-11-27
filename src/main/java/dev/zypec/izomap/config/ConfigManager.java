@@ -3,6 +3,7 @@ package dev.zypec.izomap.config;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.render.FocusSpec;
 import dev.zypec.izomap.render.FogSpec;
+import dev.zypec.izomap.render.ShaderSpec;
 import dev.zypec.izomap.render.ShadingSpec;
 import dev.zypec.izomap.render.SkyBodiesSpec;
 import dev.zypec.izomap.render.WaterSpec;
@@ -74,6 +75,46 @@ public final class ConfigManager {
     /** Number of threads the render is split across (the image is cut into bands). */
     public int renderThreads() {
         return clamp(cfg().getInt("settings.render-threads", 4), 1, 16);
+    }
+
+    /**
+     * The shader style's finishing pass. Each part can be turned off with 0.
+     */
+    public ShaderSpec shader() {
+        return new ShaderSpec(
+                clamp(cfg().getDouble("photo.style.shader.grading", 0.6), 0.0, 1.0),
+                clamp(cfg().getDouble("photo.style.shader.bloom", 0.35), 0.0, 1.0),
+                clamp(cfg().getDouble("photo.style.shader.haze", 0.45), 0.0, 1.0),
+                clamp(cfg().getDouble("photo.style.shader.vignette", 0.3), 0.0, 1.0),
+                clamp(cfg().getDouble("photo.style.shader.dither", 20.0), 0.0, 128.0));
+    }
+
+    /** Whether a new camera starts with fog on. */
+    public boolean defaultFog() {
+        return cfg().getBoolean("photo.fog.enabled", false);
+    }
+
+    /** Where a new camera's fog begins, in blocks from the camera. */
+    public double defaultFogStart() {
+        return clamp(cfg().getDouble("photo.fog.start", 128.0), 0.0, 2048.0);
+    }
+
+    /** Where a new camera's fog is full, in blocks from the camera. */
+    public double defaultFogEnd() {
+        return clamp(cfg().getDouble("photo.fog.end", 2048.0), 1.0, 4096.0);
+    }
+
+    /** Whether fog takes the sky's color, and so needs a sky to draw. */
+    public boolean fogFromSky() {
+        return "sky".equalsIgnoreCase(cfg().getString("photo.fog.color", "sky").trim());
+    }
+
+    /**
+     * Photos that may render at once; the rest wait their turn. Each holds its own chunk
+     * copy until it is done, so this bounds memory as much as CPU.
+     */
+    public int maxConcurrentCaptures() {
+        return clamp(cfg().getInt("settings.max-concurrent-captures", 2), 1, 16);
     }
 
     /**
@@ -341,6 +382,14 @@ public final class ConfigManager {
     }
 
     /**
+     * How bright the sky's light is at midnight, 0-15; 15 keeps night photos in
+     * daylight as they used to be. Dawn and dusk sit between this and 15.
+     */
+    public int nightLight() {
+        return clamp(cfg().getInt("photo.shading.night-light", 3), 0, 15);
+    }
+
+    /**
      * What may darken a surface beyond the face it shows. Every technique defaults off:
      * they change the picture, so they are the server's taste rather than a default.
      *
@@ -359,7 +408,8 @@ public final class ConfigManager {
                 cfg().getBoolean("photo.shading.ambient-occlusion", false),
                 cfg().getBoolean("photo.shading.block-light", false),
                 dimBelow,
-                Math.min(darkBelow, dimBelow));
+                Math.min(darkBelow, dimBelow),
+                ShadingSpec.DAYLIGHT);
     }
 
     /**
@@ -412,16 +462,23 @@ public final class ConfigManager {
      */
     public WaterSpec water() {
         var mode = WaterSpec.modeFrom(cfg().getString("photo.water.mode"), WaterSpec.Mode.DEPTH);
-        if (!mode.measures())
-            return WaterSpec.FLAT;
+        var water = WaterSpec.FLAT;
+        if (mode.measures()) {
+            var dim = clamp(cfg().getInt("photo.water.dim-deeper-than", 2), 1, 256);
+            var dark = clamp(cfg().getInt("photo.water.dark-deeper-than", 5), 1, 256);
+            water = new WaterSpec(mode,
+                    dim,
+                    Math.max(dark, dim),
+                    clamp(cfg().getDouble("photo.water.surface-min", 0.35), 0.0, 1.0),
+                    clamp(cfg().getInt("photo.water.opaque-depth", 8), 1, 256),
+                    0.0, 0.0);
+        }
+        if (!cfg().getBoolean("photo.water.glint.enabled", false))
+            return water;
 
-        var dim = clamp(cfg().getInt("photo.water.dim-deeper-than", 2), 1, 256);
-        var dark = clamp(cfg().getInt("photo.water.dark-deeper-than", 5), 1, 256);
-        return new WaterSpec(mode,
-                dim,
-                Math.max(dark, dim),
-                clamp(cfg().getDouble("photo.water.surface-min", 0.35), 0.0, 1.0),
-                clamp(cfg().getInt("photo.water.opaque-depth", 8), 1, 256));
+        return water.withGlint(
+                clamp(cfg().getDouble("photo.water.glint.strength", 0.6), 0.0, 1.0),
+                clamp(cfg().getDouble("photo.water.glint.spread", 20.0), 1.0, 45.0));
     }
 
     /**
@@ -446,19 +503,17 @@ public final class ConfigManager {
     }
 
     /**
-     * Distance fog, off by default like the shading: it changes the picture, so it is
-     * the server's taste. {@code end} is kept past {@code start}, or the fade would have
-     * no length to happen over.
+     * Distance fog for a camera: the player's switch and range, the server's strength,
+     * color and dither. {@code end} is kept past {@code start}, or the fade would have no
+     * length to happen over.
      */
-    public FogSpec fog() {
-        if (!cfg().getBoolean("photo.fog.enabled", false))
+    public FogSpec fog(boolean enabled, double start, double end) {
+        if (!enabled)
             return FogSpec.NONE;
 
-        var start = clamp(cfg().getDouble("photo.fog.start", 128.0), 0.0, 2048.0);
-        var end = clamp(cfg().getDouble("photo.fog.end", 2048.0), 1.0, 4096.0);
         var color = cfg().getString("photo.fog.color", "sky");
         return new FogSpec(true,
-                start,
+                Math.max(0.0, start),
                 Math.max(end, start + 1.0),
                 clamp(cfg().getDouble("photo.fog.strength", 1.0), 0.0, 1.0),
                 "sky".equalsIgnoreCase(color.trim()) ? FogSpec.SKY : parseRgb(color, FogSpec.SKY),

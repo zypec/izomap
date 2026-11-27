@@ -34,16 +34,14 @@ public final class CameraStorage extends YamlStorage {
      * Serializes the whole collection and saves it asynchronously.
      */
     public void saveAll(Collection<Camera> cameras) {
-        setData(serialize(cameras));
-        save();
+        requestSave(() -> serialize(cameras));
     }
 
     /**
      * Saves synchronously, for shutdown.
      */
     public void saveAllSync(Collection<Camera> cameras) {
-        setData(serialize(cameras));
-        saveNow();
+        saveNow(serialize(cameras));
     }
 
     private FileConfiguration serialize(Collection<Camera> cameras) {
@@ -75,6 +73,9 @@ public final class CameraStorage extends YamlStorage {
             cfg.set(base + ".thirds-guide", c.thirdsGuide());
             cfg.set(base + ".focus-enabled", c.focusEnabled());
             cfg.set(base + ".focus-distance", c.focusDistance());
+            cfg.set(base + ".fog-enabled", c.fogEnabled());
+            cfg.set(base + ".fog-start", c.fogStart());
+            cfg.set(base + ".fog-end", c.fogEnd());
             cfg.set(base + ".sun-yaw", c.sunYaw());
             cfg.set(base + ".sun-pitch", c.sunPitch());
             cfg.set(base + ".preview-map-id", c.previewMapId());
@@ -141,6 +142,9 @@ public final class CameraStorage extends YamlStorage {
         camera.thirdsGuide(s.getBoolean("thirds-guide", false));
         camera.focusEnabled(s.getBoolean("focus-enabled", false));
         camera.focusDistance((float) s.getDouble("focus-distance", 0.0));
+        camera.fogEnabled(s.getBoolean("fog-enabled", plugin.config().defaultFog()));
+        camera.fogRange((float) s.getDouble("fog-start", plugin.config().defaultFogStart()),
+                (float) s.getDouble("fog-end", plugin.config().defaultFogEnd()));
         var sun = plugin.config().shading();
         camera.sunYaw((float) s.getDouble("sun-yaw", sun.sunYaw()));
         camera.sunPitch((float) s.getDouble("sun-pitch", sun.sunPitch()));

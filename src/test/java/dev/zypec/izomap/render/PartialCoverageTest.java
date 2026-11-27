@@ -150,4 +150,21 @@ class PartialCoverageTest {
             return y > 64 && y <= 64 + tufts ? Material.SHORT_GRASS : Material.AIR;
         };
     }
+
+    @Test
+    @DisplayName("a carpet fills its cell from above and is a sliver from the side")
+    void carpetCoversTheFaceItLiesOn() {
+        var table = BlockColorTable.withLying(Map.of(
+                Material.WHITE_CARPET, MapBaseColor.SNOW,
+                Material.DIRT, MapBaseColor.DIRT));
+
+        assertEquals(1.0f, table.coverageOf(Material.WHITE_CARPET, RayHit.Face.TOP));
+        assertTrue(table.coverageOf(Material.WHITE_CARPET, RayHit.Face.SIDE_X) < 0.5f);
+        assertFalse(table.occludes(Material.WHITE_CARPET), "a carpet casts no block-sized shadow");
+
+        // Seen straight down the carpet is the whole pixel, not a tint of the dirt below.
+        var pixel = pixel(table, (x, y, z) -> y == 10 ? Material.WHITE_CARPET
+                : y < 10 ? Material.DIRT : Material.AIR);
+        assertEquals(solid(MapBaseColor.SNOW), pixel);
+    }
 }

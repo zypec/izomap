@@ -53,6 +53,7 @@ final class ChunkCopier {
     private final boolean generate;
     private final long budgetNanos;
     private final RenderCancellation cancellation;
+    private final ChunkCache cache;
 
     private final ArrayDeque<Pending> queue = new ArrayDeque<>();
     /**
@@ -65,7 +66,7 @@ final class ChunkCopier {
     private ScheduledTask task;
 
     private ChunkCopier(Izomap plugin, World world, int requested, boolean light, boolean biomes,
-                        RenderCancellation cancellation) {
+                        RenderCancellation cancellation, ChunkCache cache) {
         this.plugin = plugin;
         this.world = world;
         this.requested = requested;
@@ -75,6 +76,7 @@ final class ChunkCopier {
         this.generate = plugin.config().generateMissingChunks();
         this.budgetNanos = plugin.config().chunkCopyBudgetMs() * 1_000_000L;
         this.cancellation = cancellation;
+        this.cache = cache;
     }
 
     /**
@@ -83,9 +85,16 @@ final class ChunkCopier {
      */
     static CompletableFuture<List<ChunkSnapshot>> copy(Izomap plugin, World world, Set<Long> keys,
                                                        boolean light, boolean biomes,
-                                                       RenderCancellation cancellation) {
-        var copier = new ChunkCopier(plugin, world, keys.size(), light, biomes, cancellation);
+                                                       RenderCancellation cancellation, ChunkCache cache) {
+        var copier = new ChunkCopier(plugin, world, keys.size(), light, biomes, cancellation, cache);
+        if (cache != null)
+            cache.prune();
         for (var key : keys) {
+            var cached = cache != null ? cache.get(world.getUID(), key, light, biomes) : null;
+            if (cached != null) {
+                copier.copied.add(cached);
+                continue;
+            }
             var x = WorldSnapshot.chunkX(key);
             var z = WorldSnapshot.chunkZ(key);
             if (world.isChunkLoaded(x, z)) {
@@ -162,8 +171,10 @@ final class ChunkCopier {
 
     private void copyOne(Pending chunk) {
         if (world.isChunkLoaded(chunk.x(), chunk.z())) {
-            copied.add(world.getChunkAt(chunk.x(), chunk.z())
-                    .getChunkSnapshot(false, biomes, false, light));
+            var snapshot = world.getChunkAt(chunk.x(), chunk.z()).getChunkSnapshot(false, biomes, false, light);
+            copied.add(snapshot);
+            if (cache != null)
+                cache.put(world.getUID(), WorldSnapshot.key(chunk.x(), chunk.z()), snapshot, light, biomes);
         } else if (!chunk.ticketed()) {
             // It was loaded when the capture began, so it exists; only its turn came late.
             toLoad.add(WorldSnapshot.key(chunk.x(), chunk.z()));

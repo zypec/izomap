@@ -36,6 +36,14 @@ settings.render-threads:
     The image is cut into horizontal bands that are drawn in parallel. More threads make a single
     photo faster but compete with the server for CPU. These threads never touch the main thread.
 
+settings.max-concurrent-captures:
+  summary: How many photos may render at the same time.
+  detail: |
+    Every photo holds a copy of the chunks it covers until it is done, a thousand by default and
+    more with a larger `max-capture-area`, and photos rendering together share the render threads.
+    Beyond this number a photo waits in line and its player is told how many are ahead. A camera
+    takes one photo at a time either way. The live preview never waits here.
+
 settings.chunk-copy-budget-ms:
   summary: How long a capture may copy chunks on the main thread in one tick.
   detail: |
@@ -239,6 +247,18 @@ photo.shading.sun-pitch:
   summary: How high a new camera's sun stands above the horizon, in degrees.
   range: 1 to 89
 
+photo.shading.night-light:
+  summary: How bright the sky's light is at midnight, from 0 to 15.
+  range: 0 to 15
+  detail: |
+    A photo's sky sets its hour, and the ground follows it the way the game's sunlight does: full
+    light from mid-morning to mid-afternoon, this much at night, a ramp through dawn and dusk.
+    Light from torches, lanterns and glowing blocks is kept, so a lit village stays lit under a
+    night sky while the fields around it go dark. The darkening uses `light-dim-below` and
+    `light-dark-below`: at the default 3, open ground at night is two shades darker, at dusk it
+    is untouched and at dawn one shade darker. 15 turns it off and draws night photos in daylight,
+    as before. Needs no other shading option; a transparent sky is always daylight.
+
 photo.shading.shadow-distance:
   summary: How far a shadow ray travels before it gives up, in blocks.
   range: 1 to 256
@@ -324,6 +344,24 @@ photo.water.opaque-depth:
   summary: TRANSLUCENT only, the cells of water after which the bottom is hidden.
   range: 1 to 256
 
+photo.water.glint.enabled:
+  summary: Let the sun glitter on water.
+  detail: |
+    Small patches of the surface catch the sun and light up towards its color, scattered the way
+    waves scatter it. How many glitter depends on the view: looking into the sun's reflection on the
+    water, many; looking away from it, none. The pattern is fixed to the world, so the same lake
+    glitters the same way in every shot, and a night sky puts it out. Works with every water mode.
+    Off by default: it looks best on large water with the camera facing the sun.
+
+photo.water.glint.strength:
+  summary: How far a glittering patch moves towards the sun's color.
+  range: 0.0 to 1.0
+
+photo.water.glint.spread:
+  summary: How much the waves tilt the surface, in degrees.
+  range: 1 to 45
+  detail: Wider spreads the glitter further from the sun's reflection and thins it out.
+
 photo.focus.range:
   summary: How deep the sharp band is, as a fraction of the frame height.
   range: 0.02 to 8.0
@@ -350,16 +388,17 @@ photo.focus.dither:
   detail: The blur makes in-between tones the palette does not have; dithering mixes two neighbors in a 4x4 pattern instead of banding. 0 turns it off.
 
 photo.fog.enabled:
-  summary: Fade far surfaces towards the sky.
+  summary: Whether a new camera starts with fog on.
   detail: |
     An isometric photo has no perspective: a hill far back is drawn the same size as one in front, so
     nothing says which is further. Fog gives that cue back, the way haze does over a real landscape.
-    Off by default, since it changes the picture. It applies to every camera on the server.
+    Each camera switches it on and sets its range on its sky screen (`izomap.fog`), which also
+    suggests a range from how far the frame sees; this is only where new cameras start.
 
     Sky pixels are never touched, and nothing nearer than `start` is either.
 
 photo.fog.start:
-  summary: Depth where the fog begins, in blocks from the camera.
+  summary: Depth where a new camera's fog begins, in blocks from the camera.
   range: 0 to 2048
   detail: |
     Depth is measured along the view, from the camera's plane. A level camera sees far: its horizon
@@ -368,7 +407,7 @@ photo.fog.start:
     show any fog.
 
 photo.fog.end:
-  summary: Depth where the fog reaches its full strength, in blocks from the camera.
+  summary: Depth where a new camera's fog reaches its full strength, in blocks from the camera.
   range: 1 to 4096
   detail: The fade between `start` and `end` eases in and out, so it starts and stops on no visible line. Pushed past `start` if set lower.
 
@@ -463,6 +502,37 @@ photo.style.fast-scale:
     SHARP casts a ray for every pixel. FAST draws the image smaller and scales it up, so the rays
     drop with the square of this value: 0.5 casts a quarter of them. The image softens by the same
     amount; that is the price of the rays not cast, not an effect. Worth it on large grids.
+
+photo.style.shader.grading:
+  summary: How far the shader style tones shadows blue and light warm.
+  range: 0.0 to 1.0
+  detail: |
+    Contrast and saturation rise a little with it too. Split toning is what makes a shaded wall
+    read as shade under an open sky rather than as a darker paint.
+
+photo.style.shader.bloom:
+  summary: How much the brightest parts of a shader-style photo glow onto their surroundings.
+  range: 0.0 to 1.0
+  detail: The sun, lit snow and glittering water spill a soft light over what is next to them.
+
+photo.style.shader.haze:
+  summary: How far the far ground of a shader-style photo fades into the sky.
+  range: 0.0 to 1.0
+  detail: |
+    The fade starts 96 blocks from the camera and grows to this share at the furthest a photo
+    reaches (`settings.max-capture-area`), so a camera looking down stays clear and a view at the
+    horizon fades into it. Separate from a camera's own fog, and only drawn against a sky.
+
+photo.style.shader.vignette:
+  summary: How much darker the corners of a shader-style photo are than its middle.
+  range: 0.0 to 1.0
+
+photo.style.shader.dither:
+  summary: Dithering of the shader style's soft gradients before they are matched to the map palette.
+  range: 0 to 128
+  detail: |
+    The palette has four shades per color, so a vignette or a glow is a gradient a map cannot
+    hold. Dithering turns it into a fine texture instead of visible bands. 0 turns it off.
 
 placement.distance:
   summary: How many blocks in front of the player a photo is hung.

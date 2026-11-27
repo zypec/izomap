@@ -25,8 +25,11 @@ A photo is saved as the image it was taken as, so changing these later never cha
 | `coverage.enabled` | Grass and flowers stop looking like noise | Next to nothing |
 | `biome-tint.enabled` | Swamps look like swamps | Next to nothing, after the first pixel of each block and biome |
 | `water.mode: DEPTH` | Coastlines and depth | The cells of water each ray crosses |
+| `water.glint.enabled` | Sun glitter on water | Next to nothing |
+| `shading.night-light` | The ground darkens under a night sky; torches keep what they light | One read per hit, only under a dim sky; the chunk copy carries light |
 | `focus` | Tilt-shift and subject separation | A second pass over the image; `samples` sets it |
-| `fog.enabled` | Depth: far land fades into the sky | A light pass over the image |
+| Fog (per camera) | Depth: far land fades into the sky | A light pass over the image |
+| The Shader style (per camera) | Long shadows, haze, warm light and cool shade, glow | Sun shadow and ambient occlusion forced on, plus a light pass |
 | A color filter | A look | Nothing |
 | A sky | A background | Nothing |
 

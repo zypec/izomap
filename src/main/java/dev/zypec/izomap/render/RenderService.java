@@ -19,6 +19,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /**
  * Coordinates renders.
@@ -53,6 +54,12 @@ public final class RenderService {
      * Number of slices the ray prism is cut into when capturing the region.
      */
     private static final int BEAM_SLICES = 8;
+
+    /**
+     * Shadow length the shader style casts at least, in blocks: its look is long
+     * shadows, and the server's default stops a tower's shadow halfway down the street.
+     */
+    private static final int SHADER_SHADOW_DISTANCE = 48;
 
     private final Izomap plugin;
     /**
@@ -101,7 +108,8 @@ public final class RenderService {
     public CaptureSpec specFor(Camera camera) {
         return specFor(camera.anchor(), camera.camYaw(), camera.camPitch(), camera.zoom(),
                 camera.colorFilter(), camera.style(), camera.sky(), camera.skyBodies(),
-                camera.focusEnabled(), camera.focusDistance(), camera.sunYaw(), camera.sunPitch());
+                camera.focusEnabled(), camera.focusDistance(), camera.sunYaw(), camera.sunPitch(),
+                camera.fogEnabled(), camera.fogStart(), camera.fogEnd());
     }
 
     /**
@@ -110,20 +118,48 @@ public final class RenderService {
     public CaptureSpec specFor(Location anchor, float yaw, float pitch, float zoom,
                                ColorFilter colorFilter, PhotoStyle style, SkyOption sky,
                                boolean skyBodies, boolean focusEnabled, double focusDistance,
-                               float sunYaw, float sunPitch) {
+                               float sunYaw, float sunPitch,
+                               boolean fogEnabled, double fogStart, double fogEnd) {
         var world = anchor.getWorld();
+        var skySpec = skyFor(sky, skyBodies && sky.draws(), world);
         return new CaptureSpec(
                 world != null ? world.getUID() : null,
                 anchor.getX(), anchor.getY(), anchor.getZ(),
                 yaw, pitch, zoom, colorFilter, style,
-                skyFor(sky, skyBodies && sky.draws(), world),
-                plugin.config().shading().withSun(sunYaw, sunPitch),
+                skySpec,
+                style == PhotoStyle.SHADER
+                        ? shadingFor(skySpec, sunYaw, sunPitch).withShadows(SHADER_SHADOW_DISTANCE)
+                        : shadingFor(skySpec, sunYaw, sunPitch),
                 plugin.config().water(),
                 plugin.config().focus(focusEnabled, focusDistance),
-                plugin.config().fog(),
+                plugin.config().fog(fogEnabled, fogStart, fogEnd),
+                style == PhotoStyle.SHADER ? plugin.config().shader() : ShaderSpec.NONE,
                 plugin.config().frameHeight(), plugin.config().frameShift(),
                 plugin.config().supersampling(), plugin.config().maxCaptureArea(),
                 plugin.config().renderDepth());
+    }
+
+    /**
+     * The server's shading under this camera's sun and its sky's hour.
+     *
+     * <p>A night sky over a landscape in full daylight read as a pasted backdrop. The sky
+     * light follows the hour the sky is frozen at, the way the game's own sunlight does:
+     * full from mid-morning to mid-afternoon, {@code photo.shading.night-light} from
+     * late evening to before dawn, a ramp between. A transparent sky leaves the day.</p>
+     */
+    private ShadingSpec shadingFor(SkySpec sky, float sunYaw, float sunPitch) {
+        var shading = plugin.config().shading().withSun(sunYaw, sunPitch);
+        return sky.draws() ? shading.withSkyLight(skyLightAt(sky.ticks(), plugin.config().nightLight())) : shading;
+    }
+
+    /**
+     * Sky light at an hour of the day: 1 at noon to -1 at midnight on a cosine, scaled so
+     * the day holds full light for a while either side of noon.
+     */
+    static int skyLightAt(int ticks, int nightLight) {
+        var sun = Math.cos(2.0 * Math.PI * (ticks - SkyOption.DAY.ticks()) / 24_000.0);
+        var day = Math.max(0.0, Math.min(1.0, sun * 1.5 + 0.75));
+        return (int) Math.round(nightLight + (ShadingSpec.DAYLIGHT - nightLight) * day);
     }
 
     /**
@@ -215,16 +251,19 @@ public final class RenderService {
      */
     public CompletableFuture<RenderResult> capture(CaptureSpec spec, int widthPx, int heightPx,
                                                    CaptureProgress progress) {
-        return capture(spec, widthPx, heightPx, progress, null);
+        return capture(spec, widthPx, heightPx, progress, null, null, null);
     }
 
     /**
      * The same, stopping early once {@code cancellation} is called off: the future then
-     * fails with a {@link CancellationException}.
+     * fails with a {@link CancellationException}. Chunk copies are taken from and kept in
+     * {@code cache} when one is given, and how far the frame sees goes to {@code scene};
+     * only the live preview asks for either.
      */
     public CompletableFuture<RenderResult> capture(CaptureSpec spec, int widthPx, int heightPx,
                                                    CaptureProgress progress,
-                                                   RenderCancellation cancellation) {
+                                                   RenderCancellation cancellation, ChunkCache cache,
+                                                   Consumer<SceneDepth> scene) {
         var world = spec.worldId() != null ? plugin.getServer().getWorld(spec.worldId()) : null;
         if (world == null)
             return CompletableFuture.failedFuture(new IllegalStateException("Camera world is not loaded."));
@@ -236,9 +275,10 @@ public final class RenderService {
         var cz = (int) Math.floor(spec.z()) >> 4;
         if (!world.isChunkLoaded(cx, cz))
             return world.getChunkAtAsync(cx, cz, false)
-                    .thenCompose(chunk -> captureLoaded(world, spec, widthPx, heightPx, progress, cancellation));
+                    .thenCompose(chunk -> captureLoaded(world, spec, widthPx, heightPx, progress,
+                            cancellation, cache, scene));
 
-        return captureLoaded(world, spec, widthPx, heightPx, progress, cancellation);
+        return captureLoaded(world, spec, widthPx, heightPx, progress, cancellation, cache, scene);
     }
 
     /**
@@ -246,7 +286,8 @@ public final class RenderService {
      */
     private CompletableFuture<RenderResult> captureLoaded(World world, CaptureSpec spec, int widthPx, int heightPx,
                                                           CaptureProgress progress,
-                                                          RenderCancellation cancellation) {
+                                                          RenderCancellation cancellation, ChunkCache cache,
+                                                          Consumer<SceneDepth> scene) {
         if (cancellation != null && cancellation.cancelled())
             return CompletableFuture.failedFuture(new CancellationException("Render cancelled."));
 
@@ -299,7 +340,9 @@ public final class RenderService {
         // reversed: a surface looks up towards it.
         var toSun = directionFrom(spec.shading().sunYaw(), spec.shading().sunPitch()).multiply(-1.0);
         var shading = Shading.of(spec.shading(), toSun.getX(), toSun.getY(), toSun.getZ());
-        var water = Water.of(spec.water());
+        var water = Water.of(spec.water(), direction.getX(), direction.getY(), direction.getZ(),
+                toSun.getX(), toSun.getY(), toSun.getZ(), plugin.config().skyBodies().sunRgb(),
+                spec.shading().skyLight() / (double) ShadingSpec.DAYLIGHT);
         // Read once here: a reload swapping the table mid-render would leave half the
         // image on one set of tints, like the colour table it travels with.
         var tints = biomeTints;
@@ -333,18 +376,26 @@ public final class RenderService {
         var walker = renderer;
         var requestedAt = System.nanoTime();
         return snapshotChunks(world, chunkKeys, minY, maxY,
-                spec.shading().blockLight(), tints.enabled(), cancellation).thenCompose(snapshot -> {
+                spec.shading().readsLight(), tints.enabled(), cancellation, cache).thenCompose(snapshot -> {
             var capturedAt = System.nanoTime();
             CompletableFuture<RenderResult> future = new CompletableFuture<>();
             plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
                 try {
                     var result = walker.render(
                             snapshot, geometry, pipeline, sky, shading, water, tints, supersampling,
-                            focus.draws() || fog.draws(), progress, cancellation, executor, threads);
+                            focus.draws() || fog.draws() || spec.shader().haze() > 0.0 || scene != null,
+                            progress, cancellation,
+                            executor, threads);
                     if (cancellation != null) cancellation.check();
+                    if (scene != null)
+                        scene.accept(SceneDepth.of(result.depth()));
                     // Before the blur, so a defocused far hill is soft and hazy at once
                     // rather than a sharp line of fog drawn over a blur.
                     result = FogPass.apply(result, fog, sky, converter, executor, threads);
+                    if (cancellation != null) cancellation.check();
+                    // Before the blur too: a shader grades and glows the scene, then the
+                    // lens softens what is out of focus.
+                    result = ShaderPass.apply(result, spec.shader(), sky, captureArea, converter, executor, threads);
                     if (cancellation != null) cancellation.check();
                     // Before the scale-up, where the depth buffer still lines up with the
                     // pixels. The radius is a ratio of image height, so a FAST render
@@ -401,9 +452,9 @@ public final class RenderService {
     private CompletableFuture<WorldSnapshot> snapshotChunks(World world, Set<Long> keys,
                                                             int minY, int maxY,
                                                             boolean light, boolean biomes,
-                                                            RenderCancellation cancellation) {
+                                                            RenderCancellation cancellation, ChunkCache cache) {
         var requested = keys.size();
-        return ChunkCopier.copy(plugin, world, keys, light, biomes, cancellation).thenApply(copied -> {
+        return ChunkCopier.copy(plugin, world, keys, light, biomes, cancellation, cache).thenApply(copied -> {
             warnIfIncomplete(world, requested, copied.size());
             return WorldSnapshot.of(copied, minY, maxY);
         });

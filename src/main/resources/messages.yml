@@ -103,10 +103,14 @@ setting:
   sky-bodies: "<white>Sun, moon and stars"
   ratio: "<white>Aspect ratio"
   focus: "<white>Depth of field"
+  fog: "<white>Fog"
 
-# The value of setting.focus and setting.sky-bodies in that same message. The key is quoted:
+# The value of setting.focus, setting.fog and setting.sky-bodies in that same message. The key is quoted:
 # a bare on is read as the boolean true.
 focus:
+  "on": "<green>On"
+
+fog:
   "on": "<green>On"
 
 sky-bodies:
@@ -133,6 +137,7 @@ sky:
 style:
   SHARP: "<white>Sharp"
   FAST: "<yellow>Fast"
+  SHADER: "<#B48CFF>Shader"
 
 # Placing a photo: a ghost shows where it will hang until it is confirmed.
 placement:
@@ -157,6 +162,10 @@ placement:
 
 photo:
   capturing: "<prefix> <gray>Taking the photo, please wait..."
+  # Only so many photos render at once; the rest wait their turn.
+  queued: "<prefix> <gray>Other photos are being taken; yours is <white>number <position></white> in line."
+  starting: "<prefix> <gray>Your turn: taking the photo now..."
+  busy: "<prefix> <yellow>This camera is already taking a photo; wait for it to finish."
   captured: "<prefix> <green>Photo taken: <white><name></white> <gray>[<id>] (<ms> ms). Hang it from the camera's Photos list."
   failed: "<prefix> <red>The photo could not be taken."
   too-large: "<prefix> <red>The frame is too wide: it needs <white><required></white> chunks and the limit is <white><budget></white> <gray>(settings.max-capture-area)</gray>. Zoom in."
@@ -218,6 +227,17 @@ dialog:
   sun-body: "<gray>The sun casts the shadows and is drawn in the sky from where it stands here."
   sun-yaw-label: "Sun direction"
   sun-pitch-label: "Sun height"
+  # Fog fades far ground into the sky. The sliders and the hint show while it is on; the hint
+  # reads the distances off the camera's last preview.
+  fog-button: "Fog: <gray>Off"
+  fog-button-active: "Fog: <green>On ✔"
+  fog-start-label: "Fog begins (blocks)"
+  fog-end-label: "Fog is full (blocks)"
+  fog-suggest: "Use <start> to <end>"
+  fog-hint: "<gray>In this frame the ground lies <white><near></white> to <white><far></white> blocks away, most of it around <white><median></white> (<sky>% sky). Fog from <white><start></white> to <white><end></white> keeps the near half clear and melts the far edge into the sky."
+  fog-hint-flat: "<gray>No depth to fade here: the ground lies <white><near></white> to <white><far></white> blocks away, all at about one distance, so fog would veil the whole frame evenly. It shows best looking towards the horizon."
+  fog-hint-none: "<gray>Open the camera's preview and this line will say how far its frame sees, with a fog range that suits it."
+  fog-needs-sky: "<gray>Fog takes the sky's color, and this camera's sky is transparent: pick a sky for it to fade into."
   grid-option: "<grid> (<count> maps, <wpx>x<hpx> px)"
   capture-full: "<red>Limit reached (<limit>)"
   pickup-button: "<red>Pick up camera"

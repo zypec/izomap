@@ -206,12 +206,10 @@ public final class BlockColorTable {
      * really is stone, and mixing it into the ground would wash out a colour that is
      * already right.</p>
      *
-     * <p>Absent for a different reason: carpets, snow layers, lily pads, redstone dust.
-     * They cover the face they lie on completely and only look thin from the side, so one
-     * number is wrong for them whichever way it leans; they wait for the face-aware
-     * coverage the walk cannot express yet. Underwater plants stay out too, because the
-     * water column is measured as one body and a thin cell in the middle of it would cut
-     * that measurement in half.</p>
+     * <p>Things lying on the ground are in {@link #DEFAULT_LYING} instead: they cover the
+     * face they lie on and only look thin from the side. Underwater plants stay out
+     * altogether, because the water column is measured as one body and a thin cell in the
+     * middle of it would cut that measurement in half.</p>
      */
     private static final Map<Material, Float> DEFAULT_COVERAGE = defaultCoverage();
 
@@ -250,11 +248,40 @@ public final class BlockColorTable {
                 Material.VINE, Material.GLOW_LICHEN, Material.SCULK_VEIN, Material.LADDER,
                 Material.IRON_CHAIN, Material.HANGING_ROOTS, Material.SPORE_BLOSSOM,
                 Material.TWISTING_VINES, Material.WEEPING_VINES,
-                Material.CAVE_VINES, Material.CAVE_VINES_PLANT,
-                Material.RAIL, Material.POWERED_RAIL, Material.DETECTOR_RAIL,
-                Material.ACTIVATOR_RAIL)) {
+                Material.CAVE_VINES, Material.CAVE_VINES_PLANT)) {
             map.put(material, CLINGING);
         }
+        return map;
+    }
+
+    /**
+     * Blocks lying flat on the ground, as {top, side}: seen from above they cover the
+     * face they lie on, seen from the side they are a sliver. One number was wrong for
+     * them whichever way it leaned: thin turned a snowfield green, full drew a carpet as
+     * a cube from the side.
+     *
+     * <p>That they lie flat is assumed from the material rather than read from the block,
+     * which would cost a state read per hit. It holds for all of these; glow lichen and
+     * sculk veins cling to any face and keep their single number.</p>
+     */
+    private static final Map<Material, float[]> DEFAULT_LYING = defaultLying();
+
+    private static Map<Material, float[]> defaultLying() {
+        Map<Material, float[]> map = new EnumMap<>(Material.class);
+        // By name: asking the material whether it is a block reaches the registry, which a
+        // class initialiser must not need.
+        for (var material : Material.values()) {
+            if (material.name().endsWith("_CARPET") && !material.name().startsWith("LEGACY_"))
+                map.put(material, new float[]{1.0f, 0.10f});
+        }
+        map.put(Material.SNOW, new float[]{1.0f, 0.15f});
+        map.put(Material.LILY_PAD, new float[]{0.85f, 0.05f});
+        map.put(Material.REDSTONE_WIRE, new float[]{0.30f, 0.05f});
+        for (var material : List.of(Material.PINK_PETALS, Material.WILDFLOWERS, Material.LEAF_LITTER))
+            map.put(material, new float[]{0.60f, 0.10f});
+        for (var material : List.of(Material.RAIL, Material.POWERED_RAIL, Material.DETECTOR_RAIL,
+                Material.ACTIVATOR_RAIL))
+            map.put(material, new float[]{0.50f, 0.10f});
         return map;
     }
 
@@ -301,6 +328,11 @@ public final class BlockColorTable {
      * otherwise, which is also the whole table when coverage is switched off.
      */
     private final float[] coverage = new float[Material.values().length];
+    /**
+     * Coverage seen from above or below, the same as {@link #coverage} except for the
+     * blocks that lie flat.
+     */
+    private final float[] topCoverage = new float[Material.values().length];
 
     /**
      * Whether anything at all covers less than its cell, so the walk can keep its old
@@ -322,6 +354,7 @@ public final class BlockColorTable {
 
     private BlockColorTable() {
         Arrays.fill(coverage, FULL);
+        Arrays.fill(topCoverage, FULL);
     }
 
     /**
@@ -357,6 +390,17 @@ public final class BlockColorTable {
     }
 
     /**
+     * The same with the built-in lists of things lying flat, for the tests that look at
+     * them from above and from the side.
+     */
+    static BlockColorTable withLying(Map<Material, MapBaseColor> colors) {
+        var table = new BlockColorTable();
+        table.colors.putAll(colors);
+        DEFAULT_LYING.forEach((material, value) -> table.setCoverage(material, value[0], value[1]));
+        return table;
+    }
+
+    /**
      * Map base color of a material. Blocks that do not show on maps (air, glass,
      * torches, saplings) return {@link MapBaseColor#NONE} and the render must treat
      * them as transparent and continue the ray, as vanilla maps do.
@@ -375,6 +419,16 @@ public final class BlockColorTable {
      */
     public float coverageOf(Material material) {
         return coverage[material.ordinal()];
+    }
+
+    /**
+     * The same, for a ray entering through this face: a carpet seen from above fills its
+     * cell, seen from the side it barely shows.
+     */
+    public float coverageOf(Material material, RayHit.Face face) {
+        return face == RayHit.Face.TOP || face == RayHit.Face.BOTTOM
+                ? topCoverage[material.ordinal()]
+                : coverage[material.ordinal()];
     }
 
     /**
@@ -572,6 +626,10 @@ public final class BlockColorTable {
             if (colors.containsKey(material))
                 setCoverage(material, value);
         });
+        DEFAULT_LYING.forEach((material, value) -> {
+            if (colors.containsKey(material))
+                setCoverage(material, value[0], value[1]);
+        });
 
         var section = cfg.getConfigurationSection("coverage");
         if (section != null) {
@@ -583,15 +641,18 @@ public final class BlockColorTable {
                             Placeholder.unparsed("block", key));
                     continue;
                 }
-                var value = section.getDouble(key, -1.0);
-                if (value < 0.0 || value > 1.0) {
+                // A number for every face, or {top, side} for something lying flat.
+                var faces = section.getConfigurationSection(key);
+                var side = faces != null ? faces.getDouble("side", -1.0) : section.getDouble(key, -1.0);
+                var top = faces != null ? faces.getDouble("top", -1.0) : side;
+                if (side < 0.0 || side > 1.0 || top < 0.0 || top > 1.0) {
                     plugin.messages().warn("log.coverage-invalid",
                             Placeholder.unparsed("file", FILE_NAME),
                             Placeholder.unparsed("block", key),
                             Placeholder.unparsed("value", String.valueOf(section.get(key))));
                     continue;
                 }
-                setCoverage(material, (float) value);
+                setCoverage(material, (float) top, (float) side);
             }
         }
         if (anyPartial) {
@@ -656,14 +717,19 @@ public final class BlockColorTable {
     }
 
     private void setCoverage(Material material, float value) {
-        coverage[material.ordinal()] = value;
-        anyPartial |= value < FULL;
+        setCoverage(material, value, value);
+    }
+
+    private void setCoverage(Material material, float top, float side) {
+        coverage[material.ordinal()] = side;
+        topCoverage[material.ordinal()] = top;
+        anyPartial |= side < FULL || top < FULL;
     }
 
     private int partialCount() {
         var count = 0;
-        for (var value : coverage) {
-            if (value < FULL) count++;
+        for (var index = 0; index < coverage.length; index++) {
+            if (coverage[index] < FULL || topCoverage[index] < FULL) count++;
         }
         return count;
     }

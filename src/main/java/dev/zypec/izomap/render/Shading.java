@@ -79,7 +79,7 @@ public final class Shading {
         if (spec.sunShadow() && inShadow(snapshot, colors, x, y, z))
             steps++;
 
-        if (!spec.ambientOcclusion() && !spec.blockLight())
+        if (!spec.ambientOcclusion() && !spec.readsLight())
             return steps;
 
         // The cell the face opens onto: where the ray came from, so the far side of the
@@ -98,8 +98,8 @@ public final class Shading {
         if (spec.ambientOcclusion() && isBoxedIn(snapshot, colors, fx, fy, fz, face))
             steps++;
 
-        if (spec.blockLight())
-            steps += lightSteps(snapshot.lightAt(fx, fy, fz));
+        if (spec.readsLight())
+            steps += lightSteps(snapshot.lightAt(fx, fy, fz, spec.skyLight()));
 
         return steps;
     }

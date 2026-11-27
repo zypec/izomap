@@ -19,8 +19,14 @@ permissions:
   izomap.style.sharp:
     description: The sharp style (a ray per pixel); the fast style needs no permission
     default: op
+  izomap.style.shader:
+    description: The shader style (sun shadows, haze, grading, bloom); the most expensive one
+    default: op
   izomap.focus:
     description: Depth of field
+    default: op
+  izomap.fog:
+    description: Distance fog
     default: op
   izomap.filter:
     description: Every color filter; izomap.filter.<ID> for a single one

@@ -43,8 +43,12 @@ public final class Permissions {
     public static final String EXPORT = "izomap.export";
     /** The expensive style; {@code FAST} is free. */
     public static final String STYLE_SHARP = "izomap.style.sharp";
+    /** The shader style: sharp, plus a shadow ray per hit and a finishing pass. */
+    public static final String STYLE_SHADER = "izomap.style.shader";
     /** Depth of field: a second pass over every pixel of the image. */
     public static final String FOCUS = "izomap.focus";
+    /** Distance fog. */
+    public static final String FOG = "izomap.fog";
     /**
      * The sun, the moon and the stars in the sky. Under {@code izomap.sky} by name but
      * not one of its options: it says what a sky <b>holds</b>, not which sky it is.
@@ -84,7 +88,11 @@ public final class Permissions {
      * {@code FAST} is free; {@code SHARP} traces every pixel and is not.
      */
     public static boolean style(Permissible who, PhotoStyle style) {
-        return style != PhotoStyle.SHARP || who.hasPermission(STYLE_SHARP);
+        return switch (style) {
+            case FAST -> true;
+            case SHARP -> who.hasPermission(STYLE_SHARP);
+            case SHADER -> who.hasPermission(STYLE_SHADER);
+        };
     }
 
     /**
@@ -93,6 +101,13 @@ public final class Permissions {
      */
     public static boolean focus(Permissible who) {
         return who.hasPermission(FOCUS);
+    }
+
+    /**
+     * Fog has no free member either: no fog is the photo as it always was.
+     */
+    public static boolean fog(Permissible who) {
+        return who.hasPermission(FOG);
     }
 
     public static boolean filter(Permissible who, ColorFilter filter) {

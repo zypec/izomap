@@ -76,6 +76,8 @@ Each map is 128x128 pixels, so a 16x9 photo is 2048x1152. A 16:9 or 4:3 photo on
 
 **Sharp** casts a ray for every pixel. **Fast** renders smaller and scales up (`photo.style.fast-scale`), casting a quarter of the rays at the default, at the price of a softer image. Fast needs no permission; sharp needs `izomap.style.sharp`.
 
+**Shader** (`izomap.style.shader`) looks like a shot through a shader pack: sun shadows and ambient occlusion whatever the server's shading says, far ground hazing into the sky, shadows leaning blue and light leaning warm, a glow around the sun, snow and glittering water, and darker corners. It is the most expensive style; its look is tuned under `photo.style.shader`.
+
 ### Color filters
 
 Filters change colors before they are matched to the map palette: **Original**, **Warm**, **Cool**, **Black and white**, **Sepia**, **Vivid** and **Noir** ship with the plugin, and server owners can write their own in [Filters](#filters). A filter costs nothing per pixel.
@@ -90,6 +92,12 @@ The sky screen has a second switch, **Sun, moon and stars** (`izomap.sky.bodies`
 
 Each camera has its own sun: where its light comes from and how high it stands. It casts the shadows when the server has `photo.shading.sun-shadow` on, and it is the sun drawn in the sky. While either applies, the sky screen shows two sliders, **Sun direction** (degrees around the horizon, the same as the camera's facing) and **Sun height** (1 to 89 degrees). A new camera starts at the server's `photo.shading.sun-yaw` and `sun-pitch`. Like the focus slider, their values reach the server when you press a button on the screen.
 
+### Fog
+
+The sky screen also switches **Fog** on (`izomap.fog`): far ground fades towards the sky's color, which gives back the sense of depth an isometric view lacks. Two sliders set where it begins and where it is full, in blocks from the camera.
+
+Above the sliders, a line reads the camera's frame from its last preview: how near and how far its ground lies, where most of it is, and how much is sky. It suggests a range, from the typical ground to the furthest, so the near half stays clear and the far edge melts into the sky, and a **Use** button sets it. A camera looking down sees its ground at about one distance; the line says fog would only veil it there. Fog needs a sky to fade into unless the server names a fog color.
+
 ### Depth of field
 
 **Focus** (`izomap.focus`) keeps one distance sharp and blurs everything nearer and further. When it is on, a slider picks the distance; it starts on the ground the frame is aimed at and its far end is the furthest the camera's rays reach.
@@ -102,7 +110,7 @@ Draws a 3x3 guide on the preview to help composing. It never appears on a photo.
 
 ### Taking the photo
 
-**Take photo** shoots at the grid you picked. The hologram and the action bar show progress; a large photo takes a few seconds. The photo lands in the camera's list, named after the field (a taken name gets a number: `garden`, `garden-2`). A camera holds at most `settings.max-photos-per-camera` photos, hung or not.
+**Take photo** shoots at the grid you picked. The hologram and the action bar show progress; a large photo takes a few seconds. Only `settings.max-concurrent-captures` photos render at once on the server; if yours has to wait, you are told your place in line and when it starts. A camera takes one photo at a time. The photo lands in the camera's list, named after the field (a taken name gets a number: `garden`, `garden-2`). A camera holds at most `settings.max-photos-per-camera` photos, hung or not.
 
 If a setting on the camera needs a permission you do not have, the photo is refused and the message names the setting. It is never quietly taken with different settings than the ones on screen.
 

@@ -1,7 +1,8 @@
 package dev.zypec.izomap.render;
 
 /**
- * How much of the photo is really traced, as opposed to filled in from what was.
+ * How the pixels of a photo are made: how much of it is really traced, and what is
+ * done to it after.
  *
  * <p>Display names live under {@code style.<NAME>} in {@code messages.yml}; only the
  * constant name is ever written to disk.</p>
@@ -18,7 +19,13 @@ public enum PhotoStyle {
      * the rays. Large grids are where it earns its place — the image is softer for it,
      * which is the trade being made rather than an effect being sought.
      */
-    FAST;
+    FAST,
+    /**
+     * Sharp, with the look of a shader pack on top: sun shadows and ambient occlusion
+     * whatever the server's shading says, then haze, grading, bloom and a vignette
+     * ({@link ShaderPass}). The most expensive style, for the shadow ray per hit.
+     */
+    SHADER;
 
     /**
      * Whether this style wants the image traced smaller and scaled up.

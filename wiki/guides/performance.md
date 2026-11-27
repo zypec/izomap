@@ -55,6 +55,10 @@ Filters, skies, biome tint and partial coverage cost next to nothing.
 
 **Showcase or build server.** `max-capture-area: 1024` or more, `izomap.max_map_tiles.144` to builders, `render-threads` up to half your cores, every shading option on.
 
+### Photos wait in line
+
+Photos render at most `settings.max-concurrent-captures` (2) at a time, in order: every photo holds a copy of its chunks until it is done, and photos rendering together would share the threads anyway. Startup re-renders of photos whose image file was lost wait in the same line.
+
 ### The live preview
 
-The preview renders a single 128x128 map at the camera's ratio, once per change, however many players watch. A change that arrives while a render runs calls that render off (its copy stops within a tick, its rays within a row) and starts one of the camera as it is now. Nothing queues, so clicking fast costs no more than clicking once.
+The preview renders a single 128x128 map at the camera's ratio, once per change, however many players watch. A change that arrives while a render runs calls that render off (its copy stops within a tick, its rays within a row) and starts one of the camera as it is now. Nothing queues, so clicking fast costs no more than clicking once. Chunk copies are kept for five seconds, so a click copies only the chunks that came into the frame, and the preview can lag a change in the world by that much.

@@ -23,6 +23,10 @@ package dev.zypec.izomap.render;
  * @param blockLight       whether poorly lit surfaces darken
  * @param dimBelow          light level under which a surface loses one step
  * @param darkBelow         light level under which it loses two
+ * @param skyLight          how bright the sky's light is, 0-15, from the hour of the
+ *                          photo's sky: 15 by day, low at night. Below 15 the light is
+ *                          read for every hit even with {@code blockLight} off, so a
+ *                          night shot darkens outdoors and torches keep what they light
  */
 public record ShadingSpec(
         boolean sunShadow,
@@ -32,13 +36,19 @@ public record ShadingSpec(
         boolean ambientOcclusion,
         boolean blockLight,
         int dimBelow,
-        int darkBelow) {
+        int darkBelow,
+        int skyLight) {
+
+    /**
+     * Full daylight: the sky's light is what the world stored.
+     */
+    public static final int DAYLIGHT = 15;
 
     /**
      * Face brightness alone, as the renderer has always done it.
      */
     public static final ShadingSpec NONE =
-            new ShadingSpec(false, 0.0f, 0.0f, 0, false, false, 0, 0);
+            new ShadingSpec(false, 0.0f, 0.0f, 0, false, false, 0, 0, DAYLIGHT);
 
     /**
      * The same shading with the sun put somewhere else; the sun belongs to the camera,
@@ -46,13 +56,37 @@ public record ShadingSpec(
      */
     public ShadingSpec withSun(float yaw, float pitch) {
         return new ShadingSpec(sunShadow, yaw, pitch, shadowDistance, ambientOcclusion,
-                blockLight, dimBelow, darkBelow);
+                blockLight, dimBelow, darkBelow, skyLight);
+    }
+
+    /**
+     * The same shading with the sun's shadow and ambient occlusion on, as the shader
+     * style draws, at least {@code minDistance} blocks of shadow.
+     */
+    public ShadingSpec withShadows(int minDistance) {
+        return new ShadingSpec(true, sunYaw, sunPitch, Math.max(shadowDistance, minDistance), true,
+                blockLight, dimBelow, darkBelow, skyLight);
+    }
+
+    /**
+     * The same shading under a sky this bright.
+     */
+    public ShadingSpec withSkyLight(int level) {
+        return new ShadingSpec(sunShadow, sunYaw, sunPitch, shadowDistance, ambientOcclusion,
+                blockLight, dimBelow, darkBelow, Math.max(0, Math.min(DAYLIGHT, level)));
+    }
+
+    /**
+     * Whether the walk reads light levels: for block light, or for a dim sky.
+     */
+    public boolean readsLight() {
+        return blockLight || skyLight < DAYLIGHT;
     }
 
     /**
      * Whether the walk has to do anything extra at all.
      */
     public boolean enabled() {
-        return sunShadow || ambientOcclusion || blockLight;
+        return sunShadow || ambientOcclusion || readsLight();
     }
 }

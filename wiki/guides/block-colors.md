@@ -39,13 +39,17 @@ A ray used to treat every block as a full cube, so one tuft of grass painted its
 | Kind | Blocks | Coverage |
 |---|---|---|
 | Thin plants | grass, ferns, flowers, saplings, sugar cane, mushrooms, cobwebs | 0.30 |
-| Flat or skeletal | vines, glow lichen, sculk veins, ladders, chains, rails | 0.15 |
+| Flat or skeletal | vines, glow lichen, sculk veins, ladders, chains | 0.15 |
+| Lying on the ground | carpets, snow layers, lily pads, redstone dust, pink petals, wildflowers, leaf litter, rails | one value seen from above, a thin one from the side |
 | Half blocks | slabs, stairs, walls, fences | not listed, they are solid |
+
+Blocks lying on the ground cover the face they lie on: a carpet seen from above is all carpet, seen from the side it is a sliver. They get two values, `top` and `side`.
 
 <pre data-title="block-colors.yml">coverage:
   SHORT_GRASS: 0.2     # fainter grass
   WHEAT: 0.4           # fields in tufts rather than a solid yellow
-  VINE: 1.0            # vines fill their cell again</pre>
+  VINE: 1.0            # vines fill their cell again
+  MOSS_CARPET: {top: 1.0, side: 0.1}</pre>
 
 `0.0` is the same as `NONE`, `1.0` a full block. A line here replaces the built-in value. `photo.coverage.enabled: false` turns the blending off.
 

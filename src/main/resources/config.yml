@@ -8,6 +8,8 @@ settings:
   render-depth: 64
   # Threads one render is split across. 1-16.
   render-threads: 4
+  # Photos that may render at the same time; the rest wait in line. 1-16.
+  max-concurrent-captures: 2
   # Main-thread milliseconds per tick a capture may spend copying chunks. 1-50.
   chunk-copy-budget-ms: 8
   # Log how long each capture took (chunk copy and ray walk).
@@ -89,6 +91,8 @@ photo:
     ambient-occlusion: false
     # Darken surfaces that get little light (caves, interiors).
     block-light: false
+    # Sky light at midnight, 0-15; the ground darkens under a night sky. 15 turns it off.
+    night-light: 3
     # Light levels (0-15) below which a surface loses one, then two shades.
     light-dim-below: 8
     light-dark-below: 4
@@ -110,6 +114,13 @@ photo:
     surface-min: 0.35
     # TRANSLUCENT only: cells after which the bottom is hidden. 1-256.
     opaque-depth: 8
+    # Sun glitter on the water surface, in any mode.
+    glint:
+      enabled: false
+      # How far a glittering patch moves towards the sun's color. 0.0-1.0.
+      strength: 0.6
+      # Wave tilt in degrees; wider glitters further from the sun's reflection. 1-45.
+      spread: 20.0
   # Depth of field, switched on per camera. Permission: izomap.focus
   focus:
     # Depth of the sharp band, as a fraction of the frame height. 0.02-8.0.
@@ -120,10 +131,11 @@ photo:
     samples: 24
     # Dithering of the blurred tones. 0 turns it off. 0-128.
     dither: 24.0
-  # Distance fog: far surfaces fade towards the sky, a cue of depth the parallel view lacks.
+  # Distance fog, switched on per camera. Permission: izomap.fog
   fog:
+    # Whether a new camera starts with fog on.
     enabled: false
-    # Depth where the fog begins and where it is full, in blocks from the camera. 0-2048, 1-4096.
+    # A new camera's fog range, in blocks from the camera. 0-2048, 1-4096.
     start: 128
     end: 2048
     # Share of the fog color at full depth. 0.0-1.0.
@@ -164,6 +176,18 @@ photo:
   style:
     # Scale the FAST style renders at before it is enlarged. 0.5 casts a quarter of the rays.
     fast-scale: 0.5
+    # The SHADER style's look; 0 turns a part off. Permission: izomap.style.shader
+    shader:
+      # Shadows lean blue, light leans warm; contrast and color a little up. 0.0-1.0.
+      grading: 0.6
+      # Glow around the brightest parts (sun, snow, glittering water). 0.0-1.0.
+      bloom: 0.35
+      # Far ground fades into the sky. 0.0-1.0.
+      haze: 0.45
+      # Darker corners. 0.0-1.0.
+      vignette: 0.3
+      # Dithering of the soft gradients before the palette snap. 0-128.
+      dither: 20.0
 
 placement:
   # Blocks in front of the player the photo wall is put.

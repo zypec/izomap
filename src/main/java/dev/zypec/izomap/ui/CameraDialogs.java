@@ -11,6 +11,7 @@ import dev.zypec.izomap.map.PhotoManager;
 import dev.zypec.izomap.render.AspectRatio;
 import dev.zypec.izomap.render.ColorFilter;
 import dev.zypec.izomap.render.PhotoStyle;
+import dev.zypec.izomap.render.SceneDepth;
 import dev.zypec.izomap.render.SkyOption;
 import dev.zypec.izomap.util.Format;
 import io.papermc.paper.dialog.Dialog;
@@ -55,6 +56,8 @@ public final class CameraDialogs {
     private static final String INPUT_FOCUS = "focus";
     private static final String INPUT_SUN_YAW = "sun_yaw";
     private static final String INPUT_SUN_PITCH = "sun_pitch";
+    private static final String INPUT_FOG_START = "fog_start";
+    private static final String INPUT_FOG_END = "fog_end";
 
     /**
      * How the focus slider prints itself: the label, then the value. Minecraft fills the
@@ -177,7 +180,8 @@ public final class CameraDialogs {
 
         // The one setting with a screen of its own: it is two questions now (which sky,
         // and what is in it), and a button that cycles cannot ask two.
-        if (skyChoices(viewer, camera).size() > 1 || maySeeBodies(viewer, camera) || sunShows(camera)) {
+        if (skyChoices(viewer, camera).size() > 1 || maySeeBodies(viewer, camera) || sunShows(camera)
+            || maySeeFog(viewer, camera)) {
             buttons.add(button(plugin.messages().get("dialog.sky-button",
                             Placeholder.component("value", plugin.messages().getOr(
                                     "sky." + camera.sky().name(), camera.sky().name()))),
@@ -287,6 +291,25 @@ public final class CameraDialogs {
                             target -> target.skyBodies(!target.skyBodies()),
                             p -> openSkyDialog(p, camera, photoName))));
         }
+        if (maySeeFog(player, camera)) {
+            buttons.add(button(plugin.messages().get(camera.fogEnabled()
+                            ? "dialog.fog-button-active" : "dialog.fog-button"),
+                    (view, audience) -> onSkyScreen(view, audience, camera,
+                            target -> target.fogEnabled(!target.fogEnabled()),
+                            p -> openSkyDialog(p, camera, photoName))));
+        }
+        var scene = camera.sceneDepth();
+        var fogLimit = (float) Math.ceil(plugin.render().focusRange(camera).limit());
+        if (camera.fogEnabled() && scene != null && scene.deep()) {
+            buttons.add(button(plugin.messages().get("dialog.fog-suggest",
+                            Placeholder.unparsed("start", String.valueOf(scene.suggestedStart())),
+                            Placeholder.unparsed("end", String.valueOf(
+                                    (int) Math.min(scene.suggestedEnd(), fogLimit)))),
+                    (view, audience) -> onSkyScreen(view, audience, camera,
+                            target -> target.fogRange(scene.suggestedStart(),
+                                    Math.min(scene.suggestedEnd(), fogLimit)),
+                            p -> openSkyDialog(p, camera, photoName))));
+        }
         buttons.add(button(plugin.messages().get("dialog.sky-back"),
                 (view, audience) -> onSkyScreen(view, audience, camera, target -> {
                 }, p -> openCaptureDialog(p, camera, photoName))));
@@ -314,6 +337,25 @@ public final class CameraDialogs {
                     .build());
         }
 
+        if (camera.fogEnabled()) {
+            body.add(DialogBody.plainMessage(fogHint(camera, scene), width));
+            var step = fogLimit > 512.0f ? 4.0f : 1.0f;
+            inputs.add(DialogInput.numberRange(INPUT_FOG_START, plugin.messages().get("dialog.fog-start-label"),
+                            0.0f, fogLimit)
+                    .width(width)
+                    .labelFormat(FOCUS_FORMAT)
+                    .initial(Math.min(Math.round(camera.fogStart() / step) * step, fogLimit))
+                    .step(step)
+                    .build());
+            inputs.add(DialogInput.numberRange(INPUT_FOG_END, plugin.messages().get("dialog.fog-end-label"),
+                            step, fogLimit)
+                    .width(width)
+                    .labelFormat(FOCUS_FORMAT)
+                    .initial(Math.max(step, Math.min(Math.round(camera.fogEnd() / step) * step, fogLimit)))
+                    .step(step)
+                    .build());
+        }
+
         Dialog dialog = Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(plugin.messages().get("dialog.sky-title"))
                         .body(body)
@@ -335,19 +377,58 @@ public final class CameraDialogs {
     }
 
     /**
-     * A sky screen button: the sun's sliders travel with every press, since the dialog
-     * only sends them along with one, then the button's own change.
+     * Whether the fog switch belongs on this player's screen: with the permission, or on
+     * a camera that has it on already, so it can be taken off.
+     */
+    private static boolean maySeeFog(Player viewer, Camera camera) {
+        return Permissions.fog(viewer) || camera.fogEnabled();
+    }
+
+    /**
+     * What the frame's depths say about where fog should go.
+     *
+     * <p>Read off the last preview render, which records how far each pixel is: the
+     * nearest, typical and furthest ground, and how much of the frame is sky. Fog that
+     * begins at the typical ground and is full at the furthest keeps the near half clear
+     * and lets the far edge melt into the sky. A camera looking down sees its ground at
+     * nearly one depth, and fog would only veil it; the hint says so instead.</p>
+     */
+    private Component fogHint(Camera camera, SceneDepth scene) {
+        if (plugin.config().fogFromSky() && !camera.sky().draws())
+            return plugin.messages().get("dialog.fog-needs-sky");
+        if (scene == null)
+            return plugin.messages().get("dialog.fog-hint-none");
+
+        var near = Placeholder.unparsed("near", String.valueOf(Math.round(scene.near())));
+        var far = Placeholder.unparsed("far", String.valueOf(Math.round(scene.far())));
+        if (!scene.deep())
+            return plugin.messages().get("dialog.fog-hint-flat", near, far);
+
+        return plugin.messages().get("dialog.fog-hint", near, far,
+                Placeholder.unparsed("median", String.valueOf(Math.round(scene.median()))),
+                Placeholder.unparsed("start", String.valueOf(scene.suggestedStart())),
+                Placeholder.unparsed("end", String.valueOf(scene.suggestedEnd())),
+                Placeholder.unparsed("sky", String.valueOf(Math.round(scene.skyShare() * 100))));
+    }
+
+    /**
+     * A sky screen button: the sliders travel with every press, since the dialog only
+     * sends them along with one, then the button's own change.
      */
     private void onSkyScreen(DialogResponseView view, Audience audience, Camera camera,
                              Consumer<Camera> change, Consumer<Player> then) {
         Float yaw = view.getFloat(INPUT_SUN_YAW);
         Float pitch = view.getFloat(INPUT_SUN_PITCH);
+        Float fogStart = view.getFloat(INPUT_FOG_START);
+        Float fogEnd = view.getFloat(INPUT_FOG_END);
         onPlayer(audience, p -> {
             apply(p, camera, target -> {
                 if (yaw != null)
                     target.sunYaw(yaw);
                 if (pitch != null)
                     target.sunPitch(pitch);
+                if (fogStart != null && fogEnd != null)
+                    target.fogRange(Math.min(fogStart, fogEnd), Math.max(fogStart, fogEnd));
                 change.accept(target);
             });
             then.accept(p);
@@ -674,7 +755,8 @@ public final class CameraDialogs {
     private static List<Object> imageState(Camera camera) {
         return List.of(camera.aspectRatio(), camera.thirdsGuide(), camera.zoom(),
                 camera.colorFilter(), camera.style(), camera.sky(), camera.skyBodies(),
-                camera.focusEnabled(), camera.focusDistance(), camera.sunYaw(), camera.sunPitch());
+                camera.focusEnabled(), camera.focusDistance(), camera.sunYaw(), camera.sunPitch(),
+                camera.fogEnabled(), camera.fogStart(), camera.fogEnd());
     }
 
     /**

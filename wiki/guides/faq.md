@@ -32,9 +32,9 @@ On purpose, in three places: tuff and flowers get colors closer to the real bloc
 
 Photos are saved as the image they were taken as. Retake it (right-click it, or `/izocam retake <camera>/<photo>`).
 
-### The night sky photo is bright
+### The night sky photo is still bright
 
-The sky and the stars are drawn for night, but the ground is lit by a fixed sun, so a night photo shows the landscape in daylight under a night sky. Turning on `photo.shading.block-light` darkens caves and interiors but not open ground.
+A photo's sky sets how bright the ground is: under a night sky open ground is two shades darker, while torches and lanterns keep what they light. A town lit along every path therefore stays fairly bright at night. `photo.shading.night-light` sets how dark the night is; at `15` night photos are drawn in daylight. A transparent sky is always daylight.
 
 ### Can players see photos without a resource pack?
 

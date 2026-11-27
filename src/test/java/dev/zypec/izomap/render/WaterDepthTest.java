@@ -26,9 +26,9 @@ class WaterDepthTest {
      * third of the pixel at one cell and all of it at eight.
      */
     private static final WaterSpec DEPTH =
-            new WaterSpec(WaterSpec.Mode.DEPTH, 2, 5, 0.35, 8);
+            new WaterSpec(WaterSpec.Mode.DEPTH, 2, 5, 0.35, 8, 0.0, 0.0);
     private static final WaterSpec TRANSLUCENT =
-            new WaterSpec(WaterSpec.Mode.TRANSLUCENT, 2, 5, 0.35, 8);
+            new WaterSpec(WaterSpec.Mode.TRANSLUCENT, 2, 5, 0.35, 8, 0.0, 0.0);
 
     private final MapColorConverter converter = new MapColorConverter();
     private final ColorPipeline pipeline = ColorPipeline.of(ColorFilter.ORIGINAL, converter);

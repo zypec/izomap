@@ -7,6 +7,7 @@ import dev.zypec.izomap.config.PermissionLimit;
 import dev.zypec.izomap.config.Permissions;
 import dev.zypec.izomap.map.PlacementArea.Fit;
 import dev.zypec.izomap.render.CaptureProgress;
+import dev.zypec.izomap.render.CaptureSpec;
 import dev.zypec.izomap.render.CaptureTooLargeException;
 import dev.zypec.izomap.render.RenderResult;
 import dev.zypec.izomap.render.RenderService;
@@ -62,6 +63,7 @@ public final class PhotoManager {
     private final PhotoStorage storage;
     private final PhotoCache cache;
     private final PhotoExporter exporter;
+    private final CaptureQueue queue;
 
     private final Map<UUID, Photo> photos = new ConcurrentHashMap<>();
 
@@ -88,6 +90,7 @@ public final class PhotoManager {
         this.storage = new PhotoStorage(plugin);
         this.cache = new PhotoCache(plugin);
         this.exporter = new PhotoExporter(plugin);
+        this.queue = new CaptureQueue(plugin);
     }
 
     // --- lifecycle ---
@@ -189,7 +192,7 @@ public final class PhotoManager {
 
         var grid = photo.grid();
         var used = spec;
-        renderService.capture(used, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
+        queue.submit(photo.id(), () -> renderService.capture(used, grid.widthPx(), grid.heightPx()).whenComplete((result, error) -> {
             if (error != null || result == null) {
                 plugin.messages().warn("log.photo-recapture-failed",
                         Placeholder.unparsed("name", photo.name()),
@@ -206,7 +209,7 @@ public final class PhotoManager {
                     replace(photo.withCapture(photo.cameraName(), used));
                 }
             });
-        });
+        }), null, null);
     }
 
     /**
@@ -339,6 +342,9 @@ public final class PhotoManager {
         if (camera.focusEnabled() && !Permissions.focus(player))
             return deny(player, "focus", "on");
 
+        if (camera.fogEnabled() && !Permissions.fog(player))
+            return deny(player, "fog", "on");
+
         if (!Permissions.grid(player, grid, plugin.config().maxMapTiles())) {
             plugin.messages().send(player, "photo.grid-not-allowed",
                     Placeholder.unparsed("grid", grid.label()),
@@ -374,16 +380,29 @@ public final class PhotoManager {
         }
         if (!mayCapture(player, camera, grid))
             return;
-        plugin.messages().send(player, "photo.capturing");
-        var progress = shutter(camera, player, true);
+        if (queue.busy(camera.id())) {
+            plugin.messages().send(player, "photo.busy");
+            return;
+        }
         var start = System.currentTimeMillis();
 
-        // Frozen once, so the cache, the record and the image all describe the same shot.
+        // Frozen once, so the cache, the record and the image all describe the same shot:
+        // the one the player pressed the button on, however long it waits in line.
         var spec = renderService.specFor(camera);
         var photo = new Photo(UUID.randomUUID(), player.getUniqueId(),
                 uniqueName(player.getUniqueId(), name), camera.name(), spec, grid, null);
 
-        renderService.capture(spec, grid.widthPx(), grid.heightPx(), progress).whenComplete((result, error) -> {
+        queue.submit(camera.id(),
+                () -> shoot(player, camera, spec, grid, photo, start),
+                position -> plugin.messages().send(player, "photo.queued",
+                        Placeholder.unparsed("position", String.valueOf(position))),
+                waited -> plugin.messages().send(player, waited ? "photo.starting" : "photo.capturing"));
+    }
+
+    private CompletableFuture<?> shoot(Player player, Camera camera, CaptureSpec spec, GridOption grid,
+                                       Photo photo, long start) {
+        var progress = shutter(camera, player, true);
+        return renderService.capture(spec, grid.widthPx(), grid.heightPx(), progress).whenComplete((result, error) -> {
             plugin.runOnMain(() -> shutter(camera, player, false));
             if (error != null || result == null) {
                 reportCaptureError(player, camera.name(), error);
@@ -425,12 +444,22 @@ public final class PhotoManager {
         }
 
         var cameraName = camera != null ? camera.name() : photo.cameraName();
-        plugin.messages().send(player, "photo.capturing");
-        var progress = shutter(camera, player, true);
+        var key = camera != null ? camera.id() : photo.id();
         var start = System.currentTimeMillis();
-        var grid = photo.grid();
+        var accepted = queue.submit(key,
+                () -> reshoot(player, photo, camera, cameraName, spec, start),
+                position -> plugin.messages().send(player, "photo.queued",
+                        Placeholder.unparsed("position", String.valueOf(position))),
+                waited -> plugin.messages().send(player, waited ? "photo.starting" : "photo.capturing"));
+        if (!accepted)
+            plugin.messages().send(player, "photo.busy");
+    }
 
-        renderService.capture(spec, grid.widthPx(), grid.heightPx(), progress).whenComplete((result, error) -> {
+    private CompletableFuture<?> reshoot(Player player, Photo photo, Camera camera, String cameraName,
+                                         CaptureSpec spec, long start) {
+        var progress = shutter(camera, player, true);
+        var grid = photo.grid();
+        return renderService.capture(spec, grid.widthPx(), grid.heightPx(), progress).whenComplete((result, error) -> {
             plugin.runOnMain(() -> shutter(camera, player, false));
             if (error != null || result == null) {
                 // Nothing was written yet, so the wall still shows the previous shot.
@@ -924,14 +953,15 @@ public final class PhotoManager {
                     "Photo has neither a cached image nor capture parameters: " + photo.shortId()));
 
         CompletableFuture<RenderResult> out = new CompletableFuture<>();
-        plugin.runOnMain(() -> renderService.capture(spec, photo.grid().widthPx(), photo.grid().heightPx())
-                .whenComplete((result, error) -> {
-                    if (error != null) {
-                        out.completeExceptionally(error);
-                    } else {
-                        out.complete(result);
-                    }
-                }));
+        plugin.runOnMain(() -> queue.submit(null,
+                () -> renderService.capture(spec, photo.grid().widthPx(), photo.grid().heightPx())
+                        .whenComplete((result, error) -> {
+                            if (error != null) {
+                                out.completeExceptionally(error);
+                            } else {
+                                out.complete(result);
+                            }
+                        }), null, null));
         return out;
     }
 

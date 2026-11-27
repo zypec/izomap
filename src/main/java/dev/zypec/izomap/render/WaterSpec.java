@@ -20,13 +20,19 @@ import java.util.Locale;
  * @param surfaceMin opacity of the shallowest water in {@link Mode#TRANSLUCENT}, so the
  *                   surface never vanishes entirely over a bright floor
  * @param opaqueDepth cells of water after which the floor no longer shows through at all
+ * @param glint      how far a glittering cell moves towards the sun's color, 0 for no
+ *                   glitter at all; works in every mode
+ * @param glintSpread how far waves tilt the surface, in degrees: the wider, the further
+ *                   from the sun's reflection the glitter reaches
  */
 public record WaterSpec(
         Mode mode,
         int dimDepth,
         int darkDepth,
         double surfaceMin,
-        int opaqueDepth) {
+        int opaqueDepth,
+        double glint,
+        double glintSpread) {
 
     /**
      * What the water colour may depend on.
@@ -59,7 +65,21 @@ public record WaterSpec(
     /**
      * Water as it was before this existed: one flat tone, no measuring.
      */
-    public static final WaterSpec FLAT = new WaterSpec(Mode.FLAT, 0, 0, 0.0, 0);
+    public static final WaterSpec FLAT = new WaterSpec(Mode.FLAT, 0, 0, 0.0, 0, 0.0, 0.0);
+
+    /**
+     * Whether any cell may glitter.
+     */
+    public boolean glints() {
+        return glint > 0.0 && glintSpread > 0.0;
+    }
+
+    /**
+     * The same water with this glitter, so a flat lake can still catch the sun.
+     */
+    public WaterSpec withGlint(double strength, double spread) {
+        return new WaterSpec(mode, dimDepth, darkDepth, surfaceMin, opaqueDepth, strength, spread);
+    }
 
     /**
      * Reads a mode name, falling back to {@code DEPTH} for anything unrecognized.

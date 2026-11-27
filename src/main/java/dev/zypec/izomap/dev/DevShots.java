@@ -113,7 +113,10 @@ public final class DevShots {
                 shot.getBoolean("bodies", true),
                 shot.contains("focus"), shot.getDouble("focus", 0.0),
                 (float) shot.getDouble("sun-yaw", plugin.config().shading().sunYaw()),
-                (float) shot.getDouble("sun-pitch", plugin.config().shading().sunPitch()));
+                (float) shot.getDouble("sun-pitch", plugin.config().shading().sunPitch()),
+                shot.contains("fog-start") || plugin.config().defaultFog(),
+                shot.getDouble("fog-start", plugin.config().defaultFogStart()),
+                shot.getDouble("fog-end", plugin.config().defaultFogEnd()));
 
         var grid = shot.getString("grid", "4x2").split("x");
         var width = Integer.parseInt(grid[0]) * 128;

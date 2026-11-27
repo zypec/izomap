@@ -4,6 +4,7 @@ import dev.zypec.izomap.render.AspectRatio;
 import dev.zypec.izomap.render.CaptureProgress;
 import dev.zypec.izomap.render.ColorFilter;
 import dev.zypec.izomap.render.PhotoStyle;
+import dev.zypec.izomap.render.SceneDepth;
 import dev.zypec.izomap.render.SkyOption;
 import org.bukkit.Location;
 
@@ -61,6 +62,19 @@ public final class Camera {
      */
     private boolean focusEnabled;
     private float focusDistance;
+
+    /**
+     * Distance fog, kept on the camera like focus: whether it is on, and the depths in
+     * blocks where it begins and where it is full.
+     */
+    private boolean fogEnabled;
+    private float fogStart;
+    private float fogEnd;
+    /**
+     * How far the last preview saw, for the fog hint. Runtime only; written by the render
+     * pool, read on the main thread.
+     */
+    private transient volatile SceneDepth sceneDepth;
 
     /**
      * Where the sun stands for this camera's shots: the direction its light comes from
@@ -268,6 +282,38 @@ public final class Camera {
 
     public void focusDistance(float focusDistance) {
         this.focusDistance = Math.max(0.0f, focusDistance);
+    }
+
+    public boolean fogEnabled() {
+        return fogEnabled;
+    }
+
+    public void fogEnabled(boolean fogEnabled) {
+        this.fogEnabled = fogEnabled;
+    }
+
+    public float fogStart() {
+        return fogStart;
+    }
+
+    public float fogEnd() {
+        return fogEnd;
+    }
+
+    /**
+     * Sets both ends at once, keeping the end past the start so the fade has room.
+     */
+    public void fogRange(float start, float end) {
+        this.fogStart = Math.max(0.0f, start);
+        this.fogEnd = Math.max(this.fogStart + 1.0f, end);
+    }
+
+    public SceneDepth sceneDepth() {
+        return sceneDepth;
+    }
+
+    public void sceneDepth(SceneDepth sceneDepth) {
+        this.sceneDepth = sceneDepth;
     }
 
     public float sunYaw() {

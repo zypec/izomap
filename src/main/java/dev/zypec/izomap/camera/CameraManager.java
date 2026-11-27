@@ -197,6 +197,8 @@ public final class CameraManager {
         camera.camYaw(owner.getLocation().getYaw());
         camera.camPitch((float) plugin.config().defaultPitch());
         camera.aspectRatio(AspectRatio.fromString(plugin.config().defaultAspectRatio(), AspectRatio.RATIO_1_1));
+        camera.fogEnabled(plugin.config().defaultFog() && Permissions.fog(owner));
+        camera.fogRange((float) plugin.config().defaultFogStart(), (float) plugin.config().defaultFogEnd());
         var sun = plugin.config().shading();
         camera.sunYaw(sun.sunYaw());
         camera.sunPitch(sun.sunPitch());

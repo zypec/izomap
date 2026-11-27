@@ -31,6 +31,8 @@ import java.util.UUID;
  *                       time; {@link FocusSpec#NONE} leaves the whole frame sharp
  * @param fog            how distance fades towards the sky, at capture time;
  *                       {@link FogSpec#NONE} draws no fog
+ * @param shader         the finishing pass of the shader style, at capture time;
+ *                       {@link ShaderSpec#NONE} for every other style
  * @param frameHeight    {@code photo.frame-height} at capture time
  * @param frameShift     {@code photo.frame-shift} at capture time
  * @param supersampling  {@code photo.supersampling} at capture time
@@ -52,6 +54,7 @@ public record CaptureSpec(
         WaterSpec water,
         FocusSpec focus,
         FogSpec fog,
+        ShaderSpec shader,
         double frameHeight,
         double frameShift,
         int supersampling,

@@ -146,6 +146,11 @@ No thin block is skipped, nothing is oversampled, and the face a ray enters is k
 The image is cut into horizontal bands spread over `settings.render-threads` threads; the last band
 runs on the calling thread.
 
+**Chunk lookup is a flat array.** `WorldSnapshot` lays the copies on the grid of chunk columns they
+span; a block step costs a subtraction, a bounds check and an array read instead of boxing a `long`
+key and hashing it into a `HashMap`. The box around a diagonal view holds empty slots, a reference
+each. The gain was not measured.
+
 The walk decides **what was found** and writes it to a `RayHit`: hit or not, material, base color,
 entry face. Turning that into a color is `ColorPipeline`'s job. The one color question the walk
 answers itself is **transparency**, because a block with no map color is see-through and the ray
@@ -269,9 +274,17 @@ skipped). It reloads with colors and is **not** frozen into photos.
 - **A layer has no shading of its own:** it takes the `darken` of the surface behind it.
 - **Nothing behind** (a tuft against the sky): the share goes into the same majority rule the
   supersampler uses: below 50% total coverage the pixel stays sky.
-- **Open: face-aware coverage.** A carpet or a snow layer covers the face it lies on and is thin
-  only from the side. `RayHit.Face` is already known, so the table could carry `{face, side}`.
-  Carpets, snow layers, lily pads and redstone dust stay off the list until then.
+- **Face-aware coverage for things lying flat.** A carpet or a snow layer covers the face it lies
+  on and is thin only from the side, so one number was wrong whichever way it leaned (thin turned a
+  snowfield green, full drew a carpet as a cube). The table has a second column, coverage seen
+  through `TOP` or `BOTTOM` (`BlockColorTable#coverageOf(material, face)`), read with the entry
+  face the walk already knows: one array read. `DEFAULT_LYING` lists carpets (1.0 from above, 0.1
+  from the side), snow layers (1.0/0.15), lily pads (0.85/0.05), redstone dust (0.3/0.05), pink
+  petals, wildflowers and leaf litter (0.6/0.1) and rails (0.5/0.1). That they lie flat is assumed
+  from the material, not read from the block state (a state read per hit); glow lichen and sculk
+  veins cling to any face and keep one number. `block-colors.yml` takes `{top, side}` for an
+  entry. Shadows and occlusion use the side value, so a carpet casts none. A full eight-layer snow
+  block still reads as thin from the side.
 
 ### Biome tint (`BiomeTints`, `ServerBiomeColors`, `biome-tints.yml`)
 
@@ -351,7 +364,17 @@ vanilla makes the same trade. Ice, packed ice and `WATER_CAULDRON` are surfaces;
 with the water around them; underwater plants stay off the coverage list because a thin cell in the
 middle would split the measurement. `WaterSpec` is frozen into `CaptureSpec`.
 
-**Open:** `GLINT` (a highlight near the sun's reflection) and a deterministic wave pattern.
+**Glint** (`photo.water.glint`, off by default, frozen into `WaterSpec`, works in every mode). An
+orthographic camera's rays are parallel, so a still surface would mirror the sun into every pixel
+or none. Waves break it up: the surface is cut into half-block patches, each tilted by a
+deterministic hash of its world position up to `spread` degrees, and only the patches tilted just so
+reflect the sun to the camera. The view decides how many can: from the angle between the mirrored
+view and the sun, `reach = 1 - angle / (2 spread)`, and the share of glittering patches is
+`0.3 reach³`. A glittering patch moves `strength` towards the sun's color, scaled by the sky's
+light (no glitter at night), and leaves the palette, so the pixel is blended and snapped like a
+composite. Applied in `renderBand` to opaque `TOP` water hits; translucent layers do not glitter.
+The first tuning (quarter-block patches, `reach²`) covered whole lakes in white noise on the
+development server; a third of the density at twice the patch size reads as light on water.
 
 ### Sky (`SkyOption`, `Sky`, `SkyBodies`)
 
@@ -383,16 +406,37 @@ The player switch is `camera.skyBodies` behind `izomap.sky.bodies`; the sky has 
 screen (six skies listed, plus the switch). The sky is painted during the render, before the style
 passes, so `FAST`'s upscale blends terrain into the sky.
 
-**Open:** the night sky does not darken the ground (sky light is not tied to the hour). Tying
-`SkyOption` to a sky light multiplier needs `Shading` to know the sky choice.
+**A night sky darkens the ground** (`ShadingSpec#skyLight`). The sky's frozen hour sets a sky light
+level, the way the game's sunlight follows the clock: `cos` of the hour from noon, `× 1.5 + 0.75`,
+clamped, so full light holds from mid-morning to mid-afternoon; at midnight it is
+`photo.shading.night-light` (3), between them a ramp (dusk 10, dawn 7). The stored sky light loses
+what the sky lacks (`WorldSnapshot#lightAt(x, y, z, skyLight)`), emitted light is kept, and the
+result goes through the block-light thresholds. Below 15 the walk reads light for every hit even
+with `block-light` off (`ShadingSpec#readsLight`), so the chunk copy carries light then too. Open
+ground at night is two shades darker, a torch-lit square stays lit; on the development server's
+decorated town the night shot came out only 13% darker on average, since lanterns along every path
+light most of the ground. A transparent sky is daylight; old photos read `sky-light` 15.
 
-### Cost: `SHARP` and `FAST` (`PhotoStyle`, `StylePass`)
+### Styles: `SHARP`, `FAST` and `SHADER` (`PhotoStyle`, `StylePass`, `ShaderPass`)
 
 `SHARP` casts a ray per pixel; `FAST` renders at `photo.style.fast-scale` and scales up, so rays drop
 with the square (0.5 is a quarter). `StylePass.upscale` is bilinear and **snaps back to the
 palette** (a map cannot store anything else, and the cache writes palette bytes). Transparency does
 not average: a pixel is a color or a hole. The style lives on the camera and freezes into the spec,
 so a retake costs the same.
+
+**`SHADER`** is `SHARP` with a shader pack's look (`izomap.style.shader`). `RenderService#specFor`
+turns the sun shadow and ambient occlusion on for it whatever the server's shading says, with at
+least 48 blocks of shadow (`ShadingSpec#withShadows`), and freezes a `ShaderSpec` (grading, bloom,
+haze, vignette, dither from `photo.style.shader`) into the spec. `ShaderPass` runs after fog and
+before focus, in float RGB: aerial haze towards the sky's row color from 96 blocks to the capture
+area (absolute distance, like a shader's fog: relative to the frame's own depth it washed out the
+top half of every downward shot), grading (contrast and saturation up, split toning: dark tones to
+blue, light to warm), bloom (pixels above 0.72 luma, blurred at a quarter size with two box passes
+each way, added back) and a vignette, then a 4x4 ordered dither and the palette snap. Holes stay
+holes. On the development server, warm, the cathedral horizon view at 8x5 walked in 10.2 s as
+`SHADER` and 10.4 s as `SHARP` with the server already shading; the first, cold shot took 70 s,
+like any first shot of that view.
 
 > **The "oil paint" look of an early version was not a style.** Three styles were tried to bring it
 > back and all pushed the wrong way. Side-by-side screenshots showed the difference was the
@@ -460,7 +504,17 @@ samples on one thread about 13 ms. The pass runs entirely in the async pool.
 ### Fog (`FogPass`, `FogSpec`)
 
 A parallel projection has no perspective, so nothing tells near from far; fog gives that cue
-back. Server-wide (`photo.fog`), off by default, frozen into the spec like shading and water.
+back. **The camera's setting**, like focus (`Camera#fogEnabled`, `fogStart`, `fogEnd`, behind
+`izomap.fog`); `photo.fog.enabled/start/end` are where a new camera starts, strength, color and
+dither stay the server's. Frozen into the spec like shading and water.
+
+**The range hint.** The sky screen carries the switch, two sliders (0 to the camera's ray distance)
+and a line that reads the frame: every preview render records depth, `SceneDepth` sorts it into the
+nearest (5th percentile), median and furthest (98th) ground and the sky's share, and the camera
+keeps the last one (transient). Fog from the median to the furthest keeps the near half clear and
+melts the far edge into the sky; a "Use" button sets exactly that. A frame whose ground spans less
+than half its far depth (a camera looking down) is told fog would only veil it evenly. A
+transparent sky with `color: sky` is told it needs a sky.
 
 - **Same depth as focus.** The walk records depth when either pass draws; fog reads it in blocks
   from the camera plane, so `start`/`end` sit at the same place in the world at any zoom or grid.
@@ -473,8 +527,8 @@ back. Server-wide (`photo.fog`), off by default, frozen into the spec like shadi
 - **Palette again:** ordered 4x4 dither before the snap, scaled by the fog amount so a lightly
   fogged surface snaps back to its own color. Sky pixels, holes and anything nearer than `start`
   are copied as they are.
-- **Order: walk → fog → focus → style upscale.** Before the blur, so a defocused far hill is soft
-  and hazy at once.
+- **Order: walk → fog → shader → focus → style upscale.** Before the blur, so a defocused far hill
+  is soft and hazy at once.
 
 The defaults (128 to 2048 blocks) are tuned on the gallery's level dusk shot, where the sea starts
 about 1000 blocks out. A camera looking down sees a few hundred blocks at most and needs lower
@@ -502,8 +556,8 @@ or the sun drawn in the camera's sky. Everything else in `ShadingSpec` stays the
   means a wall running along the surface and would darken half of every building.
 - **Block light** (`block-light`): one read per hit, the cheapest. Light of the cell in front
   (`max(sky, block)`) below `light-dim-below` is one shade, below `light-dark-below` two. The only
-  technique that carries interiors and caves. Sky light does not follow the hour, consistent with
-  the fixed sun. Inverted thresholds are pulled together.
+  technique that carries interiors and caves. The sky's light follows the photo's sky (Sky, above).
+  Inverted thresholds are pulled together.
 
 **"The cell in front of the surface" is really in front.** AO and light look at the neighbor the ray
 **came from**; on side faces that cell used to be taken as `+X`/`+Z` regardless, so half the time
@@ -578,6 +632,15 @@ early versions.
 before every row, `RenderService` between passes; the future then fails with a
 `CancellationException`. Only the preview uses it (§5).
 
+**At most `settings.max-concurrent-captures` photos render at once** (`map/CaptureQueue`, default
+2). Each holds its own chunk copy until its walk ends and they share the render pool, so nothing
+used to bound memory when several were taken together, or when a startup re-rendered a dozen
+photos whose cache was gone. Captures, retakes, cache rebuilds and `image()` re-renders queue in
+order; the player is told their place and when it starts. A camera (or, for a retake from a
+photo's own spec, the photo) has one job queued or running at a time; a second press is refused
+(`photo.busy`). The spec freezes at the press, not at the start. The preview does not queue. Snapshot
+memory was not measured.
+
 Missing copies are logged by `RenderService#warnIfIncomplete`.
 
 ## 4. Cameras
@@ -591,7 +654,7 @@ Three entities, all tagged with the camera id in PDC (`CameraKeys`):
 - **Hologram:** a `TextDisplay` `camera.hologram.offset-y × model-scale` above the model.
 
 `Camera` holds state only; entity work is in `CameraManager`. Memory is the source of truth and the
-whole collection is written to `cameras.yml` asynchronously on every change.
+whole collection is written to `cameras.yml` after every change (debounced, §8).
 
 ### The hologram
 
@@ -686,6 +749,12 @@ the preview cleanly), swapped or moved; it is removed on quit and cleaned on joi
   itself. The old copy stops within a tick and its walk within a row, so a burst of clicks never
   queues and the last click is never left waiting behind a frame nobody wants. (Before, changes
   were folded into one more render after the running one, which still had to finish.)
+- **Chunk copies are kept five seconds** (`ChunkCache`, per session): every click used to copy the
+  whole frame again, though turning by 15 degrees changes a handful of chunks. A copy younger than
+  five seconds taken with the same extras (light, biomes) is used again, so the preview lags a
+  change in the world by at most that. Photos never read it; it is cleared when the session ends.
+- **Every preview render records depth** for the fog hint (`SceneDepth`, §3 Fog); at 128 pixels it
+  costs nothing.
 - **The camera's own ratio**, letterboxed on the square map: it shows the real frame and the real
   cost (a 16:9 photo needs about 1.8x the chunks of a 1:1 preview), so the budget fails before
   placement rather than after.
@@ -913,6 +982,8 @@ declares them and their defaults.
 
 - **Area or single option.** `izomap.filter` grants every filter, `izomap.filter.WARM` one; either
   passes. Same for sky, ratio and frame.
+- **`izomap.fog`** and **`izomap.style.shader`** gate the camera's fog and the shader style;
+  both are checked again at capture.
 - **`izomap.backing`** is about building, not cost: it lets a backing block be built (§6). Operators
   by default.
 - **The cheapest value is free:** `ORIGINAL` filter, `NONE` sky, `FAST` style. A player with no
@@ -958,13 +1029,18 @@ shipped user file carries a `version:` key for that purpose; nothing reads it ye
 | `frames.yml` | Decoration frames |
 | `block-colors.yml` | Color overrides, coverage, tint channels |
 | `biome-tints.yml` | Biome color overrides |
-| `cameras.yml` | Cameras: position, angles, zoom, ratio, filter, style, sky, bodies, thirds, focus, sun, entity ids, preview map id |
+| `cameras.yml` | Cameras: position, angles, zoom, ratio, filter, style, sky, bodies, thirds, focus, fog, sun, entity ids, preview map id |
 | `photos.yml` | Photos: name, camera, grid (and `picture` when letterboxed), `capture` spec; when hung, `placement` with map ids, frame ids and anchor |
 | `photos/<uuid>.izm` | The photo's image (binary) |
 | `exports/<name>.png` | `/izocam export` output; never read back |
 
-`YamlStorage` always does disk I/O asynchronously, except `saveNow()` in `onDisable`. Records are
-serialized whole.
+`YamlStorage` never writes on the main thread, except `saveNow()` in `onDisable`. Records are
+serialized whole, but **saves are debounced**: `requestSave` schedules one write 20 ticks later and
+every request until then folds into it, the serializer running at that moment (a camera turned
+click after click used to rewrite `cameras.yml` per click). Writes go through one thread per file,
+in order, newest dump wins (two saves on a shared pool could finish the wrong way round), to
+`<file>.tmp` and then moved over the file atomically, so a crash mid-write leaves the old file whole
+rather than empty. `saveNow` drains the writer first.
 
 ### Where text goes
 
@@ -1018,7 +1094,7 @@ table without a server, so the ray walk itself is testable.
 | `PhotoExporterTest` | File names are player input: separators, leading dots, length |
 | `ColormapsTest` | Known biome climates' colors, and no climate giving black |
 | `BiomeTintTest` | Reference brightness kept, swamp/desert/snow shifting the right way, tinted pixels on the palette |
-| `PartialCoverageTest` | Thin-block share, layer cap, the majority rule with nothing behind |
+| `PartialCoverageTest` | Thin-block share, layer cap, the majority rule with nothing behind, a carpet full from above and a sliver from the side |
 | `WaterDepthTest` | Depth thresholds and how much a translucent bottom shows |
 | `FocusPassTest` | The depth of field pass |
 | `FogPassTest` | Near and sky pixels untouched, the fade growing with depth, strength capping it, the palette kept |

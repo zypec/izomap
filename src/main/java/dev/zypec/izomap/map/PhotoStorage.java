@@ -6,6 +6,7 @@ import dev.zypec.izomap.render.ColorFilter;
 import dev.zypec.izomap.render.FocusSpec;
 import dev.zypec.izomap.render.FogSpec;
 import dev.zypec.izomap.render.PhotoStyle;
+import dev.zypec.izomap.render.ShaderSpec;
 import dev.zypec.izomap.render.ShadingSpec;
 import dev.zypec.izomap.render.SkyBodiesSpec;
 import dev.zypec.izomap.render.SkyOption;
@@ -41,13 +42,11 @@ public final class PhotoStorage extends YamlStorage {
     }
 
     public void saveAll(Collection<Photo> photos) {
-        setData(serialize(photos));
-        save();
+        requestSave(() -> serialize(photos));
     }
 
     public void saveAllSync(Collection<Photo> photos) {
-        setData(serialize(photos));
-        saveNow();
+        saveNow(serialize(photos));
     }
 
     private FileConfiguration serialize(Collection<Photo> photos) {
@@ -133,11 +132,14 @@ public final class PhotoStorage extends YamlStorage {
         cfg.set(base + ".shading.block-light", spec.shading().blockLight());
         cfg.set(base + ".shading.light-dim-below", spec.shading().dimBelow());
         cfg.set(base + ".shading.light-dark-below", spec.shading().darkBelow());
+        cfg.set(base + ".shading.sky-light", spec.shading().skyLight());
         cfg.set(base + ".water.mode", spec.water().mode().name());
         cfg.set(base + ".water.dim-deeper-than", spec.water().dimDepth());
         cfg.set(base + ".water.dark-deeper-than", spec.water().darkDepth());
         cfg.set(base + ".water.surface-min", spec.water().surfaceMin());
         cfg.set(base + ".water.opaque-depth", spec.water().opaqueDepth());
+        cfg.set(base + ".water.glint", spec.water().glint());
+        cfg.set(base + ".water.glint-spread", spec.water().glintSpread());
         cfg.set(base + ".focus.enabled", spec.focus().enabled());
         cfg.set(base + ".focus.distance", spec.focus().distance());
         cfg.set(base + ".focus.range", spec.focus().rangeRatio());
@@ -150,6 +152,11 @@ public final class PhotoStorage extends YamlStorage {
         cfg.set(base + ".fog.strength", spec.fog().strength());
         cfg.set(base + ".fog.color", spec.fog().rgb());
         cfg.set(base + ".fog.dither", spec.fog().dither());
+        cfg.set(base + ".shader.grading", spec.shader().grading());
+        cfg.set(base + ".shader.bloom", spec.shader().bloom());
+        cfg.set(base + ".shader.haze", spec.shader().haze());
+        cfg.set(base + ".shader.vignette", spec.shader().vignette());
+        cfg.set(base + ".shader.dither", spec.shader().dither());
         cfg.set(base + ".frame-height", spec.frameHeight());
         cfg.set(base + ".frame-shift", spec.frameShift());
         cfg.set(base + ".supersampling", spec.supersampling());
@@ -171,7 +178,18 @@ public final class PhotoStorage extends YamlStorage {
                 s.getBoolean("ambient-occlusion", false),
                 s.getBoolean("block-light", false),
                 s.getInt("light-dim-below", 8),
-                s.getInt("light-dark-below", 4));
+                s.getInt("light-dark-below", 4),
+                s.getInt("sky-light", ShadingSpec.DAYLIGHT));
+    }
+
+    /**
+     * Reads the shader style's pass; every other photo has none.
+     */
+    private static ShaderSpec readShader(ConfigurationSection s) {
+        if (s == null) return ShaderSpec.NONE;
+
+        return new ShaderSpec(s.getDouble("grading", 0.0), s.getDouble("bloom", 0.0),
+                s.getDouble("haze", 0.0), s.getDouble("vignette", 0.0), s.getDouble("dither", 0.0));
     }
 
     /**
@@ -183,13 +201,13 @@ public final class PhotoStorage extends YamlStorage {
         if (s == null) return WaterSpec.FLAT;
 
         var mode = WaterSpec.modeFrom(s.getString("mode"), WaterSpec.Mode.FLAT);
-        if (!mode.measures()) return WaterSpec.FLAT;
-
-        return new WaterSpec(mode,
+        var water = !mode.measures() ? WaterSpec.FLAT : new WaterSpec(mode,
                 s.getInt("dim-deeper-than", 2),
                 s.getInt("dark-deeper-than", 5),
                 s.getDouble("surface-min", 0.35),
-                s.getInt("opaque-depth", 8));
+                s.getInt("opaque-depth", 8),
+                0.0, 0.0);
+        return water.withGlint(s.getDouble("glint", 0.0), s.getDouble("glint-spread", 0.0));
     }
 
     /**
@@ -269,6 +287,7 @@ public final class PhotoStorage extends YamlStorage {
                 readWater(s.getConfigurationSection("water")),
                 readFocus(s.getConfigurationSection("focus")),
                 readFog(s.getConfigurationSection("fog")),
+                readShader(s.getConfigurationSection("shader")),
                 s.getDouble("frame-height", 48.0), s.getDouble("frame-shift", 0.0),
                 s.getInt("supersampling", 1), s.getInt("max-capture-area", 512),
                 s.getInt("render-depth", 64));

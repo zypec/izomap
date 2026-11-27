@@ -161,7 +161,15 @@ public final class IsometricRenderer {
                             continue;
 
                         int rgb;
-                        if (hit.layers == 0) {
+                        var glint = hit.layers == 0 && water.glints() && hit.face == RayHit.Face.TOP
+                                    && water.isWater(hit.material)
+                                ? water.glintAt(ox + dx * hit.distance, oz + dz * hit.distance)
+                                : 0.0;
+                        if (glint > 0.0) {
+                            // Off the palette like a composite, so the pixel is blended.
+                            uniform = false;
+                            rgb = water.glinted(pipeline.rgbOf(pipeline.packedIdOf(hit), hit.tint), glint);
+                        } else if (hit.layers == 0) {
                             var id = pipeline.packedIdOf(hit);
                             // The tint travels in the key: two samples of the same block
                             // in two biomes are two colours, however equal their bytes.
@@ -296,7 +304,7 @@ public final class IsometricRenderer {
                         return;
 
                     if (base != MapBaseColor.NONE) {
-                        var coverage = colorTable.coverageOf(material);
+                        var coverage = colorTable.coverageOf(material, face);
                         var tint = tintAt(snapshot, tints, tinted, material, x, y, z);
                         base = resolveBase(snapshot, material, base, x, y, z);
                         if (coverage >= 1.0f || !out.addLayer(base, face, tint, coverage)) {

@@ -10,10 +10,11 @@ overrides:
   # POPPY: PLANT
 
 # How much of its cell a block fills, 0.0-1.0. Thin blocks blend into what is behind them.
-# A line here replaces the built-in value for that block.
+# A line here replaces the built-in value for that block; {top, side} for one lying flat.
 coverage:
   # SHORT_GRASS: 0.2
   # WHEAT: 0.4
+  # MOSS_CARPET: {top: 1.0, side: 0.1}
 
 # Which biome color a block takes: GRASS, FOLIAGE, WATER or NONE.
 tint:

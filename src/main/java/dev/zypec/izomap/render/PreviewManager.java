@@ -138,6 +138,11 @@ public final class PreviewManager implements Listener {
          */
         private RenderCancellation running;
         /**
+         * The last few seconds of chunk copies, so a click copies only what came into
+         * the frame.
+         */
+        private final ChunkCache chunks = new ChunkCache();
+        /**
          * Counts renders started, so a render that lost the race to a newer one can tell
          * that its image is no longer wanted.
          */
@@ -334,6 +339,7 @@ public final class PreviewManager implements Listener {
             session.running.cancel();
             session.running = null;
         }
+        session.chunks.clear();
     }
 
     private void takeMap(Player player) {
@@ -368,7 +374,7 @@ public final class PreviewManager implements Listener {
         try {
             capture = renderService.capture(renderService.specFor(camera),
                     previewWidth(camera.aspectRatio()), previewHeight(camera.aspectRatio()),
-                    null, cancellation);
+                    null, cancellation, session.chunks, camera::sceneDepth);
         } catch (RuntimeException ex) {
             // Without releasing the seat here a synchronous failure freezes the preview.
             session.running = null;
