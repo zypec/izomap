@@ -1071,9 +1071,18 @@ sends it and acts as that player, with their permissions, while they are online,
 | `GET /api/state` | The player, their cameras in their world, the choices (filters, styles, skies, grids per ratio) |
 | `GET /api/map?x&z&size` | A top-down PNG, `size` blocks across, rendered by the walk at pitch 90 and turned half round so north is up |
 | `POST /api/cameras {x,z}` | A camera 12 blocks above the ground there (protection asked) |
-| `PATCH /api/cameras/<id>` | Any setting the capture screen has, plus position; only the fields sent |
+| `PATCH /api/cameras/<id>` | Any setting the capture screen has, plus position; only the fields sent. `targetX`/`targetZ` aims the frame there, `orbit: true` turns facing and tilt round the frame's middle |
 | `GET /api/cameras/<id>/preview?w` | The camera at its ratio, `w` wide |
 | `POST /api/cameras/<id>/photo {name,grid}` | `PhotoManager#capture`, queue and all |
+
+**The editor aims the frame, not the camera.** An orthographic camera's position along its view does
+not change the picture, so a position on a map says little about the shot, and the same was felt in
+the game. `RenderService#frame` gives what does: the point the frame's middle is aimed at and the
+frame's four corners on the ground there (ground read only in loaded chunks, sea level elsewhere,
+so it never loads one). The map draws that frame; dragging it sends a new target, and the plugin
+puts the camera back along its view at the same distance (`RenderService#standFor`), as it does
+when facing or tilt change with `orbit`. A level camera has no ground to aim at; its target is 96
+blocks ahead.
 
 Requests run on a pool of four; anything touching the world hops to the main thread and is waited
 for, renders run on the render pool. A remote editor (through a relay, as Particles+ has) is the

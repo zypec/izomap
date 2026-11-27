@@ -234,6 +234,22 @@ public final class EditorServer {
         out.addProperty("sunPitch", camera.sunPitch());
         out.addProperty("blocks", plugin.config().frameHeight() / camera.zoom());
         out.addProperty("photos", plugin.photos().takenWith(player.getUniqueId(), camera.name()).size());
+        // What the picture is of: the point its centre is aimed at and the frame on the ground.
+        var frame = plugin.render().frame(camera);
+        var target = new JsonObject();
+        target.addProperty("x", frame.target().getX());
+        target.addProperty("y", frame.target().getY());
+        target.addProperty("z", frame.target().getZ());
+        out.add("target", target);
+        out.addProperty("distance", frame.distance());
+        var corners = new JsonArray();
+        for (var corner : frame.corners()) {
+            var point = new JsonArray();
+            point.add(corner.getX());
+            point.add(corner.getZ());
+            corners.add(point);
+        }
+        out.add("frame", corners);
         return out;
     }
 
@@ -283,8 +299,27 @@ public final class EditorServer {
      * Applies what the page changed. Only the fields present are touched.
      */
     private JsonObject edit(Player player, Camera camera, JsonObject body) {
+        // Aimed at a point rather than placed: turning, tilting or moving the target keeps
+        // the camera the same distance from what it shows and moves it to suit.
+        var before = plugin.render().frame(camera);
+        var orbit = body.has("orbit") && body.get("orbit").getAsBoolean();
         if (body.has("yaw")) camera.camYaw(body.get("yaw").getAsFloat());
         if (body.has("pitch")) camera.camPitch(body.get("pitch").getAsFloat());
+        if (body.has("targetX") && body.has("targetZ")) {
+            var world = camera.anchor().getWorld();
+            var tx = body.get("targetX").getAsDouble();
+            var tz = body.get("targetZ").getAsDouble();
+            var ty = world != null && world.isChunkLoaded((int) Math.floor(tx) >> 4, (int) Math.floor(tz) >> 4)
+                    ? world.getHighestBlockYAt((int) Math.floor(tx), (int) Math.floor(tz)) + 1.0
+                    : before.target().getY();
+            moveTo(player, camera, plugin.render().standFor(new Location(world, tx, ty, tz),
+                    camera.camYaw(), camera.camPitch(), before.distance()));
+        } else if (orbit && (body.has("yaw") || body.has("pitch"))) {
+            var target = before.target();
+            moveTo(player, camera, plugin.render().standFor(
+                    new Location(camera.anchor().getWorld(), target.getX(), target.getY(), target.getZ()),
+                    camera.camYaw(), camera.camPitch(), before.distance()));
+        }
         if (body.has("zoom")) camera.zoom(body.get("zoom").getAsFloat());
         if (body.has("ratio")) {
             var ratio = AspectRatio.fromLabel(body.get("ratio").getAsString());
@@ -307,14 +342,19 @@ public final class EditorServer {
             if (body.has("x")) anchor.setX(body.get("x").getAsDouble());
             if (body.has("y")) anchor.setY(body.get("y").getAsDouble());
             if (body.has("z")) anchor.setZ(body.get("z").getAsDouble());
-            if (!anchor.getBlock().equals(camera.anchor().getBlock())
-                && !Protection.mayBuild(player, anchor.getBlock(), plugin.cameras().createCameraItem()))
-                throw new EditorException(403, "A protection plugin does not let you build there.");
-            plugin.cameras().reposition(camera, anchor);
+            moveTo(player, camera, anchor);
         }
         plugin.cameras().applyAndPersist(camera);
         plugin.preview().refresh(camera);
         return describe(player, camera);
+    }
+
+    private void moveTo(Player player, Camera camera, Location anchor) {
+        anchor.setYaw(camera.camYaw());
+        if (!anchor.getBlock().equals(camera.anchor().getBlock())
+            && !Protection.mayBuild(player, anchor.getBlock(), plugin.cameras().createCameraItem()))
+            throw new EditorException(403, "A protection plugin does not let you build there.");
+        plugin.cameras().reposition(camera, anchor);
     }
 
     private byte[] preview(Player player, UUID id, Map<String, String> query) throws Exception {

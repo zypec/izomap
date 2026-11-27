@@ -16,6 +16,7 @@ button,input,select{font:inherit;color:inherit}
 .mapwrap{position:relative;overflow:hidden;background:#060607;cursor:grab;touch-action:none}
 .mapwrap.dragging{cursor:grabbing}
 .mapwrap.placing{cursor:crosshair}
+.mapwrap img:not([src]){visibility:hidden}
 .mapwrap img{position:absolute;left:0;top:0;transform-origin:0 0;image-rendering:pixelated;user-select:none;pointer-events:none}
 .mapwrap canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
 .toolbar{position:absolute;top:14px;left:14px;display:flex;gap:6px;padding:5px;border-radius:999px;background:rgba(30,30,34,.7);
@@ -80,12 +81,12 @@ input[type=range]{width:100%;accent-color:var(--yellow)}
     <canvas id="marks"></canvas>
     <div class="toolbar">
       <button type="button" id="place" aria-pressed="false" title="Then click the map where the camera should stand">Place camera</button>
-      <button type="button" id="moveto" aria-pressed="false" disabled title="Then click the map where the chosen camera should go">Move here</button>
+      <button type="button" id="moveto" aria-pressed="false" disabled title="Then click the map where the chosen camera should look">Aim here</button>
       <button type="button" id="recentre">To me</button>
     </div>
     <span class="busy" id="mapbusy"></span>
     <div class="coords" id="coords"></div>
-    <div class="hint" id="hint">Drag a camera to move it, drag its yellow handle to turn it</div>
+    <div class="hint" id="hint">Drag the yellow frame to aim, its handle to turn round it</div>
   </div>
   <aside class="side">
     <h1>Izomap editor</h1>
@@ -147,28 +148,60 @@ function drawMarks() {
   const dpr = devicePixelRatio || 1;
   marks.width = wrap.clientWidth * dpr; marks.height = wrap.clientHeight * dpr;
   const g = marks.getContext('2d'); g.scale(dpr, dpr);
-  for (const c of cameras) {
-    const [sx, sy] = toScreen(c.x, c.z), on = selected && c.id === selected.id;
-    const yaw = c.yaw * Math.PI / 180, dx = -Math.sin(yaw), dy = Math.cos(yaw);
-    g.fillStyle = on ? 'rgba(255,214,10,.22)' : 'rgba(255,255,255,.14)';
-    g.beginPath(); g.moveTo(sx, sy);
-    const spread = 0.42, reach = 46;
-    g.lineTo(sx + reach * (dx * Math.cos(spread) - dy * Math.sin(spread)), sy + reach * (dx * Math.sin(spread) + dy * Math.cos(spread)));
-    g.lineTo(sx + reach * (dx * Math.cos(-spread) - dy * Math.sin(-spread)), sy + reach * (dx * Math.sin(-spread) + dy * Math.cos(-spread)));
-    g.closePath(); g.fill();
-    g.beginPath(); g.arc(sx, sy, on ? 8 : 6, 0, Math.PI * 2);
-    g.fillStyle = on ? '#ffd60a' : '#fff'; g.fill();
-    g.lineWidth = 2; g.strokeStyle = '#000'; g.stroke();
-    if (on) {
-      // The handle that turns it: drag it round the camera.
-      const [hx, hy] = [sx + dx * HANDLE, sy + dy * HANDLE];
-      g.beginPath(); g.moveTo(sx, sy); g.lineTo(hx, hy); g.strokeStyle = 'rgba(255,214,10,.8)'; g.lineWidth = 2; g.stroke();
-      g.beginPath(); g.arc(hx, hy, 6, 0, Math.PI * 2); g.fillStyle = '#ffd60a'; g.fill();
-      g.lineWidth = 2; g.strokeStyle = '#000'; g.stroke();
+  // Others first and faint, the chosen one on top: its frame is what the photo will show.
+  for (const c of [...cameras.filter(c => !selected || c.id !== selected.id), ...(selected ? [selected] : [])]) {
+    const on = selected && c.id === selected.id, [sx, sy] = toScreen(c.x, c.z), [tx, ty] = toScreen(c.target.x, c.target.z);
+    if (c.frame.length === 4) {
+      g.beginPath();
+      c.frame.forEach(([x, z], i) => { const [px, py] = toScreen(x, z); i ? g.lineTo(px, py) : g.moveTo(px, py); });
+      g.closePath();
+      g.fillStyle = on ? 'rgba(255,214,10,.16)' : 'rgba(255,255,255,.06)'; g.fill();
+      g.lineWidth = on ? 2 : 1; g.strokeStyle = on ? '#ffd60a' : 'rgba(255,255,255,.35)'; g.stroke();
     }
+    g.setLineDash([4, 4]); g.beginPath(); g.moveTo(sx, sy); g.lineTo(tx, ty);
+    g.strokeStyle = on ? 'rgba(255,214,10,.7)' : 'rgba(255,255,255,.3)'; g.lineWidth = 1.5; g.stroke(); g.setLineDash([]);
+    if (on) {
+      g.strokeStyle = '#ffd60a'; g.lineWidth = 2;
+      g.beginPath(); g.moveTo(tx - 9, ty); g.lineTo(tx + 9, ty); g.moveTo(tx, ty - 9); g.lineTo(tx, ty + 9); g.stroke();
+      const [hx, hy] = handleAt(c);
+      g.beginPath(); g.moveTo(tx, ty); g.lineTo(hx, hy); g.strokeStyle = 'rgba(255,214,10,.8)'; g.stroke();
+      g.beginPath(); g.arc(hx, hy, 7, 0, Math.PI * 2); g.fillStyle = '#ffd60a'; g.fill(); g.strokeStyle = '#000'; g.stroke();
+    }
+    g.beginPath(); g.arc(sx, sy, on ? 6 : 5, 0, Math.PI * 2);
+    g.fillStyle = on ? '#fff' : 'rgba(255,255,255,.7)'; g.fill(); g.lineWidth = 2; g.strokeStyle = '#000'; g.stroke();
     g.font = '500 11px ui-monospace,Menlo,monospace'; g.fillStyle = '#fff'; g.shadowColor = '#000'; g.shadowBlur = 3;
-    g.fillText(c.name, sx + 12, sy - 10); g.shadowBlur = 0;
+    g.fillText(c.name, sx + 10, sy - 8); g.shadowBlur = 0;
   }
+}
+/** The turning handle sits beyond the frame, the way the camera looks, so dragging it round turns the shot. */
+function handleAt(c) {
+  const [tx, ty] = toScreen(c.target.x, c.target.z), yaw = c.yaw * Math.PI / 180;
+  let reach = HANDLE;
+  for (const [x, z] of c.frame) { const [px, py] = toScreen(x, z); reach = Math.max(reach, Math.hypot(px - tx, py - ty) + 18); }
+  return [tx - Math.sin(yaw) * reach, ty + Math.cos(yaw) * reach];
+}
+function inFrame(c, sx, sy) {
+  if (c.frame.length !== 4) { const [tx, ty] = toScreen(c.target.x, c.target.z); return Math.hypot(tx - sx, ty - sy) < 14; }
+  let inside = false;
+  const pts = c.frame.map(([x, z]) => toScreen(x, z));
+  for (let i = 0, j = 3; i < 4; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > sy) !== (yj > sy) && sx < (xj - xi) * (sy - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+/** Moves a camera's marks by a world offset, so a drag answers before the server does. */
+function shift(c, dx, dz) {
+  c.x += dx; c.z += dz; c.target.x += dx; c.target.z += dz;
+  c.frame = c.frame.map(([x, z]) => [x + dx, z + dz]);
+}
+/** Turns a camera's marks round its target, for the same reason. */
+function turn(c, yaw) {
+  const by = (yaw - c.yaw) * Math.PI / 180, cos = Math.cos(by), sin = Math.sin(by), {x: ox, z: oz} = c.target;
+  const rot = (x, z) => [ox + (x - ox) * cos - (z - oz) * sin, oz + (x - ox) * sin + (z - oz) * cos];
+  [c.x, c.z] = rot(c.x, c.z);
+  c.frame = c.frame.map(([x, z]) => rot(x, z));
+  c.yaw = yaw;
 }
 let mapTimer, mapTicket = 0;
 function loadMap() {
@@ -197,8 +230,7 @@ function cameraAt(sx, sy) {
 }
 function onHandle(sx, sy) {
   if (!selected) return false;
-  const [cx, cy] = toScreen(selected.x, selected.z), yaw = selected.yaw * Math.PI / 180;
-  const hx = cx - Math.sin(yaw) * HANDLE, hy = cy + Math.cos(yaw) * HANDLE;
+  const [hx, hy] = handleAt(selected);
   return Math.hypot(hx - sx, hy - sy) < 12;
 }
 wrap.addEventListener('pointerdown', e => {
@@ -207,7 +239,9 @@ wrap.addEventListener('pointerdown', e => {
   let kind = 'pan', camera = null;
   if (onHandle(sx, sy)) { kind = 'turn'; camera = selected; }
   else if ((camera = cameraAt(sx, sy))) { kind = 'move'; if (!selected || selected.id !== camera.id) select(camera.id); }
-  drag = {kind, camera, x: e.clientX, y: e.clientY, vx: view.x, vz: view.z, from: camera && {x: camera.x, z: camera.z, yaw: camera.yaw}, moved: false};
+  else if (selected && inFrame(selected, sx, sy)) { kind = 'aim'; camera = selected; }
+  const [wx, wz] = toWorld(sx, sy);
+  drag = {kind, camera, x: e.clientX, y: e.clientY, vx: view.x, vz: view.z, wx, wz, moved: false};
   wrap.setPointerCapture(e.pointerId);
 });
 wrap.addEventListener('pointermove', e => {
@@ -219,11 +253,11 @@ wrap.addEventListener('pointermove', e => {
   if (drag.kind === 'pan') {
     const scale = Math.min(wrap.clientWidth, wrap.clientHeight) / view.size;
     view.x = drag.vx - (e.clientX - drag.x) / scale; view.z = drag.vz - (e.clientY - drag.y) / scale; placeImage();
-  } else if (drag.kind === 'move') {
-    drag.camera.x = Math.floor(wx) + 0.5; drag.camera.z = Math.floor(wz) + 0.5; drawMarks();
+  } else if (drag.kind === 'move' || drag.kind === 'aim') {
+    shift(drag.camera, wx - drag.wx, wz - drag.wz); drag.wx = wx; drag.wz = wz; drawMarks();
   } else {
-    const [cx, cy] = toScreen(drag.camera.x, drag.camera.z);
-    drag.camera.yaw = Math.round(Math.atan2(-(sx - cx), sy - cy) * 180 / Math.PI); drawMarks();
+    const [tx, ty] = toScreen(drag.camera.target.x, drag.camera.target.z);
+    turn(drag.camera, Math.round(Math.atan2(-(sx - tx), sy - ty) * 180 / Math.PI)); drawMarks();
   }
 });
 wrap.addEventListener('pointerup', async e => {
@@ -232,12 +266,13 @@ wrap.addEventListener('pointerup', async e => {
   if (d.moved) {
     if (d.kind === 'pan') loadMap();
     else if (d.kind === 'move') change({x: d.camera.x, z: d.camera.z}, true);
-    else change({yaw: d.camera.yaw}, true);
+    else if (d.kind === 'aim') change({targetX: d.camera.target.x, targetZ: d.camera.target.z}, true);
+    else change({yaw: d.camera.yaw, orbit: true}, true);
     return;
   }
   const [sx, sy] = local(e), [wx, wz] = toWorld(sx, sy);
   if (mode === 'place') { setMode(null); return placeAt(wx, wz); }
-  if (mode === 'move' && selected) { setMode(null); return change({x: Math.floor(wx) + 0.5, z: Math.floor(wz) + 0.5}, true); }
+  if (mode === 'move' && selected) { setMode(null); return change({targetX: wx, targetZ: wz}, true); }
   if (d.camera) select(d.camera.id);
 });
 wrap.addEventListener('wheel', e => {
@@ -300,6 +335,7 @@ function panel() {
   p.innerHTML = `
     <div class="preview" id="preview"><img id="previewimg" alt="What ${c.name} sees"></div>
     <div class="group"><b>Aim</b>
+      <div class="empty" style="padding:0 0 6px">The yellow frame on the map is what the photo shows. Facing and tilt turn the camera round its middle.</div>
       ${range('yaw', 'Facing', -180, 180, 1, ((c.yaw + 540) % 360) - 180, v => `${Math.round(v)}°`)}
       ${range('pitch', 'Tilt', -10, 90, 1, c.pitch, v => `${Math.round(v)}°`)}
       ${range('zoom', 'Zoom', -4.3, 4, 0.05, sliderOf(c.zoom), v => `${zoomOf(v).toFixed(2)}x`)}
@@ -330,7 +366,9 @@ function panel() {
       const v = Number(input.value);
       $(`o-${field}`).textContent = field === 'zoom' ? `${zoomOf(v).toFixed(2)}x` : field.endsWith('aw') || field.endsWith('itch') ? `${Math.round(v)}°` : Math.round(v);
     };
-    input.onchange = () => change({[field]: field === 'zoom' ? zoomOf(Number(input.value)) : Number(input.value)});
+    // Facing and tilt turn the camera round what it shows, rather than round itself.
+    input.onchange = () => change({[field]: field === 'zoom' ? zoomOf(Number(input.value)) : Number(input.value),
+      ...(field === 'yaw' || field === 'pitch' ? {orbit: true} : {})}, true);
   }
   for (const group of p.querySelectorAll('[data-seg]')) {
     const field = group.dataset.seg;

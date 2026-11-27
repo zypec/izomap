@@ -194,6 +194,83 @@ public final class RenderService {
     }
 
     /**
+     * What a camera's frame lands on: the point its centre is aimed at, and the four
+     * corners of the frame on the ground there.
+     *
+     * <p>An orthographic camera's rays are parallel, so where the camera stands along its
+     * view says nothing about the picture: this is what does. The ground is read only in
+     * loaded chunks (sea level stands in elsewhere), so asking never loads one. A camera
+     * that does not look down has no ground point; {@code corners} is then empty and the
+     * target sits {@link #LEVEL_TARGET} blocks ahead. Main thread only.</p>
+     *
+     * @param distance how far the target is from the camera along its view
+     */
+    public record Frame(Vector target, List<Vector> corners, double distance) {
+    }
+
+    /** How far ahead a level camera's target is put, for lack of ground to aim at. */
+    private static final double LEVEL_TARGET = 96.0;
+
+    public Frame frame(Camera camera) {
+        return frame(camera.anchor(), camera.camYaw(), camera.camPitch(), camera.zoom(), camera.aspectRatio().value());
+    }
+
+    public Frame frame(Location anchor, float yaw, float pitch, float zoom, double ratio) {
+        var world = anchor.getWorld();
+        var direction = directionFrom(yaw, pitch);
+        var basis = basisFrom(direction);
+        var spanHeight = plugin.config().frameHeight() / zoom;
+        var centre = anchor.toVector().add(basis[1].clone().multiply(spanHeight * plugin.config().frameShift()));
+        var climb = -direction.getY();
+        if (world == null || climb < 0.02) {
+            var ahead = centre.clone().add(direction.clone().multiply(LEVEL_TARGET));
+            return new Frame(ahead, List.of(), LEVEL_TARGET);
+        }
+        var ground = groundAt(world, centre, direction, climb);
+        var t = (centre.getY() - ground) / climb;
+        var target = centre.clone().add(direction.clone().multiply(t));
+        List<Vector> corners = new ArrayList<>(4);
+        for (var corner : new double[][]{{-1, 1}, {1, 1}, {1, -1}, {-1, -1}}) {
+            var start = centre.clone()
+                    .add(basis[0].clone().multiply(corner[0] * spanHeight * ratio / 2.0))
+                    .add(basis[1].clone().multiply(corner[1] * spanHeight / 2.0));
+            var reach = Math.max(0.0, (start.getY() - ground) / climb);
+            corners.add(start.add(direction.clone().multiply(reach)));
+        }
+        return new Frame(target, corners, t);
+    }
+
+    /**
+     * The height of the ground the centre ray meets, found by walking the estimate in: a
+     * guess at sea level, then the ground under where that guess lands, twice.
+     */
+    private static double groundAt(World world, Vector from, Vector direction, double climb) {
+        double ground = world.getSeaLevel();
+        for (var pass = 0; pass < 3; pass++) {
+            var t = Math.max(0.0, (from.getY() - ground) / climb);
+            var x = (int) Math.floor(from.getX() + direction.getX() * t);
+            var z = (int) Math.floor(from.getZ() + direction.getZ() * t);
+            if (!world.isChunkLoaded(x >> 4, z >> 4)) break;
+            ground = Math.min(from.getY() - 1, world.getHighestBlockYAt(x, z) + 1);
+        }
+        return ground;
+    }
+
+    /**
+     * Where a camera aimed this way must stand to keep {@code target} in the middle of its
+     * frame, {@code distance} blocks back along its view.
+     */
+    public Location standFor(Location target, float yaw, float pitch, double distance) {
+        var direction = directionFrom(yaw, pitch);
+        var at = target.toVector().subtract(direction.multiply(distance));
+        var out = new Location(target.getWorld(), at.getX(), at.getY(), at.getZ(), yaw, 0.0f);
+        var world = target.getWorld();
+        if (world != null)
+            out.setY(Math.max(world.getMinHeight() + 1, Math.min(world.getMaxHeight() - 1, out.getY())));
+        return out;
+    }
+
+    /**
      * Where a camera's focus may be put: {@code suggested} is the ground its frame is
      * centred on, {@code limit} the furthest its rays reach. Both in blocks from the
      * camera plane.
