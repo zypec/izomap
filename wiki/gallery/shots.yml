@@ -21,3 +21,5 @@ shots:
   filter-sepia: {x: -126.28, y: 129.09, z: -263.72, yaw: 45, pitch: 35, zoom: 0.6, grid: 4x3, sky: DAY, filter: SEPIA}
   filter-vivid: {x: -126.28, y: 129.09, z: -263.72, yaw: 45, pitch: 35, zoom: 0.6, grid: 4x3, sky: DAY, filter: VIVID}
   filter-noir: {x: -126.28, y: 129.09, z: -263.72, yaw: 45, pitch: 35, zoom: 0.6, grid: 4x3, sky: DAY, filter: NOIR}
+  # The try-it page: /izodev try try shoots this view in every combination (wiki/gallery/try/).
+  try: {x: -65.02, y: 157.42, z: -87.60, yaw: -106.41, pitch: 6, zoom: 0.36, size: 1024x576, filter: ORIGINAL, fog-start: 250, fog-end: 1400, focus: 240}

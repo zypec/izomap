@@ -84,6 +84,7 @@ public final class WikiGenerator {
 
     private void write(Path site) throws IOException {
         copyTree(wiki.resolve("gallery"), site.resolve("gallery"));
+        copyTree(wiki.resolve("site").resolve("fonts"), site.resolve("fonts"));
         var guides = guides();
         Map<String, Object> siteData = yaml(wiki.resolve("site.yml"));
 
@@ -107,7 +108,7 @@ public final class WikiGenerator {
         for (var file : List.of("wiki.css", "wiki.js", "front.css", "theme.js", "content.js", "lightbox.js", "island.js"))
             Files.copy(kit.resolve(file), site.resolve("kit").resolve(file), StandardCopyOption.REPLACE_EXISTING);
         // The front page is drawn from content.md by the kit's content.js: the page is how, the file is what.
-        for (var file : List.of("index.html", "content.md", "accent.css", "icon.svg"))
+        for (var file : List.of("index.html", "try.html", "content.md", "accent.css", "icon.svg"))
             Files.writeString(site.resolve(file), read(wiki.resolve("site").resolve(file)).replace("__VERSION__", version),
                     StandardCharsets.UTF_8);
 

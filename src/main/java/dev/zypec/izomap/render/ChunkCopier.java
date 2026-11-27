@@ -104,14 +104,14 @@ final class ChunkCopier {
             } else if (copier.load) {
                 // The preview draws what is there and lets the cache fetch the rest; a
                 // photo waits for every chunk.
-                if (cache != null) {
+                if (cache != null && !cache.waits()) {
                     fetch.add(key);
                 } else {
                     copier.toLoad.add(key);
                 }
             }
         }
-        if (cache != null)
+        if (cache != null && !cache.waits())
             cache.want(world, fetch, light, biomes, copier.generate);
         copier.run();
         return copier.result;
@@ -143,8 +143,12 @@ final class ChunkCopier {
             // Holding it with a ticket until its turn made it a ticking chunk, and
             // thousands of those ticking alongside the server is what stretched ticks to
             // seconds during a wide copy.
-            if (chunk != null && error == null && !result.isDone())
-                copied.add(chunk.getChunkSnapshot(false, biomes, false, light));
+            if (chunk != null && error == null && !result.isDone()) {
+                var snapshot = chunk.getChunkSnapshot(false, biomes, false, light);
+                copied.add(snapshot);
+                if (cache != null)
+                    cache.put(world.getUID(), WorldSnapshot.key(x, z), snapshot, light, biomes);
+            }
             if (!result.isDone())
                 ensureScheduled();
         });
@@ -186,7 +190,7 @@ final class ChunkCopier {
             copied.add(snapshot);
             if (cache != null)
                 cache.put(world.getUID(), WorldSnapshot.key(chunk.x(), chunk.z()), snapshot, light, biomes);
-        } else if (cache == null) {
+        } else if (cache == null || cache.waits()) {
             // It was loaded when the capture began, so it exists; only its turn came late.
             toLoad.add(WorldSnapshot.key(chunk.x(), chunk.z()));
         }

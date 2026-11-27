@@ -8,6 +8,7 @@ import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.map.PhotoExporter;
 import dev.zypec.izomap.render.CaptureSpec;
 import dev.zypec.izomap.render.ChunkCache;
+import dev.zypec.izomap.render.ColorPipeline;
 import dev.zypec.izomap.render.PhotoStyle;
 import dev.zypec.izomap.render.RenderCancellation;
 import dev.zypec.izomap.render.SkyOption;
@@ -19,6 +20,8 @@ import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -60,6 +63,10 @@ public final class DevShots {
                         .then(Commands.literal("shot")
                                 .then(Commands.argument("name", StringArgumentType.word())
                                         .executes(shots::shootOne)))
+                        .then(Commands.literal("palettes").executes(shots::palettes))
+                        .then(Commands.literal("try")
+                                .then(Commands.argument("name", StringArgumentType.word())
+                                        .executes(shots::tryMatrix)))
                         .then(Commands.literal("clicks")
                                 .then(Commands.argument("name", StringArgumentType.word())
                                         .then(Commands.argument("count", IntegerArgumentType.integer(1, 200))
@@ -141,6 +148,118 @@ public final class DevShots {
         private RenderCancellation running;
     }
 
+    /**
+     * Writes {@code exports/filters.json}: for every filter, what it turns each palette
+     * colour into. The site's try-it page shows a photo through any filter with it.
+     */
+    private int palettes(CommandContext<CommandSourceStack> ctx) {
+        var json = new StringBuilder("{");
+        var firstFilter = true;
+        for (var filter : plugin.filters().all()) {
+            json.append(firstFilter ? "" : ",").append('"').append(filter.id()).append("\":{");
+            firstFilter = false;
+            var firstColor = true;
+            for (var entry : ColorPipeline.paletteTable(filter).entrySet()) {
+                json.append(firstColor ? "" : ",")
+                        .append(String.format(Locale.ROOT, "\"%06x\":\"%06x\"", entry.getKey(), entry.getValue()));
+                firstColor = false;
+            }
+            json.append('}');
+        }
+        json.append('}');
+        var file = new File(plugin.getDataFolder(), "exports/filters.json");
+        try {
+            Files.createDirectories(file.getParentFile().toPath());
+            Files.writeString(file.toPath(), json.toString());
+            plugin.getLogger().info("dev: wrote " + file.getName());
+        } catch (IOException ex) {
+            plugin.getLogger().warning("dev: filters.json failed: " + ex.getMessage());
+        }
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * Shoots a view in every combination the site's try-it page offers: each style, each
+     * sky with and without its bodies, fog and depth of field on and off. Named
+     * {@code try-<style>-<sky>[-b][-fog][-dof]}; a transparent sky takes neither bodies
+     * nor fog. Filters and ratios are left to the page.
+     */
+    private int tryMatrix(CommandContext<CommandSourceStack> ctx) {
+        var name = StringArgumentType.getString(ctx, "name");
+        var file = load();
+        var base = file.getConfigurationSection("shots." + name);
+        if (base == null) {
+            plugin.getLogger().warning("dev: no such shot " + name);
+            return 0;
+        }
+        List<String> names = new ArrayList<>();
+        var matrix = new YamlConfiguration();
+        for (var style : List.of("SHARP", "FAST", "SHADER")) {
+            for (var sky : List.of("NONE", "DAWN", "DAY", "DUSK", "NIGHT")) {
+                var drawn = !sky.equals("NONE");
+                for (var bodies : drawn ? List.of(false, true) : List.of(false)) {
+                    for (var fog : drawn ? List.of(false, true) : List.of(false)) {
+                        for (var focus : List.of(false, true)) {
+                            var id = "try-" + style.toLowerCase(Locale.ROOT) + "-" + sky.toLowerCase(Locale.ROOT)
+                                     + (bodies ? "-b" : "") + (fog ? "-fog" : "") + (focus ? "-dof" : "");
+                            var shot = matrix.createSection("shots." + id);
+                            for (var key : base.getKeys(false))
+                                if (!List.of("fog-start", "fog-end", "focus", "style", "sky", "bodies").contains(key))
+                                    shot.set(key, base.get(key));
+                            shot.set("style", style);
+                            shot.set("sky", sky);
+                            shot.set("bodies", bodies);
+                            if (fog) {
+                                shot.set("fog-start", base.getDouble("fog-start", 128));
+                                shot.set("fog-end", base.getDouble("fog-end", 2048));
+                            }
+                            if (focus) shot.set("focus", base.getDouble("focus", 64));
+                            names.add(id);
+                        }
+                    }
+                }
+            }
+        }
+        // A shot already on disk is kept, so a stopped run picks up where it left off.
+        var exports = new File(plugin.getDataFolder(), "exports");
+        names.removeIf(id -> new File(exports, id + ".png").exists());
+        plugin.getLogger().info("dev: " + names.size() + " try shots to take");
+        if (names.isEmpty()) return Command.SINGLE_SUCCESS;
+
+        // The first fills the cache alone; the rest render side by side from it.
+        var cache = ChunkCache.keeping();
+        var queue = new java.util.ArrayDeque<>(names);
+        var started = System.nanoTime();
+        var first = queue.poll();
+        shoot(first, matrix.getConfigurationSection("shots." + first), cache).whenComplete((ignored, failure) ->
+                plugin.runOnMain(() -> {
+                    for (var lane = 0; lane < PARALLEL_SHOTS; lane++)
+                        lane(matrix, queue, cache, started);
+                }));
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * Photos the try-it matrix renders at once once the world is copied. Each walk splits
+     * over the render pool, so a few side by side keep every core busy while one of
+     * them is between passes.
+     */
+    private static final int PARALLEL_SHOTS = 3;
+
+    private void lane(YamlConfiguration matrix, java.util.ArrayDeque<String> queue, ChunkCache cache, long started) {
+        var name = queue.poll();
+        if (name == null) {
+            plugin.getLogger().info(String.format(Locale.ROOT, "dev: try lane done after %.0f s",
+                    (System.nanoTime() - started) / 1e9));
+            return;
+        }
+        shoot(name, matrix.getConfigurationSection("shots." + name), cache).whenComplete((ignored, failure) -> {
+            if (failure != null)
+                plugin.getLogger().warning("dev: " + name + " failed: " + failure.getMessage());
+            plugin.runOnMain(() -> lane(matrix, queue, cache, started));
+        });
+    }
+
     private int shootOne(CommandContext<CommandSourceStack> ctx) {
         chain(load(), List.of(StringArgumentType.getString(ctx, "name")), 0);
         return Command.SINGLE_SUCCESS;
@@ -164,6 +283,10 @@ public final class DevShots {
     }
 
     private CompletableFuture<?> shoot(String name, ConfigurationSection shot) {
+        return shoot(name, shot, null);
+    }
+
+    private CompletableFuture<?> shoot(String name, ConfigurationSection shot, ChunkCache cache) {
         if (shot == null)
             return CompletableFuture.failedFuture(new IllegalArgumentException("no such shot"));
 
@@ -174,12 +297,14 @@ public final class DevShots {
         var spec = specOf(shot, (float) shot.getDouble("yaw", 45.0));
         var render = plugin.render();
 
+        // A grid of maps, or a size in pixels for pictures that are not printed.
+        var size = shot.getString("size");
         var grid = shot.getString("grid", "4x2").split("x");
-        var width = Integer.parseInt(grid[0]) * 128;
-        var height = Integer.parseInt(grid[1]) * 128;
+        var width = size != null ? Integer.parseInt(size.split("x")[0]) : Integer.parseInt(grid[0]) * 128;
+        var height = size != null ? Integer.parseInt(size.split("x")[1]) : Integer.parseInt(grid[1]) * 128;
 
         var started = System.nanoTime();
-        return render.capture(spec, width, height)
+        return render.capture(spec, width, height, null, null, cache, null)
                 .thenCompose(result -> exporter.write(result, name, name))
                 .thenAccept(path -> plugin.getLogger().info("dev: " + name + " -> " + path.getFileName()
                         + " (" + width + "x" + height + ", " + (System.nanoTime() - started) / 1_000_000 + " ms)"));
@@ -205,7 +330,7 @@ public final class DevShots {
                 shot.contains("focus"), shot.getDouble("focus", 0.0),
                 (float) shot.getDouble("sun-yaw", plugin.config().shading().sunYaw()),
                 (float) shot.getDouble("sun-pitch", plugin.config().shading().sunPitch()),
-                shot.contains("fog-start") || plugin.config().defaultFog(),
+                shot.contains("fog-start"),
                 shot.getDouble("fog-start", plugin.config().defaultFogStart()),
                 shot.getDouble("fog-end", plugin.config().defaultFogEnd()));
     }

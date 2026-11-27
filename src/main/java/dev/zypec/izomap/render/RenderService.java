@@ -457,7 +457,7 @@ public final class RenderService {
         var requested = keys.size();
         return ChunkCopier.copy(plugin, world, keys, light, biomes, cancellation, cache).thenApply(copied -> {
             // A preview draws before its far chunks arrive, so a gap there is expected.
-            if (cache == null)
+            if (cache == null || cache.waits())
                 warnIfIncomplete(world, requested, copied.size());
             return WorldSnapshot.of(copied, minY, maxY);
         });

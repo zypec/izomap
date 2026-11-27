@@ -1174,3 +1174,23 @@ publishes it to <https://zypec.github.io/izomap/>.
 - Gallery pictures come from the development server: `wiki/gallery/shots.yml` lists their views and
   `/izodev shots` reproduces them (see `CLAUDE.md`). The folder is copied beside the site whole; the
   pictures are shown on the front page only, not in the wiki.
+- **The try-it page** (`wiki/site/try.html`) is a camera in the browser over photos the plugin took:
+  `/izodev try <view>` shoots every style, every sky with and without its bodies, fog and depth of
+  field on and off (102 pictures at 1024x576, named `try-<style>-<sky>[-b][-fog][-dof]`), kept in
+  `wiki/gallery/try/` as palette PNGs. Two settings are done by the page, and both are exact: the
+  aspect ratio, because an orthographic camera at a narrower ratio casts the same rays as the middle
+  of the wider frame; and the color filter, through `filters.json` (`/izodev palettes`), the
+  plugin's own table from each map color to its filtered one, applied to the pixels the same
+  view's transparent-sky shot says are not sky (the sky is never filtered). It differs from a real
+  filtered shot only where fog, focus or the shader style blended colors after the filter would have
+  run.
+  The matrix renders fast because every shot is the same view: one `ChunkCache.keeping()` (copies
+  never expire, every capture waits for all of its chunks, unlike the preview's) is filled by the
+  first shot and read by the rest, three at a time, with `render-threads` at the core count. On an
+  11-core M3 Pro that took 79 shots in 293 s against about 20 s a shot one by one; a stopped run
+  resumes, keeping the shots already on disk.
+- **The name is one face everywhere** (`accent.css`, `fonts/`): Helvetica Neue Bold through `local()`
+  where the device has it (Apple's), else TeX Gyre Heros Bold, a free Helvetica, subset to Basic
+  Latin (10 KB) and renamed "Izomap Wordmark" as its GUST license asks of a derived font. Windows
+  used to draw the name in Arial.
+

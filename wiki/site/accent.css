@@ -4,3 +4,10 @@
   --accent-line:#e3b12a45}}
 :root[data-theme=dark]{--accent:#e3b12a;--accent-ink:#efc24a;--accent-soft:#e3b12a17;--accent-line:#e3b12a45}
 header h1 img,header .home img{display:block;width:16px;height:16px}
+/* The name is set in Helvetica Neue Bold wherever it is read. A device that has it (Apple's) uses its own;
+   anything else gets TeX Gyre Heros Bold, a free Helvetica, cut down to Basic Latin and renamed as its
+   license asks (fonts/GUST-FONT-LICENSE.txt). */
+@font-face{font-family:"Izomap Wordmark";font-weight:700;font-display:swap;
+  src:local("Helvetica Neue Bold"),local("HelveticaNeue-Bold"),url(fonts/izomap-wordmark.woff) format("woff")}
+.brand,header .home,header #brand{font-family:"Izomap Wordmark","Helvetica Neue",Helvetica,Arial,sans-serif;font-weight:700}
+header #brand small{font-family:var(--body,"Helvetica Neue",Helvetica,Arial,sans-serif);font-weight:500}

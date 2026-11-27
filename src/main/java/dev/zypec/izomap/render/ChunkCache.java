@@ -37,10 +37,45 @@ public final class ChunkCache {
     private static final int MAX_LOADING = 32;
 
     private record Entry(ChunkSnapshot snapshot, boolean light, boolean biomes, long copiedAt, boolean far) {
-        long maxAge() {
-            return far ? FAR_AGE_NANOS : NEAR_AGE_NANOS;
-        }
     }
+
+    /**
+     * A live preview's cache: short-lived copies, far chunks fetched in the background.
+     */
+    public ChunkCache() {
+        this(false, NEAR_AGE_NANOS, FAR_AGE_NANOS);
+    }
+
+    private ChunkCache(boolean waits, long nearAge, long farAge) {
+        this.waits = waits;
+        this.nearAge = nearAge;
+        this.farAge = farAge;
+    }
+
+    /**
+     * A cache for a run of photos of one place, such as the development tools' matrix:
+     * copies never expire and every capture waits for all of its chunks, so the first
+     * photo copies the world and the rest read it.
+     */
+    public static ChunkCache keeping() {
+        return new ChunkCache(true, Long.MAX_VALUE, Long.MAX_VALUE);
+    }
+
+    boolean waits() {
+        return waits;
+    }
+
+    private long maxAge(Entry entry) {
+        return entry.far() ? farAge : nearAge;
+    }
+
+    /**
+     * Whether a capture reading this cache waits for every chunk, as a photo does, rather
+     * than drawing without the ones still loading, as the preview does.
+     */
+    private final boolean waits;
+    private final long nearAge;
+    private final long farAge;
 
     private final Map<Long, Entry> entries = new HashMap<>();
     private final ArrayDeque<Long> wanted = new ArrayDeque<>();
@@ -71,7 +106,7 @@ public final class ChunkCache {
         var entry = entries.get(key);
         if (entry == null || entry.light() != light || entry.biomes() != biomes)
             return null;
-        return System.nanoTime() - entry.copiedAt() < entry.maxAge() ? entry.snapshot() : null;
+        return System.nanoTime() - entry.copiedAt() < maxAge(entry) ? entry.snapshot() : null;
     }
 
     void put(UUID world, long key, ChunkSnapshot snapshot, boolean light, boolean biomes) {
@@ -156,7 +191,7 @@ public final class ChunkCache {
      */
     void prune() {
         var now = System.nanoTime();
-        entries.values().removeIf(entry -> now - entry.copiedAt() >= entry.maxAge());
+        entries.values().removeIf(entry -> now - entry.copiedAt() >= maxAge(entry));
     }
 
     public void clear() {

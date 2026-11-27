@@ -110,6 +110,21 @@ public final class ColorPipeline {
         }
     }
 
+    /**
+     * What this filter turns every palette colour into, as 0xRRGGBB pairs: the table a
+     * page can apply to a finished photo to show it through another filter.
+     */
+    public static java.util.Map<Integer, Integer> paletteTable(ColorFilter filter) {
+        var pipeline = of(filter, new MapColorConverter());
+        var table = new java.util.LinkedHashMap<Integer, Integer>();
+        for (var base : MapBaseColor.values()) {
+            if (base == MapBaseColor.NONE) continue;
+            for (var shade : MapBaseColor.Shade.values())
+                table.putIfAbsent(base.rgb(shade), pipeline.argbOf(base.packedId(shade) & 0xFF) & 0xFFFFFF);
+        }
+        return table;
+    }
+
     public static ColorPipeline of(ColorFilter filter, MapColorConverter converter) {
         return of(filter, converter, BiomeTints.NONE);
     }

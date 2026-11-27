@@ -57,10 +57,13 @@ camera and no player:
 izodev shots            # every view in the file, one after another
 izodev shot <name>      # one view
 izodev clicks <name> <n> # n preview-size renders, four a second, turning a step each, timed
+izodev try <name>       # the view in every combination the site's try-it page offers (try-*.png)
+izodev palettes         # exports/filters.json: what each filter turns every map color into
 ```
 
-Each view: `world` (default `world`), `x y z yaw pitch zoom`, `grid` (`8x5` → 1024x640), `sky`,
-`filter`, `style`, `bodies`, and `focus: <distance>` to turn depth of field on. The file is reread
+Each view: `world` (default `world`), `x y z yaw pitch zoom`, `grid` (`8x5` → 1024x640) or `size`
+(`1024x576`, pixels), `sky`, `filter`, `style`, `bodies`, `focus: <distance>` to turn depth of field
+on, `fog-start`/`fog-end` to turn fog on, `sun-yaw`/`sun-pitch`. The file is reread
 on every call. Output goes to `plugins/Izomap/exports/`. To drive the server from a script, enable
 RCON in `run/server.properties`.
 

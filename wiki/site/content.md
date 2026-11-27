@@ -27,7 +27,8 @@
 kicker: Isometric photography for Minecraft servers
 title: Izomap
 badge: Coming soon
-button: Read the docs | wiki/ | primary
+button: Try it | try.html | primary
+button: Read the docs | wiki/
 note: Paper 26.3 and Java 25. Free and open source under the MIT license.
 image: gallery/fog.png | A cathedral and a town at dusk, the land behind fading into the sky, photographed by Izomap | 16x9
 toggle: Fog | gallery/hero.png | The same cathedral and town without fog, the sea open to the horizon

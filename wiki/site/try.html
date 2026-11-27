@@ -1,0 +1,426 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Try Izomap</title>
+<meta name="description" content="Try Izomap's camera in the browser: switch the sky, the style, the color filter, fog, depth of field and the aspect ratio of a photo taken on a real server.">
+<meta property="og:title" content="Try Izomap">
+<meta property="og:description" content="Every setting of Izomap's camera, on a photo taken on a real server.">
+<meta property="og:image" content="https://zypec.github.io/izomap/gallery/try/try-sharp-dusk-b-fog.png">
+<link rel="icon" href="icon.svg">
+<script>
+try {
+  const theme = localStorage.getItem('zypec-theme') || localStorage.getItem('pp-theme');
+  if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
+} catch (unavailable) {}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="kit/front.css">
+<link rel="stylesheet" href="accent.css">
+<style>
+/* The page is a camera in the hand: a black body, the picture filling it, glass controls floating over the
+   edges and the modes along the foot, the way a phone's camera app is laid out. Every picture was taken on
+   the development server; only the filter and the crop to a ratio are done here, and both are exact: a
+   filter is the plugin's own table from each map color to its filtered one, and an orthographic camera at a
+   narrower ratio sees the middle of the wider frame, ray for ray. */
+:root{--hud:"DM Mono",ui-monospace,SFMono-Regular,Menlo,monospace;--yellow:#ffd60a;
+  --glass:rgba(40,40,44,.52);--glass-line:rgba(255,255,255,.16);--glass-ink:#f5f5f7;--glass-dim:rgba(245,245,247,.55)}
+main{padding-bottom:56px}
+.intro{display:flex;align-items:end;justify-content:space-between;gap:24px;flex-wrap:wrap;padding:40px 0 22px}
+.intro h1{font-family:var(--display);font-weight:600;font-size:38px;letter-spacing:-.01em;line-height:1.1;margin:0 0 8px}
+.intro p{margin:0;color:var(--muted);max-width:620px}
+
+.camera{position:relative;border-radius:30px;background:#000;color:var(--glass-ink);overflow:hidden;
+  padding:18px 18px 22px;box-shadow:0 30px 80px -30px rgba(0,0,0,.6);user-select:none;-webkit-user-select:none}
+
+/* The glass: blurred, faintly lit along its rim, floating over the picture. */
+.glass{background:var(--glass);border:1px solid var(--glass-line);backdrop-filter:blur(22px) saturate(1.6);
+  -webkit-backdrop-filter:blur(22px) saturate(1.6);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 8px 24px rgba(0,0,0,.25)}
+
+.topbar{position:relative;z-index:4;display:flex;width:fit-content;gap:4px;padding:5px;margin:0 auto 14px;border-radius:999px}
+.topbar button{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-width:42px;height:36px;padding:0 12px;border:0;
+  border-radius:999px;background:transparent;color:var(--glass-dim);font:500 12px/1 var(--hud);letter-spacing:.06em;cursor:pointer;
+  transition:color .2s,background .25s,opacity .25s}
+.topbar button svg{width:18px;height:18px}
+.topbar button:hover{color:var(--glass-ink)}
+.topbar button[aria-pressed=true]{color:#1a1500;background:var(--yellow)}
+.topbar button:disabled{opacity:.3;cursor:default}
+.topbar button:focus-visible,.modes button:focus-visible,.round:focus-visible,.shutter:focus-visible,.thumb:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+
+/* The picture, always 16:9 underneath; a narrower ratio is the same frame with its sides closed off. */
+.stage{position:relative;aspect-ratio:16/9;border-radius:18px;overflow:hidden;background:#0b0b0c}
+.stage .checker{position:absolute;inset:0;background:conic-gradient(#1d1d20 25%,#141416 0 50%,#1d1d20 0 75%,#141416 0) 0 0/22px 22px}
+.stage canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated;transition:opacity .32s ease,transform .5s cubic-bezier(.2,.8,.2,1)}
+.stage canvas.back{opacity:0;transform:scale(1.012)}
+.stage .shade{position:absolute;top:0;bottom:0;background:rgba(0,0,0,.86);transition:width .45s cubic-bezier(.65,0,.25,1);width:var(--side,0%)}
+.stage .shade.l{left:0}.stage .shade.r{right:0}
+.stage .flash{position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none}
+.stage .flash.on{animation:flash .42s ease-out}
+@keyframes flash{0%{opacity:.85}100%{opacity:0}}
+.stage .busy{position:absolute;right:16px;top:16px;width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.25);
+  border-top-color:var(--yellow);opacity:0;transition:opacity .2s;animation:spin .8s linear infinite}
+.stage.loading .busy{opacity:1}
+@keyframes spin{to{transform:rotate(1turn)}}
+.hud{position:absolute;left:var(--side,0%);right:var(--side,0%);padding:0 14px;display:flex;gap:16px;font:500 11.5px/1 var(--hud);
+  letter-spacing:.07em;text-transform:uppercase;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.7);pointer-events:none;
+  transition:left .45s cubic-bezier(.65,0,.25,1),right .45s cubic-bezier(.65,0,.25,1)}
+.hud.top{top:14px}.hud.foot{bottom:14px}
+.hud span{opacity:.7}.hud b{font-weight:500;margin-left:6px;color:var(--yellow)}
+
+/* The filters, an island of glass over the foot of the picture. */
+.filters{position:relative;z-index:3;display:flex;justify-content:center;margin:14px 0 6px}
+.island{position:relative;display:flex;align-items:center;gap:2px;padding:5px;max-width:calc(100% - 24px);border-radius:999px;
+  overflow-x:auto;scrollbar-width:none}
+.island::-webkit-scrollbar{display:none}
+.island .glide{position:absolute;top:5px;bottom:5px;left:0;width:0;border-radius:999px;background:var(--yellow);
+  transition:transform .42s cubic-bezier(.3,1.3,.5,1),width .42s cubic-bezier(.3,1.3,.5,1)}
+.island button{position:relative;display:inline-flex;align-items:center;height:38px;padding:0 11px;border:0;border-radius:999px;
+  background:transparent;color:var(--glass-dim);cursor:pointer;transition:color .25s}
+.island button:hover{color:var(--glass-ink)}
+.island button[aria-pressed=true]{color:#1a1500}
+.island svg{width:18px;height:18px;flex:none}
+.island .label{max-width:0;opacity:0;overflow:hidden;white-space:nowrap;font:500 12px/1 var(--hud);letter-spacing:.05em;
+  transition:max-width .36s cubic-bezier(.2,.8,.2,1),opacity .2s,margin .36s}
+.island button[aria-pressed=true] .label{max-width:var(--w);opacity:1;margin-left:8px}
+
+/* The modes: the sky, read across the foot like a camera's modes, the chosen one in yellow and centred. */
+.modes{position:relative;height:34px;overflow:hidden;margin:4px 0 14px;touch-action:pan-y;
+  mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 22%,#000 78%,transparent)}
+.modes .track{position:absolute;left:50%;top:0;display:flex;gap:26px;transition:transform .45s cubic-bezier(.2,.9,.25,1);will-change:transform}
+.modes button{border:0;background:none;padding:8px 2px;color:var(--glass-dim);font:500 13px/1 var(--hud);letter-spacing:.14em;
+  text-transform:uppercase;cursor:pointer;transition:color .3s;white-space:nowrap}
+.modes button[aria-pressed=true]{color:var(--yellow)}
+
+.controls{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:0 8px}
+.round{justify-self:start;display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:62px;height:62px;
+  border-radius:50%;border:1px solid var(--glass-line);background:rgba(255,255,255,.08);color:var(--glass-ink);cursor:pointer;
+  font:500 10px/1.2 var(--hud);letter-spacing:.08em;text-transform:uppercase;transition:background .2s,transform .15s}
+.round:active{transform:scale(.94)}
+.round small{display:block;color:var(--yellow);font-size:9px;margin-top:3px}
+.shutter{width:78px;height:78px;border-radius:50%;border:4px solid #fff;background:transparent;padding:4px;cursor:pointer}
+.shutter span{display:block;width:100%;height:100%;border-radius:50%;background:#fff;transition:transform .12s}
+.shutter:active span{transform:scale(.88)}
+.thumb{justify-self:end;width:62px;height:62px;border-radius:14px;border:2px solid rgba(255,255,255,.75);background:#1b1b1d center/cover no-repeat;
+  cursor:pointer;opacity:.35;transition:opacity .3s,transform .3s}
+.thumb.has{opacity:1}
+.thumb.pop{animation:pop .45s cubic-bezier(.2,1.4,.4,1)}
+@keyframes pop{0%{transform:scale(.6)}100%{transform:scale(1)}}
+
+.notes{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px;margin-top:30px;color:var(--muted);font-size:14.5px}
+.notes b{display:block;color:var(--ink);font-weight:600;margin-bottom:4px}
+.cta{display:flex;gap:10px;flex-wrap:wrap}
+
+@media (max-width:760px){
+  .camera{border-radius:22px;padding:10px 10px 18px}
+  .topbar button{height:32px;min-width:36px;padding:0 9px}
+  .topbar button .word{display:none}
+  .stage{border-radius:14px}
+  .hud{font-size:9.5px;gap:10px}.hud .extra{display:none}
+  .notes{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){
+  .stage canvas,.stage .shade,.modes .track,.island .glide,.island .label,.hud{transition:none}
+  .stage .flash.on,.thumb.pop,.stage .busy{animation:none}
+}
+</style>
+</head>
+<body>
+<header>
+  <a class="home" href="./"><img src="icon.svg" alt="" width="16" height="16">Izomap</a>
+  <nav>
+    <a href="./#gallery" class="roomy">Gallery</a>
+    <a href="wiki/">Docs</a>
+    <a href="../">Portfolio</a>
+    <button id="theme" type="button" aria-live="polite"><span class="icon" aria-hidden="true"></span><span class="text"></span></button>
+  </nav>
+</header>
+<script src="kit/island.js"></script>
+
+<main>
+  <div class="intro">
+    <div>
+      <h1>Try the camera</h1>
+      <p>A cathedral and its town, photographed on a real server in every combination of sky, style, fog and depth
+        of field. Change a setting and the photo Izomap took with it comes in.</p>
+    </div>
+    <div class="cta"><a class="btn primary" href="wiki/#getting-started">Get started</a><a class="btn" href="wiki/">Read the docs</a></div>
+  </div>
+
+  <section class="camera" aria-label="Izomap camera">
+    <div class="topbar glass" role="toolbar" aria-label="Camera settings">
+      <button type="button" id="ratio" aria-label="Aspect ratio">16:9</button>
+      <button type="button" id="fog" aria-pressed="true" title="Fog">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 9h11M7 13h13M3 17h12"/><path d="M15 9a3.5 3.5 0 1 1 3.2 3.5"/></svg><span class="word">Fog</span></button>
+      <button type="button" id="bodies" aria-pressed="true" title="Sun, moon and stars">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3.8"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg><span class="word">Sun</span></button>
+      <button type="button" id="focus" aria-pressed="false" title="Depth of field">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5 15.5 9M20.5 12l-6.2.2M16.3 19.3 13 14M7.7 19.3 9.5 13M3.5 12l6 .8M7.7 4.7 11 10"/></svg><span class="word">Focus</span></button>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="checker"></div>
+      <canvas id="front" width="1024" height="576"></canvas>
+      <canvas id="back" class="back" width="1024" height="576" aria-hidden="true"></canvas>
+      <span class="shade l" aria-hidden="true"></span><span class="shade r" aria-hidden="true"></span>
+      <span class="flash" id="flash" aria-hidden="true"></span>
+      <span class="busy" aria-hidden="true"></span>
+      <div class="hud top"><span>Style<b id="r-style"></b></span><span>Sky<b id="r-sky"></b></span><span class="extra">Filter<b id="r-filter"></b></span></div>
+      <div class="hud foot"><span>Fog<b id="r-fog"></b></span><span>Focus<b id="r-focus"></b></span><span class="extra">Ratio<b id="r-ratio"></b></span></div>
+    </div>
+
+    <div class="filters"><div class="island glass" id="island" role="group" aria-label="Color filter"><span class="glide" aria-hidden="true"></span></div></div>
+
+    <div class="modes" id="modes" role="group" aria-label="Sky"><div class="track" id="track"></div></div>
+
+    <div class="controls">
+      <button type="button" class="round" id="style" aria-label="Style">Style<small id="style-name"></small></button>
+      <button type="button" class="shutter" id="shutter" aria-label="Take the photo"><span></span></button>
+      <button type="button" class="thumb" id="thumb" aria-label="Save the last photo as a PNG" title="Save as PNG" disabled></button>
+    </div>
+  </section>
+
+  <div class="notes">
+    <div><b>Shot on a server</b>Each sky, style, fog and focus setting is a photo the plugin took on the development server, at 1024x576. Nothing is faked here.</div>
+    <div><b>Filters and ratios</b>A filter is the plugin's own table from each map color to its filtered one, applied to the photo. A narrower ratio is the middle of the same frame, as the camera would shoot it.</div>
+    <div><b>On a wall</b>In the game the photo is printed onto maps, from a single one to a 16x9 mural, with no resource pack. <a href="wiki/#taking-photos">How to take one</a>.</div>
+  </div>
+</main>
+
+<footer>
+  <span>Izomap by <a href="../">zypec</a></span>
+  <a href="./">Home</a>
+  <a href="wiki/">Docs</a>
+  <span>Version __VERSION__</span>
+</footer>
+
+<script>
+const FOLDER = 'gallery/try/';
+const STYLES = [['sharp', 'Sharp'], ['fast', 'Fast'], ['shader', 'Shader']];
+const SKIES = [['none', 'Transparent'], ['dawn', 'Dawn'], ['day', 'Day'], ['dusk', 'Dusk'], ['night', 'Night']];
+const RATIOS = [['16:9', 16 / 9], ['4:3', 4 / 3], ['1:1', 1]];
+const FILTERS = [['ORIGINAL', 'Original'], ['WARM', 'Warm'], ['COOL', 'Cool'], ['VIVID', 'Vivid'], ['SEPIA', 'Sepia'],
+  ['GRAYSCALE', 'Black and white'], ['NOIR', 'Noir']];
+/** The front page's filter icons, so the two islands speak the same language. */
+const ICONS = {
+  ORIGINAL: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/>',
+  WARM: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
+  COOL: '<path d="M12 2.5v19M3.8 7.2l16.4 9.6M3.8 16.8l16.4-9.6"/><path d="m9.5 4 2.5 2 2.5-2M9.5 20l2.5-2 2.5 2"/>',
+  VIVID: '<path d="M12 3c3.5 4.2 6 7.4 6 10.5a6 6 0 0 1-12 0C6 10.4 8.5 7.2 12 3z"/><path d="M9.5 14a2.5 2.5 0 0 0 2.5 2.5"/>',
+  SEPIA: '<path d="M7 3h10M7 21h10M8 3c0 4 8 5 8 9s-8 5-8 9M16 3c0 4-8 5-8 9"/>',
+  GRAYSCALE: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
+  NOIR: '<path d="M19.5 14.5A8 8 0 1 1 9.5 4.5a6.5 6.5 0 0 0 10 10z"/>',
+};
+
+const state = {style: 'sharp', sky: 'dusk', bodies: true, fog: true, focus: false, filter: 'ORIGINAL', ratio: 0};
+const $ = id => document.getElementById(id);
+const stage = $('stage');
+let front = $('front'), back = $('back');
+let palettes = null, drawn = 0;
+
+/** The file the plugin wrote for a combination; a transparent sky carries neither bodies nor fog. */
+const shot = s => `try-${s.style}-${s.sky}${s.sky !== 'none' && s.bodies ? '-b' : ''}${s.sky !== 'none' && s.fog ? '-fog' : ''}${s.focus ? '-dof' : ''}`;
+/** The same view against no sky, whose holes say which pixels are sky: a filter leaves the sky alone. */
+const maskOf = s => `try-${s.style}-none${s.focus ? '-dof' : ''}`;
+
+const images = new Map();
+function image(name) {
+  if (!images.has(name)) images.set(name, new Promise((resolve, reject) => {
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = `${FOLDER}${name}.png`;
+  }));
+  return images.get(name);
+}
+
+const pixels = new Map();
+/** A photo's pixels, through a filter: each map color swapped for the plugin's filtered one, sky untouched. */
+async function frame(s) {
+  const key = `${shot(s)}|${s.filter}`;
+  if (pixels.has(key)) return pixels.get(key);
+  const work = (async () => {
+    const [photo, mask] = await Promise.all([image(shot(s)), s.filter === 'ORIGINAL' ? null : image(maskOf(s))]);
+    const canvas = new OffscreenCanvas(1024, 576), ctx = canvas.getContext('2d', {willReadFrequently: true});
+    ctx.drawImage(photo, 0, 0);
+    if (mask) {
+      const table = palettes[s.filter], data = ctx.getImageData(0, 0, 1024, 576);
+      const m = new OffscreenCanvas(1024, 576).getContext('2d', {willReadFrequently: true});
+      m.drawImage(mask, 0, 0);
+      const sky = m.getImageData(0, 0, 1024, 576).data, d = data.data;
+      const hex = n => n.toString(16).padStart(6, '0');
+      for (let i = 0; i < d.length; i += 4) {
+        if (sky[i + 3] === 0 || d[i + 3] === 0) continue;
+        const to = table[hex((d[i] << 16) | (d[i + 1] << 8) | d[i + 2])];
+        if (!to) continue;
+        const v = parseInt(to, 16);
+        d[i] = v >> 16; d[i + 1] = (v >> 8) & 255; d[i + 2] = v & 255;
+      }
+      ctx.putImageData(data, 0, 0);
+    }
+    return canvas;
+  })();
+  pixels.set(key, work);
+  return work;
+}
+
+/** Draws the state into the hidden canvas, then crossfades to it. A newer change wins over a slower one. */
+async function show() {
+  const ticket = ++drawn;
+  stage.classList.add('loading');
+  let picture;
+  try { picture = await frame({...state}); } catch (failed) { stage.classList.remove('loading'); return; }
+  if (ticket !== drawn) return;
+  stage.classList.remove('loading');
+  const ctx = back.getContext('2d');
+  ctx.clearRect(0, 0, 1024, 576);
+  ctx.drawImage(picture, 0, 0);
+  back.classList.remove('back');
+  front.classList.add('back');
+  [front, back] = [back, front];
+  front.removeAttribute('aria-hidden');
+  back.setAttribute('aria-hidden', 'true');
+  front.setAttribute('role', 'img');
+  front.setAttribute('aria-label', describe());
+  readout();
+  warm();
+}
+
+const label = (list, id) => list.find(([key]) => key === id)[1];
+function describe() {
+  return `The cathedral and town in the ${label(SKIES, state.sky).toLowerCase()} sky, ${label(STYLES, state.style)} style, `
+    + `${label(FILTERS, state.filter)} filter${state.fog && state.sky !== 'none' ? ', with fog' : ''}${state.focus ? ', with depth of field' : ''}`;
+}
+function readout() {
+  $('r-style').textContent = label(STYLES, state.style);
+  $('r-sky').textContent = label(SKIES, state.sky);
+  $('r-filter').textContent = label(FILTERS, state.filter);
+  $('r-fog').textContent = state.sky === 'none' ? 'None' : state.fog ? 'On' : 'Off';
+  $('r-focus').textContent = state.focus ? '240 blocks' : 'Off';
+  $('r-ratio').textContent = RATIOS[state.ratio][0];
+}
+
+/** What is one click away, fetched while the player looks at this one. */
+function warm() {
+  for (const [sky] of SKIES) image(shot({...state, sky}));
+  for (const [style] of STYLES) image(shot({...state, style}));
+  image(shot({...state, fog: !state.fog}));
+  image(shot({...state, focus: !state.focus}));
+  image(shot({...state, bodies: !state.bodies}));
+}
+
+function set(change) {
+  Object.assign(state, change);
+  $('fog').setAttribute('aria-pressed', String(state.fog));
+  $('bodies').setAttribute('aria-pressed', String(state.bodies));
+  $('focus').setAttribute('aria-pressed', String(state.focus));
+  $('fog').disabled = $('bodies').disabled = state.sky === 'none';
+  $('style-name').textContent = label(STYLES, state.style);
+  show();
+}
+
+/* The top bar. */
+$('fog').onclick = () => set({fog: !state.fog});
+$('bodies').onclick = () => set({bodies: !state.bodies});
+$('focus').onclick = () => set({focus: !state.focus});
+$('ratio').onclick = () => {
+  state.ratio = (state.ratio + 1) % RATIOS.length;
+  const [name, value] = RATIOS[state.ratio];
+  $('ratio').textContent = name;
+  stage.style.setProperty('--side', `${((1 - value / (16 / 9)) / 2) * 100}%`);
+  readout();
+};
+$('style').onclick = () => {
+  const i = STYLES.findIndex(([key]) => key === state.style);
+  set({style: STYLES[(i + 1) % STYLES.length][0]});
+};
+
+/* The modes. */
+const track = $('track');
+track.innerHTML = SKIES.map(([key, name]) => `<button type="button" data-sky="${key}" aria-pressed="${key === state.sky}">${name}</button>`).join('');
+const skyButtons = [...track.querySelectorAll('button')];
+function centre() {
+  const on = skyButtons.find(b => b.dataset.sky === state.sky);
+  track.style.transform = `translateX(${-(on.offsetLeft + on.offsetWidth / 2)}px)`;
+  skyButtons.forEach(b => b.setAttribute('aria-pressed', String(b === on)));
+}
+skyButtons.forEach(b => b.onclick = () => { set({sky: b.dataset.sky}); centre(); });
+const step = by => {
+  const i = SKIES.findIndex(([key]) => key === state.sky), next = SKIES[Math.max(0, Math.min(SKIES.length - 1, i + by))][0];
+  if (next !== state.sky) { set({sky: next}); centre(); }
+};
+/* A swipe across the modes moves one, as on a phone; the arrow keys do the same from the keyboard. */
+let swipe = null;
+$('modes').addEventListener('pointerdown', e => { swipe = e.clientX; });
+addEventListener('pointerup', e => {
+  if (swipe === null) return;
+  const moved = e.clientX - swipe;
+  swipe = null;
+  if (Math.abs(moved) > 30) step(moved < 0 ? 1 : -1);
+});
+$('modes').addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') { step(1); e.preventDefault(); }
+  if (e.key === 'ArrowLeft') { step(-1); e.preventDefault(); }
+});
+
+/* The filters. */
+const island = $('island'), glide = island.querySelector('.glide');
+island.insertAdjacentHTML('beforeend', FILTERS.map(([id, name]) =>
+  `<button type="button" data-f="${id}" aria-pressed="${id === state.filter}" aria-label="${name}" title="${name}">`
+  + `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[id]}</svg>`
+  + `<span class="label" aria-hidden="true">${name}</span></button>`).join(''));
+const filterButtons = [...island.querySelectorAll('button')];
+for (const l of island.querySelectorAll('.label')) l.style.setProperty('--w', `${l.scrollWidth}px`);
+const place = () => {
+  const on = island.querySelector('[aria-pressed=true]');
+  glide.style.transform = `translateX(${on.offsetLeft}px)`;
+  glide.style.width = `${on.offsetWidth}px`;
+};
+let until = 0;
+const follow = () => { place(); if (performance.now() < until) requestAnimationFrame(follow); };
+filterButtons.forEach(b => b.onclick = () => {
+  filterButtons.forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+  until = performance.now() + 480;
+  requestAnimationFrame(follow);
+  b.scrollIntoView({block: 'nearest', inline: 'nearest', behavior: 'smooth'});
+  set({filter: b.dataset.f});
+});
+addEventListener('resize', () => { place(); centre(); });
+
+/* The shutter: a flash, and the photo as it stands lands in the corner, ready to save. */
+let last = null;
+$('shutter').onclick = () => {
+  const flash = $('flash');
+  flash.classList.remove('on');
+  void flash.offsetWidth;
+  flash.classList.add('on');
+  const value = RATIOS[state.ratio][1], width = Math.round(576 * value), out = document.createElement('canvas');
+  out.width = width; out.height = 576;
+  out.getContext('2d').drawImage(front, (1024 - width) / 2, 0, width, 576, 0, 0, width, 576);
+  last = {url: out.toDataURL('image/png'), name: `izomap-${shot(state).slice(4)}-${state.filter.toLowerCase()}.png`};
+  const thumb = $('thumb');
+  thumb.style.backgroundImage = `url(${last.url})`;
+  thumb.disabled = false;
+  thumb.classList.add('has');
+  thumb.classList.remove('pop');
+  void thumb.offsetWidth;
+  thumb.classList.add('pop');
+};
+$('thumb').onclick = () => {
+  if (!last) return;
+  const a = document.createElement('a');
+  a.href = last.url; a.download = last.name; a.click();
+};
+
+fetch(`${FOLDER}filters.json`).then(r => r.json()).then(json => {
+  palettes = json;
+  set({});
+  requestAnimationFrame(() => { centre(); place(); });
+});
+</script>
+<script src="kit/theme.js"></script>
+</body>
+</html>
