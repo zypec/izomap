@@ -1057,6 +1057,28 @@ number; they are read from `Player#getEffectivePermissions()` by prefix. The sma
 ratio stays selectable above the tile limit. The photo limit is per camera and counts unhung photos;
 the real check is inside `PhotoManager#capture`.
 
+### The web editor (`editor/EditorServer`, local)
+
+The plugin serves the editor page (`resources/editor/index.html`) and a JSON API itself, with the
+JDK's `HttpServer`, on `editor.bind:editor.port` (127.0.0.1:8790 by default). There is no relay yet:
+the page talks to the plugin directly, so it opens where the server runs, or on a network the owner
+binds to. `/izocam editor` hands a player a link with a 128-bit key (`EditorSessions`); every call
+sends it and acts as that player, with their permissions, while they are online, until
+`editor.idle-minutes` pass unused or a new link is asked for.
+
+| Call | Does |
+|---|---|
+| `GET /api/state` | The player, their cameras in their world, the choices (filters, styles, skies, grids per ratio) |
+| `GET /api/map?x&z&size` | A top-down PNG, `size` blocks across, rendered by the walk at pitch 90 and turned half round so north is up |
+| `POST /api/cameras {x,z}` | A camera 12 blocks above the ground there (protection asked) |
+| `PATCH /api/cameras/<id>` | Any setting the capture screen has, plus position; only the fields sent |
+| `GET /api/cameras/<id>/preview?w` | The camera at its ratio, `w` wide |
+| `POST /api/cameras/<id>/photo {name,grid}` | `PhotoManager#capture`, queue and all |
+
+Requests run on a pool of four; anything touching the world hops to the main thread and is waited
+for, renders run on the render pool. A remote editor (through a relay, as Particles+ has) is the
+next step; the API is the same either way.
+
 ## 8. Configuration and data
 
 All config reads go through `ConfigManager`; key names and defaults live there and values are

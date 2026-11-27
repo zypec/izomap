@@ -8,6 +8,10 @@ Edit `plugins/Izomap/config.yml` and run `/izocam reload`; no restart is needed.
 
 <!--config:version-->
 
+### Web editor
+
+<!--config:editor-->
+
 ### Limits and cost
 
 These decide what one photo may cost the server. [Performance](#performance) has measurements.

@@ -39,6 +39,8 @@ public final class Permissions {
     public static final String CAMERA = "izomap.camera";
     /** Acting on other players' cameras and photos. */
     public static final String ADMIN = "izomap.admin";
+    /** Opening the web editor. */
+    public static final String EDITOR = "izomap.editor";
     /** Writing a photo out as a PNG. */
     public static final String EXPORT = "izomap.export";
     /** The expensive style; {@code FAST} is free. */

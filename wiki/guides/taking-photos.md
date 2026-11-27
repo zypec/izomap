@@ -123,3 +123,10 @@ If a setting on the camera needs a permission you do not have, the photo is refu
 **Pick up camera** (or `/izocam pickup <camera>`) takes the camera down and gives its item back, if it was placed with one. Only the camera's owner and players with `izomap.admin` see the button. Photos belong to the camera that took them and cannot be retaken without it, so they are deleted with it; the screen asks first.
 
 **Reset aim** puts zoom, facing and tilt back to their defaults and leaves everything else alone.
+
+### The web editor
+
+`/izocam editor` (`izomap.editor`, operators by default) gives you a link to an editor in your browser, served by the plugin itself. It shows the world from above, rendered by Izomap: drag to move, scroll to zoom, **Place camera** and a click puts a camera there, a little above the ground. Pick a camera to aim it (facing, tilt, zoom, position, or **Move here** and a click on the map) and set everything the capture screen sets, with its preview redrawn after each change. **Take photo** shoots it as the capture screen does; the game tells you when it is in the camera's list.
+
+The editor acts as you, with your permissions, while you are online. By default it only opens on the computer the server runs on (`editor.bind: 127.0.0.1`); asking for a new link ends the old one, and a link stops working after `editor.idle-minutes` unused.
+

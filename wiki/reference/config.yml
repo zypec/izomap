@@ -16,6 +16,25 @@ version:
     file back; comments you wrote are kept. A file written by a newer version is left untouched
     and reported in the console.
 
+editor.enabled:
+  summary: Serve the web editor that /izocam editor links to.
+  detail: The plugin answers the page itself, with no service in between. Off, the command says the editor is turned off.
+
+editor.bind:
+  summary: The address the editor listens on.
+  detail: |
+    `127.0.0.1`, the default, keeps it to the computer the server runs on. `0.0.0.0` opens it to every
+    network the server is on, so anyone who can reach the port may try a link; a link is a random
+    128-bit key, but only open it where you trust the network.
+
+editor.port:
+  summary: The port the editor listens on.
+  range: 1 to 65535
+
+editor.idle-minutes:
+  summary: Minutes an editor link keeps working without use.
+  range: 1 to 1440
+
 settings.language:
   summary: The language of every message, in game and in the console.
   detail: |

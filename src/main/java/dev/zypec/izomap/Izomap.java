@@ -7,6 +7,7 @@ import dev.zypec.izomap.camera.CameraManager;
 import dev.zypec.izomap.config.ConfigManager;
 import dev.zypec.izomap.config.Messages;
 import dev.zypec.izomap.dev.DevShots;
+import dev.zypec.izomap.editor.EditorServer;
 import dev.zypec.izomap.map.MapService;
 import dev.zypec.izomap.map.PhotoFrameListener;
 import dev.zypec.izomap.map.PhotoFrames;
@@ -50,6 +51,7 @@ public final class Izomap extends JavaPlugin {
     private PhotoManager photoManager;
     private PreviewManager previewManager;
     private PlacementManager placementManager;
+    private EditorServer editorServer;
 
     @Override
     public void onEnable() {
@@ -94,11 +96,17 @@ public final class Izomap extends JavaPlugin {
         if (DevShots.enabled())
             DevShots.register(this);
 
+        this.editorServer = new EditorServer(this);
+        editorServer.start();
+
         messages.info("log.enabled");
     }
 
     @Override
     public void onDisable() {
+        if (editorServer != null)
+            editorServer.stop();
+
         // Plugins are disabled before players are kicked, so the quit handler never
         // runs on shutdown; the preview maps have to be collected here.
         if (placementManager != null)
@@ -135,6 +143,9 @@ public final class Izomap extends JavaPlugin {
         // Visual settings such as the model rotation offset take effect immediately.
         if (cameraManager != null)
             cameraManager.refreshTransforms();
+        // A changed port or address takes effect; links already handed out keep working.
+        if (editorServer != null)
+            editorServer.start();
     }
 
     /**
@@ -179,6 +190,10 @@ public final class Izomap extends JavaPlugin {
 
     public PhotoManager photos() {
         return photoManager;
+    }
+
+    public EditorServer editor() {
+        return editorServer;
     }
 
     public PreviewManager preview() {

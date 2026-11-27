@@ -13,6 +13,9 @@ permissions:
   izomap.admin:
     description: Manage other players' cameras and photos, and reload the configuration
     default: op
+  izomap.editor:
+    description: Open the web editor with /izocam editor
+    default: op
   izomap.export:
     description: Write a photo to disk as a PNG
     default: op

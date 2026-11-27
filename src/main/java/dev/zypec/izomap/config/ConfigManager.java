@@ -154,6 +154,28 @@ public final class ConfigManager {
         return "sky".equalsIgnoreCase(cfg().getString("photo.fog.color", "sky").trim());
     }
 
+    /** Whether the plugin serves the web editor. */
+    public boolean editorEnabled() {
+        return cfg().getBoolean("editor.enabled", true);
+    }
+
+    /**
+     * The address the editor listens on: {@code 127.0.0.1} keeps it to this machine,
+     * {@code 0.0.0.0} opens it to every network the server is on.
+     */
+    public String editorBind() {
+        return cfg().getString("editor.bind", "127.0.0.1");
+    }
+
+    public int editorPort() {
+        return clamp(cfg().getInt("editor.port", 8790), 1, 65535);
+    }
+
+    /** Minutes an editor link keeps working without a request. */
+    public int editorIdleMinutes() {
+        return clamp(cfg().getInt("editor.idle-minutes", 30), 1, 1440);
+    }
+
     /**
      * Which {@code lang/<code>.yml} players and the console read.
      */

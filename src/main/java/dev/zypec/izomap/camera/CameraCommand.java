@@ -18,6 +18,8 @@ import dev.zypec.izomap.ui.CameraDialogs;
 import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.Commands;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
@@ -141,6 +143,9 @@ public final class CameraCommand {
                         .executes(this::cancelPlacement))
                 .then(Commands.literal("cleanup")
                         .executes(this::cleanup))
+                .then(Commands.literal("editor")
+                        .requires(source -> source.getSender().hasPermission(Permissions.EDITOR))
+                        .executes(this::editor))
                 .then(Commands.literal("export")
                         .requires(source -> source.getSender().hasPermission(Permissions.EXPORT))
                         .then(Commands.literal("as")
@@ -448,6 +453,21 @@ public final class CameraCommand {
         }
         plugin.messages().send(player, "photo.exporting", Placeholder.unparsed("name", photo.name()));
         photoManager.export(player, photo, fileName);
+        return Command.SINGLE_SUCCESS;
+    }
+
+    /**
+     * Hands the player a link to the web editor, which acts as them while they are online.
+     */
+    private int editor(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
+        var player = requirePlayer(ctx);
+        var link = plugin.editor() != null ? plugin.editor().linkFor(player) : null;
+        if (link == null) {
+            plugin.messages().send(player, "editor.disabled");
+            return 0;
+        }
+        plugin.messages().send(player, "editor.link", Placeholder.component("link",
+                Component.text(link).clickEvent(ClickEvent.openUrl(link))));
         return Command.SINGLE_SUCCESS;
     }
 

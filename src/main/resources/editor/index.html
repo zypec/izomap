@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Izomap editor</title>
+<style>
+/* The editor: the world from above on the left, the chosen camera on the right. The plugin serves this page
+   and answers it directly; every call carries the session key from the link /izocam editor printed. */
+:root{color-scheme:dark;--bg:#0b0b0d;--panel:#141417;--line:#26262b;--ink:#ececf1;--muted:#8d8d98;--yellow:#ffd60a;
+  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;--sans:"Helvetica Neue",Helvetica,Arial,sans-serif}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans)}
+button,input,select{font:inherit;color:inherit}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 380px;height:100vh}
+.mapwrap{position:relative;overflow:hidden;background:#060607;cursor:grab;touch-action:none}
+.mapwrap.dragging{cursor:grabbing}
+.mapwrap.placing{cursor:crosshair}
+.mapwrap img{position:absolute;left:0;top:0;transform-origin:0 0;image-rendering:pixelated;user-select:none;pointer-events:none}
+.mapwrap canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.toolbar{position:absolute;top:14px;left:14px;display:flex;gap:6px;padding:5px;border-radius:999px;background:rgba(30,30,34,.7);
+  backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.12)}
+.toolbar button{height:34px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:var(--muted);cursor:pointer;
+  font:500 12px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase}
+.toolbar button:hover{color:var(--ink)}
+.toolbar button[aria-pressed=true]{background:var(--yellow);color:#1a1500}
+.coords{position:absolute;left:14px;bottom:12px;font:500 11.5px/1 var(--mono);color:var(--muted);letter-spacing:.05em;
+  text-shadow:0 1px 2px #000}
+.busy{position:absolute;right:14px;top:18px;width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.2);
+  border-top-color:var(--yellow);animation:spin .8s linear infinite;opacity:0;transition:opacity .2s}
+.busy.on{opacity:1}
+@keyframes spin{to{transform:rotate(1turn)}}
+
+.side{border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:18px 18px 40px}
+.side h1{margin:0 0 2px;font-size:20px;font-weight:700;letter-spacing:-.02em}
+.side .who{color:var(--muted);font-size:13px;margin-bottom:16px}
+.list{display:flex;flex-direction:column;gap:4px;margin-bottom:16px}
+.list button{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border:1px solid var(--line);border-radius:10px;
+  background:transparent;cursor:pointer;text-align:left}
+.list button[aria-pressed=true]{border-color:var(--yellow);background:#ffd60a12}
+.list small{color:var(--muted);font-family:var(--mono);font-size:11px}
+.empty{color:var(--muted);font-size:13px;padding:10px 0}
+.preview{position:relative;border-radius:12px;overflow:hidden;background:conic-gradient(#1d1d20 25%,#151517 0 50%,#1d1d20 0 75%,#151517 0) 0 0/18px 18px;
+  margin-bottom:14px;min-height:120px}
+.preview img{display:block;width:100%;image-rendering:pixelated;transition:opacity .25s}
+.preview.loading img{opacity:.55}
+.group{border-top:1px solid var(--line);padding:12px 0}
+.group>b{display:block;font:500 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
+.row{display:grid;grid-template-columns:96px minmax(0,1fr) 64px;align-items:center;gap:10px;margin:6px 0}
+.row label{color:var(--muted);font-size:13px}
+.row output{font:500 12px/1 var(--mono);text-align:right}
+input[type=range]{width:100%;accent-color:var(--yellow)}
+.seg{display:flex;flex-wrap:wrap;gap:4px}
+.seg button{padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:transparent;cursor:pointer;font-size:12.5px}
+.seg button[aria-pressed=true]{background:var(--yellow);border-color:var(--yellow);color:#1a1500}
+.xyz{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:6px}
+.xyz input{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:#0f0f12;font:12px var(--mono)}
+.btn{padding:9px 14px;border:1px solid var(--line);border-radius:10px;background:#1c1c20;cursor:pointer}
+.btn.primary{background:var(--yellow);border-color:var(--yellow);color:#1a1500;font-weight:700}
+.shoot{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:8px;margin-top:8px}
+.shoot input,.shoot select,select.full{padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#0f0f12;width:100%}
+.shoot .btn{grid-column:1/-1}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);max-width:min(560px,90vw);padding:12px 18px;border-radius:14px;
+  background:rgba(30,30,34,.92);border:1px solid rgba(255,255,255,.12);opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
+.toast.on{opacity:1;transform:translateX(-50%)}
+.toast.bad{border-color:#ff453a}
+.gate{position:fixed;inset:0;display:none;place-items:center;background:var(--bg);text-align:center;padding:24px}
+.gate.on{display:grid}
+.gate p{color:var(--muted);max-width:460px}
+@media (max-width:900px){.app{grid-template-columns:1fr;grid-template-rows:55vh auto;height:auto}.mapwrap{height:55vh}.side{border-left:0}}
+</style>
+</head>
+<body>
+<div class="gate" id="gate"><div><h2>This link has ended</h2><p id="gate-why">Run <b>/izocam editor</b> in the game for a new one.</p></div></div>
+<div class="app">
+  <div class="mapwrap" id="map">
+    <img id="mapimg" alt="The world from above">
+    <canvas id="marks"></canvas>
+    <div class="toolbar">
+      <button type="button" id="place" aria-pressed="false">Place camera</button>
+      <button type="button" id="moveto" aria-pressed="false" disabled>Move here</button>
+      <button type="button" id="recentre">To me</button>
+    </div>
+    <span class="busy" id="mapbusy"></span>
+    <div class="coords" id="coords"></div>
+  </div>
+  <aside class="side">
+    <h1>Izomap editor</h1>
+    <div class="who" id="who"></div>
+    <div class="list" id="list"></div>
+    <div id="panel"></div>
+  </aside>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const key = (location.hash || '').slice(1) || sessionStorage.getItem('izomap-editor') || '';
+if (location.hash) { sessionStorage.setItem('izomap-editor', key); history.replaceState(null, '', location.pathname); }
+const $ = id => document.getElementById(id);
+
+async function api(path, options = {}) {
+  const response = await fetch(`/api/${path}`, {
+    method: options.method || 'GET',
+    headers: {'X-Izomap-Session': key, ...(options.body ? {'Content-Type': 'application/json'} : {})},
+    body: options.body ? JSON.stringify(options.body) : undefined,
+  });
+  if (response.status === 401) { $('gate').classList.add('on'); throw new Error('ended'); }
+  if (options.raw) { if (!response.ok) throw new Error((await response.json()).error); return response.blob(); }
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.error || 'The server said no.');
+  return data;
+}
+let toastTimer;
+function toast(text, bad) {
+  const t = $('toast'); t.textContent = text; t.classList.toggle('bad', !!bad); t.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 3600);
+}
+
+/* --- the map: a top-down picture the plugin renders, north up, and the cameras drawn over it --- */
+const view = {x: 0, z: 0, size: 256};
+const shown = {x: 0, z: 0, size: 256};
+const wrap = $('map'), img = $('mapimg'), marks = $('marks');
+let cameras = [], selected = null, mode = null, options = null;
+
+function toScreen(x, z) {
+  const w = wrap.clientWidth, h = wrap.clientHeight, scale = Math.min(w, h) / view.size;
+  return [w / 2 + (x - view.x) * scale, h / 2 + (z - view.z) * scale];
+}
+function toWorld(sx, sy) {
+  const w = wrap.clientWidth, h = wrap.clientHeight, scale = Math.min(w, h) / view.size;
+  return [view.x + (sx - w / 2) / scale, view.z + (sy - h / 2) / scale];
+}
+/** The last picture, moved and scaled to where the view now is, so panning answers before the new one comes. */
+function placeImage() {
+  const w = wrap.clientWidth, h = wrap.clientHeight, scale = Math.min(w, h) / view.size;
+  const [left, top] = toScreen(shown.x - shown.size / 2, shown.z - shown.size / 2);
+  img.style.width = `${shown.size * scale}px`; img.style.height = `${shown.size * scale}px`;
+  img.style.transform = `translate(${left}px, ${top}px)`;
+  drawMarks();
+}
+function drawMarks() {
+  const dpr = devicePixelRatio || 1;
+  marks.width = wrap.clientWidth * dpr; marks.height = wrap.clientHeight * dpr;
+  const g = marks.getContext('2d'); g.scale(dpr, dpr);
+  for (const c of cameras) {
+    const [sx, sy] = toScreen(c.x, c.z), on = selected && c.id === selected.id;
+    const yaw = c.yaw * Math.PI / 180, dx = -Math.sin(yaw), dy = Math.cos(yaw);
+    g.fillStyle = on ? 'rgba(255,214,10,.22)' : 'rgba(255,255,255,.14)';
+    g.beginPath(); g.moveTo(sx, sy);
+    const spread = 0.42, reach = 46;
+    g.lineTo(sx + reach * (dx * Math.cos(spread) - dy * Math.sin(spread)), sy + reach * (dx * Math.sin(spread) + dy * Math.cos(spread)));
+    g.lineTo(sx + reach * (dx * Math.cos(-spread) - dy * Math.sin(-spread)), sy + reach * (dx * Math.sin(-spread) + dy * Math.cos(-spread)));
+    g.closePath(); g.fill();
+    g.beginPath(); g.arc(sx, sy, on ? 8 : 6, 0, Math.PI * 2);
+    g.fillStyle = on ? '#ffd60a' : '#fff'; g.fill();
+    g.lineWidth = 2; g.strokeStyle = '#000'; g.stroke();
+    g.font = '500 11px ui-monospace,Menlo,monospace'; g.fillStyle = '#fff'; g.shadowColor = '#000'; g.shadowBlur = 3;
+    g.fillText(c.name, sx + 12, sy - 10); g.shadowBlur = 0;
+  }
+}
+let mapTimer, mapTicket = 0;
+function loadMap() {
+  clearTimeout(mapTimer);
+  mapTimer = setTimeout(async () => {
+    const ticket = ++mapTicket, want = {...view};
+    $('mapbusy').classList.add('on');
+    try {
+      const blob = await api(`map?x=${want.x.toFixed(1)}&z=${want.z.toFixed(1)}&size=${Math.round(want.size)}`, {raw: true});
+      if (ticket !== mapTicket) return;
+      const url = URL.createObjectURL(blob);
+      img.onload = () => { Object.assign(shown, want); placeImage(); URL.revokeObjectURL(url); };
+      img.src = url;
+    } catch (e) { if (e.message !== 'ended') toast(e.message, true); }
+    finally { if (ticket === mapTicket) $('mapbusy').classList.remove('on'); }
+  }, 220);
+}
+
+let drag = null;
+wrap.addEventListener('pointerdown', e => { drag = {x: e.clientX, y: e.clientY, vx: view.x, vz: view.z, moved: false}; wrap.setPointerCapture(e.pointerId); });
+wrap.addEventListener('pointermove', e => {
+  const rect = wrap.getBoundingClientRect(), [wx, wz] = toWorld(e.clientX - rect.left, e.clientY - rect.top);
+  $('coords').textContent = `X ${Math.floor(wx)}   Z ${Math.floor(wz)}   ${Math.round(view.size)} blocks across`;
+  if (!drag) return;
+  const scale = Math.min(wrap.clientWidth, wrap.clientHeight) / view.size;
+  if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 4) { drag.moved = true; wrap.classList.add('dragging'); }
+  if (drag.moved) { view.x = drag.vx - (e.clientX - drag.x) / scale; view.z = drag.vz - (e.clientY - drag.y) / scale; placeImage(); }
+});
+wrap.addEventListener('pointerup', async e => {
+  const d = drag; drag = null; wrap.classList.remove('dragging');
+  if (!d) return;
+  if (d.moved) { loadMap(); return; }
+  const rect = wrap.getBoundingClientRect(), sx = e.clientX - rect.left, sy = e.clientY - rect.top, [wx, wz] = toWorld(sx, sy);
+  if (mode === 'place') { setMode(null); return placeAt(wx, wz); }
+  if (mode === 'move' && selected) { setMode(null); return change({x: Math.floor(wx) + 0.5, z: Math.floor(wz) + 0.5}); }
+  const hit = cameras.find(c => { const [cx, cy] = toScreen(c.x, c.z); return Math.hypot(cx - sx, cy - sy) < 12; });
+  if (hit) select(hit.id);
+});
+wrap.addEventListener('wheel', e => {
+  e.preventDefault();
+  view.size = Math.max(32, Math.min(1024, view.size * (e.deltaY > 0 ? 1.15 : 1 / 1.15)));
+  placeImage(); loadMap();
+}, {passive: false});
+addEventListener('resize', placeImage);
+
+function setMode(next) {
+  mode = mode === next ? null : next;
+  $('place').setAttribute('aria-pressed', String(mode === 'place'));
+  $('moveto').setAttribute('aria-pressed', String(mode === 'move'));
+  wrap.classList.toggle('placing', !!mode);
+}
+$('place').onclick = () => setMode('place');
+$('moveto').onclick = () => setMode('move');
+let me = {x: 0, z: 0};
+$('recentre').onclick = () => { view.x = me.x; view.z = me.z; placeImage(); loadMap(); };
+
+async function placeAt(x, z) {
+  try {
+    const camera = await api('cameras', {method: 'POST', body: {x, z}});
+    cameras.push(camera); toast(`Camera ${camera.name} placed. Aim it on the right.`);
+    select(camera.id);
+  } catch (e) { if (e.message !== 'ended') toast(e.message, true); }
+}
+
+/* --- the chosen camera --- */
+const SKY_NAMES = {NONE: 'Transparent', WORLD: 'Game time', DAWN: 'Dawn', DAY: 'Day', DUSK: 'Dusk', NIGHT: 'Night'};
+const nice = s => s.charAt(0) + s.slice(1).toLowerCase();
+
+function list() {
+  $('list').innerHTML = cameras.length ? '' : '<div class="empty">No cameras in this world yet. Press Place camera and click the map.</div>';
+  for (const c of cameras) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.setAttribute('aria-pressed', String(selected && selected.id === c.id));
+    b.innerHTML = `<span>${c.name}</span><small>${c.photos} photo(s)</small>`;
+    b.onclick = () => select(c.id);
+    $('list').append(b);
+  }
+}
+function select(id) {
+  selected = cameras.find(c => c.id === id) || null;
+  $('moveto').disabled = !selected;
+  list(); drawMarks(); panel(); preview();
+}
+
+const range = (field, label, min, max, step, value, show) =>
+  `<div class="row"><label for="f-${field}">${label}</label><input type="range" id="f-${field}" data-field="${field}" min="${min}" max="${max}" step="${step}" value="${value}"><output id="o-${field}">${show(value)}</output></div>`;
+const seg = (field, values, current, names = v => v) =>
+  `<div class="seg" data-seg="${field}">${values.map(v => `<button type="button" data-v="${v}" aria-pressed="${v === current}">${names(v)}</button>`).join('')}</div>`;
+const zoomOf = slider => Math.pow(2, slider);
+const sliderOf = zoom => Math.log2(zoom);
+
+function panel() {
+  const c = selected, p = $('panel');
+  if (!c) { p.innerHTML = ''; return; }
+  const grids = options.grids[c.ratio] || [];
+  p.innerHTML = `
+    <div class="preview" id="preview"><img id="previewimg" alt="What ${c.name} sees"></div>
+    <div class="group"><b>Aim</b>
+      ${range('yaw', 'Facing', -180, 180, 1, ((c.yaw + 540) % 360) - 180, v => `${Math.round(v)}°`)}
+      ${range('pitch', 'Tilt', -10, 90, 1, c.pitch, v => `${Math.round(v)}°`)}
+      ${range('zoom', 'Zoom', -4.3, 4, 0.05, sliderOf(c.zoom), v => `${zoomOf(v).toFixed(2)}x`)}
+      <div class="xyz"><input id="px" value="${c.x.toFixed(1)}" aria-label="X"><input id="py" value="${c.y.toFixed(1)}" aria-label="Y"><input id="pz" value="${c.z.toFixed(1)}" aria-label="Z"><button class="btn" id="go" type="button">Move</button></div>
+    </div>
+    <div class="group"><b>Frame</b>${seg('ratio', ['1:1', '16:9', '4:3'], c.ratio)}</div>
+    <div class="group"><b>Style</b>${seg('style', options.styles, c.style, nice)}</div>
+    <div class="group"><b>Color</b><select class="full" id="filter">${options.filters.map(f => `<option value="${f}" ${f === c.filter ? 'selected' : ''}>${nice(f)}</option>`).join('')}</select></div>
+    <div class="group"><b>Sky</b>${seg('sky', options.skies, c.sky, v => SKY_NAMES[v] || v)}
+      <div class="seg" style="margin-top:8px">${seg('bodies', ['on', 'off'], c.bodies ? 'on' : 'off', v => v === 'on' ? 'Sun, moon and stars' : 'Plain sky')}</div>
+      ${range('sunYaw', 'Sun facing', 0, 355, 5, c.sunYaw, v => `${Math.round(v)}°`)}
+      ${range('sunPitch', 'Sun height', 1, 89, 1, c.sunPitch, v => `${Math.round(v)}°`)}
+    </div>
+    <div class="group"><b>Fog</b>${seg('fog', ['on', 'off'], c.fog ? 'on' : 'off', v => v === 'on' ? 'On' : 'Off')}
+      ${c.fog ? range('fogStart', 'Begins', 0, 2048, 8, c.fogStart, v => Math.round(v)) + range('fogEnd', 'Full', 8, 2048, 8, c.fogEnd, v => Math.round(v)) : ''}
+    </div>
+    <div class="group"><b>Depth of field</b>${seg('focus', ['on', 'off'], c.focus ? 'on' : 'off', v => v === 'on' ? 'On' : 'Off')}
+      ${c.focus ? range('focusDistance', 'Distance', 1, 1024, 1, c.focusDistance, v => Math.round(v)) : ''}
+    </div>
+    <div class="group"><b>Take a photo</b>
+      <div class="shoot"><input id="photoname" value="${c.name}" aria-label="Photo name"><select id="grid" aria-label="Layout">${grids.map(g => `<option>${g}</option>`).join('')}</select>
+        <button class="btn primary" type="button" id="shutter">Take photo</button></div>
+    </div>`;
+
+  for (const input of p.querySelectorAll('input[type=range]')) {
+    const field = input.dataset.field;
+    input.oninput = () => {
+      const v = Number(input.value);
+      $(`o-${field}`).textContent = field === 'zoom' ? `${zoomOf(v).toFixed(2)}x` : field.endsWith('aw') || field.endsWith('itch') ? `${Math.round(v)}°` : Math.round(v);
+    };
+    input.onchange = () => change({[field]: field === 'zoom' ? zoomOf(Number(input.value)) : Number(input.value)});
+  }
+  for (const group of p.querySelectorAll('[data-seg]')) {
+    const field = group.dataset.seg;
+    for (const b of group.querySelectorAll('button')) b.onclick = () => {
+      const v = b.dataset.v;
+      change({[field]: v === 'on' ? true : v === 'off' ? false : v}, field === 'fog' || field === 'focus' || field === 'ratio');
+    };
+  }
+  $('filter').onchange = () => change({filter: $('filter').value});
+  $('go').onclick = () => change({x: Number($('px').value), y: Number($('py').value), z: Number($('pz').value)});
+  $('shutter').onclick = async () => {
+    try { const r = await api(`cameras/${c.id}/photo`, {method: 'POST', body: {name: $('photoname').value, grid: $('grid').value}}); toast(r.message); }
+    catch (e) { if (e.message !== 'ended') toast(e.message, true); }
+  };
+}
+
+async function change(fields, redraw) {
+  if (!selected) return;
+  try {
+    const updated = await api(`cameras/${selected.id}`, {method: 'PATCH', body: fields});
+    const i = cameras.findIndex(c => c.id === updated.id);
+    cameras[i] = updated; selected = updated;
+    drawMarks(); list();
+    if (redraw || fields.x !== undefined || fields.y !== undefined || fields.z !== undefined) panel();
+    else for (const [field, value] of Object.entries(fields)) syncSeg(field, value);
+    preview();
+  } catch (e) { if (e.message !== 'ended') toast(e.message, true); }
+}
+function syncSeg(field, value) {
+  const group = document.querySelector(`[data-seg="${field}"]`);
+  if (!group) return;
+  const v = value === true ? 'on' : value === false ? 'off' : value;
+  for (const b of group.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === v));
+}
+
+let previewTicket = 0;
+async function preview() {
+  if (!selected) return;
+  const ticket = ++previewTicket, box = $('preview');
+  box.classList.add('loading');
+  try {
+    const blob = await api(`cameras/${selected.id}/preview?w=480`, {raw: true});
+    if (ticket !== previewTicket) return;
+    const url = URL.createObjectURL(blob), image = $('previewimg');
+    image.onload = () => URL.revokeObjectURL(url);
+    image.src = url;
+  } catch (e) { if (e.message !== 'ended') toast(e.message, true); }
+  finally { if (ticket === previewTicket) box.classList.remove('loading'); }
+}
+
+(async () => {
+  try {
+    const state = await api('state');
+    options = state.options; cameras = state.cameras; me = {x: state.x, z: state.z};
+    $('who').textContent = `${state.player} in ${state.world}`;
+    view.x = me.x; view.z = me.z; Object.assign(shown, view);
+    list(); placeImage(); loadMap();
+    if (cameras.length) select(cameras[0].id);
+  } catch (e) { if (e.message !== 'ended') toast(e.message, true); }
+})();
+</script>
+</body>
+</html>

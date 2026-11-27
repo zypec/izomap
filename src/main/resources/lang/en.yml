@@ -53,6 +53,11 @@ camera:
       - "<yellow>Facing <yaw>° <dark_gray>|</dark_gray> Tilt <pitch>°"
       - "<gray><photos> photo(s) <dark_gray>|</dark_gray> <filter> <dark_gray>|</dark_gray> <style>"
 
+# The web editor, served by the plugin. <link> is the address, clickable.
+editor:
+  link: "<prefix> <green>Your editor: <white><u><link></u></white> <gray>(click to open; it acts as you while you are online, and asking again ends the old link)"
+  disabled: "<prefix> <red>The web editor is turned off on this server (editor.enabled in config.yml)."
+
 # The live preview: one map per camera, any number of viewers, one editor.
 preview:
   started: "<prefix> <green>Preview open: <white><camera></white> <gray>(the map in your off hand is the live view; close it with <white>/izocam preview stop</white>)"
@@ -389,5 +394,7 @@ log:
   photo-cache-delete-failed: "Could not delete the photo cache (<photo>): <reason>"
   photo-cache-scan-failed: "Could not scan the photo cache: <reason>"
   photo-cache-swept: "Deleted <count> orphaned photo cache file(s)."
+  editor-started: "Web editor listening on <address>"
+  editor-failed: "<yellow>Could not start the web editor on <address>: <reason>"
   config-upgraded: "Added <count> new setting(s) to config.yml with their default values."
   config-newer: "<yellow>config.yml is version <version>, newer than this build supports (<supported>); it was not changed. Update Izomap or restore the file."
