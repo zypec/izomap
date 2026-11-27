@@ -134,11 +134,13 @@ camera.item-display-transform:
   detail: Ignored with BLOCK_DISPLAY. An invalid value falls back to NONE and is logged.
 
 camera.interaction-size:
-  summary: The side of the camera's click box at model scale 1.0.
+  summary: The width of the camera's click box at model scale 1.0.
   range: 0.1 to 3.0
   detail: |
-    The real box is this times `model-scale`, kept between 0.25 and 3.0, so a scaled-up camera can
-    be clicked on its body and a small one has no invisible clickable space around it.
+    The real width is this times `model-scale`, kept between 0.25 and 3.0, so a scaled-up camera can
+    be clicked on its body and a small one has no invisible clickable space around it. The box is an
+    invisible armor stand, the only kind of entity that reports a middle click, so it is four times
+    as tall as it is wide, centered on the model.
 
 camera.zoom-step:
   summary: How much one click zooms in or out, as a factor.

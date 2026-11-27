@@ -7,6 +7,8 @@ import dev.zypec.izomap.render.PreviewManager;
 import dev.zypec.izomap.ui.CameraDialogs;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Location;
+import io.papermc.paper.event.player.PlayerPickEntityEvent;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Interaction;
@@ -16,6 +18,9 @@ import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityDamageByEntityEvent;
+import org.bukkit.event.entity.EntityDamageEvent;
+import org.bukkit.event.player.PlayerArmorStandManipulateEvent;
+import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.world.EntitiesLoadEvent;
@@ -53,16 +58,21 @@ public final class CameraListener implements Listener {
         this.dialogs = dialogs;
     }
 
-    // Right-click: raise or switch property while sneaking.
+    /**
+     * Right-click: raise the property, or switch it while sneaking.
+     *
+     * <p>A click on an armor stand reaches the server as an "interact at" for each hand,
+     * then possibly a plain "interact" too; only the main hand's "at" acts, and every
+     * other one is swallowed so one click never counts twice.</p>
+     */
     @EventHandler(ignoreCancelled = true)
-    public void onRightClick(PlayerInteractEntityEvent event) {
-        if (!(event.getRightClicked() instanceof Interaction interaction))
-            return;
-
-        var camera = manager.byInteractionEntity(interaction.getUniqueId());
+    public void onRightClick(PlayerInteractAtEntityEvent event) {
+        var camera = cameraOf(event.getRightClicked());
         if (camera == null) return;
 
         event.setCancelled(true);
+        if (event.getHand() != EquipmentSlot.HAND) return;
+
         var player = event.getPlayer();
         if (!Permissions.edit(player, camera)) {
             watch(player, camera);
@@ -79,17 +89,55 @@ public final class CameraListener implements Listener {
         adjust(camera, +1, player);
     }
 
-    // Left-click: lower.
     @EventHandler(ignoreCancelled = true)
-    public void onLeftClick(EntityDamageByEntityEvent event) {
-        if (!(event.getEntity() instanceof Interaction interaction)) return;
+    public void onPlainInteract(PlayerInteractEntityEvent event) {
+        if (cameraOf(event.getRightClicked()) != null)
+            event.setCancelled(true);
+    }
 
-        if (!(event.getDamager() instanceof Player player)) return;
+    // An empty-handed click would otherwise take or give the stand's equipment.
+    @EventHandler(ignoreCancelled = true)
+    public void onManipulate(PlayerArmorStandManipulateEvent event) {
+        if (cameraOf(event.getRightClicked()) != null)
+            event.setCancelled(true);
+    }
 
-        var camera = manager.byInteractionEntity(interaction.getUniqueId());
+    /**
+     * Middle click opens the capture screen, the way shift + left click does. Only an
+     * entity with a pick result reports one, which is why the click box is an armor
+     * stand.
+     */
+    @EventHandler(ignoreCancelled = true)
+    public void onPick(PlayerPickEntityEvent event) {
+        var camera = cameraOf(event.getEntity());
         if (camera == null) return;
 
         event.setCancelled(true);
+        var player = event.getPlayer();
+        if (!Permissions.edit(player, camera)) {
+            watch(player, camera);
+            return;
+        }
+        if (!plugin.preview().claimEditor(player, camera)) return;
+        dialogs.openCaptureDialog(player, camera);
+    }
+
+    // Nothing hurts a click box: explosions, fire, lava, or a creative player's swing.
+    @EventHandler(ignoreCancelled = true)
+    public void onDamage(EntityDamageEvent event) {
+        if (!(event instanceof EntityDamageByEntityEvent) && cameraOf(event.getEntity()) != null)
+            event.setCancelled(true);
+    }
+
+    // Left-click: lower.
+    @EventHandler(ignoreCancelled = true)
+    public void onLeftClick(EntityDamageByEntityEvent event) {
+        var camera = cameraOf(event.getEntity());
+        if (camera == null) return;
+
+        event.setCancelled(true);
+        if (!(event.getDamager() instanceof Player player)) return;
+
         if (!Permissions.edit(player, camera)) {
             watch(player, camera);
             return;
@@ -129,8 +177,13 @@ public final class CameraListener implements Listener {
                 // The model resolving proves the chunk is loaded, so a hologram that
                 // cannot be found now is really gone and may be replaced.
                 changed |= manager.syncHologram(camera);
-            } else if (id.equals(camera.interactionEntityId()) && entity instanceof Interaction interaction) {
-                manager.applyInteractionSize(interaction);
+            } else if (id.equals(camera.interactionEntityId())) {
+                if (entity instanceof ArmorStand box) {
+                    manager.applyClickBoxSize(box);
+                } else {
+                    // A camera from before the click box was an armor stand.
+                    manager.replaceClickBox(camera, entity);
+                }
             }
         }
         if (changed)
@@ -280,6 +333,15 @@ public final class CameraListener implements Listener {
             location.setY(Math.max(world.getMinHeight(), Math.min(world.getMaxHeight() - 1, location.getY())));
 
         return location;
+    }
+
+    /**
+     * The camera this entity is the click box of, or {@code null}.
+     */
+    private Camera cameraOf(Entity entity) {
+        return entity instanceof ArmorStand || entity instanceof Interaction
+                ? manager.byInteractionEntity(entity.getUniqueId())
+                : null;
     }
 
     private String defaultName(Player player) {

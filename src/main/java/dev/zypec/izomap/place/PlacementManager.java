@@ -26,11 +26,13 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.player.PlayerChangedWorldEvent;
 import org.bukkit.event.player.PlayerDropItemEvent;
+import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerSwapHandItemsEvent;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.Transformation;
@@ -597,6 +599,20 @@ public final class PlacementManager implements Listener {
 
         event.setCancelled(true);
         resolve(event.getPlayer());
+    }
+
+    /**
+     * The same for a right-click on an armor stand, such as a camera's click box, which
+     * reports itself as an "interact at" rather than a plain interact.
+     */
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onInteractAtEntity(PlayerInteractAtEntityEvent event) {
+        if (!sessions.containsKey(event.getPlayer().getUniqueId()))
+            return;
+
+        event.setCancelled(true);
+        if (event.getHand() == EquipmentSlot.HAND)
+            resolve(event.getPlayer());
     }
 
     /**

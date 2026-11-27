@@ -39,7 +39,7 @@ camera:
   model-material: SPYGLASS
   # How the item is held: NONE, THIRDPERSON_RIGHTHAND, HEAD, GUI, GROUND, FIXED and the rest.
   item-display-transform: NONE
-  # Side of the click box at model scale 1.0. 0.1-3.0.
+  # Width of the click box at model scale 1.0; it is four times as tall. 0.1-3.0.
   interaction-size: 0.6
   # Zoom factor per click (1.25 = 25%). 1.01-4.0.
   zoom-step: 1.25

@@ -658,8 +658,14 @@ Three entities, all tagged with the camera id in PDC (`CameraKeys`):
 
 - **Model:** `ItemDisplay` (default, spyglass) or `BLOCK_DISPLAY`; `camera.item-display-transform`
   sets the item's pose.
-- **Interaction entity:** the click box, `camera.interaction-size × camera.model-scale` clamped to
-  0.25 to 3.0, so a scaled camera stays clickable on its body without swallowing its surroundings.
+- **Click box:** an invisible armor stand (`ArmorStand`, no gravity, no ticking, nothing held,
+  damage cancelled), scaled with the `scale` attribute to `camera.interaction-size ×
+  camera.model-scale` wide (clamped to 0.25 to 3.0) and so four times as tall, centered on the model.
+  It used to be an `Interaction` entity, which has no pick result: the server drops a middle click
+  on one before any event, so only an entity with a pick result can open the menu by middle click
+  (`PlayerPickEntityEvent`). A right click on a stand arrives as `PlayerInteractAtEntityEvent` per
+  hand, maybe followed by a plain interact; only the main hand's "at" acts. Cameras that still have
+  an `Interaction` get a stand when their chunk loads (`CameraManager#replaceClickBox`).
 - **Hologram:** a `TextDisplay` `camera.hologram.offset-y × model-scale` above the model.
 
 `Camera` holds state only; entity work is in `CameraManager`. Memory is the source of truth and the
@@ -695,7 +701,7 @@ world.
 | Right-click | Raise the active property |
 | Left-click | Lower it |
 | Shift + right-click | Next property (YAW → PITCH → ZOOM → MOVE) |
-| Shift + left-click | Open the capture dialog |
+| Middle-click or shift + left-click | Open the capture dialog |
 | Right-click a block with the camera item | Place a camera there (the item is used) |
 
 **Only the owner and `izomap.admin` edit** (`Permissions#edit`): anybody else's click opens the

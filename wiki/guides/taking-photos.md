@@ -19,7 +19,7 @@ Clicking a camera changes one setting at a time:
 | **Zoom** | Zoom in by `camera.zoom-step` | Zoom out |
 | **Move** | Push the camera where *you* are looking | Pull it back |
 
-**Shift + right-click** moves to the next setting. **Shift + left-click** opens the capture screen.
+**Shift + right-click** moves to the next setting. **Middle-click** (pick block) or **shift + left-click** opens the capture screen.
 
 The first click on a camera you are not watching only opens its preview. It changes nothing, so you never nudge a camera before you can see what it sees.
 

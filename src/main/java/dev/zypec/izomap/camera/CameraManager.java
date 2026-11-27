@@ -14,7 +14,10 @@ import org.bukkit.World;
 import org.bukkit.entity.BlockDisplay;
 import org.bukkit.entity.Display;
 import org.bukkit.entity.Entity;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.entity.ArmorStand;
 import org.bukkit.entity.Interaction;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.entity.ItemDisplay;
 import org.bukkit.entity.ItemDisplay.ItemDisplayTransform;
 import org.bukkit.entity.Player;
@@ -64,6 +67,13 @@ public final class CameraManager {
 
     private final Map<UUID, Camera> byId = new ConcurrentHashMap<>();
     private final Map<UUID, Camera> byInteraction = new ConcurrentHashMap<>();
+
+    /** An armor stand's hitbox at scale 1, which the {@code scale} attribute multiplies. */
+    private static final double STAND_WIDTH = 0.5;
+    private static final double STAND_HEIGHT = 1.975;
+    /** The {@code scale} attribute's own bounds. */
+    private static final double MIN_SCALE = 0.0625;
+    private static final double MAX_SCALE = 16.0;
 
     public CameraManager(Izomap plugin, CameraKeys keys) {
         this.plugin = plugin;
@@ -198,7 +208,7 @@ public final class CameraManager {
 
         var world = anchor.getWorld();
         var display = spawnDisplay(world, anchor);
-        var interaction = spawnInteraction(world, anchor);
+        var interaction = spawnClickBox(world, anchor);
 
         var camera = new Camera(UUID.randomUUID(), owner.getUniqueId(), name, anchor);
         camera.placedFromItem(fromItem);
@@ -305,7 +315,7 @@ public final class CameraManager {
         }
         var interaction = plugin.getServer().getEntity(camera.interactionEntityId());
         if (interaction != null) {
-            interaction.teleport(newAnchor);
+            interaction.teleport(clickBoxLocation(newAnchor));
         }
         camera.anchor(newAnchor);
         applyTransform(camera);
@@ -359,7 +369,7 @@ public final class CameraManager {
     public int removeOrphanEntities(World world) {
         int removed = 0;
         for (var entity : world.getEntities()) {
-            if (!(entity instanceof Display) && !(entity instanceof Interaction))
+            if (!(entity instanceof Display) && !(entity instanceof ArmorStand) && !(entity instanceof Interaction))
                 continue;
 
             var cameraId = keys.readCameraId(entity.getPersistentDataContainer());
@@ -402,9 +412,13 @@ public final class CameraManager {
             && plugin.getServer().getEntity(camera.displayEntityId()) instanceof Display display) {
             applyTransform(camera, display);
         }
-        if (camera.interactionEntityId() != null
-            && plugin.getServer().getEntity(camera.interactionEntityId()) instanceof Interaction interaction) {
-            applyInteractionSize(interaction);
+        var clickBox = camera.interactionEntityId() != null
+                ? plugin.getServer().getEntity(camera.interactionEntityId()) : null;
+        if (clickBox instanceof ArmorStand box) {
+            applyClickBoxSize(box);
+            box.teleport(clickBoxLocation(camera.anchor()));
+        } else if (clickBox instanceof Interaction) {
+            replaceClickBox(camera, clickBox);
         }
         return syncHologram(camera);
     }
@@ -444,12 +458,49 @@ public final class CameraManager {
      * clicks land next to a scaled-up camera with no response, and a scaled-down one
      * keeps an invisible area clickable. The bounds keep a tiny camera reachable and
      * a huge one from swallowing everything around it.</p>
+     *
+     * <p>The box is an armor stand scaled with the {@code scale} attribute, so its width
+     * is the configured size and its height four times that, the stand's own shape;
+     * {@link #clickBoxLocation} centres that column on the model.</p>
      */
-    public void applyInteractionSize(Interaction interaction) {
-        var size = (float) Math.clamp(
-                plugin.config().interactionSize() * plugin.config().modelScale(), MIN_INTERACTION, MAX_INTERACTION);
-        interaction.setInteractionWidth(size);
-        interaction.setInteractionHeight(size);
+    public void applyClickBoxSize(ArmorStand box) {
+        var scale = box.getAttribute(Attribute.SCALE);
+        if (scale != null)
+            scale.setBaseValue(Math.clamp(clickBoxWidth() / STAND_WIDTH, MIN_SCALE, MAX_SCALE));
+    }
+
+    private double clickBoxWidth() {
+        return Math.clamp(plugin.config().interactionSize() * plugin.config().modelScale(),
+                MIN_INTERACTION, MAX_INTERACTION);
+    }
+
+    /**
+     * Where the stand stands so its tall box is centred on the cube the model sits in:
+     * the box grows up from the stand's feet, and an {@code Interaction} of the same
+     * width used to cover the cube from the anchor up.
+     */
+    private Location clickBoxLocation(Location anchor) {
+        var width = clickBoxWidth();
+        var height = width * STAND_HEIGHT / STAND_WIDTH;
+        return anchor.clone().subtract(0.0, (height - width) / 2.0, 0.0);
+    }
+
+    /**
+     * Swaps a camera's old {@code Interaction} click box for an armor stand: only an
+     * entity with a pick result reports a middle click, and an {@code Interaction} has
+     * none, so the server drops the click before any event. Main thread only.
+     */
+    public void replaceClickBox(Camera camera, Entity old) {
+        old.remove();
+        var world = camera.anchor().getWorld();
+        if (world == null) return;
+
+        byInteraction.remove(camera.interactionEntityId());
+        var box = spawnClickBox(world, camera.anchor());
+        keys.tagCamera(box.getPersistentDataContainer(), camera.id());
+        camera.interactionEntityId(box.getUniqueId());
+        byInteraction.put(box.getUniqueId(), camera);
+        persist();
     }
 
     // --- hologram ---
@@ -649,11 +700,24 @@ public final class CameraManager {
         display.setPersistent(true);
     }
 
-    private Interaction spawnInteraction(World world, Location anchor) {
-        return world.spawn(anchor, Interaction.class, e -> {
-            applyInteractionSize(e);
-            e.setResponsive(true);
+    /**
+     * The camera's click box: an armor stand that is nothing but a hitbox. Invisible,
+     * still, silent, holding nothing and never ticking; damage to it is cancelled by
+     * {@code CameraListener}.
+     */
+    private ArmorStand spawnClickBox(World world, Location anchor) {
+        return world.spawn(clickBoxLocation(anchor), ArmorStand.class, e -> {
+            e.setInvisible(true);
+            e.setGravity(false);
+            e.setSilent(true);
+            e.setBasePlate(false);
+            e.setCanPickupItems(false);
+            e.setCollidable(false);
+            e.setCanMove(false);
+            e.setCanTick(false);
+            e.setDisabledSlots(EquipmentSlot.values());
             e.setPersistent(true);
+            applyClickBoxSize(e);
         });
     }
 
