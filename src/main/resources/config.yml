@@ -1,7 +1,12 @@
 # Izomap configuration. Every key is explained on the wiki:
 # https://zypec.github.io/izomap/wiki/#configuration
 
+# Format of this file; do not change it. Missing keys are added on start.
+version: 1
+
 settings:
+  # Language of every message: a file in lang/ (en, tr, or one you add).
+  language: en
   # Widest area one photo may cover, in blocks per side. The main cost limit. 64-4096.
   max-capture-area: 512
   # How far below the reference ground the rays may reach, in blocks. 0-1024.
@@ -53,7 +58,7 @@ camera:
     x: 0.0
     y: 0.0
     z: 0.0
-  # The info hologram above a camera. Its lines are in messages.yml (camera.hologram.lines).
+  # The info hologram above a camera. Its lines are in lang/<language>.yml (camera.hologram.lines).
   hologram:
     enabled: true
     # Blocks above the camera, times model-scale. -4.0-8.0.

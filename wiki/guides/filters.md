@@ -40,15 +40,15 @@ They run in the order written.
       - tint: {color: "#FFB35C", strength: 0.2}
       - saturation: 1.15</pre>
 
-Then give it a name players see, in `messages.yml`:
+Then give it a name players see, in the language file (`lang/en.yml`, and `lang/tr.yml` if your players read Turkish):
 
-<pre data-title="messages.yml">filter:
+<pre data-title="lang/en.yml">filter:
   GOLDEN_HOUR: "<#FFB35C>Golden hour"</pre>
 
 and a permission to whoever may use it: `izomap.filter.GOLDEN_HOUR` (or `izomap.filter` for all). Run `/izocam reload`.
 
-- The key is the filter's id, and only the id is saved with cameras and photos. Renaming a filter in `messages.yml` changes nothing saved.
-- A filter with no name in `messages.yml` shows its id.
+- The key is the filter's id, and only the id is saved with cameras and photos. Renaming a filter in the language file changes nothing saved.
+- A filter with no name in the language file shows its id.
 - `ORIGINAL` always exists and does nothing, whatever the file says. An unknown id falls back to it.
 - An operation the plugin does not know skips itself, not the whole filter, and is logged.
 

@@ -205,6 +205,10 @@ replaces the worst, and each choice was **measured** against the client jar's te
 | `tuff` | #6C6D66 | TERRACOTTA_GRAY | STONE (11) · DEEPSLATE (12) | `DEEPSLATE` |
 | `tuff_bricks` | #62665F | TERRACOTTA_GRAY | DEEPSLATE (6) · TERRACOTTA_CYAN (15) | `DEEPSLATE` |
 
+**Colorless in vanilla, drawn here** (`BlockColorTable.DRAWN`): the nether portal has no map color, so a
+portal room printed the wall behind the portal through it. It is drawn `COLOR_PURPLE`, the entry
+nearest its texture, with the corrections.
+
 Plain tuff is nearly a tie, broken in favor of the photo: almost every tuff build also uses stone,
 cobblestone and andesite, and `STONE` would make tuff indistinguishable from them. Cherry log was
 checked too and vanilla's choice is right.
@@ -450,7 +454,7 @@ like any first shot of that view.
 A filter is an operation chain run in order: `brightness`, `contrast`, `saturation`,
 `rgb-offset {r,g,b}`, `grayscale` (true or luma weights), `tint {color, strength}`, `invert`,
 `posterize`. Only the **id** is saved (`cameras.yml` → `color-filter`, `photos.yml` →
-`capture.color-filter`); display names live in `messages.yml` → `filter.<ID>`. `ORIGINAL` is a
+`capture.color-filter`); display names live in the language file → `filter.<ID>`. `ORIGINAL` is a
 **code constant**, not a file entry: the fallback for unknown ids, a new camera's value, the one
 filter guaranteed not to touch the image; a file entry with that id is ignored. An unknown operation
 cancels only itself and is logged. `/izocam reload` rereads filters.
@@ -663,7 +667,7 @@ whole collection is written to `cameras.yml` after every change (debounced, §8)
 
 ### The hologram
 
-The code does not know what it says: lines come from `messages.yml` → `camera.hologram.lines`, the
+The code does not know what it says: lines come from the language file → `camera.hologram.lines`, the
 code offers placeholders (`<name> <owner> <ratio> <zoom> <blocks> <yaw> <pitch> <filter> <style>
 <sky> <photos>`). `<photos>` is maintained by `PhotoManager` calling `CameraManager#refreshHolograms`
 after every change and after loading (photos load after cameras).
@@ -810,14 +814,23 @@ Two inputs (name, grid) and a three-column button grid:
 | 3 | Focus · Rule of thirds · Photos |
 | 4 | Take photo · Pick up camera · Reset aim |
 
-- **The focus slider** (`DialogInput.numberRange`) appears only while focus is on; its maximum is
-  this camera's own ray distance (`RenderService#focusRange`), and it opens on the ground the frame
-  is aimed at (starting at zero would put the focus plane at the lens and blur everything). Its value
-  arrives with the next button press (`DialogResponseView#getFloat`); there is no live channel.
+- **Depth of field has its own screen**, like the sky: switch, slider (`DialogInput.numberRange`,
+  only while on, its maximum this camera's ray distance from `RenderService#focusRange`), a hint and
+  three suggestions read off the last preview's `SceneDepth`: the frame's center (the median depth
+  of its central tenth), the nearest ground (5th percentile) and most of it (median). Switching it
+  on starts at the center, or the ground the frame is aimed at before any preview (starting at zero
+  would put the focus plane at the lens and blur everything). Its value arrives with the next
+  button press (`DialogResponseView#getFloat`); there is no live channel. Both side screens end on
+  a green **Confirm** that goes back.
+- **The sun gets a hint and two suggestions** on the sky screen: where it stands relative to the
+  camera (its yaw is the way the light travels, so the camera's own yaw puts it behind the lens),
+  "side light" (60 degrees off the camera at 35, while the server casts shadows) and "sun in the
+  frame" (opposite the camera, `30 - pitch` degrees up, which lands halfway up a frame that spans
+  the hemisphere around the view; while the sky draws it).
 - **Color and style are cycle buttons**, not dropdowns: a button can show the current value. The sky
   has its own screen (§3), which also carries the sun's two sliders (direction 0 to 355 in steps of
   5, height 1 to 89) while the sun matters; every button on it sends them.
-- **Emphasis lives in `messages.yml`:** a value's color is in its own name, the button template only
+- **Emphasis lives in the language file:** a value's color is in its own name, the button template only
   inserts `<value>`.
 - **Reset aim** undoes only what clicks set: zoom, facing, tilt.
 - **A button renders only on a real change.** `CameraDialogs#applyForm` compares the image-defining
@@ -896,6 +909,14 @@ thickness`, mirrored to all four corners). The drawing code does not know how a 
 | `rings` | Color + width rings | Strip of length 1, no corner |
 | `edge` / `corner` | Patterns and corners as character art with a `palette` | Rows become strip and stamp |
 | `texture` | A PNG in `frames/` | Nine-sliced at `inset` |
+
+**Light and shadow** (`bevel`, `shadow`, any form). The sides are drawn mitred: a pixel belongs to
+the edge it is nearest, which is a 45 degree join in every corner (the vertical sides used to
+overwrite the corners of the horizontal ones). With `bevel`, light from the upper left: the top side
+moves that share towards white, the bottom towards black, left and right half as much. With
+`shadow`, the photo just inside darkens over that many art pixels, fading out, deeper under the top
+and left. Every lit pixel is snapped back to the palette, through a cache per draw keyed by colour
+and amount (a frame repeats a handful of colours over thousands of pixels).
 
 Transparent art pixels show the photo; semi-transparent PNG pixels count as transparent (no alpha
 in the palette). `scale` is photo pixels per art pixel, `auto` one step per 256 pixels of the short
@@ -1044,7 +1065,7 @@ shipped user file carries a `version:` key for that purpose; nothing reads it ye
 | File | Holds |
 |---|---|
 | `config.yml` | Settings |
-| `messages.yml` | Every visible text, console included; missing keys fall back to the jar's copy |
+| `lang/<code>.yml` | Every visible text, console included, one file per language (`settings.language`); missing keys fall back to the jar's copy of that language, then English |
 | `filters.yml` | Color filter definitions |
 | `frames.yml` | Decoration frames |
 | `block-colors.yml` | Color overrides, coverage, tint channels |
@@ -1061,6 +1082,16 @@ click after click used to rewrite `cameras.yml` per click). Writes go through on
 in order, newest dump wins (two saves on a shared pool could finish the wrong way round), to
 `<file>.tmp` and then moved over the file atomically, so a crash mid-write leaves the old file whole
 rather than empty. `saveNow` drains the writer first.
+
+### Languages (`Messages`)
+
+`settings.language` names a file in `lang/`. Every shipped language is written out on first start.
+The server's file reads its gaps from the jar's copy of the same language, and that one from
+English (`setDefaults` chains), so a key a newer version added shows the shipped text, never a
+placeholder. Messages load in English before the config is read (the config reports through
+them) and again in the configured language right after; `/izocam reload` reads the config first
+for the same reason. `lang/en.yml` is the reference and holds every comment; other languages keep
+only the keys.
 
 ### Where text goes
 
@@ -1084,7 +1115,7 @@ names are saved.
    the bar: no API equivalent, confined to **one class**, called **once at startup**, and the caller
    catches `Throwable` and disables the feature. A new NMS use that does not meet all four is not
    written.
-3. **All visible text comes from `messages.yml`**, console included. MiniMessage only, never legacy
+3. **All visible text comes from the language files** (`lang/en.yml`, `lang/tr.yml`), console included. MiniMessage only, never legacy
    `&` codes. `getLogger()` is not called directly.
 4. **Brigadier commands** with meaningful `suggests`; failures throw `CommandSyntaxException`.
 5. **Config through `ConfigManager`**, never `getConfig().getX("...")`.
@@ -1109,7 +1140,7 @@ table without a server, so the ray walk itself is testable.
 | `StylePassTest` | Style passes stay on the palette and never average a hole into a color |
 | `PermissionLimitTest` | Number permission rules |
 | `PermissionsTest` | Free defaults, area versus single option, grid filtering, the smallest grid always kept |
-| `MessagesFileTest` | Every key the code names, or builds from an enum, filter or frame id, exists in `messages.yml` as Bukkit's YAML 1.1 loader reads it |
+| `MessagesFileTest` | Every key the code names, or builds from an enum, filter or frame id, exists in `lang/en.yml` as Bukkit's YAML 1.1 loader reads it; every other language has exactly English's keys, each with the same placeholders |
 | `PhotoFramesTest` | Rings drawn inwards, the inside untouched, the source copied, depth capped |
 | `PhotoExporterTest` | File names are player input: separators, leading dots, length |
 | `ColormapsTest` | Known biome climates' colors, and no climate giving black |

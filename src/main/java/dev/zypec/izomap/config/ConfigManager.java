@@ -23,15 +23,60 @@ public final class ConfigManager {
      */
     private static final double RISKY_FRAME_SHIFT = 0.25;
 
+    /**
+     * The format {@code config.yml} is written in. A change that renames or reshapes keys
+     * bumps it, together with a step in {@link #upgrade} that carries an older file over.
+     */
+    public static final int VERSION = 1;
+
     public ConfigManager(Izomap plugin) {
         this.plugin = plugin;
         plugin.saveDefaultConfig();
+        upgrade();
         warnRiskySettings();
     }
 
     public void reload() {
         plugin.reloadConfig();
+        upgrade();
         warnRiskySettings();
+    }
+
+    /**
+     * Brings the server's {@code config.yml} up to this version.
+     *
+     * <p>{@code saveDefaultConfig} keeps an existing file whole, so a key a newer version
+     * added never reached an old install: it read the built-in default, invisibly, with
+     * nothing in the file to change. Missing keys are now written in with their shipped
+     * value, and the file saved, comments kept. A file from a newer version than this one
+     * is left alone and reported, since its keys may mean something this build does not
+     * know.</p>
+     */
+    private void upgrade() {
+        var cfg = cfg();
+        var version = cfg.getInt("version", 0);
+        if (version > VERSION) {
+            plugin.messages().warn("log.config-newer",
+                    Placeholder.unparsed("version", String.valueOf(version)),
+                    Placeholder.unparsed("supported", String.valueOf(VERSION)));
+            return;
+        }
+        var shipped = cfg.getDefaults();
+        if (shipped == null) return;
+
+        var added = 0;
+        for (var key : shipped.getKeys(true)) {
+            if (shipped.isConfigurationSection(key) || cfg.isSet(key)) continue;
+            cfg.set(key, shipped.get(key));
+            added++;
+        }
+        if (added == 0 && version == VERSION) return;
+
+        cfg.set("version", VERSION);
+        plugin.saveConfig();
+        if (added > 0)
+            plugin.messages().info("log.config-upgraded",
+                    Placeholder.unparsed("count", String.valueOf(added)));
     }
 
     /**
@@ -107,6 +152,13 @@ public final class ConfigManager {
     /** Whether fog takes the sky's color, and so needs a sky to draw. */
     public boolean fogFromSky() {
         return "sky".equalsIgnoreCase(cfg().getString("photo.fog.color", "sky").trim());
+    }
+
+    /**
+     * Which {@code lang/<code>.yml} players and the console read.
+     */
+    public String language() {
+        return cfg().getString("settings.language", Messages.DEFAULT_LANGUAGE);
     }
 
     /**

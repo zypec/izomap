@@ -12,13 +12,15 @@ import java.util.Arrays;
  * @param median   the depth half the ground is nearer than
  * @param far      the furthest ground, ignoring the furthest fiftieth
  * @param skyShare how much of the frame is sky, 0 to 1
+ * @param center   what the middle of the frame is aimed at: the median ground in its
+ *                 central tenth, or {@code -1} when that is all sky
  */
-public record SceneDepth(double near, double median, double far, double skyShare) {
+public record SceneDepth(double near, double median, double far, double skyShare, double center) {
 
     /**
      * The scene's depths, or {@code null} when the frame holds no ground at all.
      */
-    public static SceneDepth of(float[] depth) {
+    public static SceneDepth of(float[] depth, int width, int height) {
         if (depth == null || depth.length == 0)
             return null;
 
@@ -36,7 +38,27 @@ public record SceneDepth(double near, double median, double far, double skyShare
                 ground[(int) (count * 0.05)],
                 ground[count / 2],
                 ground[Math.min(count - 1, (int) (count * 0.98))],
-                1.0 - count / (double) depth.length);
+                1.0 - count / (double) depth.length,
+                centerOf(depth, width, height));
+    }
+
+    private static double centerOf(float[] depth, int width, int height) {
+        var halfW = Math.max(1, width / 20);
+        var halfH = Math.max(1, height / 20);
+        var middle = new float[(halfW * 2 + 1) * (halfH * 2 + 1)];
+        var count = 0;
+        for (var y = height / 2 - halfH; y <= height / 2 + halfH; y++) {
+            for (var x = width / 2 - halfW; x <= width / 2 + halfW; x++) {
+                if (x < 0 || y < 0 || x >= width || y >= height) continue;
+                var d = depth[y * width + x];
+                if (d != RenderResult.SKY_DEPTH)
+                    middle[count++] = d;
+            }
+        }
+        if (count == 0)
+            return -1.0;
+        Arrays.sort(middle, 0, count);
+        return middle[count / 2];
     }
 
     /**

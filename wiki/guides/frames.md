@@ -2,7 +2,7 @@
 
 A frame is a border drawn around a photo on the wall. Players add one by right-clicking their hung photo. `frames.yml` lists them in the order the frame screen shows them, and there are three ways to write one.
 
-Each needs `izomap.frame.<ID>` (or `izomap.frame` for all), and its name players see goes in `messages.yml` under `frame.<ID>`.
+Each needs `izomap.frame.<ID>` (or `izomap.frame` for all), and its name players see goes in the language file (`lang/en.yml` and the others) under `frame.<ID>`.
 
 ### 1. Rings
 
@@ -50,6 +50,22 @@ The image is nine-sliced at `inset`: the top-left `inset` x `inset` square is th
 ### Scale
 
 `scale` is how many photo pixels one art pixel covers. Leave it out (or write `auto`) and it grows with the photo, one step per 256 pixels of the short side: 1x on a single map, 3x on an 8x6, 4x on a 16x9. Without it, a frame that looks right on one map would be a hairline on a wall.
+
+### Light and shadow
+
+Two keys make a flat strip read as a moulding, in any of the three forms:
+
+<pre data-title="frames.yml">GOLD:
+  bevel: 0.18
+  shadow: 3
+  rings:
+    - { color: "#8A6B1F", width: 2 }
+    - { color: "#E5C34C", width: 3 }</pre>
+
+- `bevel` (0.0 to 1.0) lights the frame from the upper left: the top side is that much lighter, the bottom that much darker, the left and right sides half as much. The sides meet at 45 degrees in the corners, as on a real frame. Leave it out for a flat frame.
+- `shadow` (0 to 8 art pixels) darkens the photo just inside the frame, deeper under the top and left sides, as if the frame stood out from the picture.
+
+Both are worked out against the map palette, like every other color here.
 
 ### Rules
 

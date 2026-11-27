@@ -73,6 +73,16 @@ public final class CameraDialogs {
     private static final float SUN_YAW_STEP = 5.0f;
 
     /**
+     * How far off the camera's own direction the side-light suggestion puts the sun.
+     */
+    private static final float SIDE_LIGHT = 60.0f;
+
+    /**
+     * The side-light suggestion's height: low enough for shadows a block or two long.
+     */
+    private static final float SIDE_LIGHT_HEIGHT = 35.0f;
+
+    /**
      * Buttons per row on the capture screen: the ratios, the three look settings and
      * the three actions each come to three, so the grid reads as rows of like things.
      */
@@ -112,12 +122,6 @@ public final class CameraDialogs {
                 .initial(initialName).width(width).build());
         inputs.add(DialogInput.singleOption(INPUT_GRID, width, gridEntries(player, camera),
                 plugin.messages().get("dialog.grid-label"), true));
-        // Only while the effect is on: a slider that moves nothing is a question the
-        // player has to answer before they have decided to ask it.
-        if (camera.focusEnabled()) {
-            inputs.add(focusInput(camera, width));
-        }
-
         Dialog dialog = Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(plugin.messages().get("dialog.title"))
                         .body(List.of(DialogBody.plainMessage(infoLine(camera), width)))
@@ -195,16 +199,19 @@ public final class CameraDialogs {
         if (Permissions.focus(viewer) || camera.focusEnabled()) {
             buttons.add(button(plugin.messages().get(
                             camera.focusEnabled() ? "dialog.focus-button-active" : "dialog.focus-button"),
-                    (view, audience) -> applyAndReopen(view, audience, camera, this::toggleFocus)));
+                    (view, audience) -> applyAndOpen(view, audience, camera,
+                            (player, name) -> openFocusDialog(player, camera, name))));
         }
 
         buttons.add(button(plugin.messages().get(
                         camera.thirdsGuide() ? "dialog.thirds-button-active" : "dialog.thirds-button"),
                 (view, audience) -> applyAndReopen(view, audience, camera,
                         target -> target.thirdsGuide(!target.thirdsGuide()))));
+        // Counted the way the list it opens is filled, so the two never disagree: an
+        // admin shooting somebody else's camera owns the photos they take with it.
         buttons.add(button(plugin.messages().get("dialog.photos-button",
                         Placeholder.unparsed("count", String.valueOf(
-                                photoManager.countFor(camera.owner(), camera.name())))),
+                                photoManager.takenWith(viewer.getUniqueId(), camera.name()).size()))),
                 (view, audience) -> applyAndRun(view, audience, camera, player -> openPhotoList(player, camera))));
 
         // A full camera keeps the button, so the row does not reshuffle, but says what
@@ -237,8 +244,103 @@ public final class CameraDialogs {
         var enabled = !camera.focusEnabled();
         camera.focusEnabled(enabled);
         if (enabled && camera.focusDistance() <= 0.0f) {
-            camera.focusDistance((float) plugin.render().focusRange(camera).suggested());
+            // What the middle of the frame is aimed at, when the preview has seen it.
+            var scene = camera.sceneDepth();
+            camera.focusDistance(scene != null && scene.center() > 0.0
+                    ? (float) scene.center()
+                    : (float) plugin.render().focusRange(camera).suggested());
         }
+    }
+
+    // --- focus screen ---
+
+    /**
+     * Depth of field: the switch, the distance, and what the frame offers to focus on.
+     *
+     * <p>Its own screen, like the sky's: the slider needs a line beside it saying what
+     * its numbers mean in this frame, and that line is read off the camera's last
+     * preview, which records how far every pixel is. It names what the middle of the
+     * frame is aimed at (the subject, on nearly every shot), the nearest ground and where
+     * most of it lies, and offers each as a button. Only shown with the effect on: a
+     * slider that moves nothing is a question asked too early.</p>
+     */
+    private void openFocusDialog(Player player, Camera camera, String photoName) {
+        var width = plugin.config().dialogBodyWidth();
+        List<DialogBody> body = new ArrayList<>();
+        List<DialogInput> inputs = new ArrayList<>();
+        List<ActionButton> buttons = new ArrayList<>();
+        var scene = camera.sceneDepth();
+
+        buttons.add(button(plugin.messages().get(
+                        camera.focusEnabled() ? "dialog.focus-button-active" : "dialog.focus-button"),
+                (view, audience) -> onFocusScreen(view, audience, camera, this::toggleFocus,
+                        p -> openFocusDialog(p, camera, photoName))));
+
+        if (camera.focusEnabled()) {
+            var limit = (float) Math.ceil(plugin.render().focusRange(camera).limit());
+            body.add(DialogBody.plainMessage(focusHint(scene), width));
+            inputs.add(focusInput(camera, width));
+            if (scene != null) {
+                if (scene.center() > 0.0)
+                    buttons.add(focusSuggestion("dialog.focus-suggest-center", scene.center(), limit,
+                            camera, photoName));
+                buttons.add(focusSuggestion("dialog.focus-suggest-near", scene.near(), limit, camera, photoName));
+                buttons.add(focusSuggestion("dialog.focus-suggest-median", scene.median(), limit, camera, photoName));
+            }
+        } else {
+            body.add(DialogBody.plainMessage(plugin.messages().get("dialog.focus-body-off"), width));
+        }
+        buttons.add(button(plugin.messages().get("dialog.focus-confirm"),
+                (view, audience) -> onFocusScreen(view, audience, camera, target -> {
+                }, p -> openCaptureDialog(p, camera, photoName))));
+
+        Dialog dialog = Dialog.create(builder -> builder.empty()
+                .base(DialogBase.builder(plugin.messages().get("dialog.focus-title"))
+                        .body(body)
+                        .inputs(inputs)
+                        .build())
+                .type(DialogType.multiAction(buttons, cancelButton(), COLUMNS)));
+        player.showDialog(dialog);
+    }
+
+    private ActionButton focusSuggestion(String key, double distance, float limit, Camera camera, String photoName) {
+        var blocks = (int) Math.max(1, Math.min(Math.round(distance), limit));
+        return button(plugin.messages().get(key, Placeholder.unparsed("blocks", String.valueOf(blocks))),
+                (view, audience) -> onFocusScreen(view, audience, camera, target -> target.focusDistance(blocks),
+                        p -> openFocusDialog(p, camera, photoName)));
+    }
+
+    /**
+     * What the frame's depths say about where to focus.
+     */
+    private Component focusHint(SceneDepth scene) {
+        if (scene == null)
+            return plugin.messages().get("dialog.focus-hint-none");
+
+        var near = Placeholder.unparsed("near", String.valueOf(Math.round(scene.near())));
+        var median = Placeholder.unparsed("median", String.valueOf(Math.round(scene.median())));
+        var far = Placeholder.unparsed("far", String.valueOf(Math.round(scene.far())));
+        if (scene.center() <= 0.0)
+            return plugin.messages().get("dialog.focus-hint-sky", near, median, far);
+        return plugin.messages().get("dialog.focus-hint", near, median, far,
+                Placeholder.unparsed("center", String.valueOf(Math.round(scene.center()))));
+    }
+
+    /**
+     * A focus screen button: the slider travels with every press, then the button's own
+     * change.
+     */
+    private void onFocusScreen(DialogResponseView view, Audience audience, Camera camera,
+                               Consumer<Camera> change, Consumer<Player> then) {
+        Float focus = view.getFloat(INPUT_FOCUS);
+        onPlayer(audience, p -> {
+            apply(p, camera, target -> {
+                if (focus != null)
+                    target.focusDistance(focus);
+                change.accept(target);
+            });
+            then.accept(p);
+        });
     }
 
     // --- sky screen ---
@@ -310,7 +412,23 @@ public final class CameraDialogs {
                                     Math.min(scene.suggestedEnd(), fogLimit)),
                             p -> openSkyDialog(p, camera, photoName))));
         }
-        buttons.add(button(plugin.messages().get("dialog.sky-back"),
+        if (sunShows(camera)) {
+            if (plugin.config().shading().sunShadow()) {
+                buttons.add(button(plugin.messages().get("dialog.sun-suggest-side"),
+                        (view, audience) -> onSkyScreen(view, audience, camera, target -> {
+                            target.sunYaw(target.camYaw() + SIDE_LIGHT);
+                            target.sunPitch(SIDE_LIGHT_HEIGHT);
+                        }, p -> openSkyDialog(p, camera, photoName))));
+            }
+            if (camera.skyBodies()) {
+                buttons.add(button(plugin.messages().get("dialog.sun-suggest-frame"),
+                        (view, audience) -> onSkyScreen(view, audience, camera, target -> {
+                            target.sunYaw(target.camYaw() + 180.0f);
+                            target.sunPitch(inFrameHeight(target));
+                        }, p -> openSkyDialog(p, camera, photoName))));
+            }
+        }
+        buttons.add(button(plugin.messages().get("dialog.sky-confirm"),
                 (view, audience) -> onSkyScreen(view, audience, camera, target -> {
                 }, p -> openCaptureDialog(p, camera, photoName))));
 
@@ -320,7 +438,7 @@ public final class CameraDialogs {
                 camera.sky().draws() ? "dialog.sky-body" : "dialog.sky-body-none"), width));
         List<DialogInput> inputs = new ArrayList<>();
         if (sunShows(camera)) {
-            body.add(DialogBody.plainMessage(plugin.messages().get("dialog.sun-body"), width));
+            body.add(DialogBody.plainMessage(sunHint(camera), width));
             inputs.add(DialogInput.numberRange(INPUT_SUN_YAW, plugin.messages().get("dialog.sun-yaw-label"),
                             0.0f, 360.0f - SUN_YAW_STEP)
                     .width(width)
@@ -364,6 +482,34 @@ public final class CameraDialogs {
                 .type(DialogType.multiAction(buttons, cancelButton(), COLUMNS)));
 
         player.showDialog(dialog);
+    }
+
+    /**
+     * Where the sun stands relative to the camera, and what that does to the shot.
+     *
+     * <p>The sun's yaw is the way its light travels, so the same yaw as the camera puts
+     * it behind the lens: faces turned to the viewer are lit and every shadow falls
+     * behind what casts it, out of sight. Opposite, the scene is backlit. Across the
+     * view, shadows fall over the ground beside things, which is where a photo shows
+     * them best; the side-light suggestion turns it {@link #SIDE_LIGHT} degrees off the
+     * camera, at {@link #SIDE_LIGHT_HEIGHT} degrees, for shadows long enough to read.</p>
+     */
+    private Component sunHint(Camera camera) {
+        var relative = Math.abs(((camera.sunYaw() - camera.camYaw()) % 360.0f + 540.0f) % 360.0f - 180.0f);
+        var where = relative < 45.0f ? "behind" : relative > 135.0f ? "front" : "side";
+        var height = camera.sunPitch() < 25.0f ? "low" : camera.sunPitch() > 60.0f ? "high" : "mid";
+        return plugin.messages().get("dialog.sun-hint",
+                Placeholder.component("where", plugin.messages().get("dialog.sun-where." + where)),
+                Placeholder.component("height", plugin.messages().get("dialog.sun-height." + height)));
+    }
+
+    /**
+     * How high the sun should stand to be drawn in the upper part of this camera's frame:
+     * the frame spans the hemisphere around the view, so a sun about 30 degrees above
+     * the view axis sits halfway up.
+     */
+    private static float inFrameHeight(Camera camera) {
+        return Math.max(5.0f, Math.min(60.0f, 30.0f - camera.camPitch()));
     }
 
     /**
@@ -735,14 +881,9 @@ public final class CameraDialogs {
             return;
         }
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
-        // Null whenever the slider is not on the screen, which is whenever focus is off.
-        Float focus = view.getFloat(INPUT_FOCUS);
 
         plugin.runOnMain(() -> {
             var before = imageState(camera);
-            if (focus != null) {
-                camera.focusDistance(focus);
-            }
             change.accept(camera);
             applyIfChanged(player, camera, before);
             then.run(player, name);
@@ -786,18 +927,8 @@ public final class CameraDialogs {
         }
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
         String gridLabel = view.getText(INPUT_GRID);
-        Float focus = view.getFloat(INPUT_FOCUS);
 
         plugin.runOnMain(() -> {
-            // Taking the photo does not go through the form, so the slider has to be read
-            // here too: dragging it and pressing capture straight away would otherwise
-            // shoot the distance it was left at last time. No preview refresh — the photo
-            // being taken is the answer.
-            if (focus != null && focus != camera.focusDistance()) {
-                camera.focusDistance(focus);
-                cameraManager.applyAndPersist(camera);
-            }
-
             GridOption grid = GridLayouts.find(camera.aspectRatio(), gridLabel);
             if (grid == null) {
                 grid = GridLayouts.optionsFor(camera.aspectRatio()).get(0);

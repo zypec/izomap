@@ -9,6 +9,20 @@
 #   permission  the node that overrides or unlocks it
 #   example     a block a reader can copy
 
+version:
+  summary: The format this file is written in. Leave it as it is.
+  detail: |
+    On start Izomap adds every setting the file lacks, with its default value, and writes the
+    file back; comments you wrote are kept. A file written by a newer version is left untouched
+    and reported in the console.
+
+settings.language:
+  summary: The language of every message, in game and in the console.
+  detail: |
+    The name of a file in `plugins/Izomap/lang/`: `en` (the default) and `tr` ship with the plugin,
+    and any other you add works the same way. Anything missing from the file shows English.
+    `/izocam reload` switches. See [Messages](#messages).
+
 settings.max-capture-area:
   summary: The widest area one photo may cover, in blocks per side. The main cost limit.
   range: 64 to 4096
@@ -76,7 +90,8 @@ settings.correct-vanilla-colors:
     A block's map color is assigned by hand in vanilla, not taken from its texture, and a few are
     far off. All fourteen tuff blocks report a near-black brown although tuff is light gray-green,
     and every flower is plain green. With this on, tuff is drawn as deepslate and each flower takes
-    the palette color closest to its petals: poppies red, dandelions yellow, cornflowers blue.
+    the palette color closest to its petals: poppies red, dandelions yellow, cornflowers blue. A
+    nether portal, which vanilla leaves off maps entirely, is drawn purple instead of as a hole.
 
     Turn it off and photos match a vanilla map exactly, that flaw included. block-colors.yml
     overrides both.
@@ -172,7 +187,7 @@ camera.model-rotation.z:
 camera.hologram.enabled:
   summary: Show an info hologram above each camera.
   detail: |
-    What it says is in messages.yml, `camera.hologram.lines`: deleting a line there removes it from
+    What it says is in the language file, `camera.hologram.lines`: deleting a line there removes it from
     the hologram. Turning this off removes existing holograms as their chunks load.
 
 camera.hologram.offset-y:

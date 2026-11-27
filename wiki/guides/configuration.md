@@ -4,6 +4,10 @@ Every key of `config.yml`, with its default. Open a row for what it does in deta
 
 Edit `plugins/Izomap/config.yml` and run `/izocam reload`; no restart is needed. A value outside its range is pulled back into it.
 
+### File version
+
+<!--config:version-->
+
 ### Limits and cost
 
 These decide what one photo may cost the server. [Performance](#performance) has measurements.
@@ -28,7 +32,7 @@ How a camera looks in the world and how it responds to clicks.
 
 | File | What it holds |
 |---|---|
-| `messages.yml` | Every message, in game and in the console. See [Messages](#messages) |
+| `lang/en.yml`, `lang/tr.yml` | Every message, in game and in the console, one file per language. See [Messages](#messages) |
 | `filters.yml` | The color filters. See [Filters](#filters) |
 | `frames.yml` | The decoration frames. See [Frames](#frames) |
 | `block-colors.yml` | Block color overrides, thin-block coverage and biome tint channels. See [Block colors](#block-colors) |

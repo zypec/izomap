@@ -159,7 +159,7 @@ public final class WikiGenerator {
         var out = new StringBuilder("<div class=\"args\">");
         for (var entry : shipped.entrySet()) {
             var key = entry.getKey();
-            if (!key.startsWith(section + ".")) continue;
+            if (!key.equals(section) && !key.startsWith(section + ".")) continue;
 
             var about = prose.get(key);
             written.add(key);
@@ -172,7 +172,7 @@ public final class WikiGenerator {
             if (summary == null) meta.append("<span class=\"tag und\">undocumented</span>");
             meta.append("</span>");
 
-            var head = "<span class=\"k\">" + escape(key.substring(section.length() + 1)) + "</span>"
+            var head = "<span class=\"k\">" + escape(key.equals(section) ? key : key.substring(section.length() + 1)) + "</span>"
                     + "<span class=\"s\">" + (summary == null ? "" : inline(summary)) + "</span>" + meta;
 
             var body = new StringBuilder();

@@ -1,5 +1,5 @@
 # Color filters, applied to a color before it is matched to the map palette. Operations run in
-# the order they are written. Names shown to players are in messages.yml (filter.<ID>).
+# the order they are written. Names shown to players are in lang/<language>.yml (filter.<ID>).
 # Operations and examples: https://zypec.github.io/izomap/wiki/#filters
 #
 #   brightness: 1.2                       contrast: 1.15

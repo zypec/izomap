@@ -57,6 +57,8 @@ public final class Izomap extends JavaPlugin {
         this.messages = new Messages(this);
         this.messages.reload();
         this.configManager = new ConfigManager(this);
+        // English until here; now the config says which language it really is.
+        this.messages.reload(configManager.language());
 
         var cameraKeys = new CameraKeys(this);
         this.cameraManager = new CameraManager(this, cameraKeys);
@@ -121,8 +123,8 @@ public final class Izomap extends JavaPlugin {
      * Reloads the configuration of every subsystem.
      */
     public void reloadAll() {
-        this.messages.reload();
         this.configManager.reload();
+        this.messages.reload(configManager.language());
         // Colours and filters are read once into tables that a render never consults
         // again, so both have to be rebuilt here.
         this.colorFilters = ColorFilters.load(this);

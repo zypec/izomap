@@ -1,6 +1,15 @@
 # Messages
 
-Every piece of text Izomap shows is in `plugins/Izomap/messages.yml`: chat messages, the action bar, the hologram, the capture screen, item names and every line it writes to the console. Translate the file and the whole plugin speaks your language.
+Every piece of text Izomap shows is in a language file under `plugins/Izomap/lang/`: chat messages, the action bar, the hologram, the capture screen, item names and every line it writes to the console.
+
+### Languages
+
+English (`en.yml`) and Turkish (`tr.yml`) ship with the plugin, and both are written to `lang/` on first start. `settings.language` in `config.yml` picks one:
+
+<pre data-title="config.yml">settings:
+  language: tr</pre>
+
+`/izocam reload` switches to it. To add a language, copy `en.yml` to `lang/<code>.yml`, translate it and set `language: <code>`. A key your file lacks, such as one a newer version added, shows the shipped text of the same language, or English where there is none, never a blank.
 
 ### Format
 
@@ -8,13 +17,13 @@ Messages are [MiniMessage](https://docs.advntr.dev/minimessage/format.html): `<g
 
 - `<prefix>` inserts the `prefix` line at the top of the file.
 - Placeholders such as `<name>`, `<count>` or `<camera>` are filled in by the plugin. The comment above a message lists them where it is not obvious; a placeholder you remove simply does not appear.
-- A key you delete falls back to its built-in English text.
+- A key you delete falls back to the shipped text.
 
 ### Names of things
 
 Settings with a list of values take their names from the file, and their color too:
 
-<pre data-title="messages.yml">filter:
+<pre data-title="lang/en.yml">filter:
   WARM: "<gold>Warm"
 sky:
   DUSK: "<#FF7A4D>Dusk"
@@ -29,7 +38,7 @@ A filter or a frame you add needs its name here (`filter.<ID>`, `frame.<ID>`); w
 
 The lines above every camera are a list you can edit:
 
-<pre data-title="messages.yml">camera:
+<pre data-title="lang/en.yml">camera:
   hologram:
     lines:
       - "<aqua><name>"

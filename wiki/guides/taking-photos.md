@@ -50,7 +50,7 @@ Shift + left-click a camera, or `/izocam open <camera>`.
 
 | Row | Buttons |
 |---|---|
-| Fields | Photo name, layout (grid), focus distance when focus is on |
+| Fields | Photo name, layout (grid) |
 | 1 | Aspect ratio: 1:1, 16:9, 4:3 |
 | 2 | Color, style, sky |
 | 3 | Focus, rule of thirds, photos |
@@ -92,6 +92,8 @@ The sky screen has a second switch, **Sun, moon and stars** (`izomap.sky.bodies`
 
 Each camera has its own sun: where its light comes from and how high it stands. It casts the shadows when the server has `photo.shading.sun-shadow` on, and it is the sun drawn in the sky. While either applies, the sky screen shows two sliders, **Sun direction** (degrees around the horizon, the same as the camera's facing) and **Sun height** (1 to 89 degrees). A new camera starts at the server's `photo.shading.sun-yaw` and `sun-pitch`. Like the focus slider, their values reach the server when you press a button on the screen.
 
+A line above the sliders says where the sun stands from the camera's point of view: behind it (faces turned to you are lit, shadows hide behind things), in front (backlit) or to the side (shadows fall across the ground, where they read best), and how high. Two buttons set it for you: **Side light** puts it 60 degrees off the camera's direction at 35 degrees, for shadows long enough to read; **Sun in the frame**, when the sky draws the sun, puts it in front of the camera, halfway up the picture. **Confirm** goes back to the capture screen.
+
 ### Fog
 
 The sky screen also switches **Fog** on (`izomap.fog`): far ground fades towards the sky's color, which gives back the sense of depth an isometric view lacks. Two sliders set where it begins and where it is full, in blocks from the camera.
@@ -100,7 +102,9 @@ Above the sliders, a line reads the camera's frame from its last preview: how ne
 
 ### Depth of field
 
-**Focus** (`izomap.focus`) keeps one distance sharp and blurs everything nearer and further. When it is on, a slider picks the distance; it starts on the ground the frame is aimed at and its far end is the furthest the camera's rays reach.
+**Focus** (`izomap.focus`) keeps one distance sharp and blurs everything nearer and further. The button opens its own screen: switch it on there and a slider picks the distance, its far end the furthest the camera's rays reach.
+
+Above the slider, a line reads the camera's frame from its last preview: what the middle of the frame is aimed at, the nearest ground, where most of it lies and the furthest. Each of the first three is a button that puts the focus there; the middle of the frame is where it starts when you switch it on. **Confirm** goes back to the capture screen.
 
 There is no lens in an orthographic camera, so this is a chosen look, not a simulation: on a tilted camera it makes the scene look like a miniature (tilt-shift), on a level one it lifts the subject off its background. The slider's value reaches the server when you press any button on the screen.
 

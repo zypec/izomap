@@ -176,6 +176,16 @@ public final class BlockColorTable {
      */
     private static final Map<Material, MapBaseColor> CORRECTIONS = corrections();
 
+    /**
+     * Blocks vanilla leaves off maps altogether that a photo should show. A nether portal
+     * is a sheet of purple in game and a hole on a map; a photo of a portal room showed
+     * the wall behind the portal through it. Purple is the palette entry nearest its
+     * texture. Applied with the corrections, so {@code correct-vanilla-colors: false}
+     * brings the hole back.
+     */
+    private static final Map<Material, MapBaseColor> DRAWN = Map.of(
+            Material.NETHER_PORTAL, MapBaseColor.COLOR_PURPLE);
+
     private static Map<Material, MapBaseColor> corrections() {
         Map<Material, MapBaseColor> map = new EnumMap<>(Material.class);
         map.putAll(FLOWER_COLORS);
@@ -564,6 +574,11 @@ public final class BlockColorTable {
 
             colors.put(entry.getKey(), entry.getValue());
             byAge.remove(entry.getKey());
+            applied++;
+        }
+        // Colourless in vanilla, so absent from the table until put there.
+        for (var entry : DRAWN.entrySet()) {
+            colors.put(entry.getKey(), entry.getValue());
             applied++;
         }
         if (applied > 0) {

@@ -10,7 +10,10 @@ code they describe.
 ## Communication
 
 - Reply to the maintainer in **Turkish**. Everything that lands in the repository is **English**:
-  code, javadoc, comments, config keys, commit messages, docs, the wiki and every in-game message.
+  code, javadoc, comments, config keys, commit messages, docs, the wiki and the in-game messages of
+  `lang/en.yml`, the reference language. `lang/tr.yml` is the Turkish translation: its values are
+  Turkish, its comments are not repeated (they live in `en.yml`), and it changes with every message
+  that changes in English.
 - Player-facing English (messages, the wiki, shipped `.yml` comments) is spelled the **American**
   way (`color`, `gray`), like the config keys, and uses no em dash (—): a comma, a colon,
   parentheses or a new sentence instead. Javadoc and code comments are exempt.
@@ -72,7 +75,7 @@ lossless and a fraction of the size.
 - Comments are English and minimal: only a *why* the code cannot say. No TODO ids, conversation or
   history in code.
 - Match the surrounding code: `var` for locals, explicit types elsewhere, feature packages.
-- A message key used in code must exist in `messages.yml`; `MessagesFileTest` checks it with
+- A message key used in code must exist in `lang/en.yml` and `lang/tr.yml`; `MessagesFileTest` checks it with
   Bukkit's own YAML loader (YAML 1.1: a bare `on` key is the boolean `true`, quote it).
 
 ## Compatibility

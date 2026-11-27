@@ -389,7 +389,7 @@ public final class RenderService {
                             executor, threads);
                     if (cancellation != null) cancellation.check();
                     if (scene != null)
-                        scene.accept(SceneDepth.of(result.depth()));
+                        scene.accept(SceneDepth.of(result.depth(), result.width(), result.height()));
                     // Before the blur, so a defocused far hill is soft and hazy at once
                     // rather than a sharp line of fog drawn over a blur.
                     result = FogPass.apply(result, fog, sky, converter, executor, threads);

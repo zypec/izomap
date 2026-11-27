@@ -1,5 +1,7 @@
-# Izomap messages, in MiniMessage: https://docs.advntr.dev/minimessage/format.html
+# Izomap messages in English, in MiniMessage: https://docs.advntr.dev/minimessage/format.html
 # Placeholders and how to translate this file: https://zypec.github.io/izomap/wiki/#messages
+
+version: 1
 
 prefix: "<#d9a60c><bold>Izomap</bold></#d9a60c> <dark_gray>»</dark_gray> "
 
@@ -224,10 +226,21 @@ dialog:
   sky-option-active: "<value> <green>✔"
   sky-bodies: "Sun, moon and stars: <gray>Off"
   sky-bodies-active: "Sun, moon and stars: <green>On ✔"
-  sky-back: "Back"
+  sky-confirm: "<green><bold>Confirm"
   # The sun's sliders show while it matters: shadows on, or the sun drawn in the sky. Their
   # values reach the server when a button on the screen is pressed.
-  sun-body: "<gray>The sun casts the shadows and is drawn in the sky from where it stands here."
+  # Where the camera's sun stands relative to the camera, read off the sliders.
+  sun-hint: "<gray>The sun is <where>, <height>."
+  sun-where:
+    behind: "<white>behind the camera</white>: faces turned to you are lit and shadows hide behind things"
+    front: "<white>in front of the camera</white>: the scene is backlit and shadows fall towards you"
+    side: "<white>to the side</white>: shadows fall across the ground, where they read best"
+  sun-height:
+    low: "<white>low</white>, so shadows are long"
+    mid: "<white>halfway up</white>"
+    high: "<white>high</white>, so shadows are short"
+  sun-suggest-side: "Side light"
+  sun-suggest-frame: "Sun in the frame"
   sun-yaw-label: "Sun direction"
   sun-pitch-label: "Sun height"
   # Fog fades far ground into the sky. The sliders and the hint show while it is on; the hint
@@ -258,6 +271,16 @@ dialog:
   focus-button: "Focus: <gray>Off"
   focus-button-active: "Focus: <green>On ✔"
   focus-label: "Focus distance (blocks)"
+  focus-title: "<#d9a60c>Depth of field</#d9a60c>"
+  focus-body-off: "<gray>Depth of field keeps one distance sharp and softens what is nearer and further. On a tilted camera it makes the scene look like a miniature."
+  # Read off the camera's last preview. <center> is what the middle of the frame is aimed at.
+  focus-hint: "<gray>The middle of the frame is aimed at ground <white><center></white> blocks away. The nearest ground is <white><near></white>, most of it lies around <white><median></white>, the furthest is <white><far></white>."
+  focus-hint-sky: "<gray>The middle of the frame is sky. The nearest ground is <white><near></white> blocks away, most of it lies around <white><median></white>, the furthest is <white><far></white>."
+  focus-hint-none: "<gray>Open the camera's preview and this line will say how far the things in its frame are, with distances to focus on."
+  focus-suggest-center: "Middle of the frame (<blocks>)"
+  focus-suggest-near: "Nearest (<blocks>)"
+  focus-suggest-median: "Most of the ground (<blocks>)"
+  focus-confirm: "<green><bold>Confirm"
   # A 3x3 guide drawn on the preview only, never on the photo.
   thirds-button: "Rule of thirds: <gray>Off"
   thirds-button-active: "Rule of thirds: <green>On ✔"
@@ -366,3 +389,5 @@ log:
   photo-cache-delete-failed: "Could not delete the photo cache (<photo>): <reason>"
   photo-cache-scan-failed: "Could not scan the photo cache: <reason>"
   photo-cache-swept: "Deleted <count> orphaned photo cache file(s)."
+  config-upgraded: "Added <count> new setting(s) to config.yml with their default values."
+  config-newer: "<yellow>config.yml is version <version>, newer than this build supports (<supported>); it was not changed. Update Izomap or restore the file."

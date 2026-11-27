@@ -13,6 +13,7 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -86,6 +87,19 @@ public final class PhotoFrames {
      */
     private static final int CLEAR = 0;
 
+    /**
+     * Deepest shadow a frame may cast, in art pixels.
+     */
+    private static final int MAX_SHADOW = 8;
+
+    /**
+     * How dark the shadow is where it starts, under the top and left sides; under the
+     * bottom and right it is a third of that, since the light comes from the upper left.
+     */
+    private static final double SHADOW_DARKEST = 0.45;
+
+    private static final MapColorConverter PALETTE = new MapColorConverter();
+
     private final Map<String, Frame> byId = new LinkedHashMap<>();
 
     /**
@@ -109,8 +123,26 @@ public final class PhotoFrames {
      *                   mirrored into the other three, or {@code null} for none
      * @param scale      how many photo pixels one art pixel covers, or
      *                   {@link #SCALE_AUTO} to pick from the photo's size
+     * @param bevel      how much lighter the top side is and darker the bottom one, the
+     *                   left and right sides half as much, 0 for a flat frame: light from
+     *                   the upper left makes a moulding out of a flat strip
+     * @param shadow     how deep a shadow the frame casts on the photo inside it, in art
+     *                   pixels, 0 for none
      */
-    public record Frame(String id, int thickness, int[] edge, int edgeLength, int[] corner, int scale) {
+    public record Frame(String id, int thickness, int[] edge, int edgeLength, int[] corner, int scale,
+                        double bevel, int shadow) {
+
+        public Frame(String id, int thickness, int[] edge, int edgeLength, int[] corner, int scale) {
+            this(id, thickness, edge, edgeLength, corner, scale, 0.0, 0);
+        }
+
+        /**
+         * The same frame lit and shadowed this way.
+         */
+        public Frame withLook(double bevel, int shadow) {
+            return new Frame(id, thickness, edge, edgeLength, corner, scale,
+                    Math.clamp(bevel, 0.0, 1.0), Math.clamp(shadow, 0, MAX_SHADOW));
+        }
 
         /**
          * Grow the art with the photo instead of keeping a fixed pixel size.
@@ -160,16 +192,18 @@ public final class PhotoFrames {
     /**
      * Compiles one entry, whichever of the three ways it was written.
      */
-    private static Frame read(Izomap plugin, String id, ConfigurationSection section,
-                              MapColorConverter converter) {
+    static Frame read(Izomap plugin, String id, ConfigurationSection section,
+                      MapColorConverter converter) {
         var scale = readScale(section.get("scale"));
-        if (section.isString("texture"))
-            return fromTexture(plugin, id, section, converter, scale);
-
-        if (section.isList("edge"))
-            return fromArt(plugin, id, section, converter, scale);
-
-        return fromRings(plugin, id, section.getMapList("rings"), converter, scale);
+        Frame frame;
+        if (section.isString("texture")) {
+            frame = fromTexture(plugin, id, section, converter, scale);
+        } else if (section.isList("edge")) {
+            frame = fromArt(plugin, id, section, converter, scale);
+        } else {
+            frame = fromRings(plugin, id, section.getMapList("rings"), converter, scale);
+        }
+        return frame == null ? null : frame.withLook(section.getDouble("bevel", 0.0), section.getInt("shadow", 0));
     }
 
     /**
@@ -411,51 +445,154 @@ public final class PhotoFrames {
         if (depth <= 0)
             return image;
 
-        drawEdges(pixels, width, height, frame, scale, depth);
+        var shades = new HashMap<Long, Integer>();
+        drawEdges(pixels, width, height, frame, scale, depth, shades);
         if (frame.corner() != null)
-            drawCorners(pixels, width, height, frame, scale, depth);
+            drawCorners(pixels, width, height, frame, scale, depth, shades);
+        if (frame.shadow() > 0)
+            castShadow(pixels, width, height, depth, Math.min(frame.shadow() * scale, budget - depth), shades);
 
         return new RenderResult(width, height, pixels);
     }
 
     /**
-     * The four sides. The vertical ones use the same strip transposed, so a repeating
-     * pattern runs the same way round the whole frame.
+     * The sides a pixel near the edge belongs to, by which edge it is closest to. That
+     * is a 45 degree mitre at every corner, the way a real frame is joined.
      */
-    private static void drawEdges(int[] pixels, int width, int height,
-                                  Frame frame, int scale, int depth) {
-        for (var d = 0; d < depth; d++) {
-            var row = d / scale;
+    private enum Side {
+        TOP(1.0), LEFT(0.5), BOTTOM(-1.0), RIGHT(-0.5);
+
+        /**
+         * How much of the bevel this side gets, and which way: light falls from the upper
+         * left.
+         */
+        private final double light;
+
+        Side(double light) {
+            this.light = light;
+        }
+
+        static Side of(int x, int y, int width, int height) {
+            var top = y;
+            var left = x;
+            var bottom = height - 1 - y;
+            var right = width - 1 - x;
+            var nearest = Math.min(Math.min(top, left), Math.min(bottom, right));
+            if (nearest == top) return TOP;
+            if (nearest == left) return LEFT;
+            if (nearest == bottom) return BOTTOM;
+            return RIGHT;
+        }
+
+        static int distance(int x, int y, int width, int height) {
+            return Math.min(Math.min(y, x), Math.min(height - 1 - y, width - 1 - x));
+        }
+    }
+
+    /**
+     * The four sides, mitred at the corners and lit by side. The vertical ones read the
+     * same strip as the horizontal ones, so a repeating pattern runs the same way round
+     * the whole frame.
+     */
+    private static void drawEdges(int[] pixels, int width, int height, Frame frame, int scale, int depth,
+                                  Map<Long, Integer> shades) {
+        for (var y = 0; y < height; y++) {
+            var band = y < depth || y >= height - depth;
             for (var x = 0; x < width; x++) {
-                var argb = art(frame, row, x / scale);
-                set(pixels, width, height, x, d, argb);
-                set(pixels, width, height, x, height - 1 - d, argb);
-            }
-            for (var y = 0; y < height; y++) {
-                var argb = art(frame, row, y / scale);
-                set(pixels, width, height, d, y, argb);
-                set(pixels, width, height, width - 1 - d, y, argb);
+                if (!band && x >= depth && x < width - depth) {
+                    x = width - depth - 1;
+                    continue;
+                }
+                var side = Side.of(x, y, width, height);
+                var distance = Side.distance(x, y, width, height);
+                if (distance >= depth) continue;
+
+                var along = side == Side.TOP || side == Side.BOTTOM ? x : y;
+                var argb = art(frame, distance / scale, along / scale);
+                if (argb == CLEAR) continue;
+
+                pixels[y * width + x] = lit(argb, side.light * frame.bevel(), shades);
             }
         }
     }
 
     /**
      * The corner sprite in all four corners, mirrored into the other three so the author
-     * draws it once.
+     * draws it once, each half lit like the side it meets.
      */
-    private static void drawCorners(int[] pixels, int width, int height,
-                                    Frame frame, int scale, int depth) {
+    private static void drawCorners(int[] pixels, int width, int height, Frame frame, int scale, int depth,
+                                    Map<Long, Integer> shades) {
         var corner = frame.corner();
         var thickness = frame.thickness();
         for (var y = 0; y < depth; y++) {
             for (var x = 0; x < depth; x++) {
                 var argb = corner[(y / scale) * thickness + (x / scale)];
-                set(pixels, width, height, x, y, argb);
-                set(pixels, width, height, width - 1 - x, y, argb);
-                set(pixels, width, height, x, height - 1 - y, argb);
-                set(pixels, width, height, width - 1 - x, height - 1 - y, argb);
+                if (argb == CLEAR) continue;
+
+                paint(pixels, width, height, x, y, argb, frame, shades);
+                paint(pixels, width, height, width - 1 - x, y, argb, frame, shades);
+                paint(pixels, width, height, x, height - 1 - y, argb, frame, shades);
+                paint(pixels, width, height, width - 1 - x, height - 1 - y, argb, frame, shades);
             }
         }
+    }
+
+    private static void paint(int[] pixels, int width, int height, int x, int y, int argb, Frame frame,
+                              Map<Long, Integer> shades) {
+        if (x < 0 || y < 0 || x >= width || y >= height)
+            return;
+        var side = Side.of(x, y, width, height);
+        pixels[y * width + x] = lit(argb, side.light * frame.bevel(), shades);
+    }
+
+    /**
+     * Darkens the photo just inside the frame, fading over {@code reach} pixels: the
+     * frame standing proud of the picture. Holes stay holes.
+     */
+    private static void castShadow(int[] pixels, int width, int height, int depth, int reach,
+                                   Map<Long, Integer> shades) {
+        if (reach <= 0) return;
+
+        for (var y = depth; y < height - depth; y++) {
+            for (var x = depth; x < width - depth; x++) {
+                var inside = Side.distance(x, y, width, height) - depth;
+                if (inside >= reach) {
+                    if (y >= depth + reach && y < height - depth - reach)
+                        x = Math.max(x, width - depth - reach - 1);
+                    continue;
+                }
+                var index = y * width + x;
+                if ((pixels[index] >>> 24) == 0) continue;
+
+                var side = Side.of(x, y, width, height);
+                var strength = side.light > 0 ? SHADOW_DARKEST : SHADOW_DARKEST / 3.0;
+                var fade = 1.0 - inside / (double) reach;
+                pixels[index] = lit(pixels[index], -strength * fade * fade, shades);
+            }
+        }
+    }
+
+    /**
+     * A colour moved towards white ({@code amount > 0}) or black, back on the palette.
+     * Remembered per draw, since a frame repeats a handful of colours over thousands of
+     * pixels.
+     */
+    private static int lit(int argb, double amount, Map<Long, Integer> shades) {
+        if (amount == 0.0) return argb;
+
+        // The colour in the high bits, the amount offset to stay positive in the low ones.
+        var key = ((argb & 0xFFFFFFFFL) << 20) | ((Math.round(amount * 10_000) + 10_000) & 0xFFFFF);
+        return shades.computeIfAbsent(key, k -> {
+            var r = (argb >> 16) & 0xFF;
+            var g = (argb >> 8) & 0xFF;
+            var b = argb & 0xFF;
+            var target = amount > 0 ? 255 : 0;
+            var t = Math.abs(amount);
+            r = (int) Math.round(r + (target - r) * t);
+            g = (int) Math.round(g + (target - g) * t);
+            b = (int) Math.round(b + (target - b) * t);
+            return 0xFF000000 | PALETTE.snap((r << 16) | (g << 8) | b);
+        });
     }
 
     /**
@@ -463,16 +600,5 @@ public final class PhotoFrames {
      */
     private static int art(Frame frame, int row, int along) {
         return frame.edge()[row * frame.edgeLength() + (along % frame.edgeLength())];
-    }
-
-    /**
-     * Paints one pixel, unless the art leaves it clear or the coordinates fell outside —
-     * which happens on a photo narrower than twice the frame.
-     */
-    private static void set(int[] pixels, int width, int height, int x, int y, int argb) {
-        if (argb == CLEAR || x < 0 || y < 0 || x >= width || y >= height)
-            return;
-
-        pixels[y * width + x] = argb;
     }
 }

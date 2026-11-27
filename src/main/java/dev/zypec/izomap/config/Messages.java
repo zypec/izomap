@@ -19,6 +19,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Loads the MiniMessage strings from {@code messages.yml} and turns them into
@@ -31,6 +32,12 @@ import java.util.List;
  */
 public final class Messages {
 
+    /** The language a server gets unless it picks another, and the one every gap falls back to. */
+    public static final String DEFAULT_LANGUAGE = "en";
+
+    /** Languages the jar carries. */
+    private static final List<String> SHIPPED = List.of("en", "tr");
+
     private final Izomap plugin;
     private MiniMessage miniMessage = MiniMessage.miniMessage();
 
@@ -40,20 +47,45 @@ public final class Messages {
         this.plugin = plugin;
     }
 
+    /**
+     * Loads English. The language the server picked is only known once the config is
+     * read, and reading the config already reports through here.
+     */
     public void reload() {
-        var file = new File(plugin.getDataFolder(), "messages.yml");
-        if (!file.exists())
-            plugin.saveResource("messages.yml", false);
+        reload(DEFAULT_LANGUAGE);
+    }
+
+    /**
+     * Loads {@code lang/<language>.yml} from the plugin folder.
+     *
+     * <p>Every shipped language is written out on first start, so a server owner finds
+     * them all to edit. A key the server's copy lacks, such as one a newer version added,
+     * reads the shipped text of the same language, then the English one: a missing
+     * translation shows English rather than a placeholder. A language the plugin does not
+     * ship works too, as long as its file is in the folder; anything missing from it is
+     * English.</p>
+     */
+    public void reload(String language) {
+        for (var shipped : SHIPPED)
+            if (!new File(plugin.getDataFolder(), "lang/" + shipped + ".yml").exists())
+                plugin.saveResource("lang/" + shipped + ".yml", false);
+
+        var code = language == null || language.isBlank() ? DEFAULT_LANGUAGE : language.trim().toLowerCase(Locale.ROOT);
+        var file = new File(plugin.getDataFolder(), "lang/" + code + ".yml");
+        if (!file.exists()) {
+            plugin.getSLF4JLogger().warn("Language file lang/{}.yml was not found; using English", code);
+            code = DEFAULT_LANGUAGE;
+            file = new File(plugin.getDataFolder(), "lang/" + DEFAULT_LANGUAGE + ".yml");
+        }
 
         this.messages = YamlConfiguration.loadConfiguration(file);
-        // A key the server's copy lacks, such as one added by a newer version, reads the
-        // shipped text rather than showing a placeholder for the missing key.
-        try (var shipped = plugin.getResource("messages.yml")) {
-            if (shipped != null)
-                messages.setDefaults(YamlConfiguration.loadConfiguration(
-                        new InputStreamReader(shipped, StandardCharsets.UTF_8)));
-        } catch (IOException unreadable) {
-            plugin.getSLF4JLogger().debug("The shipped messages.yml could not be read", unreadable);
+        var english = shipped(DEFAULT_LANGUAGE);
+        var same = code.equals(DEFAULT_LANGUAGE) ? null : shipped(code);
+        if (same != null) {
+            same.setDefaults(english);
+            messages.setDefaults(same);
+        } else if (english != null) {
+            messages.setDefaults(english);
         }
         this.miniMessage = MiniMessage.builder()
                 .tags(TagResolver.builder()
@@ -70,6 +102,19 @@ public final class Messages {
      * @param resolvers placeholders
      * @return adventure component
      */
+    /**
+     * The jar's copy of a language, or {@code null} when it has none.
+     */
+    private YamlConfiguration shipped(String language) {
+        try (var stream = plugin.getResource("lang/" + language + ".yml")) {
+            return stream == null ? null
+                    : YamlConfiguration.loadConfiguration(new InputStreamReader(stream, StandardCharsets.UTF_8));
+        } catch (IOException unreadable) {
+            plugin.getSLF4JLogger().debug("The shipped lang/{}.yml could not be read", language, unreadable);
+            return null;
+        }
+    }
+
     public Component get(String key, TagResolver... resolvers) {
         var raw = messages.getString(key);
         if (raw == null) return Component.text("<missing: " + key + ">");
