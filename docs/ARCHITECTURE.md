@@ -754,10 +754,19 @@ the preview cleanly), swapped or moved; it is removed on quit and cleaned on joi
   cancelled render drop itself. A render already walking its rays is let finish, with a `pending`
   flag for one more of the latest state: the walk of a 128 pixel map is quick, and cancelling
   there too left a player who kept clicking with no frame at all. Nothing queues beyond that one.
-- **Chunk copies are kept five seconds** (`ChunkCache`, per session): every click used to copy the
-  whole frame again, though turning by 15 degrees changes a handful of chunks. A copy younger than
-  five seconds taken with the same extras (light, biomes) is used again, so the preview lags a
-  change in the world by at most that. Photos never read it; it is cleared when the session ends.
+- **The preview never waits for the disk** (`ChunkCache`, per session). It draws with the chunks
+  that are loaded or kept and fetches the rest in the background, 32 at a time; as they land it is
+  drawn again, at most once a second and once more when the last is in. A wide frame reaches
+  thousands of chunks nobody is near, and waiting for them made every click take seconds:
+  measured with `/izodev clicks` (20 clicks, four a second, 128x72, 3,126 chunks), the copy took
+  3.7 to 4 s against 0.1 to 0.2 s of walk, and only the last click ever showed. Drawing without
+  waiting, every click showed its frame in 70 to 290 ms, the longest tick 37 ms once warm. Depth
+  of field made no difference either way (the walk is 0.1 s of it). Photos always wait for every
+  chunk.
+- **Chunk copies are kept**: a copy of a loaded chunk for five seconds, so the preview lags a
+  change in the world by at most that; one the cache fetched itself, where no player is, for a
+  minute. Only copies taken with the same extras (light, biomes) are used again. Cleared when the
+  session ends.
 - **Every preview render records depth** for the fog hint (`SceneDepth`, §3 Fog); at 128 pixels it
   costs nothing.
 - **The camera's own ratio**, letterboxed on the square map: it shows the real frame and the real

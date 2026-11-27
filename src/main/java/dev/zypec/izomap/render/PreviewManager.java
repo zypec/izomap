@@ -380,6 +380,13 @@ public final class PreviewManager implements Listener {
         }
         session.pending = false;
 
+        // Far chunks are fetched while the frame is drawn without them; each batch that
+        // lands draws it again.
+        session.chunks.onFetched(() -> {
+            var latest = plugin.cameras().byId(session.cameraId);
+            if (latest != null && sessions.get(session.cameraId) == session)
+                render(latest, session);
+        });
         var cancellation = new RenderCancellation();
         var generation = ++session.generation;
         session.running = cancellation;

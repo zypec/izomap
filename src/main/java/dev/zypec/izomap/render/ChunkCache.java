@@ -1,34 +1,65 @@
 package dev.zypec.izomap.render;
 
 import org.bukkit.ChunkSnapshot;
+import org.bukkit.World;
 
+import java.util.ArrayDeque;
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
- * Chunk copies kept for a few seconds, so a preview being adjusted click after click
- * copies only the chunks that came into its frame.
+ * The live preview's chunk copies, and the loads it does not wait for.
  *
- * <p>The preview draws a 128 pixel map, yet every click used to copy every chunk the
- * frame covers again: turning a camera by 15 degrees changed a handful of them and
- * copied hundreds. A copy here is used again while it is younger than
- * {@link #MAX_AGE_NANOS}, which makes the preview up to that much behind a change in
- * the world and never more. Photos never read from it.</p>
+ * <p><b>Copies are kept</b>, so a click copies only what came into the frame. A copy of a
+ * chunk that was loaded is used again while it is younger than {@link #NEAR_AGE_NANOS},
+ * so the preview lags a change in the world by at most that; one this cache loaded
+ * itself lies where no player is, and is kept for {@link #FAR_AGE_NANOS}.</p>
  *
- * <p>A copy is only reused for a capture that wants the same extras (light, biomes),
- * since one taken without them cannot answer for them. Main thread only, like the
- * copier that fills it.</p>
+ * <p><b>Unloaded chunks are fetched in the background.</b> A wide frame reaches thousands
+ * of chunks nobody is near, and waiting for the disk made every click on such a camera
+ * take seconds before anything showed: measured on the development server, 3,126 chunks,
+ * 3.7 to 4 s of copying against 0.1 to 0.2 s of ray walk. The preview now draws what is
+ * there at once and asks for the rest here, {@link #MAX_LOADING} at a time; as they land
+ * the preview is drawn again, at most once per {@link #NOTIFY_NANOS}, and once more when
+ * the last one is in. Photos never read from it and always wait for every chunk.</p>
+ *
+ * <p>Main thread only; Paper completes chunk loads there.</p>
  */
 public final class ChunkCache {
 
-    private static final long MAX_AGE_NANOS = 5_000_000_000L;
+    private static final long NEAR_AGE_NANOS = 5_000_000_000L;
+    private static final long FAR_AGE_NANOS = 60_000_000_000L;
+    private static final long NOTIFY_NANOS = 1_000_000_000L;
+    private static final int MAX_LOADING = 32;
 
-    private record Entry(ChunkSnapshot snapshot, boolean light, boolean biomes, long copiedAt) {
+    private record Entry(ChunkSnapshot snapshot, boolean light, boolean biomes, long copiedAt, boolean far) {
+        long maxAge() {
+            return far ? FAR_AGE_NANOS : NEAR_AGE_NANOS;
+        }
     }
 
     private final Map<Long, Entry> entries = new HashMap<>();
+    private final ArrayDeque<Long> wanted = new ArrayDeque<>();
+    private final Set<Long> loading = new HashSet<>();
     private UUID worldId;
+    private World world;
+    private boolean light;
+    private boolean biomes;
+    private boolean generate;
+    private Runnable listener;
+    private long notifiedAt;
+    private boolean landedSinceNotify;
+
+    /**
+     * What to run when fetched chunks have landed, so the preview can be drawn again.
+     */
+    public void onFetched(Runnable listener) {
+        this.listener = listener;
+    }
 
     /**
      * A fresh enough copy taken with the same extras, or {@code null}.
@@ -40,28 +71,99 @@ public final class ChunkCache {
         var entry = entries.get(key);
         if (entry == null || entry.light() != light || entry.biomes() != biomes)
             return null;
-        return System.nanoTime() - entry.copiedAt() < MAX_AGE_NANOS ? entry.snapshot() : null;
+        return System.nanoTime() - entry.copiedAt() < entry.maxAge() ? entry.snapshot() : null;
     }
 
     void put(UUID world, long key, ChunkSnapshot snapshot, boolean light, boolean biomes) {
+        put(world, key, snapshot, light, biomes, false);
+    }
+
+    private void put(UUID world, long key, ChunkSnapshot snapshot, boolean light, boolean biomes, boolean far) {
         if (!world.equals(worldId)) {
             entries.clear();
+            wanted.clear();
             worldId = world;
         }
-        entries.put(key, new Entry(snapshot, light, biomes, System.nanoTime()));
+        entries.put(key, new Entry(snapshot, light, biomes, System.nanoTime(), far));
     }
 
     /**
-     * Lets go of every copy too old to be used again, so the cache holds at most what
-     * the last few seconds of renders covered.
+     * Sets what the frame needs that is neither loaded nor kept, replacing what an older
+     * frame wanted and has not been asked for yet. Loads already under way carry on.
+     */
+    void want(World world, Collection<Long> keys, boolean light, boolean biomes, boolean generate) {
+        if (!world.getUID().equals(worldId)) {
+            entries.clear();
+            worldId = world.getUID();
+        }
+        this.world = world;
+        this.light = light;
+        this.biomes = biomes;
+        this.generate = generate;
+        wanted.clear();
+        for (var key : keys) {
+            if (!loading.contains(key))
+                wanted.add(key);
+        }
+        requestMore();
+    }
+
+    /**
+     * Whether chunks of the last frame are still on their way.
+     */
+    boolean fetching() {
+        return !wanted.isEmpty() || !loading.isEmpty();
+    }
+
+    private void requestMore() {
+        while (loading.size() < MAX_LOADING && !wanted.isEmpty()) {
+            var key = wanted.poll();
+            if (!loading.add(key))
+                continue;
+
+            var target = world;
+            var withLight = light;
+            var withBiomes = biomes;
+            target.getChunkAtAsync(WorldSnapshot.chunkX(key), WorldSnapshot.chunkZ(key), generate)
+                    .whenComplete((chunk, error) -> {
+                        loading.remove(key);
+                        if (chunk != null && error == null && target.getUID().equals(worldId)) {
+                            put(worldId, key, chunk.getChunkSnapshot(false, withBiomes, false, withLight),
+                                    withLight, withBiomes, true);
+                            landedSinceNotify = true;
+                        }
+                        requestMore();
+                        notifyIfDue();
+                    });
+        }
+    }
+
+    private void notifyIfDue() {
+        if (listener == null || !landedSinceNotify)
+            return;
+
+        var now = System.nanoTime();
+        if (fetching() && now - notifiedAt < NOTIFY_NANOS)
+            return;
+
+        notifiedAt = now;
+        landedSinceNotify = false;
+        listener.run();
+    }
+
+    /**
+     * Lets go of every copy too old to be used again.
      */
     void prune() {
         var now = System.nanoTime();
-        entries.values().removeIf(entry -> now - entry.copiedAt() >= MAX_AGE_NANOS);
+        entries.values().removeIf(entry -> now - entry.copiedAt() >= entry.maxAge());
     }
 
     public void clear() {
         entries.clear();
+        wanted.clear();
         worldId = null;
+        world = null;
+        listener = null;
     }
 }

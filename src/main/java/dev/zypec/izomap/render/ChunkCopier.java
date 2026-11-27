@@ -90,6 +90,7 @@ final class ChunkCopier {
         var copier = new ChunkCopier(plugin, world, keys.size(), light, biomes, cancellation, cache);
         if (cache != null)
             cache.prune();
+        List<Long> fetch = new ArrayList<>();
         for (var key : keys) {
             var cached = cache != null ? cache.get(world.getUID(), key, light, biomes) : null;
             if (cached != null) {
@@ -101,9 +102,17 @@ final class ChunkCopier {
             if (world.isChunkLoaded(x, z)) {
                 copier.queue.add(new Pending(x, z));
             } else if (copier.load) {
-                copier.toLoad.add(key);
+                // The preview draws what is there and lets the cache fetch the rest; a
+                // photo waits for every chunk.
+                if (cache != null) {
+                    fetch.add(key);
+                } else {
+                    copier.toLoad.add(key);
+                }
             }
         }
+        if (cache != null)
+            cache.want(world, fetch, light, biomes, copier.generate);
         copier.run();
         return copier.result;
     }
@@ -130,17 +139,12 @@ final class ChunkCopier {
         loading++;
         world.getChunkAtAsync(x, z, generate).whenComplete((chunk, error) -> {
             loading--;
-            if (chunk != null && error == null) {
-                // Copied the moment it lands, while Paper's callback still holds it
-                // loaded. Holding it with a ticket until its turn made it a ticking
-                // chunk, and thousands of those ticking alongside the server is what
-                // stretched ticks to seconds during a wide copy.
-                var snapshot = chunk.getChunkSnapshot(false, biomes, false, light);
-                if (cache != null)
-                    cache.put(world.getUID(), WorldSnapshot.key(x, z), snapshot, light, biomes);
-                if (!result.isDone())
-                    copied.add(snapshot);
-            }
+            // Copied the moment it lands, while Paper's callback still holds it loaded.
+            // Holding it with a ticket until its turn made it a ticking chunk, and
+            // thousands of those ticking alongside the server is what stretched ticks to
+            // seconds during a wide copy.
+            if (chunk != null && error == null && !result.isDone())
+                copied.add(chunk.getChunkSnapshot(false, biomes, false, light));
             if (!result.isDone())
                 ensureScheduled();
         });
@@ -182,7 +186,7 @@ final class ChunkCopier {
             copied.add(snapshot);
             if (cache != null)
                 cache.put(world.getUID(), WorldSnapshot.key(chunk.x(), chunk.z()), snapshot, light, biomes);
-        } else {
+        } else if (cache == null) {
             // It was loaded when the capture began, so it exists; only its turn came late.
             toLoad.add(WorldSnapshot.key(chunk.x(), chunk.z()));
         }

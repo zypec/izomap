@@ -53,6 +53,7 @@ camera and no player:
 ```
 izodev shots            # every view in the file, one after another
 izodev shot <name>      # one view
+izodev clicks <name> <n> # n preview-size renders, four a second, turning a step each, timed
 ```
 
 Each view: `world` (default `world`), `x y z yaw pitch zoom`, `grid` (`8x5` → 1024x640), `sky`,
