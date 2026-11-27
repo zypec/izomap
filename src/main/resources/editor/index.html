@@ -26,6 +26,8 @@ button,input,select{font:inherit;color:inherit}
 .toolbar button[aria-pressed=true]{background:var(--yellow);color:#1a1500}
 .coords{position:absolute;left:14px;bottom:12px;font:500 11.5px/1 var(--mono);color:var(--muted);letter-spacing:.05em;
   text-shadow:0 1px 2px #000}
+.hint{position:absolute;right:14px;bottom:12px;font:500 11.5px/1 var(--mono);color:var(--muted);text-shadow:0 1px 2px #000}
+.mapwrap .toolbar button:disabled{opacity:.4;cursor:default}
 .busy{position:absolute;right:14px;top:18px;width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.2);
   border-top-color:var(--yellow);animation:spin .8s linear infinite;opacity:0;transition:opacity .2s}
 .busy.on{opacity:1}
@@ -77,12 +79,13 @@ input[type=range]{width:100%;accent-color:var(--yellow)}
     <img id="mapimg" alt="The world from above">
     <canvas id="marks"></canvas>
     <div class="toolbar">
-      <button type="button" id="place" aria-pressed="false">Place camera</button>
-      <button type="button" id="moveto" aria-pressed="false" disabled>Move here</button>
+      <button type="button" id="place" aria-pressed="false" title="Then click the map where the camera should stand">Place camera</button>
+      <button type="button" id="moveto" aria-pressed="false" disabled title="Then click the map where the chosen camera should go">Move here</button>
       <button type="button" id="recentre">To me</button>
     </div>
     <span class="busy" id="mapbusy"></span>
     <div class="coords" id="coords"></div>
+    <div class="hint" id="hint">Drag a camera to move it, drag its yellow handle to turn it</div>
   </div>
   <aside class="side">
     <h1>Izomap editor</h1>
@@ -118,6 +121,8 @@ function toast(text, bad) {
 
 /* --- the map: a top-down picture the plugin renders, north up, and the cameras drawn over it --- */
 const view = {x: 0, z: 0, size: 256};
+/** How far from a camera, on screen, the handle that turns it sits. */
+const HANDLE = 58;
 const shown = {x: 0, z: 0, size: 256};
 const wrap = $('map'), img = $('mapimg'), marks = $('marks');
 let cameras = [], selected = null, mode = null, options = null;
@@ -154,6 +159,13 @@ function drawMarks() {
     g.beginPath(); g.arc(sx, sy, on ? 8 : 6, 0, Math.PI * 2);
     g.fillStyle = on ? '#ffd60a' : '#fff'; g.fill();
     g.lineWidth = 2; g.strokeStyle = '#000'; g.stroke();
+    if (on) {
+      // The handle that turns it: drag it round the camera.
+      const [hx, hy] = [sx + dx * HANDLE, sy + dy * HANDLE];
+      g.beginPath(); g.moveTo(sx, sy); g.lineTo(hx, hy); g.strokeStyle = 'rgba(255,214,10,.8)'; g.lineWidth = 2; g.stroke();
+      g.beginPath(); g.arc(hx, hy, 6, 0, Math.PI * 2); g.fillStyle = '#ffd60a'; g.fill();
+      g.lineWidth = 2; g.strokeStyle = '#000'; g.stroke();
+    }
     g.font = '500 11px ui-monospace,Menlo,monospace'; g.fillStyle = '#fff'; g.shadowColor = '#000'; g.shadowBlur = 3;
     g.fillText(c.name, sx + 12, sy - 10); g.shadowBlur = 0;
   }
@@ -175,25 +187,58 @@ function loadMap() {
   }, 220);
 }
 
+/* Pressing the map pans it, unless the press lands on a camera (which then follows the pointer and is moved
+   where it is let go) or on the chosen camera's handle (which turns it). A press that does not move is a click:
+   it places a camera, moves the chosen one there, or picks the camera under it. */
 let drag = null;
-wrap.addEventListener('pointerdown', e => { drag = {x: e.clientX, y: e.clientY, vx: view.x, vz: view.z, moved: false}; wrap.setPointerCapture(e.pointerId); });
+const local = e => { const r = wrap.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+function cameraAt(sx, sy) {
+  return cameras.find(c => { const [cx, cy] = toScreen(c.x, c.z); return Math.hypot(cx - sx, cy - sy) < 12; });
+}
+function onHandle(sx, sy) {
+  if (!selected) return false;
+  const [cx, cy] = toScreen(selected.x, selected.z), yaw = selected.yaw * Math.PI / 180;
+  const hx = cx - Math.sin(yaw) * HANDLE, hy = cy + Math.cos(yaw) * HANDLE;
+  return Math.hypot(hx - sx, hy - sy) < 12;
+}
+wrap.addEventListener('pointerdown', e => {
+  if (e.target.closest('.toolbar')) return;
+  const [sx, sy] = local(e);
+  let kind = 'pan', camera = null;
+  if (onHandle(sx, sy)) { kind = 'turn'; camera = selected; }
+  else if ((camera = cameraAt(sx, sy))) { kind = 'move'; if (!selected || selected.id !== camera.id) select(camera.id); }
+  drag = {kind, camera, x: e.clientX, y: e.clientY, vx: view.x, vz: view.z, from: camera && {x: camera.x, z: camera.z, yaw: camera.yaw}, moved: false};
+  wrap.setPointerCapture(e.pointerId);
+});
 wrap.addEventListener('pointermove', e => {
-  const rect = wrap.getBoundingClientRect(), [wx, wz] = toWorld(e.clientX - rect.left, e.clientY - rect.top);
+  const [sx, sy] = local(e), [wx, wz] = toWorld(sx, sy);
   $('coords').textContent = `X ${Math.floor(wx)}   Z ${Math.floor(wz)}   ${Math.round(view.size)} blocks across`;
-  if (!drag) return;
-  const scale = Math.min(wrap.clientWidth, wrap.clientHeight) / view.size;
+  if (!drag) { wrap.style.cursor = mode ? '' : onHandle(sx, sy) || cameraAt(sx, sy) ? 'pointer' : ''; return; }
   if (Math.abs(e.clientX - drag.x) + Math.abs(e.clientY - drag.y) > 4) { drag.moved = true; wrap.classList.add('dragging'); }
-  if (drag.moved) { view.x = drag.vx - (e.clientX - drag.x) / scale; view.z = drag.vz - (e.clientY - drag.y) / scale; placeImage(); }
+  if (!drag.moved) return;
+  if (drag.kind === 'pan') {
+    const scale = Math.min(wrap.clientWidth, wrap.clientHeight) / view.size;
+    view.x = drag.vx - (e.clientX - drag.x) / scale; view.z = drag.vz - (e.clientY - drag.y) / scale; placeImage();
+  } else if (drag.kind === 'move') {
+    drag.camera.x = Math.floor(wx) + 0.5; drag.camera.z = Math.floor(wz) + 0.5; drawMarks();
+  } else {
+    const [cx, cy] = toScreen(drag.camera.x, drag.camera.z);
+    drag.camera.yaw = Math.round(Math.atan2(-(sx - cx), sy - cy) * 180 / Math.PI); drawMarks();
+  }
 });
 wrap.addEventListener('pointerup', async e => {
   const d = drag; drag = null; wrap.classList.remove('dragging');
   if (!d) return;
-  if (d.moved) { loadMap(); return; }
-  const rect = wrap.getBoundingClientRect(), sx = e.clientX - rect.left, sy = e.clientY - rect.top, [wx, wz] = toWorld(sx, sy);
+  if (d.moved) {
+    if (d.kind === 'pan') loadMap();
+    else if (d.kind === 'move') change({x: d.camera.x, z: d.camera.z}, true);
+    else change({yaw: d.camera.yaw}, true);
+    return;
+  }
+  const [sx, sy] = local(e), [wx, wz] = toWorld(sx, sy);
   if (mode === 'place') { setMode(null); return placeAt(wx, wz); }
-  if (mode === 'move' && selected) { setMode(null); return change({x: Math.floor(wx) + 0.5, z: Math.floor(wz) + 0.5}); }
-  const hit = cameras.find(c => { const [cx, cy] = toScreen(c.x, c.z); return Math.hypot(cx - sx, cy - sy) < 12; });
-  if (hit) select(hit.id);
+  if (mode === 'move' && selected) { setMode(null); return change({x: Math.floor(wx) + 0.5, z: Math.floor(wz) + 0.5}, true); }
+  if (d.camera) select(d.camera.id);
 });
 wrap.addEventListener('wheel', e => {
   e.preventDefault();
@@ -312,7 +357,11 @@ async function change(fields, redraw) {
     if (redraw || fields.x !== undefined || fields.y !== undefined || fields.z !== undefined) panel();
     else for (const [field, value] of Object.entries(fields)) syncSeg(field, value);
     preview();
-  } catch (e) { if (e.message !== 'ended') toast(e.message, true); }
+  } catch (e) {
+    if (e.message !== 'ended') toast(e.message, true);
+    // Put the marker back where the server still has it.
+    try { const state = await api('state'); cameras = state.cameras; selected = cameras.find(c => c.id === selected.id) || null; drawMarks(); panel(); } catch (ignored) {}
+  }
 }
 function syncSeg(field, value) {
   const group = document.querySelector(`[data-seg="${field}"]`);

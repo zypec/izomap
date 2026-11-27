@@ -126,7 +126,7 @@ If a setting on the camera needs a permission you do not have, the photo is refu
 
 ### The web editor
 
-`/izocam editor` (`izomap.editor`, operators by default) gives you a link to an editor in your browser, served by the plugin itself. It shows the world from above, rendered by Izomap: drag to move, scroll to zoom, **Place camera** and a click puts a camera there, a little above the ground. Pick a camera to aim it (facing, tilt, zoom, position, or **Move here** and a click on the map) and set everything the capture screen sets, with its preview redrawn after each change. **Take photo** shoots it as the capture screen does; the game tells you when it is in the camera's list.
+`/izocam editor` (`izomap.editor`, operators by default) gives you a link to an editor in your browser, served by the plugin itself. It shows the world from above, rendered by Izomap: drag to move, scroll to zoom, **Place camera** and a click puts a camera there, a little above the ground. Drag a camera on the map to move it, and drag the yellow handle in front of the chosen one to turn it. Pick a camera to aim it (facing, tilt, zoom, position, or **Move here** and a click on the map) and set everything the capture screen sets, with its preview redrawn after each change. **Take photo** shoots it as the capture screen does; the game tells you when it is in the camera's list.
 
 The editor acts as you, with your permissions, while you are online. By default it only opens on the computer the server runs on (`editor.bind: 127.0.0.1`); asking for a new link ends the old one, and a link stops working after `editor.idle-minutes` unused.
 
