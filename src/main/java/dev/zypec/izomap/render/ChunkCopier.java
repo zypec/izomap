@@ -20,22 +20,28 @@ import java.util.concurrent.CompletableFuture;
  * copy now runs until {@code settings.chunk-copy-budget-ms} is spent and carries on in
  * the next tick; at least one chunk is copied per tick so a capture always moves.</p>
  *
- * <p>Chunks that are not loaded are all requested asynchronously at once and queued for
- * the copy as they arrive. Asking for them a few dozen at a time was tried and made a
- * wide frame take minutes to load without making the longest tick any shorter.</p>
+ * <p>Chunks that are not loaded are requested asynchronously, {@link #MAX_LOADING} at a
+ * time, and copied in the load callback itself, while Paper still holds them loaded.
+ * The slots bound how many land in one tick.</p>
  *
- * <p>A chunk may unload between ticks. One that was loaded when the capture started
- * holds no ticket of ours, so if it is gone by its turn it is loaded again
- * asynchronously instead of being skipped. One this copier loaded itself is held with a
- * plugin chunk ticket from the moment it arrives until it is copied: async loading holds
- * none, and the chunk would otherwise be free to unload while it waits in the queue.</p>
+ * <p>A chunk loaded when the capture started may unload before its turn; it is then
+ * loaded again asynchronously instead of being skipped.</p>
  *
  * <p>Main thread only, queue included; Paper runs {@code getChunkAtAsync} callbacks
  * there too.</p>
  */
 final class ChunkCopier {
 
-    private record Pending(int x, int z, boolean ticketed) {
+    /**
+     * Async loads in flight at once. Paper finishes every load on the main thread, and
+     * its loader slows down when flooded. Measured on the development server, cold
+     * chunks of a wide frame: 32 at a time copied 6,289 in 6.3 s with a longest tick of
+     * 398 ms; 64 took 16 s for 2,882 with 1.4 s ticks; all at once 25 s for 2,972 with
+     * 2.7 s ticks.
+     */
+    private static final int MAX_LOADING = 32;
+
+    private record Pending(int x, int z) {
     }
 
     private final Izomap plugin;
@@ -93,7 +99,7 @@ final class ChunkCopier {
             var x = WorldSnapshot.chunkX(key);
             var z = WorldSnapshot.chunkZ(key);
             if (world.isChunkLoaded(x, z)) {
-                copier.queue.add(new Pending(x, z, false));
+                copier.queue.add(new Pending(x, z));
             } else if (copier.load) {
                 copier.toLoad.add(key);
             }
@@ -107,37 +113,36 @@ final class ChunkCopier {
     }
 
     /**
-     * Requests every chunk waiting to be loaded.
+     * Requests chunks until the slots are full.
      */
     private void requestMore() {
-        while (!toLoad.isEmpty()) {
+        while (loading < MAX_LOADING && !toLoad.isEmpty()) {
             var key = toLoad.poll();
             request(WorldSnapshot.chunkX(key), WorldSnapshot.chunkZ(key));
         }
     }
 
     /**
-     * Loads a chunk off the main thread and queues it once it is in. With
+     * Loads a chunk off the main thread and copies it once it is in. With
      * {@code generate} off an ungenerated chunk arrives as {@code null} and is left out.
      */
     private void request(int x, int z) {
         loading++;
         world.getChunkAtAsync(x, z, generate).whenComplete((chunk, error) -> {
             loading--;
-            if (result.isDone()) {
-                // Called off, but the load was paid for: the next render of the same
-                // preview, which is why this one was called off, gets the copy.
-                if (cache != null && chunk != null && error == null)
-                    cache.put(world.getUID(), WorldSnapshot.key(x, z),
-                            chunk.getChunkSnapshot(false, biomes, false, light), light, biomes);
-                return;
-            }
-
             if (chunk != null && error == null) {
-                world.addPluginChunkTicket(x, z, plugin);
-                queue.add(new Pending(x, z, true));
+                // Copied the moment it lands, while Paper's callback still holds it
+                // loaded. Holding it with a ticket until its turn made it a ticking
+                // chunk, and thousands of those ticking alongside the server is what
+                // stretched ticks to seconds during a wide copy.
+                var snapshot = chunk.getChunkSnapshot(false, biomes, false, light);
+                if (cache != null)
+                    cache.put(world.getUID(), WorldSnapshot.key(x, z), snapshot, light, biomes);
+                if (!result.isDone())
+                    copied.add(snapshot);
             }
-            ensureScheduled();
+            if (!result.isDone())
+                ensureScheduled();
         });
     }
 
@@ -177,12 +182,10 @@ final class ChunkCopier {
             copied.add(snapshot);
             if (cache != null)
                 cache.put(world.getUID(), WorldSnapshot.key(chunk.x(), chunk.z()), snapshot, light, biomes);
-        } else if (!chunk.ticketed()) {
+        } else {
             // It was loaded when the capture began, so it exists; only its turn came late.
             toLoad.add(WorldSnapshot.key(chunk.x(), chunk.z()));
         }
-        if (chunk.ticketed())
-            world.removePluginChunkTicket(chunk.x(), chunk.z(), plugin);
     }
 
     private boolean finishIfDone() {
@@ -195,10 +198,6 @@ final class ChunkCopier {
     }
 
     private void abandon() {
-        for (var chunk : queue) {
-            if (chunk.ticketed())
-                world.removePluginChunkTicket(chunk.x(), chunk.z(), plugin);
-        }
         queue.clear();
         toLoad.clear();
         stop();

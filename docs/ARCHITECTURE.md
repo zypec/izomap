@@ -602,10 +602,14 @@ copy in one tick: 300 to 700 chunks for a top-down shot, 5,000 to 6,000 for a ho
 measured on the development server. The copier now copies until `settings.chunk-copy-budget-ms`
 (8 by default) is spent and continues in the next tick, at least one chunk per tick. The first
 slice runs inside `capture` itself, so a preview's few dozen chunks finish without waiting a tick.
-Unloaded chunks are all requested at once. A cap of 32 loads in flight was tried: the longest tick
-did not get shorter (389 ms before, 398 after, same view) and a preview of a wide frame (10,000
-chunks) took minutes to fill, so it was removed. A load that lands after its render was called off
-is still copied into the preview's chunk cache, since the render that replaced it wants it.
+Unloaded chunks are loaded 32 at a time (`MAX_LOADING`) and **copied in the load callback**, while
+Paper still holds them loaded. Paper finishes every load on the main thread and its loader slows
+down when flooded; on the development server, cold chunks of a wide frame: 32 at a time copied
+6,289 in 6.3 s with a longest tick of 398 ms, 64 took 16 s for 2,882 with 1.4 s ticks, all at once
+25 s for 2,972 with 2.7 s ticks. Most of what is left is the server's own work bringing a chunk in
+(that world needs its old chunks converted on load). Holding a loaded chunk with a plugin ticket
+until its turn in the copy queue was tried and dropped: a ticketed chunk ticks with the server. A
+load that lands after its render was called off still goes into the preview's chunk cache.
 
 **The camera's own chunk is loaded first, asynchronously.** The ray distance reads the ground under
 the camera (`getHighestBlockYAt`), which loads an unloaded chunk on the spot: 420 ms of main thread
@@ -623,9 +627,8 @@ Two ways a queued chunk could be lost between ticks, two answers:
 
 - **Loaded when the capture began, unloaded by its turn.** It holds no ticket of ours; the copier
   loads it again asynchronously instead of skipping it (it exists, its turn only came late).
-- **Loaded by the copier.** `getChunkAtAsync` holds no ticket either, and the chunk could unload
-  while it waits in the queue. A plugin chunk ticket is added in the load callback (which Paper
-  runs on the main thread while the chunk is loaded) and removed right after the copy.
+- **Loaded by the copier.** `getChunkAtAsync` holds no ticket either, so the chunk is copied in
+  the load callback itself, which Paper runs on the main thread while it is loaded.
 
 Copying "when all are done, next tick" without a ticket is what left random chunk-sized holes in
 early versions.
