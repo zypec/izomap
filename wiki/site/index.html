@@ -15,10 +15,23 @@ try {
   if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
 } catch (unavailable) {}
 </script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="kit/front.css">
 <link rel="stylesheet" href="accent.css">
 <style>
-.hero{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:48px;align-items:center;padding:64px 0 40px}
+/* Izomap's page is drawn as the camera it is: the hero is a viewfinder, with the photo's settings written
+   over it the way a camera writes its own, the gallery is a strip of film with its frames numbered along
+   the edge, and each feature is a button marked as a camera marks its buttons. The bar, the type, the
+   buttons and the colors are the kit's, so it is still one of the house's pages. */
+:root{--hud:"DM Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  /* The film's base and the orange of what is printed along its edge. */
+  --film:#16110a;--film-edge:#e8a33a;--film-hole:#f3eee4}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--film:#0d0a06;--film-hole:#4a4136}}
+:root[data-theme=dark]{--film:#0d0a06;--film-hole:#4a4136}
+
+.hero{display:grid;grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr);gap:48px;align-items:center;padding:64px 0 40px}
 /* The name in ink, underlined in film yellow like a word marked on a contact sheet. As the page opens
    the word comes into focus and the band is drawn under it from left to right, the stroke of a
    marker; with reduced motion both are simply there. */
@@ -28,47 +41,111 @@ try {
 @keyframes brandin{from{opacity:0;filter:blur(8px);transform:translateY(.12em)}to{opacity:1;filter:none;transform:none}}
 @keyframes marker{from{background-size:0% 100%}to{background-size:100% 100%}}
 .cta{display:flex;gap:10px;flex-wrap:wrap}
-.shot{margin:0;border-radius:18px;overflow:hidden;box-shadow:var(--shadow);border:1px solid var(--line);background:var(--stage);position:relative}
-.shot img{width:100%;height:auto;display:block}
-/* The other picture lies over the first, so switching is a fade with nothing to wait for. */
-.shot img.other{position:absolute;inset:0;opacity:0;transition:opacity .3s}
-.shot.off img.other{opacity:1}
-.shot figcaption{position:absolute;left:12px;bottom:12px;display:flex;gap:8px;align-items:center}
-.pill{border:1px solid #ffffff38;background:#0007;color:#f2f2f6;border-radius:999px;padding:6px 14px;cursor:pointer;
-  font:inherit;font-size:13px;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
-.pill:hover{background:#000a}
-.pill[aria-pressed=true]{border-color:#fff9}
-.pill b{font-weight:600}
-/* What is not out yet sits beside the button as words, set like the links beside a primary button but
-   underlined with dots, since it leads nowhere yet. */
+/* What is not out yet sits beside the button as words, underlined with dots, since it leads nowhere yet. */
 .soonbadge{display:inline-flex;align-items:center;height:44px;padding:0 10px;font-weight:600;font-size:15px;color:var(--muted);
   text-decoration:underline dotted;text-decoration-color:var(--line-2);text-decoration-thickness:2px;text-underline-offset:6px;cursor:default}
+
+/* ── The viewfinder: the photo, the camera's corners and its readouts over it. ── */
+.viewfinder{margin:0;position:relative;border-radius:18px;overflow:hidden;background:var(--stage);
+  box-shadow:0 0 0 1px var(--line),0 30px 60px -34px #000a}
+.viewfinder img{width:100%;height:auto;display:block}
+/* The other picture lies over the first, so switching is a fade with nothing to wait for. */
+.viewfinder img.other{position:absolute;inset:0;opacity:0;transition:opacity .3s}
+.viewfinder.off img.other{opacity:1}
+/* Where the photo is cut into maps: one square for each map it is printed on. */
+.viewfinder .maps{position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .25s;
+  background-image:linear-gradient(to right,#fff6 1px,transparent 1px),linear-gradient(to bottom,#fff6 1px,transparent 1px);
+  background-size:calc(100% / var(--across)) 100%,100% calc(100% / var(--down))}
+.viewfinder.grid .maps{opacity:1}
+/* The four corners of the frame and the focus mark at its middle, white with a shadow so they read on
+   any sky. */
+.viewfinder .corner{position:absolute;width:26px;height:26px;border:2px solid #fff;filter:drop-shadow(0 1px 2px #0008);pointer-events:none}
+.viewfinder .tl{top:44px;left:18px;border-right:0;border-bottom:0}
+.viewfinder .tr{top:44px;right:18px;border-left:0;border-bottom:0}
+.viewfinder .bl{bottom:50px;left:18px;border-right:0;border-top:0}
+.viewfinder .br{bottom:50px;right:18px;border-left:0;border-top:0}
+.viewfinder .af{position:absolute;left:50%;top:50%;width:46px;height:32px;margin:-16px 0 0 -23px;border:1.5px solid #fff;border-radius:3px;
+  filter:drop-shadow(0 1px 2px #0008);pointer-events:none}
+.hud{position:absolute;left:0;right:0;display:flex;align-items:center;gap:18px;padding:10px 16px;font:500 12px/1 var(--hud);
+  letter-spacing:.04em;color:#fff;text-shadow:0 1px 2px #000c;pointer-events:none}
+.hud.top{top:0;background:linear-gradient(#000a,transparent)}
+.hud.foot{bottom:0;background:linear-gradient(transparent,#000b)}
+.hud .read{display:flex;gap:6px;white-space:nowrap}
+.hud .read span{color:#ffffffa6;text-transform:uppercase}
+.hud .spring{flex:1}
+/* The camera's function buttons: lit in film yellow while on. */
+.hud button{pointer-events:auto;font:500 11.5px/1 var(--hud);letter-spacing:.06em;text-transform:uppercase;color:#fff;
+  background:#0006;border:1px solid #ffffff5c;border-radius:6px;padding:7px 9px;cursor:pointer;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.hud button:hover{background:#000a}
+.hud button[aria-pressed=true]{color:#1b1406;background:#e3b12a;border-color:#e3b12a;text-shadow:none}
+.hud button:focus-visible{outline:2px solid #fff;outline-offset:2px}
+/* As the page opens the camera finds its focus: the picture sharpens, the focus mark closes in on it and
+   goes yellow for a moment, and the frame flashes as the shutter falls. */
+.viewfinder img:first-child{animation:sharpen .7s cubic-bezier(.2,.8,.3,1) .15s both}
+.viewfinder .af{animation:lock .7s cubic-bezier(.2,.8,.3,1) .15s both}
+.viewfinder::after{content:"";position:absolute;inset:0;background:#fff;opacity:0;pointer-events:none;animation:shutter .5s ease-out .85s both}
+@keyframes sharpen{from{filter:blur(7px) brightness(.85)}to{filter:none}}
+@keyframes lock{0%{transform:scale(1.7);opacity:0}60%{transform:scale(1);opacity:1;border-color:#fff}75%,90%{border-color:#e3b12a}100%{border-color:#fff}}
+@keyframes shutter{0%{opacity:.55}100%{opacity:0}}
+
+/* ── Features: each one a camera button, marked with its letters. ── */
 .features{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:20px}
 .feature{border:1px solid var(--line);border-radius:var(--r);background:var(--panel);padding:22px}
 .feature b{display:block;font-size:16.5px;letter-spacing:-.01em;margin-bottom:6px}
 .feature p{margin:0;color:var(--ink-2);font-size:14.5px;line-height:1.6}
-.feature .icon{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:var(--accent-soft);
-  color:var(--accent-ink);margin-bottom:12px}
-.feature .icon svg{width:18px;height:18px}
+.feature .code{display:inline-grid;place-items:center;min-width:44px;height:30px;padding:0 10px;margin-bottom:14px;border-radius:8px;
+  font:500 13px/1 var(--hud);letter-spacing:.08em;color:var(--ink);background:var(--sunk);
+  box-shadow:inset 0 1px 0 #ffffff80,inset 0 -2px 0 #0000001a,0 0 0 1px var(--line-2)}
+.feature .code::before{content:"";width:6px;height:6px;border-radius:50%;background:#e3b12a;margin-right:8px;box-shadow:0 0 6px #e3b12a99}
+.feature .code{grid-auto-flow:column}
+
+/* ── Steps, counted the way a camera counts its frames. ── */
 .steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:20px;counter-reset:step}
 .step{padding:22px;border-radius:var(--r);background:var(--sunk);border:1px solid var(--line)}
-.step::before{counter-increment:step;content:counter(step);display:grid;place-items:center;width:28px;height:28px;border-radius:50%;
-  background:var(--accent);color:var(--on-accent);font-weight:700;font-size:14px;margin-bottom:12px}
+.step::before{counter-increment:step;content:counter(step,decimal-leading-zero);display:inline-block;margin-bottom:12px;padding:5px 9px 5px 22px;
+  font:500 14px/1 var(--hud);letter-spacing:.06em;color:#f3e3b8;background:#1b1406 no-repeat 8px 50%/8px 9px;border-radius:6px;
+  background-image:linear-gradient(135deg,#e3b12a 50%,transparent 50%),linear-gradient(45deg,transparent 50%,#e3b12a 50%)}
 .step b{display:block;margin-bottom:4px}
 .step p{margin:0;color:var(--ink-2);font-size:14.5px}
 .step code,.feature code{font-family:var(--mono);font-size:.88em;background:var(--panel);padding:1px 6px;border-radius:5px}
-.gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-top:16px}
-.gallery figure{margin:0;cursor:zoom-in}
-.gallery img{width:100%;height:auto;aspect-ratio:16/10;object-fit:cover;border-radius:10px;border:1px solid var(--line);display:block;
-  background:var(--stage)}
-.gallery figcaption{font-size:13px;color:var(--muted);margin-top:6px;line-height:1.5}
+
+/* ── The gallery: frames on a strip of film. Frames side by side touch, so each row is one strip, its
+   holes running along both edges and its frame numbers printed between them. ── */
+.gallery{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));column-gap:0;row-gap:22px;margin-top:16px;counter-reset:frame}
+.gallery figure{margin:0;cursor:zoom-in;min-width:0}
+.gallery .frame{position:relative;background:var(--film);padding:22px 7px 34px}
+/* The holes: a row of rounded squares along the top and the foot. */
+.gallery .frame::before,.gallery .frame::after{content:"";position:absolute;left:0;right:0;height:9px;
+  background:radial-gradient(circle at 50% 50%,var(--film-hole) 0 2.6px,transparent 3px) 0 0/16px 9px repeat-x;opacity:.9}
+.gallery .frame::before{top:6px}
+.gallery .frame::after{bottom:5px}
+.gallery img{width:100%;height:auto;aspect-ratio:16/10;object-fit:cover;display:block;border-radius:3px;background:#000;position:relative}
+/* What the film's edge says: its name and the frame's number, as a film prints them. */
+.gallery .edge{position:absolute;left:10px;right:10px;bottom:18px;display:flex;justify-content:space-between;font:500 8.5px/1 var(--hud);
+  letter-spacing:.14em;color:var(--film-edge);opacity:.85}
+.gallery .edge .n::before{counter-increment:frame;content:"\25B8 " counter(frame) "A"}
+.gallery figcaption{padding:10px 12px 0 2px;font-size:13px;color:var(--muted);line-height:1.5}
+.gallery figcaption .shot{display:block;margin-top:3px;font:500 11.5px var(--hud);letter-spacing:.03em;color:var(--ink-2)}
+.gallery figure:hover img{filter:brightness(1.06)}
+
+/* ── Filters: the picture styles of a camera, the photo framed as in the viewfinder. ── */
 .filters{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:28px;align-items:center;margin-top:16px}
-.filters figure{margin:0}
-.filters img{width:100%;height:auto;border-radius:12px;border:1px solid var(--line);display:block}
-.chips{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0}
-.chips button{border:1px solid var(--line-2);background:var(--panel);color:var(--ink-2);border-radius:999px;padding:6px 14px;
-  font:inherit;font-size:14px;cursor:pointer}
+.filters figure{margin:0;position:relative;border-radius:12px;overflow:hidden;background:var(--stage);box-shadow:0 0 0 1px var(--line)}
+.filters img{width:100%;height:auto;display:block}
+.filters figure .hud{top:0;background:linear-gradient(#0009,transparent)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:14px 0}
+.chips button{border:1px solid var(--line-2);background:var(--panel);color:var(--ink-2);border-radius:8px;padding:7px 11px;
+  font:500 12.5px/1 var(--hud);letter-spacing:.05em;text-transform:uppercase;cursor:pointer}
 .chips button[aria-pressed=true]{border-color:var(--accent);color:var(--accent-ink);background:var(--accent-soft)}
+
+/* ── What is coming, on the camera's screen. ── */
+.notice{display:flex;gap:14px;align-items:flex-start;padding:18px 20px;border-radius:var(--r);background:var(--stage);color:#ece6d6;
+  font-size:15px;line-height:1.6}
+.notice::before{content:"";flex:none;width:10px;height:10px;margin-top:7px;border-radius:50%;background:#e3b12a;box-shadow:0 0 10px #e3b12a;
+  animation:blink 1.6s steps(1) infinite}
+.notice a{color:#f0c75a}
+@keyframes blink{50%{opacity:.25}}
+
 /* A photo is a grid of map pixels: opened large, it stays one. */
 dialog.lightbox img{image-rendering:pixelated}
 @media (max-width:900px){
@@ -78,7 +155,17 @@ dialog.lightbox img{image-rendering:pixelated}
   .gallery{grid-template-columns:repeat(2,minmax(0,1fr))}
   .filters{grid-template-columns:1fr}
 }
-@media (max-width:520px){.gallery{grid-template-columns:1fr}}
+@media (max-width:560px){
+  .gallery{grid-template-columns:1fr}
+  .hud{gap:10px;padding:8px 10px;font-size:10.5px}
+  .hud .read.extra{display:none}
+  .viewfinder .tl,.viewfinder .tr{top:34px}
+  .viewfinder .bl,.viewfinder .br{bottom:42px}
+  .viewfinder .corner{width:18px;height:18px}
+}
+@media (prefers-reduced-motion:reduce){
+  .viewfinder img:first-child,.viewfinder .af,.viewfinder::after,.notice::before{animation:none}
+}
 .content-error{color:var(--muted);padding:48px 0}
 .lede p,.notice p{margin:0}.lede p+p{margin-top:12px}
 /* The words under a section's heading, before what it shows, read as a note. */
@@ -113,68 +200,76 @@ section>.prose p{margin:0;color:var(--muted);font-size:14px}
 <script>
 const {escape, inline} = Content;
 
-/** The icons a feature can name in content.md, by the name it gives. */
-const ICONS = {
-  camera: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/>',
-  cube: '<path d="M12 3 20 7.5 12 12 4 7.5z"/><path d="M4 7.5V16.5L12 21V12M20 7.5V16.5L12 21"/>',
-  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
-  focus: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><path d="M12 3v5M12 16v5"/>',
-  wall: '<rect x="3" y="5" width="18" height="14" rx="1.5"/><path d="M9 5v14M15 5v14M3 12h18"/>',
-  sliders: '<path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/>',
-};
 const button = ([words, href, primary]) =>
   `<a class="btn${primary ? ' primary' : ''}" href="${escape(href)}">${inline(words)}</a>`;
+const read = ([label, value], extra) => `<span class="read${extra ? ' extra' : ''}"><span>${inline(label)}</span>${inline(value)}</span>`;
 
+/**
+ * The hero: the words, and the photo in a viewfinder. Its readouts go along the top and the foot, the
+ * second of each pair dropped on a phone, and its function buttons sit at the foot: the toggle (Fog) and
+ * Grid, which shows the maps the photo is cut into.
+ */
 Content.kind('hero', block => {
-  const [src, alt] = block.pairs('image')[0] || [];
+  const [src, alt, maps] = block.pairs('image')[0] || [];
   const [name, other, otherAlt] = block.pairs('toggle')[0] || [];
+  const [across, down] = (maps || '1x1').split('x').map(Number);
+  const readouts = block.pairs('readout'), half = Math.ceil(readouts.length / 2);
+  const row = list => list.map((pair, i) => read(pair, i % 2 === 1)).join('');
   return `<section class="hero"><div><p class="kicker">${inline(block.one('kicker'))}</p><h1 class="brand">${inline(block.one('title'))}</h1>`
     + `<div class="lede">${block.html}</div><div class="cta">`
     + block.pairs('button').map(button).join('')
     + (block.one('badge') ? `<span class="soonbadge">${inline(block.one('badge'))}</span>` : '') + '</div>'
     + (block.one('note') ? `<p class="note" style="margin-top:14px">${inline(block.one('note'))}</p>` : '') + '</div>'
-    + (src ? `<figure class="shot" id="hero"><img src="${escape(src)}" alt="${escape(alt || '')}" width="2048" height="1152">`
-      + (other ? `<img class="other" src="${escape(other)}" alt="${escape(otherAlt || '')}" width="2048" height="1152" aria-hidden="true">`
-        + `<figcaption><button class="pill" type="button" id="toggle" aria-pressed="true">${inline(name)}: <b>On</b></button></figcaption>` : '')
+    + (src ? `<figure class="viewfinder" id="hero" style="--across:${across};--down:${down}"><img src="${escape(src)}" alt="${escape(alt || '')}" width="2048" height="1152">`
+      + (other ? `<img class="other" src="${escape(other)}" alt="${escape(otherAlt || '')}" width="2048" height="1152" aria-hidden="true">` : '')
+      + '<span class="maps" aria-hidden="true"></span><span class="corner tl"></span><span class="corner tr"></span>'
+      + '<span class="corner bl"></span><span class="corner br"></span><span class="af"></span>'
+      + `<div class="hud top">${row(readouts.slice(0, half))}</div>`
+      + `<div class="hud foot">${row(readouts.slice(half))}<span class="spring"></span>`
+      + (other ? `<button type="button" id="toggle" aria-pressed="true">${inline(name)}</button>` : '')
+      + `<button type="button" id="grid" aria-pressed="false" aria-label="Show the ${across * down} maps the photo is printed on">Grid</button></div>`
       + '</figure>' : '') + '</section>';
 });
 
 Content.kind('feature', block => `<div class="feature">`
-  + (ICONS[block.one('icon')] ? `<span class="icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[block.one('icon')]}</svg></span>` : '')
+  + (block.one('code') ? `<span class="code" aria-hidden="true">${inline(block.one('code'))}</span>` : '')
   + `<b>${inline(block.one('name'))}</b>${block.html}</div>`, 'features');
 
 Content.kind('step', block => `<div class="step"><b>${inline(block.one('name'))}</b>${block.html}</div>`, 'steps');
 
-Content.kind('gallery', block => `<div class="gallery" id="pictures">` + block.pairs('picture').map(([src, caption]) =>
-  `<figure><img src="${escape(src)}" alt="${escape(caption || '')}" loading="lazy" width="1024" height="640">`
-  + (caption ? `<figcaption>${inline(caption)}</figcaption>` : '') + '</figure>').join('') + '</div>');
+Content.kind('gallery', block => `<div class="gallery" id="pictures">` + block.pairs('picture').map(([src, caption, shot]) =>
+  `<figure><div class="frame"><img src="${escape(src)}" alt="${escape(caption || '')}" loading="lazy" width="1024" height="640">`
+  + '<span class="edge" aria-hidden="true"><span>IZOMAP 128</span><span class="n"></span></span></div>'
+  + (caption ? `<figcaption>${inline(caption)}${shot ? `<span class="shot">${inline(shot)}</span>` : ''}</figcaption>` : '') + '</figure>').join('') + '</div>');
 
 Content.kind('filters', block => {
   const filters = block.pairs('filter'), folder = block.one('folder');
   const [first, firstName] = filters[0] || [];
   const [words, href] = block.pairs('link')[0] || [];
   return `<div class="filters" data-folder="${escape(folder)}"><figure><img id="filtered" src="${escape(folder + first + '.png')}"`
-    + ` alt="A lake and its shores through the ${escape(firstName || '')} filter" width="512" height="384"></figure>`
+    + ` alt="A lake and its shores through the ${escape(firstName || '')} filter" width="512" height="384">`
+    + `<div class="hud top"><span class="read"><span>Filter</span><b id="filtername" style="font-weight:500">${inline(firstName || '')}</b></span></div></figure>`
     + `<div><div class="lede" style="font-size:17px">${block.html}</div><div class="chips" id="filterchips" role="group" aria-label="Filter">`
     + filters.map(([id, name], i) => `<button type="button" data-f="${escape(id)}" aria-pressed="${i === 0}">${inline(name)}</button>`).join('')
     + `</div>${href ? `<a href="${escape(href)}">${inline(words)}</a>` : ''}</div></div>`;
 });
 
-Content.kind('notice', block => `<div class="notice">${block.html}</div>`);
+Content.kind('notice', block => `<div class="notice"><div>${block.html}</div></div>`);
 
-/** What only works once the words are on the page: the hero's switch, the filters and the lightbox. */
+/** What only works once the words are on the page: the viewfinder's buttons, the filters and the lightbox. */
 document.addEventListener('contentready', () => {
+  const hero = document.getElementById('hero');
   const toggle = document.getElementById('toggle');
   if (toggle) toggle.onclick = () => {
-    const hero = document.getElementById('hero');
     const [first, other] = hero.querySelectorAll('img');
     const on = hero.classList.toggle('off') === false;
     toggle.setAttribute('aria-pressed', String(on));
-    toggle.querySelector('b').textContent = on ? 'On' : 'Off';
     // Only the picture on show is read out.
     first.toggleAttribute('aria-hidden', !on);
     other.toggleAttribute('aria-hidden', on);
   };
+  const grid = document.getElementById('grid');
+  if (grid) grid.onclick = () => grid.setAttribute('aria-pressed', String(hero.classList.toggle('grid')));
 
   const filtered = document.getElementById('filtered');
   const folder = filtered && filtered.closest('.filters').dataset.folder;
@@ -183,6 +278,7 @@ document.addEventListener('contentready', () => {
       document.querySelectorAll('#filterchips button').forEach(other => other.setAttribute('aria-pressed', String(other === button)));
       filtered.src = `${folder}${button.dataset.f}.png`;
       filtered.alt = `A lake and its shores through the ${button.textContent} filter`;
+      document.getElementById('filtername').textContent = button.textContent;
     };
     // Every filter at once, so switching never waits on the network.
     new Image().src = `${folder}${button.dataset.f}.png`;

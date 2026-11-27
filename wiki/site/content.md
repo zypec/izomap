@@ -9,11 +9,15 @@
   The kinds this page knows:
 
   hero      kicker, title, badge, button: Words | address | primary (any number), note,
-            image: picture | what it shows, toggle: Name | picture | what it shows (a switch named Name, on
-            while the image shows, off for the other picture); then the opening words
-  feature   name, icon (camera, cube, sun, focus, wall or sliders); then what it says. Features side by side form a grid
-  step      name; then what it says. Steps side by side form a row
-  gallery   picture: file | caption (any number); a picture opens large when clicked
+            image: picture | what it shows | maps across x down, toggle: Name | picture | what it shows (a
+            switch named Name, on while the image shows, off for the other picture),
+            readout: Label | Value (any number: the camera's settings for the picture, written over it as a
+            viewfinder does, the first half along its top and the rest along its foot); then the opening words
+  feature   name, code (the few letters on its button, as a camera marks one: LV, ISO, AF); then what it says.
+            Features side by side form a grid
+  step      name; then what it says. Steps side by side form a row, counted like frames on a film
+  gallery   picture: file | caption | how it was shot (any number); the pictures are frames on a strip of
+            film, and a picture opens large when clicked
   filters   folder (where the filter pictures are), filter: file name | button (any number, the first is shown first),
             link: Words | address; then what it says
   notice    just its words
@@ -25,8 +29,14 @@ title: Izomap
 badge: Coming soon
 button: Read the docs | wiki/ | primary
 note: Paper 26.3 and Java 25. Free and open source under the MIT license.
-image: gallery/fog.png | A cathedral and a town at dusk, the land behind fading into the sky, photographed by Izomap
+image: gallery/fog.png | A cathedral and a town at dusk, the land behind fading into the sky, photographed by Izomap | 16x9
 toggle: Fog | gallery/hero.png | The same cathedral and town without fog, the sea open to the horizon
+readout: Maps | 16x9
+readout: Size | 2048x1152
+readout: Sky | Dusk
+readout: Pitch | 3°
+readout: Zoom | 0.31
+readout: Filter | Vivid
 
 Put a camera in your world, aim it with a live preview and take a photo of what it sees. Izomap casts a ray
 for every pixel, then prints the picture onto maps that hang on any wall: from a single map to a 16x9 mural,
@@ -37,7 +47,7 @@ seen by every player, with no resource pack.
 
 ::: feature
 name: A live preview in your hand
-icon: camera
+code: LV
 
 The map in your off hand shows what the camera sees, updated with every click. Turn, tilt, zoom and move it
 until the frame is right, before a single photo is taken.
@@ -45,7 +55,7 @@ until the frame is right, before a single photo is taken.
 
 ::: feature
 name: Isometric, or the horizon
-icon: cube
+code: ISO
 
 An orthographic camera, like an isometric game: the classic 30 degree view of a whole town, or a low shot
 across the sea with a sky behind it.
@@ -53,7 +63,7 @@ across the sea with a sky behind it.
 
 ::: feature
 name: Light, shadow and sky
-icon: sun
+code: SKY
 
 Sun shadows, ambient occlusion and dark interiors. Dawn, day, dusk and night skies, with the sun, the moon in
 its phase and stars that stay put as the camera turns.
@@ -61,7 +71,7 @@ its phase and stars that stay put as the camera turns.
 
 ::: feature
 name: Depth of field
-icon: focus
+code: AF
 
 Keep one distance sharp and let the rest fall away: a miniature tilt-shift look on a tilted camera, a subject
 lifted off its background on a level one.
@@ -69,7 +79,7 @@ lifted off its background on a level one.
 
 ::: feature
 name: Real maps on real walls
-icon: wall
+code: MAP
 
 Every photo is cut into 128x128 maps in item frames. They survive restarts, never change unless you retake
 them, and come down whole if a frame is broken.
@@ -77,7 +87,7 @@ them, and come down whole if a frame is broken.
 
 ::: feature
 name: Every cost is yours to set
-icon: sliders
+code: SET
 
 Permissions decide how large and how expensive a photo may be, per group. Colors, filters, frames and every
 message are plain files you can change.
@@ -108,12 +118,12 @@ Pick a size from one map to 16x9, take the photo, and hang it on any wall with a
 Every picture on this page is a photo Izomap took, at the size it took it.
 
 ::: gallery
-picture: gallery/dawn.png | Dawn over the town, the sun drawn where the shadows fall from
-picture: gallery/night.png | The same view at night, under stars fixed to the sky
-picture: gallery/town.png | Isometric, with sun shadows, ambient occlusion and block light
-picture: gallery/village.png | Water shaded by its depth, flowers in their own colors
-picture: gallery/focus.png | Depth of field, focused on the hilltop houses
-picture: gallery/water.png | Lakes and a river: the shoreline draws itself
+picture: gallery/dawn.png | Dawn over the town, the sun drawn where the shadows fall from | 8x5 maps, dawn, pitch 3°
+picture: gallery/night.png | The same view at night, under stars fixed to the sky | 8x5 maps, night, pitch 3°
+picture: gallery/town.png | Isometric, with sun shadows, ambient occlusion and block light | 8x5 maps, day, pitch 35°
+picture: gallery/village.png | Water shaded by its depth, flowers in their own colors | 8x5 maps, day, pitch 35°
+picture: gallery/focus.png | Depth of field, focused on the hilltop houses | 8x5 maps, day, focus 80
+picture: gallery/water.png | Lakes and a river: the shoreline draws itself | 8x5 maps, day, pitch 40°
 :::
 
 ## Color filters {#filters}
