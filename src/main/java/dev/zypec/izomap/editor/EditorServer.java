@@ -602,7 +602,7 @@ public final class EditorServer {
         out.addProperty("photos", plugin.photos().takenWith(camera.owner(), camera.name()).size());
         out.addProperty("owner", nameOf(camera.owner()));
         // What the picture is of: the point its centre is aimed at and the frame on the ground.
-        var frame = plugin.render().frame(camera);
+        var frame = plugin.render().frame(camera, chunksFor(camera));
         var target = new JsonObject();
         target.addProperty("x", frame.target().getX());
         target.addProperty("y", frame.target().getY());
@@ -787,7 +787,7 @@ public final class EditorServer {
     }
     /** How far back from {@code aim} the camera stands, at its facing, tilt, zoom and ratio as they are now. */
     private double clearOf(Camera camera, Location aim) {
-        return plugin.render().clearDistance(aim, camera.camYaw(), camera.camPitch(), camera.zoom(), camera.aspectRatio().value());
+        return plugin.render().clearDistance(aim, camera.camYaw(), camera.camPitch(), camera.zoom(), camera.aspectRatio().value(), chunksFor(camera));
     }
 
     /**
@@ -796,7 +796,7 @@ public final class EditorServer {
     private JsonObject edit(CommandSender player, Camera camera, JsonObject body) {
         // Aimed at a point rather than placed: moving the target, turning round it or zooming
         // stands the camera anew, as near what it shows as nothing in the frame being behind it allows.
-        var before = plugin.render().frame(camera);
+        var before = plugin.render().frame(camera, chunksFor(camera));
         var orbit = body.has("orbit") && body.get("orbit").getAsBoolean();
         if (body.has("yaw")) camera.camYaw(body.get("yaw").getAsFloat());
         if (body.has("pitch")) camera.camPitch(body.get("pitch").getAsFloat());
@@ -998,7 +998,7 @@ public final class EditorServer {
      */
     private JsonObject mode(CommandSender player, Camera camera, JsonObject body) {
         var mode = body.has("mode") ? body.get("mode").getAsString() : "";
-        var before = plugin.render().frame(camera);
+        var before = plugin.render().frame(camera, chunksFor(camera));
         var world = camera.anchor().getWorld();
         var target = before.target();
         switch (mode) {

@@ -212,17 +212,22 @@ public final class RenderService {
     private static final double LEVEL_TARGET = 96.0;
 
     public Frame frame(Camera camera) {
-        return frame(camera.anchor(), camera.camYaw(), camera.camPitch(), camera.zoom(), camera.aspectRatio().value(), camera.aimY());
+        return frame(camera, null);
+    }
+
+    /** @param chunks copies of chunks the world has not loaded, read where it has none; may be null */
+    public Frame frame(Camera camera, ChunkCache chunks) {
+        return frame(camera.anchor(), camera.camYaw(), camera.camPitch(), camera.zoom(), camera.aspectRatio().value(), camera.aimY(), chunks);
     }
 
     public Frame frame(Location anchor, float yaw, float pitch, float zoom, double ratio) {
-        return frame(anchor, yaw, pitch, zoom, ratio, Double.NaN);
+        return frame(anchor, yaw, pitch, zoom, ratio, Double.NaN, null);
     }
 
     /**
      * @param aimY the height of the plane the frame lies on, or NaN to read the ground
      */
-    public Frame frame(Location anchor, float yaw, float pitch, float zoom, double ratio, double aimY) {
+    public Frame frame(Location anchor, float yaw, float pitch, float zoom, double ratio, double aimY, ChunkCache chunks) {
         var world = anchor.getWorld();
         var direction = directionFrom(yaw, pitch);
         var basis = basisFrom(direction);
@@ -238,7 +243,7 @@ public final class RenderService {
         double t;
         if (!Double.isNaN(aimY) && aimY < centre.getY()) t = (centre.getY() - aimY) / climb;
         else {
-            var hit = firstHit(world, centre, direction, MARCH_REACH);
+            var hit = firstHit(world, chunks, centre, direction, MARCH_REACH);
             t = !Double.isNaN(hit) ? hit : (centre.getY() - groundAt(world, centre, direction, climb)) / climb;
         }
         var target = centre.clone().add(direction.clone().multiply(t));
@@ -252,7 +257,7 @@ public final class RenderService {
             var start = centre.clone()
                     .add(basis[0].clone().multiply(corner[0] * spanHeight * ratio / 2.0))
                     .add(basis[1].clone().multiply(corner[1] * spanHeight / 2.0));
-            var hit = firstHit(world, start, direction, furthest);
+            var hit = firstHit(world, chunks, start, direction, furthest);
             var reach = Double.isNaN(hit) ? Math.min(furthest, Math.max(0.0, (start.getY() - ground) / climb)) : hit;
             corners.add(start.add(direction.clone().multiply(reach)));
         }
@@ -270,18 +275,31 @@ public final class RenderService {
     private static final double CLEAR_ABOVE = 4.0;
 
     /**
-     * How far along a ray, in blocks, it meets the top of the world: the first column whose
-     * highest block reaches the ray, walked a block at a time. NaN when it meets nothing
-     * within {@code reach}. Reads only loaded chunks; an unloaded column counts as open air.
+     * How far along a ray, in blocks, it meets a block that is not air, walked half a block
+     * at a time. NaN when it meets nothing within {@code reach}. Reads the world where the
+     * chunk is loaded and a copy in {@code chunks} where it is not, which is where an editor
+     * camera's preview copied it; a chunk in neither counts as open air, and is never loaded.
      */
-    private static double firstHit(World world, Vector from, Vector direction, double reach) {
-        var bottom = world.getMinHeight();
-        for (var t = 0.0; t <= reach; t += 1.0) {
-            var y = from.getY() + direction.getY() * t;
+    private static double firstHit(World world, ChunkCache chunks, Vector from, Vector direction, double reach) {
+        int bottom = world.getMinHeight(), top = world.getMaxHeight();
+        var id = world.getUID();
+        long lastKey = Long.MIN_VALUE;
+        org.bukkit.ChunkSnapshot copy = null;
+        var loaded = false;
+        for (var t = 0.0; t <= reach; t += 0.5) {
+            var y = (int) Math.floor(from.getY() + direction.getY() * t);
             if (y < bottom) return t;
+            if (y >= top) continue;
             int x = (int) Math.floor(from.getX() + direction.getX() * t), z = (int) Math.floor(from.getZ() + direction.getZ() * t);
-            if (!world.isChunkLoaded(x >> 4, z >> 4)) continue;
-            if (world.getHighestBlockYAt(x, z) + 1.0 >= y) return t;
+            var key = WorldSnapshot.key(x >> 4, z >> 4);
+            if (key != lastKey) {
+                lastKey = key;
+                loaded = world.isChunkLoaded(x >> 4, z >> 4);
+                copy = loaded || chunks == null ? null : chunks.any(id, key);
+            }
+            var solid = loaded ? !world.getBlockAt(x, y, z).getType().isAir()
+                    : copy != null && !copy.getBlockType(x & 15, y, z & 15).isAir();
+            if (solid) return t;
         }
         return Double.NaN;
     }
@@ -294,7 +312,7 @@ public final class RenderService {
      * every hill it is moved over. Rays are tried across the frame, each from where it is
      * {@link #CLEAR_RISE} above the aim. Main thread.
      */
-    public double clearDistance(Location target, float yaw, float pitch, float zoom, double ratio) {
+    public double clearDistance(Location target, float yaw, float pitch, float zoom, double ratio, ChunkCache chunks) {
         var direction = directionFrom(yaw, pitch);
         var climb = -direction.getY();
         var least = CLEAR_ABOVE / Math.max(climb, 0.05);
@@ -312,7 +330,7 @@ public final class RenderService {
                 var top = Math.min(world.getMaxHeight(), target.getY() + CLEAR_RISE);
                 var back = Math.min(MARCH_REACH, Math.max(0.0, (top - through.getY()) / climb));
                 var from = through.clone().subtract(direction.clone().multiply(back));
-                var hit = firstHit(world, from, direction, back);
+                var hit = firstHit(world, chunks, from, direction, back);
                 if (!Double.isNaN(hit)) needed = Math.max(needed, back - hit + CLEAR_MARGIN);
             }
         return needed;

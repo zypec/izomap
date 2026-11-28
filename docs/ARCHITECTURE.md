@@ -1166,10 +1166,13 @@ one page to every server, a change that an older plugin cannot answer raises bot
 
 **The editor aims the frame, not the camera.** An orthographic camera's position along its view does
 not change the picture, so a position on a map says little about the shot, and the same was felt in
-the game. `RenderService#frame` gives what does: the point the frame's middle is aimed at, the first thing its
-ray meets walked a block at a time over the heightmap (a wall as much as the ground), and the four
-corners where their own rays meet the world, or on the middle's plane when they meet nothing, never
-more than two frame heights beyond the middle (read only in loaded chunks, so it never loads one).
+the game. `RenderService#frame` gives what does: the point the frame's middle is aimed at, the first block its ray
+meets, walked half a block at a time (a wall as much as the ground), and the four corners where
+their own rays meet the world, or on the middle's plane when they meet nothing, never more than two
+frame heights beyond the middle. It reads the world where a chunk is loaded and otherwise the copy
+the camera's preview took (`ChunkCache#any`), and never loads one: a camera far from every player
+stands in chunks the server has unloaded, and read from the loaded world alone its frame went
+back to the ground plane.
 Corners read off a ground plane alone put a 2 degree camera's frame hundreds of blocks past the
 cathedral it photographs. The map draws that frame; dragging it sends a new target, and the plugin
 stands the camera back along its view (`RenderService#standFor`), as it does when facing or tilt

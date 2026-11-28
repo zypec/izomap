@@ -118,6 +118,13 @@ public final class ChunkCache {
         return System.nanoTime() - entry.copiedAt() < maxAge(entry) ? entry.snapshot() : null;
     }
 
+    /** Any copy of the chunk at all, however old and with whatever extras: enough to say where its blocks are. */
+    ChunkSnapshot any(UUID world, long key) {
+        if (!world.equals(worldId)) return null;
+        var entry = entries.get(key);
+        return entry == null ? null : entry.snapshot();
+    }
+
     void put(UUID world, long key, ChunkSnapshot snapshot, boolean light, boolean biomes) {
         put(world, key, snapshot, light, biomes, false);
     }
