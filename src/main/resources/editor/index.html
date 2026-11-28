@@ -108,7 +108,8 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
 /* the side: the viewfinder held in place at the top, the dials and the look under it */
 .side{min-height:0;overflow-y:auto;scrollbar-width:thin;display:flex;flex-direction:column;gap:12px}
 .finder{position:sticky;top:0;z-index:5;flex:none;padding-bottom:2px;background:#000}
-.stage{position:relative;border-radius:var(--r);overflow:hidden;background:conic-gradient(#1d1d20 25%,#141416 0 50%,#1d1d20 0 75%,#141416 0) 0 0/22px 22px}
+/* A tall photo is held to a part of the window's height and narrowed to its ratio, so the settings keep their room. */
+.stage{--ar:1.7778;width:min(100%,calc(42vh * var(--ar)));margin:0 auto;position:relative;border-radius:var(--r);overflow:hidden;background:conic-gradient(#1d1d20 25%,#141416 0 50%,#1d1d20 0 75%,#141416 0) 0 0/22px 22px}
 .stage img{display:block;width:100%;height:100%;object-fit:contain;image-rendering:pixelated;transition:opacity .3s,filter .3s}
 .stage img:not([src]){visibility:hidden}
 .stage.loading img{opacity:.6;filter:saturate(.6)}
@@ -120,6 +121,7 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
   text-transform:uppercase;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8);pointer-events:none}
 .hud.top{top:12px}.hud.foot{bottom:12px}
 .hud span{opacity:.75}.hud b{font-weight:500;margin-left:6px;color:var(--yellow)}
+#panel{display:grid;gap:12px}
 .card{padding:12px 14px}
 .card > header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .dial{display:grid;grid-template-columns:70px minmax(0,1fr) 64px;align-items:center;gap:10px;margin:4px 0}
@@ -844,7 +846,9 @@ function refresh() {
   };
   set('yaw', ((c.yaw + 540) % 360) - 180); set('pitch', c.pitch); set('zoom', sliderOf(c.zoom));
   $('thirds').hidden = !c.thirds;
-  $('stage').style.aspectRatio = c.ratio.replace(':', ' / ');
+  const [rw, rh] = c.ratio.split(':').map(Number);
+  $('stage').style.aspectRatio = `${rw} / ${rh}`;
+  $('stage').style.setProperty('--ar', String(rw / rh));
   $('h-style').textContent = named('styles', c.style); $('h-sky').textContent = named('skies', c.sky); $('h-filter').textContent = named('filters', c.filter);
   $('h-blocks').textContent = `${Math.round(c.blocks)} blocks`; $('h-zoom').textContent = `${c.zoom.toFixed(2)}x`; $('h-tilt').textContent = `${Math.round(c.pitch)}°`;
   $('q-ratio').textContent = c.ratio;
