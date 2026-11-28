@@ -1,7 +1,10 @@
+import java.util.zip.ZipFile
+
 plugins {
     id("java")
     id("io.papermc.paperweight.userdev") version "2.0.0-beta.24"
     id("xyz.jpenilla.run-paper") version "3.1.0"
+    id("com.gradleup.shadow") version "9.2.2"
 }
 
 group = "dev.zypec.izomap"
@@ -21,6 +24,9 @@ val wiki: SourceSet by sourceSets.creating
 repositories {
     mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
+    maven("https://zypec.github.io/maven") {
+        content { includeGroup("dev.zypec") }
+    }
 }
 
 // Tests touch the plugin's Bukkit-facing types (Player and the like); paperweight puts the
@@ -32,6 +38,10 @@ configurations.testImplementation {
 dependencies {
     // Since 26.1 the server jar is not obfuscated, so there is no reobf step.
     paperweight.paperDevBundle("$minecraftVersion.build.+")
+
+    // The web editor's relay link, tunnel and relay, shared with Particles+. A sibling checkout of
+    // ../editor-kit takes its place (settings.gradle.kts).
+    implementation("dev.zypec:editor-kit:1.0.0")
 
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")
@@ -55,6 +65,58 @@ tasks {
     compileJava {
         options.encoding = "UTF-8"
         options.release = 25
+    }
+
+    /**
+     * The plugin jar carries the editor kit inside its own package; the relay's worker stays out,
+     * since only the editor's site needs it.
+     */
+    shadowJar {
+        archiveClassifier = ""
+        relocate("dev.zypec.editorkit", "dev.zypec.izomap.lib.editorkit")
+        exclude("editorkit/relay/**")
+        dependencies {
+            include(dependency("dev.zypec:editor-kit"))
+        }
+    }
+
+    jar {
+        archiveClassifier = "plain"
+    }
+
+    /**
+     * What the relay serves: the editor's page and the kit's tunnel beside it under kit/, and the
+     * kit's worker in build/relay. relay/wrangler.toml runs this before every deploy.
+     */
+    register("editorSite") {
+        group = "izomap"
+        description = "Writes the web editor's site to build/editor-site and the relay to build/relay."
+        val kitJar = configurations.runtimeClasspath.map { classpath ->
+            classpath.filter { it.name.startsWith("editor-kit") }
+        }
+        val page = layout.projectDirectory.dir("src/main/resources/editor")
+        val site = layout.buildDirectory.dir("editor-site")
+        val relay = layout.buildDirectory.dir("relay")
+        inputs.files(kitJar)
+        inputs.dir(page)
+        outputs.dirs(site, relay)
+        doLast {
+            val out = site.get().asFile.apply { deleteRecursively() }
+            val worker = relay.get().asFile.apply { deleteRecursively() }
+            page.asFile.copyRecursively(out)
+            ZipFile(kitJar.get().singleFile).use { jar ->
+                for (entry in jar.entries()) {
+                    if (entry.isDirectory) continue
+                    val target = when {
+                        entry.name.startsWith("editorkit/web/") -> File(out, "kit/" + entry.name.removePrefix("editorkit/web/"))
+                        entry.name == "editorkit/relay/worker.js" -> File(worker, "worker.js")
+                        else -> continue
+                    }
+                    target.parentFile.mkdirs()
+                    jar.getInputStream(entry).use { input -> target.outputStream().use { input.copyTo(it) } }
+                }
+            }
+        }
     }
 
     javadoc {

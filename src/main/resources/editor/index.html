@@ -5,8 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Izomap editor</title>
 <style>
-/* The editor: the world from above on the left, the chosen camera on the right. The plugin serves this page
-   and answers it directly; every call carries the session key from the link /izocam editor printed. */
+/* The editor: the world from above on the left, the chosen camera on the right. The relay serves this page
+   and carries its calls to the plugin through the editor kit's tunnel (kit/net/relay.js); with no relay, the
+   plugin serves it and every call carries the session key from the link /izocam editor printed. */
 :root{color-scheme:dark;--bg:#0b0b0d;--panel:#141417;--line:#26262b;--ink:#ececf1;--muted:#8d8d98;--yellow:#ffd60a;
   --mono:ui-monospace,SFMono-Regular,Menlo,monospace;--sans:"Helvetica Neue",Helvetica,Arial,sans-serif}
 *{box-sizing:border-box}
@@ -74,7 +75,7 @@ input[type=range]{width:100%;accent-color:var(--yellow)}
 </style>
 </head>
 <body>
-<div class="gate" id="gate"><div><h2>This link has ended</h2><p id="gate-why">Run <b>/izocam editor</b> in the game for a new one.</p></div></div>
+<div class="gate" id="gate"><div><h2 id="gate-title">This link has ended</h2><p id="gate-why">Run <b>/izocam editor</b> in the game for a new one.</p></div></div>
 <div class="app">
   <div class="mapwrap" id="map">
     <img id="mapimg" alt="The world from above">
@@ -97,18 +98,29 @@ input[type=range]{width:100%;accent-color:var(--yellow)}
 </div>
 <div class="toast" id="toast"></div>
 
+<script src="kit/net/relay.js"></script>
 <script>
-const key = (location.hash || '').slice(1) || sessionStorage.getItem('izomap-editor') || '';
-if (location.hash) { sessionStorage.setItem('izomap-editor', key); history.replaceState(null, '', location.pathname); }
+relay.configure({product: 'Izomap', command: '/izocam editor', api: 1, storage: 'izomap-relay'});
+/** Through the relay when the link is one of its links, otherwise straight to the plugin that served the page. */
+const tunneled = relay.linked() || (!location.hash && !!sessionStorage.getItem('izomap-relay'));
+const key = tunneled ? '' : (location.hash || '').slice(1) || sessionStorage.getItem('izomap-editor') || '';
+if (!tunneled && location.hash) { sessionStorage.setItem('izomap-editor', key); history.replaceState(null, '', location.pathname); }
 const $ = id => document.getElementById(id);
 
+function gate(title, why) {
+  $('gate-title').textContent = title;
+  $('gate-why').textContent = why;
+  $('gate').classList.add('on');
+}
+
 async function api(path, options = {}) {
-  const response = await fetch(`/api/${path}`, {
+  const ask = tunneled ? relay.fetch : (url, init) => fetch(url, init);
+  const response = await ask(`/api/${path}`, {
     method: options.method || 'GET',
-    headers: {'X-Izomap-Session': key, ...(options.body ? {'Content-Type': 'application/json'} : {})},
+    headers: {...(tunneled ? {} : {'X-Izomap-Session': key}), ...(options.body ? {'Content-Type': 'application/json'} : {})},
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
-  if (response.status === 401) { $('gate').classList.add('on'); throw new Error('ended'); }
+  if (response.status === 401) { gate('This link has ended', 'Run /izocam editor in the game for a new one.'); throw new Error('ended'); }
   if (options.raw) { if (!response.ok) throw new Error((await response.json()).error); return response.blob(); }
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'The server said no.');
@@ -423,7 +435,7 @@ async function preview() {
   finally { if (ticket === previewTicket) box.classList.remove('loading'); }
 }
 
-(async () => {
+async function enter() {
   try {
     const state = await api('state');
     options = state.options; cameras = state.cameras; me = {x: state.x, z: state.z};
@@ -432,7 +444,18 @@ async function preview() {
     list(); placeImage(); loadMap();
     if (cameras.length) select(cameras[0].id);
   } catch (e) { if (e.message !== 'ended') toast(e.message, true); }
-})();
+}
+
+if (!tunneled) enter();
+else {
+  let entered = false;
+  relay.on('hello', () => { $('gate').classList.remove('on'); if (!entered) { entered = true; enter(); } });
+  relay.on('lost', () => gate('Connecting', 'Waiting for your server...'));
+  relay.on('back', () => $('gate').classList.remove('on'));
+  relay.on('refused', text => gate('This link has ended', text));
+  gate('Connecting', 'Waiting for your server...');
+  relay.start();
+}
 </script>
 </body>
 </html>

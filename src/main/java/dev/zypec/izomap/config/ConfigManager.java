@@ -160,6 +160,21 @@ public final class ConfigManager {
     }
 
     /**
+     * The relay the editor is reached through from any browser, without a trailing slash, or
+     * empty to serve the editor from {@link #editorBind()} directly. Anything that is not an
+     * http(s) address counts as empty.
+     */
+    public String editorRelay() {
+        var relay = cfg().getString("editor.relay", DEFAULT_RELAY);
+        relay = relay == null ? "" : relay.trim();
+        if (!relay.startsWith("https://") && !relay.startsWith("http://")) return "";
+        return relay.endsWith("/") ? relay.substring(0, relay.length() - 1) : relay;
+    }
+
+    /** Izomap's own relay, deployed from relay/ in the repository. */
+    public static final String DEFAULT_RELAY = "https://izomap-relay.zypec.workers.dev";
+
+    /**
      * The address the editor listens on: {@code 127.0.0.1} keeps it to this machine,
      * {@code 0.0.0.0} opens it to every network the server is on.
      */

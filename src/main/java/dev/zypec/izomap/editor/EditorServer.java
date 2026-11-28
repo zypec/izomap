@@ -5,6 +5,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import dev.zypec.editorkit.RelayLink;
 import dev.zypec.izomap.Izomap;
 import dev.zypec.izomap.camera.Camera;
 import dev.zypec.izomap.config.Permissions;
@@ -28,6 +29,9 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -40,18 +44,20 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 /**
- * The web editor, served by the plugin itself on {@code editor.bind}:{@code editor.port}.
+ * The web editor's API, served by the plugin itself on {@code editor.bind}:{@code editor.port}.
  *
- * <p>A page and a small JSON API: a top-down map of the world rendered by the plugin's
- * own ray walk, the player's cameras on it, a click to place one, every setting of a
- * camera with its preview, and the shutter. It is the local form of the editor: the page
- * talks to the plugin directly, so it opens on the machine the server runs on (or on a
- * network the owner chose to bind to), with no relay in between.</p>
+ * <p>A small JSON API: a top-down map of the world rendered by the plugin's own ray walk,
+ * the player's cameras on it, a click to place one, every setting of a camera with its
+ * preview, and the shutter. The page reaches it one of two ways. Through the relay in
+ * {@code editor.relay} (the editor kit's {@link RelayLink}), from any browser: the relay
+ * serves the page, and what the page asks arrives here from this machine with the link's
+ * token and the id of the player who asked for it. Or, with no relay, directly: this
+ * server serves the page too, and every request carries a session key from the link.</p>
  *
- * <p>Every request carries a session key a player was handed by {@code /izocam editor}
- * and acts as that player, with their permissions, while they are online. Requests are
- * served on a small pool; anything that touches the world or a camera hops to the main
- * thread and is waited for, and renders run on the render pool as they always do.</p>
+ * <p>Either way a request acts as the player who asked for the link, with their
+ * permissions, while they are online. Requests are served on a small pool; anything that
+ * touches the world or a camera hops to the main thread and is waited for, and renders run
+ * on the render pool as they always do.</p>
  */
 public final class EditorServer {
 
@@ -62,6 +68,11 @@ public final class EditorServer {
     private static final int MAP_PIXELS = 512;
     /** How far above the ground a camera placed from the map stands. */
     private static final int PLACE_HEIGHT = 12;
+    /** The version of this API, which the page's {@code relay.configure({api})} must name. */
+    public static final int API = 1;
+    /** The kit's tunnel, served beside the page when there is no relay to serve it. */
+    private static final String KIT_PATH = "kit/net/relay.js";
+    private static final String KIT_RESOURCE = "editorkit/web/net/relay.js";
 
     private final Izomap plugin;
     private final EditorSessions sessions;
@@ -69,6 +80,9 @@ public final class EditorServer {
     private HttpServer server;
     private ExecutorService pool;
     private String address;
+    /** What the relay's requests carry; a request with it comes from {@link #relayLink}. */
+    private String token;
+    private RelayLink relayLink;
 
     public EditorServer(Izomap plugin) {
         this.plugin = plugin;
@@ -102,10 +116,18 @@ public final class EditorServer {
         server.createContext("/", this::handle);
         server.start();
         address = "http://" + ("0.0.0.0".equals(bind) ? "localhost" : bind) + ":" + port + "/";
-        plugin.messages().info("log.editor-started", Placeholder.unparsed("address", address));
+        var random = new byte[32];
+        new SecureRandom().nextBytes(random);
+        token = Base64.getUrlEncoder().withoutPadding().encodeToString(random);
+        if (plugin.config().editorRelay().isEmpty())
+            plugin.messages().info("log.editor-started", Placeholder.unparsed("address", address));
     }
 
-    public void stop() {
+    public synchronized void stop() {
+        if (relayLink != null) {
+            relayLink.close();
+            relayLink = null;
+        }
         if (server != null) {
             server.stop(0);
             server = null;
@@ -117,11 +139,58 @@ public final class EditorServer {
     }
 
     /**
-     * The link that opens the editor as this player, or {@code null} when it is off.
+     * The link that opens the editor as this player, or {@code null} when it is off. Any
+     * older link of theirs stops working. Through the relay, a link opens one tab.
      */
-    public String linkFor(Player player) {
+    public synchronized String linkFor(Player player) {
         if (server == null) return null;
-        return address + "#" + sessions.open(player);
+        if (plugin.config().editorRelay().isEmpty()) return address + "#" + sessions.open(player);
+        var link = relay();
+        link.revokeAll(player.getUniqueId());
+        return link.link(player.getName(), player.getUniqueId(), 0, Map::of);
+    }
+
+    /**
+     * The relay, dialed the first time a link is asked for rather than when the server starts,
+     * so a server nobody edits from keeps no socket open.
+     */
+    private RelayLink relay() {
+        if (relayLink != null) return relayLink;
+        var relay = plugin.config().editorRelay();
+        var bind = plugin.config().editorBind();
+        var local = "http://" + ("0.0.0.0".equals(bind) ? "127.0.0.1" : bind) + ":" + plugin.config().editorPort();
+        relayLink = RelayLink.to(relay)
+                .local(local, token)
+                .product("Izomap")
+                .api(API)
+                .say(failure -> {
+                    if (failure == null) plugin.messages().info("log.editor-relay", Placeholder.unparsed("address", relay));
+                    else plugin.messages().warn("log.editor-relay-lost", Placeholder.unparsed("address", relay),
+                            Placeholder.unparsed("reason", failure));
+                })
+                .open();
+        relayLink.idle(plugin.config().editorIdleMinutes());
+        return relayLink;
+    }
+
+    /**
+     * Who a request acts for: the player whose relay link it came through, when it carries
+     * the token only the relay link has, otherwise the one whose session key it carries.
+     */
+    private Player who(HttpExchange exchange) {
+        var headers = exchange.getRequestHeaders();
+        var bearer = headers.getFirst("Authorization");
+        if (bearer != null && token != null && MessageDigest.isEqual(bearer.getBytes(StandardCharsets.UTF_8),
+                ("Bearer " + token).getBytes(StandardCharsets.UTF_8))) {
+            var id = headers.getFirst(RelayLink.WHO_ID_HEADER);
+            if (id == null) return null;
+            try {
+                return plugin.getServer().getPlayer(UUID.fromString(id));
+            } catch (IllegalArgumentException malformed) {
+                return null;
+            }
+        }
+        return sessions.player(headers.getFirst("X-Izomap-Session"));
     }
 
     // --- routing ---
@@ -133,7 +202,7 @@ public final class EditorServer {
                 serveStatic(exchange, path);
                 return;
             }
-            var player = sessions.player(exchange.getRequestHeaders().getFirst("X-Izomap-Session"));
+            var player = who(exchange);
             if (player == null) {
                 json(exchange, 401, error("The session has ended. Run /izocam editor in the game for a new link."));
                 return;
@@ -141,6 +210,7 @@ public final class EditorServer {
             var method = exchange.getRequestMethod();
             var parts = path.substring("/api/".length()).split("/");
             switch (parts[0]) {
+                case "alive" -> json(exchange, 200, new JsonObject());
                 case "state" -> json(exchange, 200, onMain(() -> state(player)));
                 case "map" -> png(exchange, map(player, query(exchange)));
                 case "cameras" -> cameras(exchange, player, method, parts);
@@ -426,11 +496,12 @@ public final class EditorServer {
 
     private void serveStatic(HttpExchange exchange, String path) throws IOException {
         var file = path.equals("/") ? "index.html" : path.substring(1);
-        if (file.contains("..") || file.contains("/")) {
+        var kit = file.equals(KIT_PATH);
+        if (!kit && (file.contains("..") || file.contains("/"))) {
             send(exchange, 404, "text/plain", "Not found".getBytes(StandardCharsets.UTF_8));
             return;
         }
-        try (InputStream in = plugin.getResource("editor/" + file)) {
+        try (InputStream in = plugin.getResource(kit ? KIT_RESOURCE : "editor/" + file)) {
             if (in == null) {
                 send(exchange, 404, "text/plain", "Not found".getBytes(StandardCharsets.UTF_8));
                 return;

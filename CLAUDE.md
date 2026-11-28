@@ -38,6 +38,7 @@ code they describe.
 ./gradlew build          # jar in build/libs/, tests included
 ./gradlew runServer      # Paper 26.3 in run/ with the fresh jar (run/ is not in git)
 ./gradlew generateWiki   # the site in build/site; needs ../zypec.github.io/kit or -Pkit=<folder>
+./gradlew editorSite     # the web editor's relay site in build/editor-site, its worker in build/relay
 ```
 
 The same are IntelliJ run configurations in `.run/`: Build Jar, Build + Test, Tests, Run Server,
@@ -46,6 +47,11 @@ Generate Wiki.
 - Java 25 toolchain, Paper `26.3` dev bundle (`minecraftVersion` in `build.gradle.kts`, which also
   fills `api-version`). Never lower the toolchain: Paper 26.1+ refuses older JVMs.
 - `./gradlew build` must be green before a commit.
+
+The web editor's relay, tunnel and the plugin's end of it are the editor kit, shared with
+Particles+ (`zypec/editor-kit`, `dev.zypec:editor-kit`); a sibling `../editor-kit` checkout replaces
+the published jar in the build. The relay is deployed from `relay/` with `npx wrangler deploy`, by
+the maintainer. See `docs/ARCHITECTURE.md`, the web editor.
 
 ## The development server
 

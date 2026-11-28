@@ -194,10 +194,12 @@ photo:
       # Dithering of the soft gradients before the palette snap. 0-128.
       dither: 20.0
 
-# The web editor, served by the plugin. Open it with /izocam editor. Permission: izomap.editor
+# The web editor. Open it with /izocam editor. Permission: izomap.editor
 editor:
   enabled: true
-  # 127.0.0.1 keeps it to this computer; 0.0.0.0 opens it to every network the server is on.
+  # The relay the editor opens through, from any browser. Empty: the plugin serves it on bind:port.
+  relay: "https://izomap-relay.zypec.workers.dev"
+  # Where the plugin listens. 127.0.0.1 keeps it to this computer; 0.0.0.0 opens it to every network.
   bind: 127.0.0.1
   port: 8790
   # Minutes an editor link keeps working without use. 1-1440.

@@ -17,15 +17,25 @@ version:
     and reported in the console.
 
 editor.enabled:
-  summary: Serve the web editor that /izocam editor links to.
-  detail: The plugin answers the page itself, with no service in between. Off, the command says the editor is turned off.
+  summary: Turn on the web editor that /izocam editor links to.
+  detail: Off, the command says the editor is turned off and the plugin opens no port and no connection.
+
+editor.relay:
+  summary: The relay the editor opens through, from any browser.
+  detail: |
+    Izomap's own relay by default. The plugin connects out to it, so no port has to be opened on the
+    server, and what passes through it is encrypted with a key only the link holds: see
+    [The relay](#taking-photos). Empty (`""`), there is no relay and the plugin serves the editor
+    itself on `editor.bind`:`editor.port`. The relay is the editor kit's worker
+    ([zypec/editor-kit](https://github.com/zypec/editor-kit)), which you can run yourself and name here.
 
 editor.bind:
-  summary: The address the editor listens on.
+  summary: The address the plugin listens on for the editor.
   detail: |
-    `127.0.0.1`, the default, keeps it to the computer the server runs on. `0.0.0.0` opens it to every
-    network the server is on, so anyone who can reach the port may try a link; a link is a random
-    128-bit key, but only open it where you trust the network.
+    With a relay only the plugin itself connects here, so leave it at `127.0.0.1`. Without one this is
+    where the editor opens: `127.0.0.1`, the default, keeps it to the computer the server runs on,
+    `0.0.0.0` opens it to every network the server is on, so anyone who can reach the port may try a
+    link; a link is a random 128-bit key, but only open it where you trust the network.
 
 editor.port:
   summary: The port the editor listens on.

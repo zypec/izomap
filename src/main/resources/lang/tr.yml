@@ -45,7 +45,7 @@ camera:
       - "<gray><photos> fotoğraf <dark_gray>|</dark_gray> <filter> <dark_gray>|</dark_gray> <style>"
 
 editor:
-  link: "<prefix> <green>Editörün: <white><u><link></u></white> <gray>(açmak için tıkla; sen oyundayken senin adına çalışır, yeniden istersen eski bağlantı kapanır)"
+  link: "<prefix> <green>Editörün: <white><u><link></u></white> <gray>(açmak için tıkla; tek bir sekme açar ve sen oyundayken senin adına çalışır, yeniden istersen eski bağlantı kapanır)"
   disabled: "<prefix> <red>Bu sunucuda web editörü kapalı (config.yml'de editor.enabled)."
 
 preview:
@@ -350,6 +350,8 @@ log:
   photo-cache-scan-failed: "Fotoğraf önbelleği taranamadı: <reason>"
   photo-cache-swept: "Sahipsiz <count> fotoğraf önbelleği dosyası silindi."
   editor-started: "Web editörü <address> adresinde dinliyor"
+  editor-relay: "Web editörü <address> adresindeki relay'e bağlandı"
+  editor-relay-lost: "<yellow>Web editörünün <address> adresindeki relay'le bağlantısı koptu, yeniden deneniyor: <reason>"
   editor-failed: "<yellow>Web editörü <address> adresinde başlatılamadı: <reason>"
   config-upgraded: "config.yml'ye varsayılan değerleriyle <count> yeni ayar eklendi."
   config-newer: "<yellow>config.yml sürüm <version>, bu sürümün desteklediğinden (<supported>) yeni; dosyaya dokunulmadı. Izomap'i güncelle ya da dosyayı geri yükle."

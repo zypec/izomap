@@ -1057,17 +1057,45 @@ number; they are read from `Player#getEffectivePermissions()` by prefix. The sma
 ratio stays selectable above the tile limit. The photo limit is per camera and counts unhung photos;
 the real check is inside `PhotoManager#capture`.
 
-### The web editor (`editor/EditorServer`, local)
+### The web editor (`editor/EditorServer`, the editor kit)
 
-The plugin serves the editor page (`resources/editor/index.html`) and a JSON API itself, with the
-JDK's `HttpServer`, on `editor.bind:editor.port` (127.0.0.1:8790 by default). There is no relay yet:
-the page talks to the plugin directly, so it opens where the server runs, or on a network the owner
-binds to. `/izocam editor` hands a player a link with a 128-bit key (`EditorSessions`); every call
-sends it and acts as that player, with their permissions, while they are online, until
-`editor.idle-minutes` pass unused or a new link is asked for.
+The plugin answers a JSON API itself, with the JDK's `HttpServer`, on `editor.bind:editor.port`
+(127.0.0.1:8790 by default). The page reaches it one of two ways:
+
+- **Through the relay** (`editor.relay`, `https://izomap-relay.zypec.workers.dev` by default), from
+  any browser, with no port opened on the server. The relay, the page's tunnel and the plugin's end
+  of it are the **editor kit**, shared with Particles+: `zypec/editor-kit`, published as
+  `dev.zypec:editor-kit` at `https://zypec.github.io/maven` and shaded into the jar under
+  `dev.zypec.izomap.lib.editorkit`. Its `RelayLink` dials the relay the first time a link is asked
+  for; a link is `<relay>/#<session>.<key>`, and everything the page and the plugin say to each
+  other is sealed with the key (AES-GCM), which only the link holds, in its fragment. What the page
+  asks arrives at the local server from `RelayLink` with `Authorization: Bearer <token>` (made fresh
+  at every start) and `X-Editor-Who-Id`, the player who asked for the link; the token is what makes
+  that header trusted. A link opens one tab, a new one takes back the player's older ones
+  (`revokeAll`), and one unused for `editor.idle-minutes` is let go of.
+- **Directly**, with `editor.relay: ""`: the server serves the page as well, so it opens where the
+  address can be reached, and every call carries `X-Izomap-Session`, a 128-bit key from the link
+  (`EditorSessions`), which stops after `editor.idle-minutes` unused or when a new link is asked for.
+
+Either way a call acts as that player, with their permissions, while they are online. The page
+(`resources/editor/index.html`) is the same for both: it loads the kit's `kit/net/relay.js` and
+uses `relay.fetch` when the link is a relay link, `fetch` otherwise. The kit's jar carries
+`relay.js` and the relay's `worker.js` beside the Java class, so page, relay and plugin always come
+from one version of the kit: the plugin serves `kit/net/relay.js` from the jar in the direct mode,
+and `./gradlew editorSite` writes the relay's site (`build/editor-site`, the page with `kit/`
+beside it) and its worker (`build/relay/worker.js`) from the same jar. `relay/wrangler.toml` runs
+that task before every `npx wrangler deploy`; `npx wrangler dev --port 8788 --ip 127.0.0.1` in
+`relay/` is a relay on this machine for a test server with `editor.relay: "http://127.0.0.1:8788"`.
+A sibling checkout of `../editor-kit` (or `-PeditorKit=<folder>`) replaces the published kit in the
+build, so a change to it is tried here before it is published.
+
+`EditorServer.API` is the API's version; the page names the same in `relay.configure({api})`, and
+a page and a plugin that disagree say so instead of misreading each other. Since the relay serves
+one page to every server, a change that an older plugin cannot answer raises both.
 
 | Call | Does |
 |---|---|
+| `GET /api/alive` | Nothing: a page back from the background asks it to tell a live tunnel from a dead one |
 | `GET /api/state` | The player, their cameras in their world, the choices (filters, styles, skies, grids per ratio) |
 | `GET /api/map?x&z&size` | A top-down PNG, `size` blocks across, rendered by the walk at pitch 90 and turned half round so north is up |
 | `POST /api/cameras {x,z}` | A camera 12 blocks above the ground there (protection asked) |
@@ -1085,8 +1113,7 @@ when facing or tilt change with `orbit`. A level camera has no ground to aim at;
 blocks ahead.
 
 Requests run on a pool of four; anything touching the world hops to the main thread and is waited
-for, renders run on the render pool. A remote editor (through a relay, as Particles+ has) is the
-next step; the API is the same either way.
+for, renders run on the render pool.
 
 ## 8. Configuration and data
 

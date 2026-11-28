@@ -20,4 +20,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: izomap
-          path: build/libs/*.jar
+          path: |
+            build/libs/*.jar
+            !build/libs/*-plain.jar

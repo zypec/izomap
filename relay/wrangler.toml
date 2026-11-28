@@ -1,0 +1,40 @@
+# The relay the web editor is reached through from any browser: the editor kit's worker
+# (github.com/zypec/editor-kit), serving this plugin's editor. Setup: docs/ARCHITECTURE.md, the editor.
+name = "izomap-relay"
+main = "../build/relay/worker.js"
+compatibility_date = "2025-09-01"
+# Served at its workers.dev address, the one editor.relay defaults to.
+workers_dev = true
+preview_urls = false
+
+# Writes the editor's page with the kit's tunnel to build/editor-site and the worker to build/relay,
+# both from the editor kit the plugin is built with, so the page, the relay and the plugin agree.
+[build]
+command = "cd .. && ./gradlew -q editorSite"
+
+[observability]
+enabled = true
+
+[assets]
+directory = "../build/editor-site"
+
+# One object per editor session: the server's socket and the browsers looking at it.
+[[durable_objects.bindings]]
+name = "SESSIONS"
+class_name = "Session"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Session"]
+
+# Twenty server sockets a minute from one address leaves room for a host full of servers.
+[[ratelimits]]
+name = "PLUGIN_LIMIT"
+namespace_id = "1003"
+simple = { limit = 20, period = 60 }
+
+# A browser opens one socket per tab, and again after a drop.
+[[ratelimits]]
+name = "BROWSER_LIMIT"
+namespace_id = "1004"
+simple = { limit = 30, period = 60 }
