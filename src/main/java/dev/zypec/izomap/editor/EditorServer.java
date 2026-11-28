@@ -96,7 +96,7 @@ public final class EditorServer {
     private static final float SIDE_LIGHT = 60.0f;
     private static final float SIDE_LIGHT_HEIGHT = 35.0f;
     /** The version of this API, which the page's {@code relay.configure({api})} must name. */
-    public static final int API = 2;
+    public static final int API = 3;
     /** The kit's tunnel and interface, served beside the page when there is no relay to serve them. */
     private static final Pattern KIT_PATH = Pattern.compile("kit/(net|ui)/[a-z]+\\.(js|css)");
 

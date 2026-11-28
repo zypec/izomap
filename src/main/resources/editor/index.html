@@ -302,7 +302,7 @@ button.busy{pointer-events:none;opacity:.6}
 <script src="kit/ui/theme.js"></script>
 <script src="kit/net/relay.js"></script>
 <script>
-relay.configure({product: 'Izomap', command: '/izocam editor', api: 2, storage: 'izomap-relay'});
+relay.configure({product: 'Izomap', command: '/izocam editor', api: 3, storage: 'izomap-relay'});
 /** Through the relay when the link is one of its links, otherwise straight to the plugin that served the page. */
 const tunneled = relay.linked() || (!location.hash && !!sessionStorage.getItem('izomap-relay'));
 const key = tunneled ? '' : (location.hash || '').slice(1) || sessionStorage.getItem('izomap-editor') || '';
