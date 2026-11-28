@@ -51,6 +51,20 @@ public final class CaptureQueue {
     }
 
     /**
+     * Where a key's job stands: 0 while it runs, its place in line (1 first) while it
+     * waits, -1 when there is none. Main thread.
+     */
+    public int position(UUID key) {
+        if (!busy(key)) return -1;
+        var place = 1;
+        for (var job : waiting) {
+            if (key.equals(job.key())) return place;
+            place++;
+        }
+        return 0;
+    }
+
+    /**
      * Runs {@code start} as soon as a slot is free.
      *
      * @param key     what may only shoot once at a time, usually the camera; {@code null}

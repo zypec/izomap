@@ -61,6 +61,15 @@ public final class ChunkCache {
         return new ChunkCache(true, Long.MAX_VALUE, Long.MAX_VALUE);
     }
 
+    /**
+     * The web editor's cache for one camera: the preview waits for every chunk, as the
+     * editor shows nothing until it has the whole picture, and the copies outlast a few
+     * minutes of settings being tried, where the game's preview keeps them for seconds.
+     */
+    public static ChunkCache forEditor() {
+        return new ChunkCache(true, 120_000_000_000L, 240_000_000_000L);
+    }
+
     boolean waits() {
         return waits;
     }

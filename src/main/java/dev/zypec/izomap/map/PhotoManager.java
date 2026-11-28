@@ -441,6 +441,13 @@ public final class PhotoManager {
     }
 
     /**
+     * Where a camera's photo stands in the capture queue, as {@link CaptureQueue#position}.
+     */
+    public int queuePosition(UUID cameraId) {
+        return queue.position(cameraId);
+    }
+
+    /**
      * Shoots the camera for a file rather than for the wall: the same capture as
      * {@link #capture}, through the same queue and the same checks, with the frame drawn
      * on, and no photo filed or counted against the limit. What the web editor exports.

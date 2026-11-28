@@ -15,6 +15,7 @@ import dev.zypec.izomap.map.Photo;
 import dev.zypec.izomap.map.PhotoFrames;
 import dev.zypec.izomap.place.Protection;
 import dev.zypec.izomap.render.AspectRatio;
+import dev.zypec.izomap.render.ChunkCache;
 import dev.zypec.izomap.render.ColorFilter;
 import dev.zypec.izomap.render.PhotoStyle;
 import dev.zypec.izomap.render.RenderResult;
@@ -45,9 +46,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
@@ -76,9 +79,17 @@ public final class EditorServer {
     private static final long EXPORT_SECONDS = 600;
     /** Widest picture of a photo the list asks for without the export permission. */
     private static final int THUMBNAIL_PIXELS = 480;
-    /** Widest top-down map one request may ask for, in blocks per side. */
-    private static final int MAX_MAP_BLOCKS = 1024;
-    private static final int MAP_PIXELS = 512;
+    /**
+     * The world from above comes in square tiles of this many pixels, 64 blocks wide at
+     * level 0 and twice as wide each level up, to level 3. A tile copies every chunk it
+     * covers: 512 blocks is 1024 of them, and a level of 1024-block tiles took 7.5 s a tile.
+     */
+    private static final int TILE_PIXELS = 256;
+    private static final int TILE_BLOCKS = 64;
+    private static final int TILE_LEVELS = 4;
+    /** How long a drawn tile is served again before it is drawn anew, and how much of them is kept. */
+    private static final long TILE_MILLIS = 10 * 60_000L;
+    private static final long TILE_BYTES = 48L << 20;
     /** How far above the ground a camera placed from the map stands. */
     private static final int PLACE_HEIGHT = 12;
     /** The capture screen's side-light suggestion: the sun this far off the camera's facing, this high. */
@@ -98,6 +109,24 @@ public final class EditorServer {
     /** What the relay's requests carry; a request with it comes from {@link #relayLink}. */
     private String token;
     private RelayLink relayLink;
+
+    private record Tile(byte[] png, long drawnAt) {
+    }
+
+    /** Drawn tiles, the least recently asked for first; guarded by itself. */
+    private final LinkedHashMap<String, Tile> tiles = new LinkedHashMap<>(64, 0.75f, true);
+    private long tileBytes;
+    /** Tiles being drawn, so two asking for one share the drawing. */
+    private final Map<String, CompletableFuture<byte[]>> drawing = new ConcurrentHashMap<>();
+    /** At most two tiles are drawn at once: a page opening asks for a dozen. */
+    private final Semaphore tileSlots = new Semaphore(2);
+    /**
+     * The chunk copies of the cameras last previewed, so trying settings on one, or going
+     * back and forth between two, copies the world once rather than every time. The
+     * oldest is dropped past {@link #CACHED_CAMERAS}; touched on the main thread only.
+     */
+    private final LinkedHashMap<UUID, ChunkCache> cachedChunks = new LinkedHashMap<>(4, 0.75f, true);
+    private static final int CACHED_CAMERAS = 2;
 
     public EditorServer(Izomap plugin) {
         this.plugin = plugin;
@@ -122,7 +151,7 @@ public final class EditorServer {
             server = null;
             return;
         }
-        pool = Executors.newFixedThreadPool(4, runnable -> {
+        pool = Executors.newFixedThreadPool(8, runnable -> {
             var thread = new Thread(runnable, "izomap-editor");
             thread.setDaemon(true);
             return thread;
@@ -139,6 +168,12 @@ public final class EditorServer {
     }
 
     public synchronized void stop() {
+        synchronized (tiles) {
+            tiles.clear();
+            tileBytes = 0;
+        }
+        cachedChunks.values().forEach(ChunkCache::clear);
+        cachedChunks.clear();
         if (relayLink != null) {
             relayLink.close();
             relayLink = null;
@@ -244,7 +279,7 @@ public final class EditorServer {
                     var asked = query(exchange);
                     json(exchange, 200, onMain(() -> state(player, asked)));
                 }
-                case "map" -> png(exchange, map(player, query(exchange)));
+                case "tile" -> png(exchange, tile(player, query(exchange)));
                 case "cameras" -> cameras(exchange, player, method, parts);
                 case "photos" -> photos(exchange, player, method, parts);
                 default -> json(exchange, 404, error("No such call."));
@@ -285,6 +320,10 @@ public final class EditorServer {
         }
         if (parts.length == 3 && parts[2].equals("photos")) {
             json(exchange, 200, onMain(() -> photoList(player, camera(player, id))));
+            return;
+        }
+        if (parts.length == 3 && parts[2].equals("progress")) {
+            json(exchange, 200, onMain(() -> progress(camera(player, id))));
             return;
         }
         if (parts.length == 3 && parts[2].equals("reset") && method.equals("POST")) {
@@ -536,21 +575,83 @@ public final class EditorServer {
      * north at the top. The walk's top-down axes put north at the foot and east on the
      * left, so the picture is turned half round before it is sent.
      */
-    private byte[] map(CommandSender player, Map<String, String> query) throws Exception {
-        var x = number(query, "x");
-        var z = number(query, "z");
-        var size = Math.max(16, Math.min(MAX_MAP_BLOCKS, number(query, "size")));
+    /**
+     * One tile of the world from above, north up: drawn by the walk at pitch 90 the first
+     * time it is asked for and served from memory for ten minutes after.
+     */
+    private byte[] tile(CommandSender player, Map<String, String> query) throws Exception {
+        var level = (int) number(query, "level");
+        if (level < 0 || level >= TILE_LEVELS) throw new EditorException(400, "No such level.");
+        var tx = (int) number(query, "x");
+        var tz = (int) number(query, "z");
         var world = inGame(player) != null ? inGame(player).getWorld() : world(query.get("world"));
-        var future = onMain(() -> {
-            var top = world.getMaxHeight() - 1;
-            var spec = plugin.render().specFor(new Location(world, x, top, z), 0.0f, 90.0f,
-                    (float) (plugin.config().frameHeight() / size), ColorFilter.ORIGINAL, PhotoStyle.SHARP,
-                    SkyOption.NONE, false, false, 0.0, 135.0f, 60.0f, false, 0.0, 0.0);
-            return plugin.render().capture(spec, MAP_PIXELS, MAP_PIXELS);
-        });
-        return encode(rotateHalf(future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)));
+        var key = world.getUID() + "/" + level + "/" + tx + "/" + tz;
+        synchronized (tiles) {
+            var kept = tiles.get(key);
+            if (kept != null && System.currentTimeMillis() - kept.drawnAt() < TILE_MILLIS) return kept.png();
+        }
+        var mine = new CompletableFuture<byte[]>();
+        var shared = drawing.putIfAbsent(key, mine);
+        if (shared != null) return shared.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        try {
+            tileSlots.acquire();
+            try {
+                var blocks = (double) (TILE_BLOCKS << level);
+                var x = (tx + 0.5) * blocks;
+                var z = (tz + 0.5) * blocks;
+                var future = onMain(() -> {
+                    var spec = plugin.render().specFor(new Location(world, x, world.getMaxHeight() - 1, z), 0.0f, 90.0f,
+                            (float) (plugin.config().frameHeight() / blocks), ColorFilter.ORIGINAL, PhotoStyle.SHARP,
+                            SkyOption.NONE, false, false, 0.0, 135.0f, 60.0f, false, 0.0, 0.0);
+                    return plugin.render().capture(spec, TILE_PIXELS, TILE_PIXELS);
+                });
+                var png = encode(rotateHalf(future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS)));
+                keep(key, png);
+                mine.complete(png);
+                return png;
+            } finally {
+                tileSlots.release();
+            }
+        } catch (Exception failure) {
+            mine.completeExceptionally(failure);
+            throw failure;
+        } finally {
+            drawing.remove(key, mine);
+        }
     }
 
+    private void keep(String key, byte[] png) {
+        synchronized (tiles) {
+            var old = tiles.put(key, new Tile(png, System.currentTimeMillis()));
+            if (old != null) tileBytes -= old.png().length;
+            tileBytes += png.length;
+            var oldest = tiles.entrySet().iterator();
+            while (tileBytes > TILE_BYTES && oldest.hasNext()) {
+                tileBytes -= oldest.next().getValue().png().length;
+                oldest.remove();
+            }
+        }
+    }
+
+    /** Where the camera's photo or export stands: in line, being shot and how far, or nothing. */
+    private JsonObject progress(Camera camera) {
+        var out = new JsonObject();
+        out.addProperty("position", plugin.photos().queuePosition(camera.id()));
+        var shot = camera.captureProgress();
+        out.addProperty("percent", shot == null ? -1 : shot.percent());
+        return out;
+    }
+
+    /** The camera's chunk copies for its preview, the least recently previewed camera's dropped. Main thread. */
+    private ChunkCache chunksFor(Camera camera) {
+        var cache = cachedChunks.computeIfAbsent(camera.id(), id -> ChunkCache.forEditor());
+        var oldest = cachedChunks.entrySet().iterator();
+        while (cachedChunks.size() > CACHED_CAMERAS) {
+            oldest.next().getValue().clear();
+            oldest.remove();
+        }
+        return cache;
+    }
     /**
      * Places a camera above the ground at a spot clicked on the map. The column's chunk is
      * loaded off the main thread first, since reading its height would load it on it.
@@ -651,7 +752,7 @@ public final class EditorServer {
             var camera = camera(player, id);
             var ratio = camera.aspectRatio().value();
             return plugin.render().capture(plugin.render().specFor(camera), width, Math.max(1, (int) Math.round(width / ratio)),
-                    null, null, null, camera::sceneDepth);
+                    null, null, chunksFor(camera), camera::sceneDepth);
         });
         var image = future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
         var frame = frameId == null || frameId.isEmpty() ? null : plugin.frames().byId(frameId);
