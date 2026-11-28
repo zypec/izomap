@@ -136,11 +136,10 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
 #zoomtip{position:absolute;z-index:3;pointer-events:none;padding:4px 8px;border-radius:var(--r);background:#000c;color:var(--yellow);font:600 12px var(--hud);display:none}
 
 /* the side: the viewfinder held in place at the top, the dials and the look under it */
-/* The viewfinder and the cards under it share one width: the photo's, held to a part of the window's height, never under 300px. */
-.side{--ar:1.7778;--fw:min(100%,max(300px,calc(42vh * var(--ar))),calc(60vh * var(--ar)));
-  min-height:0;overflow-y:auto;scrollbar-width:thin;display:flex;flex-direction:column;gap:12px}
+.side{min-height:0;overflow-y:auto;scrollbar-width:thin;display:flex;flex-direction:column;gap:12px}
 .finder{position:sticky;top:0;z-index:5;flex:none;padding-bottom:2px;background:#000}
-.stage{width:var(--fw);margin:0 auto;position:relative;border-radius:var(--r);overflow:hidden;background:conic-gradient(#1d1d20 25%,#141416 0 50%,#1d1d20 0 75%,#141416 0) 0 0/22px 22px}
+/* A tall photo is held to a part of the window's height and narrowed to its ratio, so the settings keep their room. */
+.stage{--ar:1.7778;width:min(100%,calc(42vh * var(--ar)));margin:0 auto;position:relative;border-radius:var(--r);overflow:hidden;background:conic-gradient(#1d1d20 25%,#141416 0 50%,#1d1d20 0 75%,#141416 0) 0 0/22px 22px}
 .stage img{display:block;width:100%;height:100%;object-fit:contain;image-rendering:pixelated;transition:opacity .3s,filter .3s}
 .stage img:not([src]){visibility:hidden}
 .stage.loading img{opacity:.6;filter:saturate(.6)}
@@ -152,7 +151,7 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
   text-transform:uppercase;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8);pointer-events:none}
 .hud.top{top:12px}.hud.foot{bottom:12px}
 .hud span{opacity:.75}.hud b{font-weight:500;margin-left:6px;color:var(--yellow)}
-#panel{display:grid;gap:12px;width:var(--fw);margin:0 auto}
+#panel{display:grid;gap:12px}
 .layouts{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px}
 .layouts .layout{display:grid;justify-items:start;align-content:center;gap:4px;height:auto;min-height:0;line-height:1.15;padding:10px 12px 11px;text-align:left;background:rgba(255,255,255,.04);border-color:var(--glass-line);color:var(--glass-ink)}
 .layouts .layout small{color:var(--glass-dim);font:11px var(--hud)}
@@ -214,7 +213,11 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
 .shutter:active span{transform:scale(.88)}
 .shutter.busy span{background:#ff3b30;transform:scale(.55);border-radius:var(--r)}
 .shutter:disabled{opacity:.4}
-.outs{justify-self:end;display:flex;align-items:center;gap:8px;min-width:0}
+/* As wide as the side column and on its edges, so the camera card lines up with the cards above it. */
+.outs{justify-self:end;display:flex;align-items:center;gap:8px;min-width:0;width:400px;margin-right:-6px}
+.outs .pick{flex:1;min-width:0}
+.outs .pick #campick{flex:1;min-width:0}
+.outs .pick .choice{width:100%}
 .outs .gbtn{flex-direction:column;height:44px;min-width:56px;padding:4px 10px;gap:2px;border:1px solid var(--glass-line);background:var(--glass);font-size:10px;text-transform:uppercase}
 .outs .gbtn svg{width:16px;height:16px}
 .outs .gbtn:disabled{opacity:.35;cursor:default}
@@ -271,6 +274,7 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
 @media (max-width:980px){
   .app{grid-template-columns:1fr;grid-template-rows:auto auto 52vh auto;height:auto}
   .side{display:contents}
+  .outs{width:auto;margin-right:0}
   .finder{grid-row:2;position:sticky;top:0}
   .screen{grid-row:3}
   .deck{position:sticky;bottom:0;background:#000;padding:6px 0 10px;z-index:6}
@@ -875,7 +879,7 @@ function refresh() {
   $('thirds').hidden = !c.thirds;
   const [rw, rh] = c.ratio.split(':').map(Number);
   $('stage').style.aspectRatio = `${rw} / ${rh}`;
-  document.querySelector('.side').style.setProperty('--ar', String(rw / rh));
+  $('stage').style.setProperty('--ar', String(rw / rh));
   $('h-style').textContent = named('styles', c.style); $('h-sky').textContent = named('skies', c.sky); $('h-filter').textContent = named('filters', c.filter);
   $('h-blocks').textContent = `${Math.round(c.blocks)} blocks`; $('h-zoom').textContent = `${c.zoom.toFixed(2)}x`; $('h-tilt').textContent = `${Math.round(c.pitch)}°`;
   bar(); modes(); layouts();
