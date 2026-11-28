@@ -51,6 +51,30 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
 .pick .choicebtn{height:36px;border:0;background:transparent;color:var(--glass-ink);font-weight:600}
 .pick .choicebtn:hover{background:rgba(255,255,255,.06)}
 .quick{display:flex;align-items:center;gap:2px;padding:4px;margin:0 auto}
+.quick button b{font-weight:500;color:var(--glass-ink);text-transform:uppercase;letter-spacing:.06em}
+.quick button[aria-pressed=true] b{color:#1a1500}
+.quick button[aria-expanded=true]{box-shadow:inset 0 0 0 1px var(--yellow)}
+/* The filters as the site's front page has them: an island, each filter an icon, the chosen one named on yellow. */
+.filterisland{position:relative;display:flex;align-items:center;gap:2px;padding:5px;border-radius:var(--r);background:var(--sunk);overflow-x:auto;scrollbar-width:none}
+.filterisland .glide{position:absolute;top:5px;bottom:5px;left:0;width:0;border-radius:calc(var(--r) - 3px);background:var(--yellow);
+  transition:transform .42s cubic-bezier(.3,1.3,.5,1),width .42s cubic-bezier(.3,1.3,.5,1);pointer-events:none}
+.filterisland button{position:relative;display:inline-flex;align-items:center;height:38px;padding:0 10px;border:0;background:none;color:var(--dim);flex:none;transition:color .3s}
+.filterisland button:hover{color:var(--ink);background:none}
+.filterisland button[aria-pressed=true]{color:#1a1500}
+.filterisland button:disabled{opacity:.35}
+.filterisland svg{width:18px;height:18px;flex:none}
+.filterisland .label{max-width:0;opacity:0;overflow:hidden;white-space:nowrap;font:500 12px/1 var(--hud);letter-spacing:.05em;text-transform:uppercase;
+  transition:max-width .42s cubic-bezier(.2,.8,.2,1),opacity .25s,margin .42s}
+.filterisland button[aria-pressed=true] .label{max-width:var(--w,120px);opacity:1;margin-left:8px}
+.slotpick.izpop.wide{width:min(520px,calc(100vw - 16px))}
+.presets{display:grid;gap:6px;margin-top:8px}
+.preset{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:2px 10px;text-align:left;padding:8px 10px}
+.preset b{font-size:13px}
+.preset small{grid-column:1/3;color:var(--dim);font-size:12px}
+.preset code{grid-row:1/3;grid-column:3;font:12px var(--hud);color:var(--dim)}
+.preset.on{border-color:var(--accent);background:var(--accent-soft)}
+.depth{display:flex;justify-content:space-between;gap:8px;margin:2px 2px 6px;font:11.5px var(--hud);color:var(--dim)}
+.depth b{color:var(--ink);font-weight:600}
 .right{display:flex;align-items:center;gap:6px}
 .right .glass{display:flex;padding:4px;gap:2px}
 
@@ -263,13 +287,7 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
     <span class="brand"><i></i>Izomap</span>
     <div class="pick glass"><span class="who" id="who"></span><span id="worldpick"></span><span id="campick"></span>
       <button type="button" id="rename" title="Rename the camera" aria-label="Rename the camera"></button></div>
-    <div class="quick glass" role="toolbar" aria-label="Quick settings">
-      <button type="button" id="q-ratio" title="Aspect ratio: a click goes to the next">16:9</button>
-      <button type="button" id="q-fog" aria-pressed="false" title="Fog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 9h11M7 13h13M3 17h12"/><path d="M15 9a3.5 3.5 0 1 1 3.2 3.5"/></svg><span class="word">Fog</span></button>
-      <button type="button" id="q-bodies" aria-pressed="false" title="Sun, moon and stars"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3.8"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/></svg><span class="word">Sun</span></button>
-      <button type="button" id="q-focus" aria-pressed="false" title="Depth of field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5 15.5 9M20.5 12l-6.2.2M16.3 19.3 13 14M7.7 19.3 9.5 13M3.5 12l6 .8M7.7 4.7 11 10"/></svg><span class="word">Focus</span></button>
-      <button type="button" id="q-thirds" aria-pressed="false" title="Rule of thirds (T)"></button>
-    </div>
+    <div class="quick glass" role="toolbar" aria-label="Quick settings" id="quick"></div>
     <div class="right">
       <div class="glass"><button type="button" id="undo" title="Undo (Ctrl+Z)" aria-label="Undo" disabled></button><button type="button" id="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled></button></div>
       <div class="glass"><button type="button" id="opensettings" title="The server's settings" aria-label="Settings" hidden></button>
@@ -320,14 +338,14 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
 </div>
 
 <div class="sheet" id="gallery" aria-hidden="true">
-  <header><b>Photos</b><span class="note" id="photocount"></span><span class="grow"></span><button type="button" class="iconbtn" id="closegallery" aria-label="Close"></button></header>
+  <header><b>Photos</b><span class="note" id="photocount"></span><span class="grow"></span><button type="button" class="iconbtn" id="closegallery" aria-label="Close" title="Close the photos (Esc)"></button></header>
   <div class="list" id="photolist"></div>
 </div>
 <div class="sheet" id="settings" aria-hidden="true">
-  <header><b>Server settings</b><span class="note">config.yml</span><span class="grow"></span><button type="button" class="iconbtn" id="closesettings" aria-label="Close"></button></header>
+  <header><b>Server settings</b><span class="note">config.yml</span><span class="grow"></span><button type="button" class="iconbtn" id="closesettings" aria-label="Close" title="Close the settings (Esc); what waits is kept"></button></header>
   <input class="find" id="settingsfind" type="search" placeholder="Find a setting" aria-label="Find a setting">
   <div class="list" id="settinglist"></div>
-  <div class="pending" id="pending" hidden><span id="pendingcount"></span><span class="grow"></span><button type="button" class="quiet" id="discard">Discard</button><button type="button" class="primary" id="apply">Apply changes</button></div>
+  <div class="pending" id="pending" hidden><span id="pendingcount"></span><span class="grow"></span><button type="button" class="quiet" id="discard" title="Forget the changes that wait">Discard</button><button type="button" class="primary" id="apply" title="Write the changes into config.yml and reload the plugin">Apply changes</button></div>
 </div>
 
 <script src="kit/ui/base.js"></script>
@@ -345,7 +363,7 @@ relay.configure({product: 'Izomap', command: '/izocam editor', api: 4, storage: 
 const tunneled = relay.linked() || (!location.hash && !!sessionStorage.getItem('izomap-relay'));
 const key = tunneled ? '' : (location.hash || '').slice(1) || sessionStorage.getItem('izomap-editor') || '';
 if (!tunneled && location.hash) { sessionStorage.setItem('izomap-editor', key); history.replaceState(null, '', location.pathname); }
-for (const [id, glyph] of [['rename', 'pencil'], ['q-thirds', 'grid'], ['undo', 'undo'], ['redo', 'redo'], ['opensettings', 'settings'],
+for (const [id, glyph] of [['rename', 'pencil'], ['undo', 'undo'], ['redo', 'redo'], ['opensettings', 'settings'],
   ['saveicon', 'save'], ['copyicon', 'copy'], ['closegallery', 'close'], ['closesettings', 'close']]) $(id).innerHTML = ico(glyph);
 /** A dropdown row drawn rather than written: a frame round its own name. */
 kit.drawn = drawn => drawn;
@@ -773,7 +791,7 @@ const zoomOf = slider => Math.pow(2, slider);
 const sliderOf = zoom => Math.log2(zoom);
 const named = (list, id) => ((options[list] || []).find(o => o.id === id) || {name: id}).name;
 const shot = {};
-const shotOf = c => shot[c.id] || (shot[c.id] = {grid: ((options.grids[c.ratio] || [])[0] || {}).id || ''});
+const shotOf = c => ({grid: c.layout || ((options.grids[c.ratio] || [])[0] || {}).id || ''});
 
 function cameraPicker() {
   $('campick').innerHTML = cameras.length
@@ -830,7 +848,7 @@ function panel() {
       ${dial('pitch', 'Tilt', -10, 90, 1, c.pitch, FIELDS.pitch.show)}
       ${dial('zoom', 'Zoom', -4.3, 4, 0.05, sliderOf(c.zoom), FIELDS.zoom.show)}
     </section>
-    <section class="card glass"><header><span class="caps">Look</span></header><div class="rows" id="rows"></div></section>`;
+    `;
   wireDials(p);
   $('reset').onclick = () => run(`cameras/${selected.id}/reset`, 'resetting the aim');
   refresh();
@@ -851,23 +869,11 @@ function refresh() {
   $('stage').style.setProperty('--ar', String(rw / rh));
   $('h-style').textContent = named('styles', c.style); $('h-sky').textContent = named('skies', c.sky); $('h-filter').textContent = named('filters', c.filter);
   $('h-blocks').textContent = `${Math.round(c.blocks)} blocks`; $('h-zoom').textContent = `${c.zoom.toFixed(2)}x`; $('h-tilt').textContent = `${Math.round(c.pitch)}°`;
-  $('q-ratio').textContent = c.ratio;
-  $('q-fog').setAttribute('aria-pressed', String(c.fog)); $('q-bodies').setAttribute('aria-pressed', String(c.bodies));
-  $('q-focus').setAttribute('aria-pressed', String(c.focus)); $('q-thirds').setAttribute('aria-pressed', String(c.thirds));
-  $('q-fog').disabled = !options.may.fog && !c.fog; $('q-bodies').disabled = !options.may.bodies && !c.bodies; $('q-focus').disabled = !options.may.focus && !c.focus;
-  rows(); modes();
+  bar(); modes();
 }
-$('q-ratio').onclick = () => {
-  const allowed = options.ratios.filter(r => r.allowed), i = allowed.findIndex(r => r.id === selected.ratio);
-  if (allowed.length) change({ratio: allowed[(i + 1) % allowed.length].id}, 'changing the ratio');
-};
-$('q-fog').onclick = () => change({fog: !selected.fog}, 'fog');
-$('q-bodies').onclick = () => change({bodies: !selected.bodies}, 'the sun, moon and stars');
-$('q-focus').onclick = () => change({focus: !selected.focus}, 'depth of field');
-$('q-thirds').onclick = () => change({thirds: !selected.thirds}, 'the rule of thirds');
-
 /* --- the modes along the foot: a kind of shot, from where the camera is aimed --- */
-const MODES = [['top', 'Top'], ['photo', 'Photo'], ['portrait', 'Portrait'], ['square', 'Square']];
+const MODES = [['top', 'Top', 'Straight down: a map of the place'], ['photo', 'Photo', '16:9 at the default tilt'],
+  ['portrait', 'Portrait', '3:4, nearly level, the frame standing on the ground at the spot aimed at: a building\'s portrait'], ['square', 'Square', '1:1']];
 function modeNow(c) {
   if (c.pitch >= 89) return 'top';
   if (c.ratio === '1:1') return 'square';
@@ -877,7 +883,7 @@ function modeNow(c) {
 function modes() {
   const track = $('modetrack');
   if (!track.children.length) {
-    track.innerHTML = MODES.map(([id, label]) => `<button type="button" data-mode="${id}">${label}</button>`).join('');
+    track.innerHTML = MODES.map(([id, label, tip]) => `<button type="button" data-mode="${id}" title="${esc(tip)}">${label}</button>`).join('');
     for (const b of track.children) b.onclick = () => run(`cameras/${selected.id}/mode`, `${b.textContent.toLowerCase()} mode`, {mode: b.dataset.mode});
   }
   const now = modeNow(selected);
@@ -886,49 +892,72 @@ function modes() {
   if (at) track.style.transform = `translateX(${-(at.offsetLeft + at.offsetWidth / 2)}px)`;
 }
 
-/* --- the look: every other setting as a row, each opening a box beside the side --- */
+/* --- the bar along the top: every setting with its value; a click does the quick thing, a right-click opens it --- */
 const sunMatters = () => options.sunShadow || (options.sunDrawn && selected.bodies);
-const LOOKS = [
-  {id: 'style', label: 'Style', value: c => named('styles', c.style), box: c => listBox('styles', 'style', c.style, 'Style')},
-  {id: 'filter', label: 'Color', value: c => named('filters', c.filter), box: c => listBox('filters', 'filter', c.filter, 'Color filter')},
-  {id: 'sky', label: 'Sky', value: c => named('skies', c.sky), box: c => listBox('skies', 'sky', c.sky, 'Sky')},
-  {id: 'ratio', label: 'Ratio', value: c => c.ratio, box: c => listBox('ratios', 'ratio', c.ratio, 'Aspect ratio')},
-  {id: 'sun', label: 'Sun', value: c => (c.bodies ? 'Sun, moon, stars' : 'Plain sky') + (sunMatters() ? `, ${Math.round(c.sunPitch)}° up` : ''), on: c => c.bodies, box: sunBox},
-  {id: 'fog', label: 'Fog', value: c => c.fog ? `${Math.round(c.fogStart)} to ${Math.round(c.fogEnd)}` : 'Off', on: c => c.fog, box: fogBox},
-  {id: 'focus', label: 'Depth of field', value: c => c.focus ? `${Math.round(c.focusDistance)} blocks` : 'Off', on: c => c.focus, box: focusBox},
+const ICON = {
+  fog: '<path d="M4 9h11M7 13h13M3 17h12"/><path d="M15 9a3.5 3.5 0 1 1 3.2 3.5"/>',
+  sun: '<circle cx="12" cy="12" r="3.8"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/>',
+  focus: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5 15.5 9M20.5 12l-6.2.2M16.3 19.3 13 14M7.7 19.3 9.5 13M3.5 12l6 .8M7.7 4.7 11 10"/>',
+  style: '<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>',
+  sky: '<path d="M7 18h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.4 1.5A3.3 3.3 0 0 0 7 18z"/>',
+};
+/** The filters' glyphs, the site's front page's own, by filter id; one of the server's own gets the plain one. */
+const FILTER_ICONS = {
+  original: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="3.5"/>',
+  warm: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6 6 6M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4 6 18M18 6l1.4-1.4"/>',
+  cool: '<path d="M12 2.5v19M3.8 7.2l16.4 9.6M3.8 16.8l16.4-9.6"/><path d="m9.5 4 2.5 2 2.5-2M9.5 20l2.5-2 2.5 2"/>',
+  vivid: '<path d="M12 3c3.5 4.2 6 7.4 6 10.5a6 6 0 0 1-12 0C6 10.4 8.5 7.2 12 3z"/><path d="M9.5 14a2.5 2.5 0 0 0 2.5 2.5"/>',
+  sepia: '<path d="M7 3h10M7 21h10M8 3c0 4 8 5 8 9s-8 5-8 9M16 3c0 4-8 5-8 9"/>',
+  grayscale: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5a8.5 8.5 0 0 1 0 17z" fill="currentColor"/>',
+  noir: '<path d="M19.5 14.5A8 8 0 1 1 9.5 4.5a6.5 6.5 0 0 0 10 10z"/>',
+};
+const glyph = path => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
+/** The next of a list's choices this player may use, round to the first. */
+function nextOf(list, current) {
+  const allowed = options[list].filter(o => o.allowed), i = allowed.findIndex(o => o.id === current);
+  return allowed.length ? allowed[(i + 1) % allowed.length].id : current;
+}
+const BAR = [
+  {id: 'ratio', label: c => `<b>${c.ratio}</b> ${esc(c.layout || '')}`, tip: 'Ratio and layout: a click goes to the next ratio, a right-click opens both lists',
+    click: c => change({ratio: nextOf('ratios', c.ratio)}, 'the ratio'), box: ratioBox},
+  {id: 'style', label: c => `${glyph(ICON.style)}<b>${esc(named('styles', c.style))}</b>`, tip: 'Style: a click goes to the next, a right-click lists them',
+    click: c => change({style: nextOf('styles', c.style)}, 'the style'), box: c => listBox('styles', 'style', c.style, 'Style')},
+  {id: 'filter', label: c => `${glyph(FILTER_ICONS[c.filter.toLowerCase()] || FILTER_ICONS.original)}<b>${esc(named('filters', c.filter))}</b>`,
+    tip: 'Color: a click goes to the next filter, a right-click shows them all', click: c => change({filter: nextOf('filters', c.filter)}, 'the color'), box: filterBox, wide: true},
+  {id: 'sky', label: c => `${glyph(ICON.sky)}<b>${esc(named('skies', c.sky))}</b>`, tip: 'Sky: a click goes to the next, a right-click lists them',
+    click: c => change({sky: nextOf('skies', c.sky)}, 'the sky'), box: c => listBox('skies', 'sky', c.sky, 'Sky')},
+  {id: 'fog', label: () => `${glyph(ICON.fog)}<b>Fog</b>`, on: c => c.fog, may: c => options.may.fog || c.fog,
+    tip: 'Fog: a click turns it on or off, a right-click sets how far it begins and ends', click: c => change({fog: !c.fog}, 'fog'), box: fogBox},
+  {id: 'sun', label: () => `${glyph(ICON.sun)}<b>Sun</b>`, on: c => c.bodies, may: c => options.may.bodies || c.bodies,
+    tip: 'Sun, moon and stars: a click shows or hides them, a right-click sets where the sun stands', click: c => change({bodies: !c.bodies}, 'the sun, moon and stars'), box: sunBox},
+  {id: 'focus', label: () => `${glyph(ICON.focus)}<b>Focus</b>`, on: c => c.focus, may: c => options.may.focus || c.focus,
+    tip: 'Depth of field: a click turns it on or off, a right-click sets what is sharp', click: c => change({focus: !c.focus}, 'depth of field'), box: focusBox},
+  {id: 'thirds', label: () => ico('grid'), on: c => c.thirds, tip: 'Rule of thirds over the viewfinder (T)', click: c => change({thirds: !c.thirds}, 'the rule of thirds')},
 ];
 let openLook = null;
-function rows() {
-  const root = $('rows');
-  if (!root) return;
+function bar() {
+  const root = $('quick');
   if (!root.children.length) {
-    root.innerHTML = LOOKS.map(l => `<button type="button" class="row" data-look="${l.id}" aria-haspopup="true" aria-expanded="false"><span>${l.label}</span><b></b><i class="chev"></i></button>`).join('');
-    for (const b of root.children) b.onclick = () => openBox(b.dataset.look, b);
+    root.innerHTML = BAR.map(b => `<button type="button" data-bar="${b.id}" title="${esc(b.tip)}"${b.box ? ' aria-haspopup="true" aria-expanded="false"' : ''}></button>`).join('');
+    for (const el of root.children) {
+      const item = BAR.find(b => b.id === el.dataset.bar);
+      el.onclick = () => selected && item.click(selected);
+      if (item.box) el.oncontextmenu = e => { e.preventDefault(); if (selected) openBox(item, el); };
+    }
   }
-  for (const l of LOOKS) {
-    const b = root.querySelector(`[data-look="${l.id}"]`);
-    b.querySelector('b').textContent = l.value(selected);
-    b.classList.toggle('on', !!(l.on && l.on(selected)));
+  for (const item of BAR) {
+    const el = root.querySelector(`[data-bar="${item.id}"]`);
+    el.innerHTML = item.label(selected);
+    if (item.on) el.setAttribute('aria-pressed', String(!!item.on(selected)));
+    if (item.may) el.disabled = !item.may(selected);
   }
   if (openLook) drawBox();
 }
-function besideRow(row) {
-  return row.besideAnchor || (row.besideAnchor = {
-    isConnected: true,
-    contains: node => row.contains(node),
-    getBoundingClientRect() {
-      const at = row.getBoundingClientRect(), side = document.querySelector('.side').getBoundingClientRect();
-      if (innerWidth <= 980) return at;
-      return {left: side.left - 10, right: side.left - 10, top: at.top - 4, bottom: at.top - 4, width: 0, height: 0};
-    },
-  });
-}
-function openBox(id, row) {
-  const look = LOOKS.find(l => l.id === id);
-  const box = floatBox(besideRow(row), 'izpop', '', true, () => { openLook = null; row.setAttribute('aria-expanded', 'false'); });
+function openBox(item, anchor) {
+  const box = floatBox(anchor, 'izpop' + (item.wide ? ' wide' : ''), '', false, () => { openLook = null; anchor.setAttribute('aria-expanded', 'false'); });
   if (!box.isConnected) return;
-  row.setAttribute('aria-expanded', 'true');
-  openLook = {look, box};
+  anchor.setAttribute('aria-expanded', 'true');
+  openLook = {look: item, box};
   drawBox();
 }
 /** Draws the open box again only when what it says has changed: drawn under a press, it would swallow the click. */
@@ -943,12 +972,36 @@ function drawBox() {
   wireChoices(box); wireSwitches(box); wireDials(box);
   for (const b of box.querySelectorAll('[data-set]')) b.onclick = () => change(JSON.parse(b.dataset.set), b.dataset.what || 'a suggestion');
   for (const s of box.querySelectorAll('.switch input[data-toggle]')) s.onchange = () => change({[s.dataset.toggle]: s.checked}, s.dataset.toggle);
+  const island = box.querySelector('.filterisland');
+  if (island) {
+    for (const label of island.querySelectorAll('.label')) label.style.setProperty('--w', `${label.scrollWidth}px`);
+    // Measured again once the chosen name has opened, which the button is only then as wide as.
+    const on = island.querySelector('[aria-pressed=true]'), glide = island.querySelector('.glide');
+    const place = () => { if (on && on.isConnected) { glide.style.width = `${on.offsetWidth}px`; glide.style.transform = `translateX(${on.offsetLeft - 5}px)`; } };
+    requestAnimationFrame(place);
+    if (on) on.querySelector('.label').addEventListener('transitionend', place);
+    setTimeout(place, 480);
+  }
   box.scrollTop = scroll;
+}
+/** Every filter as an island, the chosen one named; one this player may not use is shown, shut. */
+function filterBox(c) {
+  return '<h4>Color</h4><div class="filterisland"><span class="glide" aria-hidden="true"></span>' + options.filters.map(f =>
+    `<button type="button" aria-pressed="${f.id === c.filter}" title="${esc(f.name)}${f.allowed ? '' : ': you do not have the permission for this'}" ${f.allowed ? setAttr({filter: f.id}, 'the color') : 'disabled'}>`
+    + `${glyph(FILTER_ICONS[f.id.toLowerCase()] || FILTER_ICONS.original)}<span class="label">${esc(f.name)}</span></button>`).join('') + '</div>';
+}
+/** The ratios, then the layouts of the one chosen: how the photo is cut, and how many maps it spans. */
+function ratioBox(c) {
+  const grids = options.grids[c.ratio] || [];
+  return listBox('ratios', 'ratio', c.ratio, 'Ratio') + '<h4 style="margin-top:12px">Layout</h4><div class="opts">' + grids.map(g =>
+    `<button type="button" class="opt${g.id === c.layout ? ' on' : ''}" ${setAttr({layout: g.id}, 'the layout')} title="${g.maps} maps, ${g.width}x${g.height} pixels">`
+    + `<span>${g.id}</span><span class="lock">${g.maps} maps, ${g.width}x${g.height}</span></button>`).join('') + '</div>'
+    + '<p class="hint">The bigger the layout, the more detail and the longer the photo takes.</p>';
 }
 const setAttr = (fields, what) => `data-set='${esc(JSON.stringify(fields))}'${what ? ` data-what="${esc(what)}"` : ''}`;
 function listBox(list, field, current, title) {
   return `<h4>${title}</h4><div class="opts">` + options[list].map(o =>
-    `<button type="button" class="opt${o.id === current ? ' on' : ''}" ${o.allowed ? setAttr({[field]: o.id}, 'the ' + title.toLowerCase()) : 'disabled title="You do not have the permission for this"'}>`
+    `<button type="button" class="opt${o.id === current ? ' on' : ''}" ${o.allowed ? setAttr({[field]: o.id}, 'the ' + title.toLowerCase()) + ` title="${esc(title)}: ${esc(o.name)}"` : 'disabled title="You do not have the permission for this"'}>`
     + `<span>${esc(o.name)}</span>${o.allowed ? '' : '<span class="lock">locked</span>'}</button>`).join('') + '</div>';
 }
 function toggleLine(field, label, on, allowed) {
@@ -964,17 +1017,28 @@ function sunBox(c) {
   } else html += '<p class="hint">With no shadows on this server and no sun in the sky, where the sun stands changes nothing.</p>';
   return html;
 }
+/** How far this frame sees, read off the viewfinder: the nearest ground, where most of it is, the furthest. */
 function depthHint(c) {
   const d = c.suggest.depth;
-  return d ? `<p class="hint">In this frame the ground lies ${d.near} to ${d.far} blocks away, most of it around ${d.median} (${d.sky}% sky).</p>`
+  return d ? `<div class="depth"><span>nearest <b>${d.near}</b></span><span>most <b>${d.median}</b></span><span>furthest <b>${d.far}</b></span></div>`
     : '<p class="hint">The viewfinder has not said yet how far this frame sees.</p>';
 }
+const FOG = {
+  haze: ['Haze', 'Only the distance softens; even the far edge keeps its shapes.'],
+  soft: ['Soft', 'The back half fades: what lies far off turns pale but stays.'],
+  thick: ['Thick', 'All but the foreground fades into the sky.'],
+};
 function fogBox(c) {
   let html = '<h4>Fog</h4>' + toggleLine('fog', 'On', c.fog, options.may.fog);
   if (c.sky === 'NONE') html += '<p class="hint">Fog takes the sky\'s color, and this sky is transparent: pick a sky for it to fade into.</p>';
   if (c.fog) {
-    html += dial('fogStart', 'Begins', 0, c.depthLimit, 8, c.fogStart) + dial('fogEnd', 'Full', 8, c.depthLimit, 8, c.fogEnd) + depthHint(c);
-    if (c.suggest.fog) html += `<div class="suggest"><button type="button" class="small" ${setAttr({fogStart: c.suggest.fog.start, fogEnd: c.suggest.fog.end}, 'the fog')}>Use ${c.suggest.fog.start} to ${c.suggest.fog.end}</button></div>`;
+    html += dial('fogStart', 'Begins at', 0, c.depthLimit, 8, c.fogStart) + dial('fogEnd', 'Thick at', 8, c.depthLimit, 8, c.fogEnd) + depthHint(c);
+    if (c.suggest.fog) html += '<div class="presets">' + c.suggest.fog.map(p => {
+      const [name, words] = FOG[p.id] || [p.id, ''], on = Math.round(c.fogStart) === p.start && Math.round(c.fogEnd) === p.end;
+      return `<button type="button" class="preset${on ? ' on' : ''}" ${setAttr({fogStart: p.start, fogEnd: p.end}, name.toLowerCase() + ' fog')} title="Fog from ${p.start} to ${p.end} blocks">`
+        + `<b>${name}</b><code>${p.start} to ${p.end}</code><small>${words}</small></button>`;
+    }).join('') + '</div>';
+    else html += '<p class="hint">This frame sees its ground at nearly one distance, so fog would veil all of it evenly; it shows best looking towards the horizon.</p>';
   }
   return html;
 }
@@ -992,7 +1056,7 @@ function focusBox(c) {
 }
 
 /* --- changes, each remembered as what the camera was before and after it --- */
-const KEPT = ['name', 'x', 'y', 'z', 'yaw', 'pitch', 'zoom', 'ratio', 'filter', 'style', 'sky', 'bodies', 'fog', 'fogStart', 'fogEnd',
+const KEPT = ['name', 'x', 'y', 'z', 'yaw', 'pitch', 'zoom', 'ratio', 'layout', 'filter', 'style', 'sky', 'bodies', 'fog', 'fogStart', 'fogEnd',
   'focus', 'focusDistance', 'sunYaw', 'sunPitch', 'thirds', 'aimY'];
 function difference(before, after) {
   const was = {}, now = {};
@@ -1071,7 +1135,7 @@ function deck() {
   if (!grids.find(g => g.id === s.grid)) s.grid = (grids[0] || {}).id || '';
   $('gridfield').innerHTML = select('grid', grids.map(g => [g.id, g.id, `${g.width}x${g.height}`]), s.grid);
   wireChoices($('gridfield'));
-  $('grid').onchange = () => { s.grid = $('grid').value; };
+  $('grid').onchange = () => change({layout: $('grid').value}, 'the layout');
   $('saveshot').disabled = $('copyshot').disabled = !options.may.export;
   $('saveshot').title = options.may.export ? 'Shoot it at full size and save it as a PNG' : 'Saving takes the izomap.export permission';
   $('copyshot').title = options.may.export ? 'Shoot it at full size and copy the picture' : 'Copying takes the izomap.export permission';

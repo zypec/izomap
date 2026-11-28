@@ -5,7 +5,6 @@ import dev.zypec.izomap.camera.Camera;
 import dev.zypec.izomap.camera.CameraManager;
 import dev.zypec.izomap.config.Permissions;
 import dev.zypec.izomap.map.GridLayouts;
-import dev.zypec.izomap.map.GridOption;
 import dev.zypec.izomap.map.Photo;
 import dev.zypec.izomap.map.PhotoManager;
 import dev.zypec.izomap.render.AspectRatio;
@@ -21,7 +20,6 @@ import io.papermc.paper.registry.data.dialog.DialogBase;
 import io.papermc.paper.registry.data.dialog.action.DialogAction;
 import io.papermc.paper.registry.data.dialog.body.DialogBody;
 import io.papermc.paper.registry.data.dialog.input.DialogInput;
-import io.papermc.paper.registry.data.dialog.input.SingleOptionDialogInput;
 import io.papermc.paper.registry.data.dialog.type.DialogType;
 import net.kyori.adventure.audience.Audience;
 import net.kyori.adventure.text.Component;
@@ -51,7 +49,6 @@ import java.util.function.Predicate;
 public final class CameraDialogs {
 
     private static final String INPUT_NAME = "photo_name";
-    private static final String INPUT_GRID = "grid";
     private static final String INPUT_RENAME = "new_name";
     private static final String INPUT_FOCUS = "focus";
     private static final String INPUT_SUN_YAW = "sun_yaw";
@@ -120,8 +117,6 @@ public final class CameraDialogs {
         List<DialogInput> inputs = new ArrayList<>();
         inputs.add(DialogInput.text(INPUT_NAME, plugin.messages().get("dialog.name-label"))
                 .initial(initialName).width(width).build());
-        inputs.add(DialogInput.singleOption(INPUT_GRID, width, gridEntries(player, camera),
-                plugin.messages().get("dialog.grid-label"), true));
         Dialog dialog = Dialog.create(builder -> builder.empty()
                 .base(DialogBase.builder(plugin.messages().get("dialog.title"))
                         .body(List.of(DialogBody.plainMessage(infoLine(camera), width)))
@@ -162,7 +157,15 @@ public final class CameraDialogs {
      * the two that undo a camera last.
      */
     private List<ActionButton> captureButtons(Player viewer, Camera camera) {
-        List<ActionButton> buttons = new ArrayList<>(ratioButtons(viewer, camera));
+        List<ActionButton> buttons = new ArrayList<>();
+        // The ratio and the layout are one question, how the photo is cut, asked on a
+        // screen of their own: the ratios and the layouts of the one chosen.
+        var layout = GridLayouts.chosenFor(viewer, camera, plugin.config().maxMapTiles());
+        buttons.add(button(plugin.messages().get("dialog.frame-button",
+                        Placeholder.unparsed("ratio", camera.aspectRatio().label()),
+                        Placeholder.unparsed("grid", layout.label())),
+                (view, audience) -> applyAndOpen(view, audience, camera,
+                        (player, name) -> openFrameDialog(player, camera, name))));
 
         // Cycled rather than picked from a list: each is a handful of values, and a
         // button can show the one in force while a closed dropdown cannot.
@@ -591,17 +594,48 @@ public final class CameraDialogs {
         applyIfChanged(player, camera, before);
     }
 
-    private List<ActionButton> ratioButtons(Player viewer, Camera camera) {
+    // --- ratio and layout screen ---
+
+    /**
+     * How the photo is cut: the ratios the player may shoot, then the layouts of the one
+     * chosen, each with its size, and Done back to the capture screen. A layout that does
+     * not fit a newly chosen ratio falls back to that ratio's first.
+     */
+    private void openFrameDialog(Player player, Camera camera, String photoName) {
+        var width = plugin.config().dialogBodyWidth();
         List<ActionButton> buttons = new ArrayList<>();
         for (AspectRatio ratio : choices(List.of(AspectRatio.values()), camera.aspectRatio(),
-                allowed -> Permissions.ratio(viewer, allowed))) {
+                allowed -> Permissions.ratio(player, allowed))) {
             var current = ratio == camera.aspectRatio();
-            var label = plugin.messages().get(current ? "dialog.ratio-button-active" : "dialog.ratio-button",
-                    Placeholder.unparsed("ratio", ratio.label()));
-            buttons.add(button(label, (view, audience) ->
-                    applyAndReopen(view, audience, camera, target -> target.aspectRatio(ratio))));
+            buttons.add(button(plugin.messages().get(current ? "dialog.ratio-button-active" : "dialog.ratio-button",
+                            Placeholder.unparsed("ratio", ratio.label())),
+                    (view, audience) -> onPlayer(audience, p -> {
+                        apply(p, camera, target -> target.aspectRatio(ratio));
+                        openFrameDialog(p, camera, photoName);
+                    })));
         }
-        return buttons;
+        var chosen = GridLayouts.chosenFor(player, camera, plugin.config().maxMapTiles());
+        for (var option : GridLayouts.allowedFor(player, camera.aspectRatio(), plugin.config().maxMapTiles())) {
+            var current = option.label().equals(chosen.label());
+            buttons.add(button(plugin.messages().get(current ? "dialog.layout-button-active" : "dialog.layout-button",
+                            Placeholder.unparsed("grid", option.label()),
+                            Placeholder.unparsed("count", String.valueOf(option.tileCount())),
+                            Placeholder.unparsed("wpx", String.valueOf(option.widthPx())),
+                            Placeholder.unparsed("hpx", String.valueOf(option.heightPx()))),
+                    (view, audience) -> onPlayer(audience, p -> {
+                        camera.layout(option.label());
+                        cameraManager.persist();
+                        openFrameDialog(p, camera, photoName);
+                    })));
+        }
+        buttons.add(button(plugin.messages().get("dialog.frame-confirm"),
+                (view, audience) -> onPlayer(audience, p -> openCaptureDialog(p, camera, photoName))));
+        Dialog dialog = Dialog.create(builder -> builder.empty()
+                .base(DialogBase.builder(plugin.messages().get("dialog.frame-title"))
+                        .body(List.of(DialogBody.plainMessage(plugin.messages().get("dialog.frame-body"), width)))
+                        .build())
+                .type(DialogType.multiAction(buttons, cancelButton(), COLUMNS)));
+        player.showDialog(dialog);
     }
 
     /**
@@ -824,23 +858,6 @@ public final class CameraDialogs {
 
     // --- inputs ---
 
-    private List<SingleOptionDialogInput.OptionEntry> gridEntries(Player viewer, Camera camera) {
-        List<GridOption> options = GridLayouts.allowedFor(
-                viewer, camera.aspectRatio(), plugin.config().maxMapTiles());
-        List<SingleOptionDialogInput.OptionEntry> entries = new ArrayList<>();
-        for (int i = 0; i < options.size(); i++) {
-            GridOption option = options.get(i);
-            entries.add(SingleOptionDialogInput.OptionEntry.create(
-                    option.label(),
-                    plugin.messages().get("dialog.grid-option",
-                            Placeholder.unparsed("grid", option.label()),
-                            Placeholder.unparsed("count", String.valueOf(option.tileCount())),
-                            Placeholder.unparsed("wpx", String.valueOf(option.widthPx())),
-                            Placeholder.unparsed("hpx", String.valueOf(option.heightPx()))),
-                    i == 0));
-        }
-        return entries;
-    }
 
     // --- button actions; the thread is not guaranteed, so work moves to the main one ---
 
@@ -926,15 +943,9 @@ public final class CameraDialogs {
             return;
         }
         String name = valueOr(view.getText(INPUT_NAME), camera.name());
-        String gridLabel = view.getText(INPUT_GRID);
 
-        plugin.runOnMain(() -> {
-            GridOption grid = GridLayouts.find(camera.aspectRatio(), gridLabel);
-            if (grid == null) {
-                grid = GridLayouts.optionsFor(camera.aspectRatio()).get(0);
-            }
-            photoManager.capture(player, camera, name, grid);
-        });
+        plugin.runOnMain(() -> photoManager.capture(player, camera, name,
+                GridLayouts.chosenFor(player, camera, plugin.config().maxMapTiles())));
     }
 
     /**

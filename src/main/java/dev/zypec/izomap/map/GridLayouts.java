@@ -1,5 +1,6 @@
 package dev.zypec.izomap.map;
 
+import dev.zypec.izomap.camera.Camera;
 import dev.zypec.izomap.config.Permissions;
 import dev.zypec.izomap.render.AspectRatio;
 import org.bukkit.entity.Player;
@@ -44,6 +45,18 @@ public final class GridLayouts {
                     new GridOption(4, 8),
                     new GridOption(9, 16));
         };
+    }
+
+    /**
+     * The layout a camera's photo is taken at: the one chosen for it, while it fits the
+     * camera's ratio and the player may shoot it, otherwise the first the player may.
+     */
+    public static GridOption chosenFor(Player player, Camera camera, int configuredLimit) {
+        var allowed = player != null ? allowedFor(player, camera.aspectRatio(), configuredLimit) : optionsFor(camera.aspectRatio());
+        if (camera.layout() != null)
+            for (var option : allowed)
+                if (option.label().equals(camera.layout())) return option;
+        return allowed.getFirst();
     }
 
     /**

@@ -618,6 +618,7 @@ public final class EditorServer {
         }
         out.add("frame", corners);
         out.addProperty("thirds", camera.thirdsGuide());
+        out.addProperty("layout", GridLayouts.chosenFor(inGame(player), camera, plugin.config().maxMapTiles()).label());
         if (!Double.isNaN(camera.aimY())) out.addProperty("aimY", camera.aimY());
         var limit = Math.ceil(plugin.render().focusRange(camera).limit());
         out.addProperty("depthLimit", limit);
@@ -640,9 +641,14 @@ public final class EditorServer {
             focus.addProperty("median", Math.min(limit, Math.round(scene.median())));
             out.add("focus", focus);
             if (scene.deep()) {
-                var fog = new JsonObject();
-                fog.addProperty("start", scene.suggestedStart());
-                fog.addProperty("end", (int) Math.min(scene.suggestedEnd(), limit));
+                var fog = new JsonArray();
+                for (var preset : List.of(Map.entry("haze", scene.haze()), Map.entry("soft", scene.soft()), Map.entry("thick", scene.thick()))) {
+                    var one = new JsonObject();
+                    one.addProperty("id", preset.getKey());
+                    one.addProperty("start", (int) Math.min(preset.getValue().start(), limit - 8));
+                    one.addProperty("end", (int) Math.min(preset.getValue().end(), limit));
+                    fog.add(one);
+                }
                 out.add("fog", fog);
             }
             var depth = new JsonObject();
@@ -828,6 +834,13 @@ public final class EditorServer {
         if (body.has("sunPitch")) camera.sunPitch(body.get("sunPitch").getAsFloat());
         if (body.has("thirds")) camera.thirdsGuide(body.get("thirds").getAsBoolean());
         if (body.has("name")) rename(camera, body.get("name").getAsString().trim());
+        if (body.has("layout")) {
+            var wanted = GridLayouts.find(camera.aspectRatio(), body.get("layout").getAsString());
+            if (wanted == null) throw new EditorException(400, "That layout does not fit this camera's ratio.");
+            if (inGame(player) != null && !Permissions.grid(inGame(player), wanted, plugin.config().maxMapTiles()))
+                throw new EditorException(403, "That layout spans more maps than you may.");
+            camera.layout(wanted.label());
+        }
         // Undo puts back the plane a camera was aimed on with everything else it had.
         if (body.has("aimY")) camera.aimY(body.get("aimY").isJsonNull() ? Double.NaN : body.get("aimY").getAsDouble());
         if (body.has("x") || body.has("y") || body.has("z")) {
@@ -1052,7 +1065,7 @@ public final class EditorServer {
         var future = onMain(() -> {
             var camera = camera(player, id);
             var grid = body.has("grid") ? GridLayouts.find(camera.aspectRatio(), body.get("grid").getAsString()) : null;
-            if (grid == null) grid = GridLayouts.optionsFor(camera.aspectRatio()).getFirst();
+            if (grid == null) grid = GridLayouts.chosenFor(inGame(player), camera, plugin.config().maxMapTiles());
             return plugin.photos().shootForExport(player, camera, grid, frameId);
         });
         try {
@@ -1071,7 +1084,7 @@ public final class EditorServer {
     private JsonObject shoot(CommandSender player, Camera camera, JsonObject body) {
         var name = body.has("name") && !body.get("name").getAsString().isBlank() ? body.get("name").getAsString() : camera.name();
         var grid = body.has("grid") ? GridLayouts.find(camera.aspectRatio(), body.get("grid").getAsString()) : null;
-        if (grid == null) grid = GridLayouts.optionsFor(camera.aspectRatio()).getFirst();
+        if (grid == null) grid = GridLayouts.chosenFor(inGame(player), camera, plugin.config().maxMapTiles());
         if (inGame(player) != null) plugin.photos().capture(inGame(player), camera, name, grid);
         else plugin.photos().capture(player, camera.owner(), camera, name, grid);
         var out = new JsonObject();

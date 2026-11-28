@@ -221,7 +221,6 @@ dialog:
   # Placeholders: <camera> <ratio> <scale> <blocks> <yaw> <pitch>
   info: "<gray>Camera: <white><camera></white>  •  Ratio: <white><ratio></white>  •  Zoom: <white><scale></white>x <dark_gray>(<blocks> blocks)</dark_gray>  •  Facing: <white><yaw></white>°  •  Tilt: <white><pitch></white>°"
   name-label: "Photo name"
-  grid-label: "Layout (grid)"
   # Each click moves to the next value. <value> is its name under filter., style. or sky.
   filter-button: "Color: <value>"
   style-button: "Style: <value>"
@@ -257,11 +256,10 @@ dialog:
   fog-start-label: "Fog begins (blocks)"
   fog-end-label: "Fog is full (blocks)"
   fog-suggest: "Use <start> to <end>"
-  fog-hint: "<gray>In this frame the ground lies <white><near></white> to <white><far></white> blocks away, most of it around <white><median></white> (<sky>% sky). Fog from <white><start></white> to <white><end></white> keeps the near half clear and melts the far edge into the sky."
+  fog-hint: "<gray>In this frame the ground lies <white><near></white> to <white><far></white> blocks away, most of it around <white><median></white> (<sky>% sky). Fog from <white><start></white> to <white><end></white> keeps the near half clear and pales what lies far off without losing it."
   fog-hint-flat: "<gray>No depth to fade here: the ground lies <white><near></white> to <white><far></white> blocks away, all at about one distance, so fog would veil the whole frame evenly. It shows best looking towards the horizon."
   fog-hint-none: "<gray>Open the camera's preview and this line will say how far its frame sees, with a fog range that suits it."
   fog-needs-sky: "<gray>Fog takes the sky's color, and this camera's sky is transparent: pick a sky for it to fade into."
-  grid-option: "<grid> (<count> maps, <wpx>x<hpx> px)"
   capture-full: "<red>Limit reached (<limit>)"
   pickup-button: "<red>Pick up camera"
   # Undoes only what clicking the camera sets: zoom, direction and tilt.
@@ -271,6 +269,14 @@ dialog:
   pickup-body-empty: "<white><name></white> will be taken down and its item returned to your inventory."
   pickup-confirm: "Pick up"
   pickup-cancel: "Cancel"
+  # The capture screen's one button for how the photo is cut, and the screen it opens.
+  frame-button: "Ratio & Layout: <white><ratio></white>, <white><grid></white>"
+  frame-title: "<#d9a60c>Ratio & Layout</#d9a60c>"
+  frame-body: "<gray>The ratio is the photo's shape; the layout is how many maps it spans, and the bigger it is, the more detail and the longer it takes."
+  frame-confirm: "<green><bold>Done"
+  # Placeholders: <grid> <count> (maps) <wpx> <hpx> (pixels)
+  layout-button: "<gray>Layout: <grid> <dark_gray>(<count> maps, <wpx>x<hpx>)"
+  layout-button-active: "<bold><white>Layout: <grid> ✔</white></bold> <gray>(<count> maps)"
   ratio-button: "<gray>Ratio: <ratio>"
   ratio-button-active: "<bold><white>Ratio: <ratio> ✔</white></bold>"
   # Depth of field is part of the photo. The slider shows only while it is on, and its value

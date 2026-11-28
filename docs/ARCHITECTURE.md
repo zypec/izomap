@@ -1121,6 +1121,15 @@ about five degrees whatever of the frame is under the ground shows its inside: P
 undoes it by sending the old ones back. Changes to the server's settings wait in a list, and an
 applied set is undone by applying the old values.
 
+**Layout and fog.** A camera keeps the layout its photos are taken at (`cameras.yml` `layout`,
+`GridLayouts#chosenFor`, which falls back to the ratio's first the player may shoot); the capture
+screen's Ratio & Layout screen and the editor's layout both write it, and a capture reads it. The
+fog the editor and the capture screen offer is read off the last preview's `SceneDepth`: Haze
+(from 60% of the way between the typical and the furthest ground to 1.3 times the furthest), Soft
+(from the typical ground to 1.15 times the furthest) and Thick (from halfway between the nearest and
+the typical ground to 60% of the way to the furthest). It used to be fog full at the furthest
+ground itself, which whited the back of the photo out.
+
 **Reload.** `/izocam reload` used to start the editor again, which closed the relay link and every
 open tab. `EditorServer#reload` starts it again only when one of its own settings changed.
 

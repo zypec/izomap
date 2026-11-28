@@ -50,11 +50,13 @@ Shift + left-click a camera, or `/izocam open <camera>`.
 
 | Row | Buttons |
 |---|---|
-| Fields | Photo name, layout (grid) |
-| 1 | Aspect ratio: 1:1, 16:9, 4:3, and the portraits 3:4 and 9:16 |
-| 2 | Color, style, sky |
-| 3 | Focus, rule of thirds, photos |
-| 4 | Take photo, pick up camera, reset aim |
+| Field | Photo name |
+| 1 | Ratio & Layout, color, style |
+| 2 | Sky, focus, rule of thirds |
+| 3 | Photos, take photo, pick up camera |
+| 4 | Reset aim |
+
+**Ratio & Layout** opens a screen of its own: the aspect ratios (1:1, 16:9, 4:3, and the portraits 3:4 and 9:16) and the layouts of the one chosen, each with how many maps it spans and its size in pixels. The camera keeps the layout chosen, and so does the web editor; a ratio whose layouts do not hold it starts at its smallest.
 
 The info line at the top says what will be shot: camera, ratio, zoom with the blocks it covers, facing and tilt. Those are set by clicking the camera, not here.
 
@@ -139,7 +141,11 @@ The editor is laid out like a phone's camera. The world from above is on the lef
 - **Move** and a click points the camera at that spot. A right-click on **Move** opens its coordinates, to type and move it to.
 - Dragging the camera's own dot moves the camera and its frame together.
 
-Pick a camera at the top; the pencil beside it renames it, and its photos follow it. On the right, **the viewfinder** stays in place at the top and shows the photo the camera will take, redrawn after each change. The first picture of a wide frame takes a few seconds, since the plugin copies that part of the world; changes after it come back in about a second. Under it, **Aim** has facing, tilt and zoom, dragged or typed, and **Reset**, which does what the capture screen's Reset aim does; **Look** has every other setting, each opening its own box. The fog, focus and sun boxes say how far the frame sees and offer the same suggestions the capture screen does. A choice your permissions do not allow is shown, locked, rather than left out. The bar at the top turns the ratio, fog, the sun, depth of field and the rule of thirds on and off in one click.
+Pick a camera at the top; the pencil beside it renames it, and its photos follow it. On the right, **the viewfinder** stays in place at the top and shows the photo the camera will take, redrawn after each change. The first picture of a wide frame takes a few seconds, since the plugin copies that part of the world; changes after it come back in about a second. Under it, **Aim** has facing, tilt and zoom, dragged or typed, and **Reset**, which does what the capture screen's Reset aim does.
+
+Every other setting is on the bar at the top, with its value: ratio and layout, style, color, sky, fog, the sun, depth of field and the rule of thirds. A click does the quick thing (the next ratio, style, color or sky; fog, the sun or focus on or off) and a right-click opens the setting: the ratios and their layouts, every color filter as an island, the fog's range, where the sun stands, what is sharp. Hovering over any button says what it does. A choice your permissions do not allow is shown, locked, rather than left out.
+
+The fog box says how far the frame sees (its nearest ground, where most of it lies, its furthest) and offers three ranges read off it: **Haze**, where only the distance softens, **Soft**, where the back half turns pale but stays, and **Thick**, where all but the foreground fades. The capture screen in the game offers Soft.
 
 The modes along the foot set the camera up for a kind of shot from where it is aimed, and anything they set can be changed after:
 
@@ -152,7 +158,7 @@ The modes along the foot set the camera up for a kind of shot from where it is a
 
 A level camera cannot see the ground's surface: with its rays parallel, whatever of the frame is below the ground shows the ground's inside. The editor keeps a camera in open air (it moves it back along its view, which does not change the picture, until it is clear of hills behind it), and Portrait starts at a tilt that sees the ground in front of the building rather than under it.
 
-Below the modes: the camera's last photo (a click opens all of its photos), the shutter, which takes the photo as the capture screen does, the layout, and **Save** and **Copy**, which shoot the camera at the layout's full size and save the picture or put it on the clipboard, without making a photo. A photo's frame is chosen in its photos, from a list that draws each frame round its own name. The island at the top appears while a photo is shot, to say where it is in line and how far along, and says when it is done. **Undo** and **Redo** at the top (<kbd>Ctrl</kbd>+<kbd>Z</kbd>, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>) step back and forth through every change to a camera and to the server's settings.
+Below the modes: the camera's last photo (a click opens all of its photos), the shutter, which takes the photo as the capture screen does, the layout (the camera's own, the same one the game's capture screen uses), and **Save** and **Copy**, which shoot the camera at the layout's full size and save the picture or put it on the clipboard, without making a photo. A photo's frame is chosen in its photos, from a list that draws each frame round its own name. The island at the top appears while a photo is shot, to say where it is in line and how far along, and says when it is done. **Undo** and **Redo** at the top (<kbd>Ctrl</kbd>+<kbd>Z</kbd>, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>) step back and forth through every change to a camera and to the server's settings.
 
 Saving and copying take `izomap.export`, like `/izocam export`, and wait in line with the game's photos. Press <kbd>?</kbd> in the editor for its keyboard shortcuts: the arrow keys turn and tilt the camera, <kbd>+</kbd> and <kbd>-</kbd> zoom it, <kbd>Space</kbd> takes the photo, <kbd>T</kbd> draws the thirds, <kbd>G</kbd> opens the photos, <kbd>M</kbd> is Move, <kbd>P</kbd> places a camera and <kbd>[</kbd> <kbd>]</kbd> step through your cameras.
 

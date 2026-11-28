@@ -72,6 +72,7 @@ public final class CameraStorage extends YamlStorage {
             cfg.set(base + ".from-item", c.placedFromItem());
             cfg.set(base + ".thirds-guide", c.thirdsGuide());
             if (!Double.isNaN(c.aimY())) cfg.set(base + ".aim-y", c.aimY());
+            if (c.layout() != null) cfg.set(base + ".layout", c.layout());
             cfg.set(base + ".focus-enabled", c.focusEnabled());
             cfg.set(base + ".focus-distance", c.focusDistance());
             cfg.set(base + ".fog-enabled", c.fogEnabled());
@@ -142,6 +143,7 @@ public final class CameraStorage extends YamlStorage {
         camera.placedFromItem(s.getBoolean("from-item", false));
         camera.thirdsGuide(s.getBoolean("thirds-guide", false));
         camera.aimY(s.isSet("aim-y") ? s.getDouble("aim-y") : Double.NaN);
+        camera.layout(s.getString("layout"));
         camera.focusEnabled(s.getBoolean("focus-enabled", false));
         camera.focusDistance((float) s.getDouble("focus-distance", 0.0));
         camera.fogEnabled(s.getBoolean("fog-enabled", plugin.config().defaultFog()));

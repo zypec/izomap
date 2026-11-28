@@ -54,6 +54,8 @@ public final class Camera {
     private boolean placedFromItem;
 
     private boolean thirdsGuide;
+    /** The layout a photo is taken at, as its label ("4x2"), or null for the ratio's first. */
+    private String layout;
     /** The height of the plane the frame is drawn on, or NaN to read the ground under it. */
     private double aimY = Double.NaN;
 
@@ -265,6 +267,15 @@ public final class Camera {
 
     public void aimY(double aimY) {
         this.aimY = aimY;
+    }
+
+    /** The layout chosen for this camera's photos, as its label, or null for none chosen. */
+    public String layout() {
+        return layout;
+    }
+
+    public void layout(String layout) {
+        this.layout = layout;
     }
 
     public boolean thirdsGuide() {

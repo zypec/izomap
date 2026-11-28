@@ -71,16 +71,47 @@ public record SceneDepth(double near, double median, double far, double skyShare
     }
 
     /**
-     * Where fog should begin: the typical ground, so the near half stays clear.
+     * A fog range, in blocks from the camera plane: where it begins and where it is full.
      */
-    public int suggestedStart() {
-        return (int) Math.round(median);
+    public record FogRange(int start, int end) {
     }
 
     /**
-     * Where fog should be full: the furthest ground, so the far edge melts into the sky.
+     * Only the distance softens: fog begins most of the way from the typical ground to the
+     * furthest and is full well beyond it, so even the far edge keeps its shapes.
      */
+    public FogRange haze() {
+        return range(median + 0.6 * (far - median), far * 1.3);
+    }
+
+    /**
+     * The back half fades: fog begins at the typical ground and is full a little past the
+     * furthest, so what lies far off is pale but still there. This was once fog full at the
+     * furthest ground itself, which whited the far edge out altogether.
+     */
+    public FogRange soft() {
+        return range(median, far * 1.15);
+    }
+
+    /**
+     * All but the foreground fades: fog begins between the nearest and the typical ground
+     * and is full before the furthest.
+     */
+    public FogRange thick() {
+        return range(near + 0.5 * (median - near), median + 0.6 * (far - median));
+    }
+
+    private static FogRange range(double start, double end) {
+        var from = (int) Math.round(Math.max(0.0, start));
+        return new FogRange(from, Math.max(from + 8, (int) Math.round(end)));
+    }
+
+    /** The fog the capture screen offers: {@link #soft}. */
+    public int suggestedStart() {
+        return soft().start();
+    }
+
     public int suggestedEnd() {
-        return Math.max(suggestedStart() + 1, (int) Math.round(far));
+        return soft().end();
     }
 }
