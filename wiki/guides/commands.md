@@ -12,7 +12,7 @@ A camera name reaches your own cameras. A player with `izomap.admin` reaches any
 | `/izocam create <name>` | Puts a camera two blocks in front of you |
 | `/izocam move <name>` | Moves a camera to where you are looking |
 | `/izocam open <name>` | Opens its capture screen |
-| `/izocam ratio <name> <ratio>` | Sets its aspect ratio: `1:1`, `16:9` or `4:3` |
+| `/izocam ratio <name> <ratio>` | Sets its aspect ratio: `1:1`, `16:9`, `4:3`, or the portraits `3:4` and `9:16` |
 | `/izocam preview <name>` | Watches its live preview, as a viewer |
 | `/izocam preview stop` | Closes the preview you are watching |
 | `/izocam pickup <name>` | Takes it down and gives its item back; its photos are deleted with it |

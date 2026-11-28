@@ -34,6 +34,15 @@ public final class GridLayouts {
                     GridOption.fitted(1, 1, ratio),
                     new GridOption(4, 3),
                     new GridOption(8, 6));
+            case RATIO_3_4 -> List.of(
+                    GridOption.fitted(1, 1, ratio),
+                    new GridOption(3, 4),
+                    new GridOption(6, 8));
+            case RATIO_9_16 -> List.of(
+                    GridOption.fitted(1, 1, ratio),
+                    new GridOption(2, 4),
+                    new GridOption(4, 8),
+                    new GridOption(9, 16));
         };
     }
 

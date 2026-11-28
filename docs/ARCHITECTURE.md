@@ -1100,6 +1100,30 @@ that task before every `npx wrangler deploy`; `npx wrangler dev --port 8788 --ip
 A sibling checkout of `../editor-kit` (or `-PeditorKit=<folder>`) replaces the published kit in the
 build, so a change to it is tried here before it is published.
 
+**The aim plane.** A frame dragged on the map used to land somewhere else: the plugin read the ground
+afresh at the new target to place the camera, then drew the frame from where the middle ray met the
+ground, which on roofs and slopes is a different height again. A camera now keeps `aimY`, the
+height of the plane it was aimed on (`cameras.yml` `aim-y`), and `RenderService#frame` draws the
+frame on that plane. A drag sends `targetY` to stay on it, so the frame lands exactly where it is let
+go; turning, tilting and zooming keep the target on it too. A click with Move reads the ground at the
+spot (loading the chunk first, off the main thread). Moving a camera in the game (`/izocam move`,
+the MOVE click) drops the plane, which belonged to the old place. On the map the frame's zoom is read
+along the line from its middle through the handle held, so sliding along a side changes nothing.
+
+**Open air.** A camera the editor stands somewhere (`RenderService#standClear`) is drawn back along
+its view until it is above the ground under it. Along its own view an orthographic camera's
+picture does not change; inside a hill its lowest rays, which start at its own height, would print
+the hill's insides along the bottom of the photo. A level camera cannot climb this way, and below
+about five degrees whatever of the frame is under the ground shows its inside: Portrait starts at 8.
+
+**Undo.** The page remembers every change as the fields that differ between the camera before it
+(before a drag or a run of keys moved it on the page) and the camera the plugin answered with, and
+undoes it by sending the old ones back. Changes to the server's settings wait in a list, and an
+applied set is undone by applying the old values.
+
+**Reload.** `/izocam reload` used to start the editor again, which closed the relay link and every
+open tab. `EditorServer#reload` starts it again only when one of its own settings changed.
+
 **Saving and copying.** Save PNG and Copy shoot the camera at the layout's full size through the
 capture queue, so a save waits its turn like any photo and the server never runs more than
 `settings.max-concurrent-captures`. Copy hands the clipboard a `ClipboardItem` whose PNG is the
@@ -1119,11 +1143,14 @@ one page to every server, a change that an older plugin cannot answer raises bot
 | `GET /api/tile?level&x&z[&world]` | One 256 px tile of the world from above, north up, `64 << level` blocks wide (level 0 to 3). Drawn by the walk at pitch 90 the first time, then served from memory for ten minutes (at most 48 MB, the least recently asked for dropped); two asking for one share the drawing, and at most two are drawn at once. A tile copies every chunk it covers: on the development server a 256-block tile took 0.7 s cold, a 1024-block one 7.5 s, which is why the screen stops at 2048 blocks across |
 | `GET /api/cameras/<id>/progress` | Where the camera's photo or export stands: its place in line (`position`, 0 while it runs) and how far it is (`percent`), polled by the island |
 | `POST /api/cameras {x,z}` | A camera 12 blocks above the ground there (protection asked) |
-| `PATCH /api/cameras/<id>` | Any setting the capture screen has, plus position and the thirds guide; only the fields sent. `targetX`/`targetZ` aims the frame there, `orbit: true` turns facing and tilt round the frame's middle |
+| `PATCH /api/cameras/<id>` | Any setting the capture screen has, plus position, the thirds guide, `name` (the camera's photos follow it, `PhotoManager#cameraRenamed`) and `aimY`; only the fields sent. `targetX`/`targetZ` aims the frame there, `orbit: true` turns facing and tilt round the frame's middle |
 | `GET /api/cameras/<id>/preview?w[&frame&grid]` | The camera at its ratio, `w` wide; it records the scene's depth as the in-game preview does, and keeps the chunk copies of the last two cameras previewed (`ChunkCache.forEditor`: a whole picture, copies kept two minutes), so a wide frame that took 12 s cold came back in 0.35 to 1.3 s. With a frame, it is drawn at the grid's full size and shrunk back, so it is as thick against the picture as on the photo |
 | `POST /api/cameras/<id>/photo {name,grid}` | `PhotoManager#capture`, queue and all |
 | `POST /api/cameras/<id>/export {grid,frame}` | `PhotoManager#shootForExport`: the same checks and queue as a photo, the frame drawn on, a PNG back and no photo filed. `izomap.export` |
 | `POST /api/cameras/<id>/reset` | The capture screen's Reset aim |
+| `POST /api/cameras/<id>/mode {mode}` | A kind of shot from where the camera is aimed: `top` (pitch 90), `photo` (16:9, default tilt), `portrait` (3:4 or 9:16, 8 degrees, raised half a frame up its own up so the frame's bottom edge meets the ground at the target), `square` (1:1) |
+| `GET /api/frames/<id>/sample` | The frame drawn round a plain 360x96 box, for the frame list |
+| `GET`/`PATCH /api/config` | `config.yml` for admins and the console (`EditorConfig`): every key of the shipped file with its value, default, kind, the range and choices the wiki's reference gives (`reference/config.yml`, copied into the jar) and its words. A change is checked against all of that, written into the server's file with its comments kept, and applied with `Izomap#reloadAll` |
 | `GET /api/cameras/<id>/photos` | The camera's photos |
 | `GET /api/photos/<id>/image[?w]` | The photo as it hangs, frame and all: at full size (`izomap.export`) or shrunk to `w` (at most 480) for the list |
 | `PATCH /api/photos/<id> {frame}` | `PhotoManager#applyFrame`; `""` takes it off |

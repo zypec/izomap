@@ -641,6 +641,23 @@ public final class PhotoManager {
     /**
      * Renames the photo, or reports that the owner already has one by that name.
      */
+    /**
+     * Follows a camera to its new name: a photo belongs to its camera by the camera's name,
+     * so its owner's photos taken with the old name are filed under the new one.
+     */
+    public void cameraRenamed(UUID owner, String from, String to) {
+        var changed = false;
+        for (var photo : List.copyOf(photos.values()))
+            if (photo.owner().equals(owner) && photo.cameraName().equalsIgnoreCase(from)) {
+                photos.put(photo.id(), photo.withCapture(to, photo.spec()));
+                changed = true;
+            }
+        if (changed) {
+            storage.saveAll(photos.values());
+            photosChanged();
+        }
+    }
+
     public boolean rename(Photo photo, String name) {
         if (nameTaken(photo.owner(), name, photo.id()))
             return false;

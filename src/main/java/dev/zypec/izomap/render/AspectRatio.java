@@ -7,7 +7,9 @@ public enum AspectRatio {
 
     RATIO_1_1(1, 1),
     RATIO_16_9(16, 9),
-    RATIO_4_3(4, 3);
+    RATIO_4_3(4, 3),
+    RATIO_3_4(3, 4),
+    RATIO_9_16(9, 16);
 
     private final int width;
     private final int height;
@@ -37,6 +39,11 @@ public enum AspectRatio {
      */
     public String label() {
         return width + ":" + height;
+    }
+
+    /** Whether the photo is taller than it is wide, as a building's portrait is. */
+    public boolean portrait() {
+        return height > width;
     }
 
     public static AspectRatio fromString(String raw, AspectRatio fallback) {

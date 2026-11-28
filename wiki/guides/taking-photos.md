@@ -51,7 +51,7 @@ Shift + left-click a camera, or `/izocam open <camera>`.
 | Row | Buttons |
 |---|---|
 | Fields | Photo name, layout (grid) |
-| 1 | Aspect ratio: 1:1, 16:9, 4:3 |
+| 1 | Aspect ratio: 1:1, 16:9, 4:3, and the portraits 3:4 and 9:16 |
 | 2 | Color, style, sky |
 | 3 | Focus, rule of thirds, photos |
 | 4 | Take photo, pick up camera, reset aim |
@@ -69,6 +69,8 @@ The grid is how many maps the photo spans, and it follows the aspect ratio:
 | 1:1 | 1x1, 2x2, 3x3 |
 | 16:9 | 1x1, 4x2, 8x4, 16x9 |
 | 4:3 | 1x1, 4x3, 8x6 |
+| 3:4 | 1x1, 3x4, 6x8 |
+| 9:16 | 1x1, 2x4, 4x8, 9x16 |
 
 Each map is 128x128 pixels, so a 16x9 photo is 2048x1152. A 16:9 or 4:3 photo on a single map is 128x72 or 128x96, centered, with the map's own background showing above and below it, the way the preview shows it. The tile count is the cost: it decides how long a photo takes far more than anything else. `settings.max-map-tiles` (12 by default) limits it, and a permission can raise it per group.
 
@@ -128,22 +130,35 @@ If a setting on the camera needs a permission you do not have, the photo is refu
 
 `/izocam editor` (`izomap.editor`, operators by default) gives you a link to an editor in your browser. It opens from any computer or phone, with no port opened on the server: the plugin connects out to a relay, and the page meets it there (see below). 
 
-The editor is laid out like a camera. The world from above is its screen: drag to move, scroll or the **+** and **−** keys to zoom (up to 2048 blocks across), drawn in tiles that come in as they are ready and are kept for ten minutes, so going back somewhere is instant. The chosen camera's frame is drawn on it in yellow, the ground the photo will show:
+The editor is laid out like a phone's camera. The world from above is on the left: drag to move, scroll or the **+** and **−** keys to zoom (up to 2048 blocks across), drawn in tiles that come in as they are ready and are kept for ten minutes, so going back somewhere is instant. The chosen camera's frame is drawn on it in yellow, the ground the photo will show:
 
-- Drag inside the frame to photograph somewhere else; the camera follows at the same distance.
-- Drag its outline or a corner to make it bigger or smaller: that is the zoom, twice as wide is half the zoom.
+- Drag inside the frame to photograph somewhere else; the camera follows at the same distance, and the frame lands where you let it go.
+- Drag a side or a corner of the frame (the small squares) to make it bigger or smaller: that is the zoom, twice as wide is half the zoom.
 - Drag the round handle beyond it to turn the shot round its middle.
-- **Aim here** and a click points it at that spot; dragging the camera's own dot moves the camera and its frame together.
+- **Esc** while dragging puts it back.
+- **Move** and a click points the camera at that spot. A right-click on **Move** opens its coordinates, to type and move it to.
+- Dragging the camera's own dot moves the camera and its frame together.
 
-Picking a camera at the top glides the screen to it and its frame. Beside the screen:
+Pick a camera at the top; the pencil beside it renames it, and its photos follow it. On the right, **the viewfinder** stays in place at the top and shows the photo the camera will take, redrawn after each change. The first picture of a wide frame takes a few seconds, since the plugin copies that part of the world; changes after it come back in about a second. Under it, **Aim** has facing, tilt and zoom, dragged or typed, and **Reset**, which does what the capture screen's Reset aim does; **Look** has every other setting, each opening its own box. The fog, focus and sun boxes say how far the frame sees and offer the same suggestions the capture screen does. A choice your permissions do not allow is shown, locked, rather than left out. The bar at the top turns the ratio, fog, the sun, depth of field and the rule of thirds on and off in one click.
 
-- **The viewfinder** shows the photo the camera will take, redrawn after each change, with the rule of thirds as a button. The first picture of a wide frame takes a few seconds, since the plugin copies that part of the world; changes after it come back in about a second.
-- **Aim**: facing, tilt and zoom, dragged or typed, the camera's coordinates, and **Reset**, which does what the capture screen's Reset aim does.
-- **Modes**: every other setting as a tile with its value: ratio, style, color, sky, sun, fog and depth of field. A tile opens its own box. The fog, focus and sun boxes say how far the frame sees and offer the same suggestions the capture screen does. A choice your permissions do not allow is shown, locked, rather than left out.
+The modes along the foot set the camera up for a kind of shot from where it is aimed, and anything they set can be changed after:
 
-On the deck below: the camera's last photo (a click opens all of its photos, each with its frame, picked from the frames you may use unless the frame was built into the photo, and **Save** and **Copy**), the shutter, which takes the photo as the capture screen does, the name, layout and frame, and **Save** and **Copy**, which shoot the camera at the layout's full size with that frame and save the picture or put it on the clipboard, without making a photo. The viewfinder shows the chosen frame at the thickness it will have. The island at the top says which camera is on; while a photo is shot it grows to say where it is in line and how far along, and says when it is done.
+| Mode | Sets |
+|---|---|
+| Top | Straight down: a map of the place |
+| Photo | 16:9 at the default tilt |
+| Portrait | 3:4 (or 9:16), nearly level (8 degrees), the frame raised until its bottom edge meets the ground at the spot aimed at, so a building stands on its own foot |
+| Square | 1:1 |
 
-Saving and copying take `izomap.export`, like `/izocam export`, and wait in line with the game's photos. Press <kbd>?</kbd> in the editor for its keyboard shortcuts: the arrow keys turn and tilt the camera, <kbd>+</kbd> and <kbd>-</kbd> zoom it, <kbd>Space</kbd> takes the photo, <kbd>T</kbd> draws the thirds, <kbd>G</kbd> opens the photos, <kbd>P</kbd> places a camera and <kbd>[</kbd> <kbd>]</kbd> step through your cameras. The theme switch at the top follows your system or stays light or dark.
+A level camera cannot see the ground's surface: with its rays parallel, whatever of the frame is below the ground shows the ground's inside. The editor keeps a camera in open air (it moves it back along its view, which does not change the picture, until it is clear of hills behind it), and Portrait starts at a tilt that sees the ground in front of the building rather than under it.
+
+Below the modes: the camera's last photo (a click opens all of its photos), the shutter, which takes the photo as the capture screen does, the layout, and **Save** and **Copy**, which shoot the camera at the layout's full size and save the picture or put it on the clipboard, without making a photo. A photo's frame is chosen in its photos, from a list that draws each frame round its own name. The island at the top appears while a photo is shot, to say where it is in line and how far along, and says when it is done. **Undo** and **Redo** at the top (<kbd>Ctrl</kbd>+<kbd>Z</kbd>, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Z</kbd>) step back and forth through every change to a camera and to the server's settings.
+
+Saving and copying take `izomap.export`, like `/izocam export`, and wait in line with the game's photos. Press <kbd>?</kbd> in the editor for its keyboard shortcuts: the arrow keys turn and tilt the camera, <kbd>+</kbd> and <kbd>-</kbd> zoom it, <kbd>Space</kbd> takes the photo, <kbd>T</kbd> draws the thirds, <kbd>G</kbd> opens the photos, <kbd>M</kbd> is Move, <kbd>P</kbd> places a camera and <kbd>[</kbd> <kbd>]</kbd> step through your cameras.
+
+#### The server's settings
+
+Admins (`izomap.admin`) and the console get a settings button at the top: every key of `config.yml`, with what this wiki says about it, its range and its default. Changes wait in a list until **Apply changes**, which writes them into `config.yml` (its comments kept) and reloads the plugin as `/izocam reload` does; **Discard** drops them, and Undo takes back a change or an applied set. The editor itself keeps running through the reload, unless one of its own settings changed (`editor.*`), which starts it again and ends the links.
 
 #### From the console
 

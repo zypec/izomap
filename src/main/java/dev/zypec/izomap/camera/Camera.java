@@ -54,6 +54,8 @@ public final class Camera {
     private boolean placedFromItem;
 
     private boolean thirdsGuide;
+    /** The height of the plane the frame is drawn on, or NaN to read the ground under it. */
+    private double aimY = Double.NaN;
 
     /**
      * Depth of field. Off until the player asks for it, and then a distance in blocks
@@ -252,6 +254,19 @@ public final class Camera {
     /**
      * Rule-of-thirds guide. Drawn on the live preview only, never on a capture.
      */
+    /**
+     * The height of the plane the frame is drawn on and aimed at, set where the camera was
+     * last aimed at a spot (the web editor's frame). NaN reads the ground under the frame's
+     * middle instead, which on roofs and slopes moves as the camera does.
+     */
+    public double aimY() {
+        return aimY;
+    }
+
+    public void aimY(double aimY) {
+        this.aimY = aimY;
+    }
+
     public boolean thirdsGuide() {
         return thirdsGuide;
     }

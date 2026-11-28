@@ -316,6 +316,7 @@ public final class CameraListener implements Listener {
                     plugin.messages().send(player, "camera.protected");
                     return;
                 }
+                camera.aimY(Double.NaN);
                 manager.reposition(camera, to);
             }
         }

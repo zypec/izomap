@@ -75,7 +75,7 @@ dialog:
   body-width: 380
 
 photo:
-  # Aspect ratio of a new camera: RATIO_1_1, RATIO_16_9 or RATIO_4_3.
+  # Aspect ratio of a new camera: RATIO_1_1, RATIO_16_9, RATIO_4_3, RATIO_3_4 or RATIO_9_16.
   default-aspect-ratio: RATIO_1_1
   # Blocks from the top of the frame to the bottom at zoom 1. 4-512.
   frame-height: 48

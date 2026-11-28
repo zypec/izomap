@@ -212,10 +212,17 @@ public final class RenderService {
     private static final double LEVEL_TARGET = 96.0;
 
     public Frame frame(Camera camera) {
-        return frame(camera.anchor(), camera.camYaw(), camera.camPitch(), camera.zoom(), camera.aspectRatio().value());
+        return frame(camera.anchor(), camera.camYaw(), camera.camPitch(), camera.zoom(), camera.aspectRatio().value(), camera.aimY());
     }
 
     public Frame frame(Location anchor, float yaw, float pitch, float zoom, double ratio) {
+        return frame(anchor, yaw, pitch, zoom, ratio, Double.NaN);
+    }
+
+    /**
+     * @param aimY the height of the plane the frame lies on, or NaN to read the ground
+     */
+    public Frame frame(Location anchor, float yaw, float pitch, float zoom, double ratio, double aimY) {
         var world = anchor.getWorld();
         var direction = directionFrom(yaw, pitch);
         var basis = basisFrom(direction);
@@ -226,7 +233,9 @@ public final class RenderService {
             var ahead = centre.clone().add(direction.clone().multiply(LEVEL_TARGET));
             return new Frame(ahead, List.of(), LEVEL_TARGET);
         }
-        var ground = groundAt(world, centre, direction, climb);
+        // A plane the camera was aimed on stays put as the camera turns, tilts or zooms;
+        // the ground read afresh lands on whatever the middle ray meets first.
+        var ground = !Double.isNaN(aimY) && aimY < centre.getY() ? aimY : groundAt(world, centre, direction, climb);
         var t = (centre.getY() - ground) / climb;
         var target = centre.clone().add(direction.clone().multiply(t));
         List<Vector> corners = new ArrayList<>(4);
@@ -260,6 +269,33 @@ public final class RenderService {
      * Where a camera aimed this way must stand to keep {@code target} in the middle of its
      * frame, {@code distance} blocks back along its view.
      */
+    /**
+     * The same, then drawn back along the view until it stands in open air above the
+     * ground under it. Along its own view an orthographic camera's picture does not
+     * change, but a camera inside a hill sees the hill's insides: its lowest rays start at
+     * its own height, which is underground, and print a cross-section of the earth along
+     * the bottom of the photo. A level camera cannot climb this way and is left where it is.
+     * Reads only loaded chunks. Main thread.
+     */
+    public Location standClear(Location target, float yaw, float pitch, double distance) {
+        var direction = directionFrom(yaw, pitch);
+        var at = standFor(target, yaw, pitch, distance);
+        var world = target.getWorld();
+        if (world == null || -direction.getY() < 0.02) return at;
+        for (var back = 0; back < 64; back++) {
+            int bx = at.getBlockX(), bz = at.getBlockZ();
+            if (!world.isChunkLoaded(bx >> 4, bz >> 4) || at.getY() > world.getHighestBlockYAt(bx, bz) + 2) break;
+            if (at.getY() >= world.getMaxHeight() - 2) break;
+            at = standFor(target, yaw, pitch, distance + 4.0 * (back + 1));
+        }
+        return at;
+    }
+
+    /** The camera's up in its own picture, at this facing and tilt. */
+    public Vector upFrom(float yaw, float pitch) {
+        return basisFrom(directionFrom(yaw, pitch))[1].clone();
+    }
+
     public Location standFor(Location target, float yaw, float pitch, double distance) {
         var direction = directionFrom(yaw, pitch);
         var at = target.toVector().subtract(direction.multiply(distance));

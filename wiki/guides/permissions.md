@@ -8,7 +8,7 @@ Permissions decide **how expensive** a photo may get, not whether one can be tak
 
 ### A whole area, or one option
 
-Settings with a list of options are asked twice: `izomap.filter` grants every filter, `izomap.filter.WARM` only that one, and either is enough. The same holds for `izomap.sky.<NAME>` (`NONE`, `WORLD`, `DAWN`, `DAY`, `DUSK`, `NIGHT`), `izomap.ratio.<NAME>` (`RATIO_1_1`, `RATIO_16_9`, `RATIO_4_3`) and `izomap.frame.<ID>`. Give your staff the whole area and everybody else one option, with no second system to learn.
+Settings with a list of options are asked twice: `izomap.filter` grants every filter, `izomap.filter.WARM` only that one, and either is enough. The same holds for `izomap.sky.<NAME>` (`NONE`, `WORLD`, `DAWN`, `DAY`, `DUSK`, `NIGHT`), `izomap.ratio.<NAME>` (`RATIO_1_1`, `RATIO_16_9`, `RATIO_4_3`, `RATIO_3_4`, `RATIO_9_16`) and `izomap.frame.<ID>`. Give your staff the whole area and everybody else one option, with no second system to learn.
 
 The cheapest value of each setting is free: the **Original** filter, the **Transparent** sky and the **Fast** style need no node. A new camera placed by a player without `izomap.style.sharp` starts in fast style, so nobody is handed a camera they cannot shoot with.
 

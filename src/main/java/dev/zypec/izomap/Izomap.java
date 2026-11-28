@@ -143,9 +143,10 @@ public final class Izomap extends JavaPlugin {
         // Visual settings such as the model rotation offset take effect immediately.
         if (cameraManager != null)
             cameraManager.refreshTransforms();
-        // A changed port or address takes effect; links already handed out keep working.
+        // A changed port, address or relay takes effect; otherwise the editor and every tab
+        // open on it are left running.
         if (editorServer != null)
-            editorServer.start();
+            editorServer.reload();
     }
 
     /**

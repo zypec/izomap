@@ -39,6 +39,7 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -96,7 +97,7 @@ public final class EditorServer {
     private static final float SIDE_LIGHT = 60.0f;
     private static final float SIDE_LIGHT_HEIGHT = 35.0f;
     /** The version of this API, which the page's {@code relay.configure({api})} must name. */
-    public static final int API = 3;
+    public static final int API = 4;
     /** The kit's tunnel and interface, served beside the page when there is no relay to serve them. */
     private static final Pattern KIT_PATH = Pattern.compile("kit/(net|ui)/[a-z]+\\.(js|css)");
 
@@ -163,8 +164,30 @@ public final class EditorServer {
         var random = new byte[32];
         new SecureRandom().nextBytes(random);
         token = Base64.getUrlEncoder().withoutPadding().encodeToString(random);
+        startedWith = editorSettings();
         if (plugin.config().editorRelay().isEmpty())
             plugin.messages().info("log.editor-started", Placeholder.unparsed("address", address));
+    }
+
+    /** What the editor was started with; a reload that leaves all of it alone leaves it running. */
+    private String startedWith;
+    private EditorConfig settings;
+
+    private String editorSettings() {
+        var config = plugin.config();
+        return config.editorEnabled() + "|" + config.editorBind() + "|" + config.editorPort() + "|" + config.editorRelay();
+    }
+
+    /**
+     * After {@code /izocam reload}: started again only when the editor's own settings
+     * changed, since starting again drops every open tab and every link handed out.
+     */
+    public synchronized void reload() {
+        if (server != null && editorSettings().equals(startedWith)) {
+            if (relayLink != null) relayLink.idle(plugin.config().editorIdleMinutes());
+            return;
+        }
+        start();
     }
 
     public synchronized void stop() {
@@ -259,35 +282,51 @@ public final class EditorServer {
 
     // --- routing ---
 
+    /**
+     * Answers one request. The exchange is closed only once the answer, a refusal included,
+     * is written: a try-with-resources closes it before its catch runs, and the refusal
+     * then went into a closed exchange, leaving the page with no answer at all.
+     */
     private void handle(HttpExchange exchange) throws IOException {
-        try (exchange) {
-            var path = exchange.getRequestURI().getPath();
-            if (!path.startsWith("/api/")) {
-                serveStatic(exchange, path);
-                return;
-            }
-            var player = who(exchange);
-            if (player == null) {
-                json(exchange, 401, error("The session has ended. Run /izocam editor in the game for a new link."));
-                return;
-            }
-            var method = exchange.getRequestMethod();
-            var parts = path.substring("/api/".length()).split("/");
-            switch (parts[0]) {
-                case "alive" -> json(exchange, 200, new JsonObject());
-                case "state" -> {
-                    var asked = query(exchange);
-                    json(exchange, 200, onMain(() -> state(player, asked)));
-                }
-                case "tile" -> png(exchange, tile(player, query(exchange)));
-                case "cameras" -> cameras(exchange, player, method, parts);
-                case "photos" -> photos(exchange, player, method, parts);
-                default -> json(exchange, 404, error("No such call."));
-            }
+        try {
+            route(exchange);
         } catch (EditorException ex) {
             json(exchange, ex.status, error(ex.getMessage()));
         } catch (Exception ex) {
             json(exchange, 500, error("Something went wrong on the server: " + ex.getMessage()));
+        } finally {
+            exchange.close();
+        }
+    }
+
+    private void route(HttpExchange exchange) throws Exception {
+        var path = exchange.getRequestURI().getPath();
+        if (!path.startsWith("/api/")) {
+            serveStatic(exchange, path);
+            return;
+        }
+        var player = who(exchange);
+        if (player == null) {
+            json(exchange, 401, error("The session has ended. Run /izocam editor in the game for a new link."));
+            return;
+        }
+        var method = exchange.getRequestMethod();
+        var parts = path.substring("/api/".length()).split("/");
+        switch (parts[0]) {
+            case "alive" -> json(exchange, 200, new JsonObject());
+            case "state" -> {
+                var asked = query(exchange);
+                json(exchange, 200, onMain(() -> state(player, asked)));
+            }
+            case "tile" -> png(exchange, tile(player, query(exchange)));
+            case "cameras" -> cameras(exchange, player, method, parts);
+            case "photos" -> photos(exchange, player, method, parts);
+            case "config" -> config(exchange, player, method);
+            case "frames" -> {
+                if (parts.length != 3 || !parts[2].equals("sample")) throw new EditorException(404, "No such call.");
+                png(exchange, frameSample(parts[1]));
+            }
+            default -> json(exchange, 404, error("No such call."));
         }
     }
 
@@ -306,6 +345,16 @@ public final class EditorServer {
         }
         if (parts.length == 2 && method.equals("PATCH")) {
             var body = body(exchange);
+            // A spot clicked to aim at is read for its ground; one far off is loaded first,
+            // off the main thread, rather than aimed at sea level.
+            if (body.has("targetX") && body.has("targetZ") && !body.has("targetY")) {
+                var world = onMain(() -> camera(player, id).anchor().getWorld());
+                if (world != null) {
+                    var tx = (int) Math.floor(body.get("targetX").getAsDouble());
+                    var tz = (int) Math.floor(body.get("targetZ").getAsDouble());
+                    onMain(() -> world.getChunkAtAsync(tx >> 4, tz >> 4, false)).get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                }
+            }
             json(exchange, 200, onMain(() -> edit(player, camera(player, id), body)));
             return;
         }
@@ -326,6 +375,11 @@ public final class EditorServer {
             json(exchange, 200, onMain(() -> progress(camera(player, id))));
             return;
         }
+        if (parts.length == 3 && parts[2].equals("mode") && method.equals("POST")) {
+            var body = body(exchange);
+            json(exchange, 200, onMain(() -> mode(player, camera(player, id), body)));
+            return;
+        }
         if (parts.length == 3 && parts[2].equals("reset") && method.equals("POST")) {
             json(exchange, 200, onMain(() -> resetAim(player, camera(player, id))));
             return;
@@ -336,6 +390,48 @@ public final class EditorServer {
             return;
         }
         throw new EditorException(404, "No such call.");
+    }
+
+    /** The neutral ground a frame is drawn round to show it: a dark gray of the map palette. */
+    private static final int SAMPLE_GROUND = 0xFF4C4C4C;
+    private static final int SAMPLE_WIDTH = 360;
+    private static final int SAMPLE_HEIGHT = 96;
+
+    /** A frame drawn round a plain box, for the frame list to show what each one looks like. */
+    private byte[] frameSample(String id) throws IOException {
+        var frame = plugin.frames().byId(id);
+        if (frame == null) throw new EditorException(404, "There is no such frame.");
+        var pixels = new int[SAMPLE_WIDTH * SAMPLE_HEIGHT];
+        Arrays.fill(pixels, SAMPLE_GROUND);
+        return encode(PhotoFrames.draw(new RenderResult(SAMPLE_WIDTH, SAMPLE_HEIGHT, pixels), frame));
+    }
+
+    /** Whether a caller may change the server's settings: the console and admins. */
+    private static boolean mayConfigure(CommandSender player) {
+        return inGame(player) == null || player.hasPermission(Permissions.ADMIN);
+    }
+
+    private void config(HttpExchange exchange, CommandSender player, String method) throws Exception {
+        if (!mayConfigure(player)) throw new EditorException(403, "Changing the server's settings takes izomap.admin.");
+        synchronized (this) {
+            if (settings == null) settings = new EditorConfig(plugin);
+        }
+        if (method.equals("GET")) {
+            json(exchange, 200, onMain(settings::describe));
+            return;
+        }
+        if (!method.equals("PATCH")) throw new EditorException(404, "No such call.");
+        var body = body(exchange);
+        if (!body.has("values") || !body.get("values").isJsonObject()) throw new EditorException(400, "Which settings?");
+        json(exchange, 200, onMain(() -> {
+            try {
+                return settings.apply(body.getAsJsonObject("values"));
+            } catch (IllegalArgumentException wrong) {
+                throw new EditorException(400, wrong.getMessage());
+            } catch (IOException unwritable) {
+                throw new EditorException(500, "config.yml could not be written: " + unwritable.getMessage());
+            }
+        }));
     }
 
     private void photos(HttpExchange exchange, CommandSender player, String method, String[] parts) throws Exception {
@@ -458,6 +554,7 @@ public final class EditorServer {
         may.addProperty("focus", Permissions.focus(player));
         may.addProperty("bodies", Permissions.skyBodies(player));
         may.addProperty("export", player.hasPermission(Permissions.EXPORT));
+        may.addProperty("config", mayConfigure(player));
         options.add("may", may);
         // The sun's sliders change the picture only through shadows or the sun drawn in the sky.
         options.addProperty("sunShadow", plugin.config().shading().sunShadow());
@@ -521,6 +618,7 @@ public final class EditorServer {
         }
         out.add("frame", corners);
         out.addProperty("thirds", camera.thirdsGuide());
+        if (!Double.isNaN(camera.aimY())) out.addProperty("aimY", camera.aimY());
         var limit = Math.ceil(plugin.render().focusRange(camera).limit());
         out.addProperty("depthLimit", limit);
         out.add("suggest", suggestions(camera, limit));
@@ -692,17 +790,22 @@ public final class EditorServer {
         if (body.has("yaw")) camera.camYaw(body.get("yaw").getAsFloat());
         if (body.has("pitch")) camera.camPitch(body.get("pitch").getAsFloat());
         if (body.has("targetX") && body.has("targetZ")) {
+            // A drag keeps the plane the frame lies on (targetY), so it lands where it was
+            // let go; a click on a spot aims at the ground there.
             var world = camera.anchor().getWorld();
             var tx = body.get("targetX").getAsDouble();
             var tz = body.get("targetZ").getAsDouble();
-            var ty = world != null && world.isChunkLoaded((int) Math.floor(tx) >> 4, (int) Math.floor(tz) >> 4)
+            var ty = body.has("targetY") ? body.get("targetY").getAsDouble()
+                    : world != null && world.isChunkLoaded((int) Math.floor(tx) >> 4, (int) Math.floor(tz) >> 4)
                     ? world.getHighestBlockYAt((int) Math.floor(tx), (int) Math.floor(tz)) + 1.0
                     : before.target().getY();
-            moveTo(player, camera, plugin.render().standFor(new Location(world, tx, ty, tz),
+            camera.aimY(ty);
+            moveTo(player, camera, plugin.render().standClear(new Location(world, tx, ty, tz),
                     camera.camYaw(), camera.camPitch(), before.distance()));
         } else if (orbit && (body.has("yaw") || body.has("pitch"))) {
             var target = before.target();
-            moveTo(player, camera, plugin.render().standFor(
+            camera.aimY(target.getY());
+            moveTo(player, camera, plugin.render().standClear(
                     new Location(camera.anchor().getWorld(), target.getX(), target.getY(), target.getZ()),
                     camera.camYaw(), camera.camPitch(), before.distance()));
         }
@@ -724,6 +827,9 @@ public final class EditorServer {
         if (body.has("sunYaw")) camera.sunYaw(body.get("sunYaw").getAsFloat());
         if (body.has("sunPitch")) camera.sunPitch(body.get("sunPitch").getAsFloat());
         if (body.has("thirds")) camera.thirdsGuide(body.get("thirds").getAsBoolean());
+        if (body.has("name")) rename(camera, body.get("name").getAsString().trim());
+        // Undo puts back the plane a camera was aimed on with everything else it had.
+        if (body.has("aimY")) camera.aimY(body.get("aimY").isJsonNull() ? Double.NaN : body.get("aimY").getAsDouble());
         if (body.has("x") || body.has("y") || body.has("z")) {
             var anchor = camera.anchor();
             if (body.has("x")) anchor.setX(body.get("x").getAsDouble());
@@ -734,6 +840,22 @@ public final class EditorServer {
         plugin.cameras().applyAndPersist(camera);
         plugin.preview().refresh(camera);
         return describe(player, camera);
+    }
+
+    /** A camera's name is one word, as /izocam takes it. */
+    private static final Pattern CAMERA_NAME = Pattern.compile("[A-Za-z0-9_.+-]{1,32}");
+
+    private void rename(Camera camera, String name) {
+        if (name.equals(camera.name())) return;
+        if (!CAMERA_NAME.matcher(name).matches())
+            throw new EditorException(400, "A camera's name is one word of letters, digits and _ . + -, up to 32.");
+        var taken = plugin.cameras().byOwnerAndName(camera.owner(), name);
+        if (taken.isPresent() && taken.get() != camera)
+            throw new EditorException(409, "There is already a camera called " + name + ".");
+        var old = camera.name();
+        camera.name(name);
+        plugin.photos().cameraRenamed(camera.owner(), old, name);
+        plugin.cameras().syncHologram(camera);
     }
 
     private void moveTo(CommandSender player, Camera camera, Location anchor) {
@@ -838,6 +960,74 @@ public final class EditorServer {
         }
         plugin.photos().applyFrame(player, photo, wanted.isEmpty() ? null : wanted);
         return describe(plugin.photos().byId(photo.id()).orElse(photo));
+    }
+
+    /** The tilt a portrait starts at: low enough to stand a building up, high enough to see the ground's surface. */
+    private static final float PORTRAIT_PITCH = 8.0f;
+
+    /**
+     * Sets the camera up for a kind of shot, from where it is aimed now, the way a phone's
+     * camera has its modes; anything it sets can be changed after.
+     *
+     * <ul>
+     *   <li>{@code photo}: 16:9 at the default tilt.</li>
+     *   <li>{@code portrait}: 3:4 (9:16 where only that is allowed), nearly level, and
+     *       raised so the bottom edge of the frame meets the ground at the spot aimed at,
+     *       which stands a building up on its own foot with no earth under it.</li>
+     *   <li>{@code square}: 1:1.</li>
+     *   <li>{@code top}: straight down, a map of the place.</li>
+     * </ul>
+     */
+    private JsonObject mode(CommandSender player, Camera camera, JsonObject body) {
+        var mode = body.has("mode") ? body.get("mode").getAsString() : "";
+        var before = plugin.render().frame(camera);
+        var world = camera.anchor().getWorld();
+        var target = before.target();
+        switch (mode) {
+            case "photo" -> {
+                pickRatio(player, camera, AspectRatio.RATIO_16_9, AspectRatio.RATIO_4_3);
+                camera.camPitch((float) plugin.config().defaultPitch());
+            }
+            case "square" -> pickRatio(player, camera, AspectRatio.RATIO_1_1);
+            case "top" -> camera.camPitch(90.0f);
+            case "portrait" -> {
+                pickRatio(player, camera, AspectRatio.RATIO_3_4, AspectRatio.RATIO_9_16);
+                camera.camPitch(PORTRAIT_PITCH);
+                int gx = (int) Math.floor(target.getX()), gz = (int) Math.floor(target.getZ());
+                var ground = world != null && world.isChunkLoaded(gx >> 4, gz >> 4)
+                        ? world.getHighestBlockYAt(gx, gz) + 1.0 : target.getY();
+                // The frame's middle goes half a frame up its own up from the ground, so its
+                // bottom edge is where the middle was.
+                var span = plugin.config().frameHeight() / camera.zoom();
+                var up = plugin.render().upFrom(camera.camYaw(), camera.camPitch());
+                var middle = new Location(world, target.getX(), ground, target.getZ())
+                        .add(up.clone().multiply(span * 0.5));
+                var aim = middle.clone().subtract(up.clone().multiply(span * plugin.config().frameShift()));
+                camera.aimY(middle.getY());
+                moveTo(player, camera, plugin.render().standClear(aim, camera.camYaw(), camera.camPitch(),
+                        Math.max(32.0, before.distance())));
+                plugin.cameras().applyAndPersist(camera);
+                plugin.preview().refresh(camera);
+                return describe(player, camera);
+            }
+            default -> throw new EditorException(400, "No such mode.");
+        }
+        // The other modes turn round what the camera was aimed at.
+        camera.aimY(target.getY());
+        moveTo(player, camera, plugin.render().standClear(new Location(world, target.getX(), target.getY(), target.getZ()),
+                camera.camYaw(), camera.camPitch(), before.distance()));
+        plugin.cameras().applyAndPersist(camera);
+        plugin.preview().refresh(camera);
+        return describe(player, camera);
+    }
+
+    /** The first of these ratios the player may shoot, or the camera's own where none is. */
+    private static void pickRatio(CommandSender player, Camera camera, AspectRatio... wanted) {
+        for (var ratio : wanted)
+            if (Permissions.ratio(player, ratio)) {
+                camera.aspectRatio(ratio);
+                return;
+            }
     }
 
     /** What the capture screen's Reset aim does: facing the player's way (the console's keeps its own), the default tilt, zoom 1. */

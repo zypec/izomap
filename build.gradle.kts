@@ -55,6 +55,8 @@ dependencies {
 
 tasks {
     processResources {
+        // The wiki's words for each config key, which the web editor's settings show.
+        from("wiki/reference/config.yml") { into("reference") }
         val props = mapOf("version" to project.version.toString(), "apiVersion" to minecraftVersion)
         inputs.properties(props)
         filesMatching("paper-plugin.yml") {

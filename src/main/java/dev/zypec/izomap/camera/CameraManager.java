@@ -311,6 +311,8 @@ public final class CameraManager {
      * Moves the camera and both of its entities to a new location.
      */
     public void move(Camera camera, Location newAnchor) {
+        // Carried somewhere else, the plane it was aimed on belongs to the old place.
+        camera.aimY(Double.NaN);
         reposition(camera, newAnchor);
         persistAsync();
     }
