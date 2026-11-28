@@ -51,11 +51,12 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
 .pick .choicebtn{height:36px;border:0;background:transparent;color:var(--glass-ink);font-weight:600}
 .pick .choicebtn:hover{background:rgba(255,255,255,.06)}
 .quick{display:flex;align-items:center;gap:2px;padding:4px;margin:0 auto}
-/* Icons only; a setting that is on says its name, opening as the site's island does. */
+/* Icons only; the one under the pointer, or open, says its name, opening as the site's island does. */
 .quick button b{max-width:0;opacity:0;overflow:hidden;white-space:nowrap;font-weight:500;text-transform:uppercase;letter-spacing:.06em;
   transition:max-width .42s cubic-bezier(.2,.8,.2,1),opacity .25s,margin .42s}
-.quick button svg + b{margin-left:0}
-.quick button[aria-pressed=true] b{max-width:90px;opacity:1;margin-left:2px;color:#1a1500}
+.quick button{gap:0}
+.quick button:is(:hover,:focus-visible,[aria-expanded=true]) b{max-width:110px;opacity:1;margin-left:7px}
+.quick button[aria-pressed=true] b{color:#1a1500}
 .quick button[data-bar=ratio] b{max-width:none;opacity:1;color:var(--glass-ink)}
 .quick button.shut{opacity:.35}
 .quick button[aria-expanded=true]{box-shadow:inset 0 0 0 1px var(--yellow)}
@@ -135,10 +136,11 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
 #zoomtip{position:absolute;z-index:3;pointer-events:none;padding:4px 8px;border-radius:var(--r);background:#000c;color:var(--yellow);font:600 12px var(--hud);display:none}
 
 /* the side: the viewfinder held in place at the top, the dials and the look under it */
-.side{min-height:0;overflow-y:auto;scrollbar-width:thin;display:flex;flex-direction:column;gap:12px}
+/* The viewfinder and the cards under it share one width: the photo's, held to a part of the window's height, never under 300px. */
+.side{--ar:1.7778;--fw:min(100%,max(300px,calc(42vh * var(--ar))),calc(60vh * var(--ar)));
+  min-height:0;overflow-y:auto;scrollbar-width:thin;display:flex;flex-direction:column;gap:12px}
 .finder{position:sticky;top:0;z-index:5;flex:none;padding-bottom:2px;background:#000}
-/* A tall photo is held to a part of the window's height and narrowed to its ratio, so the settings keep their room. */
-.stage{--ar:1.7778;width:min(100%,calc(42vh * var(--ar)));margin:0 auto;position:relative;border-radius:var(--r);overflow:hidden;background:conic-gradient(#1d1d20 25%,#141416 0 50%,#1d1d20 0 75%,#141416 0) 0 0/22px 22px}
+.stage{width:var(--fw);margin:0 auto;position:relative;border-radius:var(--r);overflow:hidden;background:conic-gradient(#1d1d20 25%,#141416 0 50%,#1d1d20 0 75%,#141416 0) 0 0/22px 22px}
 .stage img{display:block;width:100%;height:100%;object-fit:contain;image-rendering:pixelated;transition:opacity .3s,filter .3s}
 .stage img:not([src]){visibility:hidden}
 .stage.loading img{opacity:.6;filter:saturate(.6)}
@@ -150,9 +152,9 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
   text-transform:uppercase;color:#fff;text-shadow:0 1px 3px rgba(0,0,0,.8);pointer-events:none}
 .hud.top{top:12px}.hud.foot{bottom:12px}
 .hud span{opacity:.75}.hud b{font-weight:500;margin-left:6px;color:var(--yellow)}
-#panel{display:grid;gap:12px}
+#panel{display:grid;gap:12px;width:var(--fw);margin:0 auto}
 .layouts{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px}
-.layouts .layout{display:grid;justify-items:start;gap:2px;padding:8px 10px;text-align:left;background:rgba(255,255,255,.04);border-color:var(--glass-line);color:var(--glass-ink)}
+.layouts .layout{display:grid;justify-items:start;align-content:center;gap:4px;height:auto;min-height:0;line-height:1.15;padding:10px 12px 11px;text-align:left;background:rgba(255,255,255,.04);border-color:var(--glass-line);color:var(--glass-ink)}
 .layouts .layout small{color:var(--glass-dim);font:11px var(--hud)}
 .layouts .layout.on{background:var(--yellow);border-color:var(--yellow);color:#1a1500}
 .layouts .layout.on small{color:#1a1500}
@@ -873,7 +875,7 @@ function refresh() {
   $('thirds').hidden = !c.thirds;
   const [rw, rh] = c.ratio.split(':').map(Number);
   $('stage').style.aspectRatio = `${rw} / ${rh}`;
-  $('stage').style.setProperty('--ar', String(rw / rh));
+  document.querySelector('.side').style.setProperty('--ar', String(rw / rh));
   $('h-style').textContent = named('styles', c.style); $('h-sky').textContent = named('skies', c.sky); $('h-filter').textContent = named('filters', c.filter);
   $('h-blocks').textContent = `${Math.round(c.blocks)} blocks`; $('h-zoom').textContent = `${c.zoom.toFixed(2)}x`; $('h-tilt').textContent = `${Math.round(c.pitch)}°`;
   bar(); modes(); layouts();
