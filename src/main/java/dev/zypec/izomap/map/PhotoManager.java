@@ -422,6 +422,40 @@ public final class PhotoManager {
     }
 
     /**
+     * Shoots the camera for a file rather than for the wall: the same capture as
+     * {@link #capture}, through the same queue and the same checks, with the frame drawn
+     * on, and no photo filed or counted against the limit. What the web editor exports.
+     * Must be started on the main thread; fails with an {@link IllegalStateException}
+     * naming why when it may not shoot.
+     *
+     * @param frameId a frame the player may use, or {@code null} for none
+     */
+    public CompletableFuture<RenderResult> shootForExport(Player player, Camera camera, GridOption grid, String frameId) {
+        if (!mayCapture(player, camera, grid))
+            return CompletableFuture.failedFuture(new IllegalStateException("Those settings are not allowed for you; the game says which."));
+        var frame = frameId == null ? null : plugin.frames().byId(frameId);
+        if (frameId != null && (frame == null || !Permissions.frame(player, frame.id())))
+            return CompletableFuture.failedFuture(new IllegalStateException("That frame is not one you can use."));
+
+        var spec = renderService.specFor(camera);
+        CompletableFuture<RenderResult> out = new CompletableFuture<>();
+        var accepted = queue.submit(camera.id(), () -> {
+            var progress = shutter(camera, player, true);
+            return renderService.capture(spec, grid.widthPx(), grid.heightPx(), progress).whenComplete((result, error) -> {
+                plugin.runOnMain(() -> shutter(camera, player, false));
+                if (error != null || result == null) {
+                    reportCaptureError(player, camera.name(), error);
+                    out.completeExceptionally(error != null ? error : new IllegalStateException("The capture came back empty."));
+                    return;
+                }
+                out.complete(PhotoFrames.draw(result, frame));
+            });
+        }, null, null);
+        if (!accepted) return CompletableFuture.failedFuture(new IllegalStateException("This camera is already taking a photo."));
+        return out;
+    }
+
+    /**
      * Shoots a photo again, keeping everything else about it. A photo that hangs
      * somewhere is rewritten in place, on the same maps.
      *

@@ -41,7 +41,7 @@ dependencies {
 
     // The web editor's relay link, tunnel and relay, shared with Particles+. A sibling checkout of
     // ../editor-kit takes its place (settings.gradle.kts).
-    implementation("dev.zypec:editor-kit:1.0.0")
+    implementation("dev.zypec:editor-kit:1.1.0")
 
     testImplementation(platform("org.junit:junit-bom:5.11.4"))
     testImplementation("org.junit.jupiter:junit-jupiter")

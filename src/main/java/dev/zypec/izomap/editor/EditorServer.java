@@ -11,6 +11,8 @@ import dev.zypec.izomap.camera.Camera;
 import dev.zypec.izomap.config.Permissions;
 import dev.zypec.izomap.map.GridLayouts;
 import dev.zypec.izomap.map.GridOption;
+import dev.zypec.izomap.map.Photo;
+import dev.zypec.izomap.map.PhotoFrames;
 import dev.zypec.izomap.place.Protection;
 import dev.zypec.izomap.render.AspectRatio;
 import dev.zypec.izomap.render.ColorFilter;
@@ -18,10 +20,12 @@ import dev.zypec.izomap.render.PhotoStyle;
 import dev.zypec.izomap.render.RenderResult;
 import dev.zypec.izomap.render.SkyOption;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Location;
 import org.bukkit.entity.Player;
 
 import javax.imageio.ImageIO;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -42,6 +46,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
+import java.util.regex.Pattern;
 
 /**
  * The web editor's API, served by the plugin itself on {@code editor.bind}:{@code editor.port}.
@@ -63,16 +68,22 @@ public final class EditorServer {
 
     /** How long a request waits for the main thread or a render before giving up. */
     private static final long TIMEOUT_SECONDS = 120;
+    /** How long an export waits: a wide photo at full size takes minutes, and waits in line first. */
+    private static final long EXPORT_SECONDS = 600;
+    /** Widest picture of a photo the list asks for without the export permission. */
+    private static final int THUMBNAIL_PIXELS = 480;
     /** Widest top-down map one request may ask for, in blocks per side. */
     private static final int MAX_MAP_BLOCKS = 1024;
     private static final int MAP_PIXELS = 512;
     /** How far above the ground a camera placed from the map stands. */
     private static final int PLACE_HEIGHT = 12;
+    /** The capture screen's side-light suggestion: the sun this far off the camera's facing, this high. */
+    private static final float SIDE_LIGHT = 60.0f;
+    private static final float SIDE_LIGHT_HEIGHT = 35.0f;
     /** The version of this API, which the page's {@code relay.configure({api})} must name. */
     public static final int API = 1;
-    /** The kit's tunnel, served beside the page when there is no relay to serve it. */
-    private static final String KIT_PATH = "kit/net/relay.js";
-    private static final String KIT_RESOURCE = "editorkit/web/net/relay.js";
+    /** The kit's tunnel and interface, served beside the page when there is no relay to serve them. */
+    private static final Pattern KIT_PATH = Pattern.compile("kit/(net|ui)/[a-z]+\\.(js|css)");
 
     private final Izomap plugin;
     private final EditorSessions sessions;
@@ -214,6 +225,7 @@ public final class EditorServer {
                 case "state" -> json(exchange, 200, onMain(() -> state(player)));
                 case "map" -> png(exchange, map(player, query(exchange)));
                 case "cameras" -> cameras(exchange, player, method, parts);
+                case "photos" -> photos(exchange, player, method, parts);
                 default -> json(exchange, 404, error("No such call."));
             }
         } catch (EditorException ex) {
@@ -232,6 +244,10 @@ public final class EditorServer {
         if (parts.length < 2) throw new EditorException(404, "No such call.");
 
         var id = parseId(parts[1]);
+        if (parts.length == 2 && method.equals("GET")) {
+            json(exchange, 200, onMain(() -> describe(player, camera(player, id))));
+            return;
+        }
         if (parts.length == 2 && method.equals("PATCH")) {
             var body = body(exchange);
             json(exchange, 200, onMain(() -> edit(player, camera(player, id), body)));
@@ -244,6 +260,34 @@ public final class EditorServer {
         if (parts.length == 3 && parts[2].equals("photo") && method.equals("POST")) {
             var body = body(exchange);
             json(exchange, 200, onMain(() -> shoot(player, camera(player, id), body)));
+            return;
+        }
+        if (parts.length == 3 && parts[2].equals("photos")) {
+            json(exchange, 200, onMain(() -> photoList(player, camera(player, id))));
+            return;
+        }
+        if (parts.length == 3 && parts[2].equals("reset") && method.equals("POST")) {
+            json(exchange, 200, onMain(() -> resetAim(player, camera(player, id))));
+            return;
+        }
+        if (parts.length == 3 && parts[2].equals("export") && method.equals("POST")) {
+            var body = body(exchange);
+            png(exchange, exportShot(player, id, body));
+            return;
+        }
+        throw new EditorException(404, "No such call.");
+    }
+
+    private void photos(HttpExchange exchange, Player player, String method, String[] parts) throws Exception {
+        if (parts.length < 2) throw new EditorException(404, "No such call.");
+        var id = parseId(parts[1]);
+        if (parts.length == 2 && method.equals("PATCH")) {
+            var body = body(exchange);
+            json(exchange, 200, onMain(() -> reframe(player, photo(player, id), body)));
+            return;
+        }
+        if (parts.length == 3 && parts[2].equals("image")) {
+            png(exchange, photoImage(player, id, query(exchange)));
             return;
         }
         throw new EditorException(404, "No such call.");
@@ -266,17 +310,78 @@ public final class EditorServer {
             if (camera.anchor().getWorld() == at.getWorld()) cameras.add(describe(player, camera));
         out.add("cameras", cameras);
 
-        var options = new JsonObject();
-        options.add("filters", gson.toJsonTree(plugin.filters().all().stream().map(ColorFilter::id).toList()));
-        options.add("styles", gson.toJsonTree(List.of(PhotoStyle.values()).stream().map(Enum::name).toList()));
-        options.add("skies", gson.toJsonTree(List.of(SkyOption.values()).stream().map(Enum::name).toList()));
-        var ratios = new JsonObject();
-        for (var ratio : AspectRatio.values())
-            ratios.add(ratio.label(), gson.toJsonTree(GridLayouts.allowedFor(player, ratio, plugin.config().maxMapTiles())
-                    .stream().map(GridOption::label).toList()));
-        options.add("grids", ratios);
-        out.add("options", options);
+        out.add("options", options(player));
+        out.addProperty("defaultPitch", plugin.config().defaultPitch());
         return out;
+    }
+
+    /**
+     * Every choice the capture screen offers, each with its name in the server's language and
+     * whether this player may use it, so the page shows what is there and why a choice is shut
+     * rather than leaving it out.
+     */
+    private JsonObject options(Player player) {
+        var options = new JsonObject();
+        var filters = new JsonArray();
+        for (var filter : plugin.filters().all())
+            filters.add(choice(filter.id(), "filter." + filter.id(), Permissions.filter(player, filter)));
+        options.add("filters", filters);
+        var styles = new JsonArray();
+        for (var style : PhotoStyle.values())
+            styles.add(choice(style.name(), "style." + style.name(), Permissions.style(player, style)));
+        options.add("styles", styles);
+        var skies = new JsonArray();
+        for (var sky : SkyOption.values())
+            skies.add(choice(sky.name(), "sky." + sky.name(), Permissions.sky(player, sky)));
+        options.add("skies", skies);
+        var ratios = new JsonArray();
+        var grids = new JsonObject();
+        for (var ratio : AspectRatio.values()) {
+            var entry = new JsonObject();
+            entry.addProperty("id", ratio.label());
+            entry.addProperty("name", ratio.label());
+            entry.addProperty("allowed", Permissions.ratio(player, ratio));
+            ratios.add(entry);
+            var list = new JsonArray();
+            for (var grid : GridLayouts.allowedFor(player, ratio, plugin.config().maxMapTiles())) {
+                var option = new JsonObject();
+                option.addProperty("id", grid.label());
+                option.addProperty("maps", grid.tileCount());
+                option.addProperty("width", grid.widthPx());
+                option.addProperty("height", grid.heightPx());
+                list.add(option);
+            }
+            grids.add(ratio.label(), list);
+        }
+        options.add("ratios", ratios);
+        options.add("grids", grids);
+        var frames = new JsonArray();
+        for (var frame : plugin.frames().all())
+            frames.add(choice(frame.id(), "frame." + frame.id(), Permissions.frame(player, frame.id())));
+        options.add("frames", frames);
+        var may = new JsonObject();
+        may.addProperty("fog", Permissions.fog(player));
+        may.addProperty("focus", Permissions.focus(player));
+        may.addProperty("bodies", Permissions.skyBodies(player));
+        may.addProperty("export", player.hasPermission(Permissions.EXPORT));
+        options.add("may", may);
+        // The sun's sliders change the picture only through shadows or the sun drawn in the sky.
+        options.addProperty("sunShadow", plugin.config().shading().sunShadow());
+        options.addProperty("sunDrawn", plugin.config().skyBodies().sun());
+        return options;
+    }
+
+    private JsonObject choice(String id, String key, boolean allowed) {
+        var out = new JsonObject();
+        out.addProperty("id", id);
+        out.addProperty("name", named(key, id));
+        out.addProperty("allowed", allowed);
+        return out;
+    }
+
+    /** A message's text without its colors: the page draws names in its own look. */
+    private String named(String key, String fallback) {
+        return PlainTextComponentSerializer.plainText().serialize(plugin.messages().getOr(key, fallback));
     }
 
     private JsonObject describe(Player player, Camera camera) {
@@ -320,7 +425,54 @@ public final class EditorServer {
             corners.add(point);
         }
         out.add("frame", corners);
+        out.addProperty("thirds", camera.thirdsGuide());
+        var limit = Math.ceil(plugin.render().focusRange(camera).limit());
+        out.addProperty("depthLimit", limit);
+        out.add("suggest", suggestions(camera, limit));
         return out;
+    }
+
+    /**
+     * What the capture screen suggests, read off the camera's last preview: where to focus,
+     * where fog should begin and end, and two places for the sun. Empty where the last
+     * preview has not said yet how far the frame sees.
+     */
+    private JsonObject suggestions(Camera camera, double limit) {
+        var out = new JsonObject();
+        var scene = camera.sceneDepth();
+        if (scene != null) {
+            var focus = new JsonObject();
+            if (scene.center() > 0.0) focus.addProperty("center", Math.min(limit, Math.round(scene.center())));
+            focus.addProperty("near", Math.min(limit, Math.round(scene.near())));
+            focus.addProperty("median", Math.min(limit, Math.round(scene.median())));
+            out.add("focus", focus);
+            if (scene.deep()) {
+                var fog = new JsonObject();
+                fog.addProperty("start", scene.suggestedStart());
+                fog.addProperty("end", (int) Math.min(scene.suggestedEnd(), limit));
+                out.add("fog", fog);
+            }
+            var depth = new JsonObject();
+            depth.addProperty("near", Math.round(scene.near()));
+            depth.addProperty("median", Math.round(scene.median()));
+            depth.addProperty("far", Math.round(scene.far()));
+            depth.addProperty("sky", Math.round(scene.skyShare() * 100));
+            out.add("depth", depth);
+        }
+        var side = new JsonObject();
+        side.addProperty("sunYaw", wrap(camera.camYaw() + SIDE_LIGHT));
+        side.addProperty("sunPitch", SIDE_LIGHT_HEIGHT);
+        out.add("sideLight", side);
+        var framed = new JsonObject();
+        framed.addProperty("sunYaw", wrap(camera.camYaw() + 180.0f));
+        framed.addProperty("sunPitch", Math.max(5.0f, Math.min(60.0f, 30.0f - camera.camPitch())));
+        out.add("sunInFrame", framed);
+        return out;
+    }
+
+    private static float wrap(float degrees) {
+        var turned = degrees % 360.0f;
+        return turned < 0 ? turned + 360.0f : turned;
     }
 
     /**
@@ -407,6 +559,7 @@ public final class EditorServer {
         if (body.has("focusDistance")) camera.focusDistance(body.get("focusDistance").getAsFloat());
         if (body.has("sunYaw")) camera.sunYaw(body.get("sunYaw").getAsFloat());
         if (body.has("sunPitch")) camera.sunPitch(body.get("sunPitch").getAsFloat());
+        if (body.has("thirds")) camera.thirdsGuide(body.get("thirds").getAsBoolean());
         if (body.has("x") || body.has("y") || body.has("z")) {
             var anchor = camera.anchor();
             if (body.has("x")) anchor.setX(body.get("x").getAsDouble());
@@ -429,12 +582,132 @@ public final class EditorServer {
 
     private byte[] preview(Player player, UUID id, Map<String, String> query) throws Exception {
         var width = (int) Math.max(64, Math.min(1024, number(query, "w")));
+        var frameId = query.get("frame");
+        var gridLabel = query.get("grid");
         var future = onMain(() -> {
             var camera = camera(player, id);
             var ratio = camera.aspectRatio().value();
-            return plugin.render().capture(plugin.render().specFor(camera), width, Math.max(1, (int) Math.round(width / ratio)));
+            return plugin.render().capture(plugin.render().specFor(camera), width, Math.max(1, (int) Math.round(width / ratio)),
+                    null, null, null, camera::sceneDepth);
         });
-        return encode(future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS));
+        var image = future.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+        var frame = frameId == null || frameId.isEmpty() ? null : plugin.frames().byId(frameId);
+        if (frame == null || !Permissions.frame(player, frame.id())) return encode(image);
+
+        // Drawn at the photo's own size and shrunk back, so the frame is as thick against the
+        // picture here as it will be on the photo.
+        var camera = plugin.cameras().byId(id);
+        var grid = camera == null || gridLabel == null ? null : GridLayouts.find(camera.aspectRatio(), gridLabel);
+        if (grid == null) return encode(PhotoFrames.draw(image, frame));
+        var full = PhotoFrames.draw(resized(image, grid.widthPx(), grid.heightPx(), false), frame);
+        return encode(resized(full, image.width(), image.height(), true));
+    }
+
+    /** The image at another size: blocky when grown, smoothed when shrunk. */
+    private static RenderResult resized(RenderResult image, int width, int height, boolean smooth) {
+        if (image.width() == width && image.height() == height) return image;
+        var source = image.toImage();
+        var out = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+        var g = out.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, smooth
+                ? RenderingHints.VALUE_INTERPOLATION_BILINEAR : RenderingHints.VALUE_INTERPOLATION_NEAREST_NEIGHBOR);
+        g.drawImage(source, 0, 0, width, height, null);
+        g.dispose();
+        var pixels = out.getRGB(0, 0, width, height, null, 0, width);
+        return new RenderResult(width, height, pixels);
+    }
+
+    /**
+     * The camera's photos, newest last, as the list on the capture screen has them.
+     */
+    private JsonArray photoList(Player player, Camera camera) {
+        var out = new JsonArray();
+        for (var photo : plugin.photos().takenWith(camera.owner(), camera.name())) out.add(describe(photo));
+        return out;
+    }
+
+    private JsonObject describe(Photo photo) {
+        var out = new JsonObject();
+        out.addProperty("id", photo.id().toString());
+        out.addProperty("shortId", photo.shortId());
+        out.addProperty("name", photo.name());
+        out.addProperty("grid", photo.grid().label());
+        out.addProperty("width", photo.grid().widthPx());
+        out.addProperty("height", photo.grid().heightPx());
+        out.addProperty("maps", photo.grid().tileCount());
+        out.addProperty("placed", photo.isPlaced());
+        if (photo.frameId() != null) out.addProperty("frame", photo.frameId());
+        out.addProperty("frameEditable", photo.frameEditable());
+        return out;
+    }
+
+    private Photo photo(Player player, UUID id) {
+        var photo = plugin.photos().byId(id).orElseThrow(() -> new EditorException(404, "That photo is gone."));
+        if (!photo.owner().equals(player.getUniqueId()) && !player.hasPermission(Permissions.ADMIN))
+            throw new EditorException(403, "That is not your photo.");
+        return photo;
+    }
+
+    /**
+     * A photo as it hangs, frame and all: at full size to save or copy, which takes the
+     * export permission, or shrunk to {@code w} for the list.
+     */
+    private byte[] photoImage(Player player, UUID id, Map<String, String> query) throws Exception {
+        var width = query.containsKey("w") ? (int) Math.max(32, Math.min(THUMBNAIL_PIXELS, number(query, "w"))) : 0;
+        var photo = onMain(() -> photo(player, id));
+        if (width == 0 && !player.hasPermission(Permissions.EXPORT))
+            throw new EditorException(403, "Saving photos takes the izomap.export permission.");
+        var image = plugin.photos().image(photo).get(EXPORT_SECONDS, TimeUnit.SECONDS);
+        if (width == 0 || width >= image.width()) return encode(image);
+        return encode(resized(image, width, Math.max(1, (int) Math.round((double) image.height() * width / image.width())), true));
+    }
+
+    /** Puts a frame on a photo, changes it, or takes it off ({@code frame: ""}). */
+    private JsonObject reframe(Player player, Photo photo, JsonObject body) {
+        if (!body.has("frame")) throw new EditorException(400, "Which frame?");
+        if (!photo.frameEditable()) throw new EditorException(409, "This photo's frame is part of the photo; it cannot be changed.");
+        var wanted = body.get("frame").isJsonNull() ? "" : body.get("frame").getAsString();
+        if (!wanted.isEmpty()) {
+            var frame = plugin.frames().byId(wanted);
+            if (frame == null) throw new EditorException(404, "There is no such frame.");
+            if (!Permissions.frame(player, frame.id())) throw new EditorException(403, "That frame is not one you can use.");
+        }
+        plugin.photos().applyFrame(player, photo, wanted.isEmpty() ? null : wanted);
+        return describe(plugin.photos().byId(photo.id()).orElse(photo));
+    }
+
+    /** What the capture screen's Reset aim does: facing the player's way, the default tilt, zoom 1. */
+    private JsonObject resetAim(Player player, Camera camera) {
+        camera.camYaw(player.getLocation().getYaw());
+        camera.camPitch((float) plugin.config().defaultPitch());
+        camera.zoom(1.0f);
+        plugin.cameras().applyAndPersist(camera);
+        plugin.preview().refresh(camera);
+        return describe(player, camera);
+    }
+
+    /**
+     * The camera shot at a layout's full size with a frame, as a PNG for the page to save or
+     * copy, filing no photo. Waits in the capture queue like any photo.
+     */
+    private byte[] exportShot(Player player, UUID id, JsonObject body) throws Exception {
+        if (!player.hasPermission(Permissions.EXPORT))
+            throw new EditorException(403, "Saving photos takes the izomap.export permission.");
+        var frameId = body.has("frame") && !body.get("frame").isJsonNull() && !body.get("frame").getAsString().isEmpty()
+                ? body.get("frame").getAsString() : null;
+        var future = onMain(() -> {
+            var camera = camera(player, id);
+            var grid = body.has("grid") ? GridLayouts.find(camera.aspectRatio(), body.get("grid").getAsString()) : null;
+            if (grid == null) grid = GridLayouts.optionsFor(camera.aspectRatio()).getFirst();
+            return plugin.photos().shootForExport(player, camera, grid, frameId);
+        });
+        try {
+            return encode(future.get(EXPORT_SECONDS, TimeUnit.SECONDS));
+        } catch (ExecutionException ex) {
+            var cause = ex.getCause();
+            if (cause instanceof IllegalStateException refused) throw new EditorException(409, refused.getMessage());
+            throw ex;
+        }
     }
 
     /**
@@ -496,12 +769,12 @@ public final class EditorServer {
 
     private void serveStatic(HttpExchange exchange, String path) throws IOException {
         var file = path.equals("/") ? "index.html" : path.substring(1);
-        var kit = file.equals(KIT_PATH);
+        var kit = KIT_PATH.matcher(file).matches();
         if (!kit && (file.contains("..") || file.contains("/"))) {
             send(exchange, 404, "text/plain", "Not found".getBytes(StandardCharsets.UTF_8));
             return;
         }
-        try (InputStream in = plugin.getResource(kit ? KIT_RESOURCE : "editor/" + file)) {
+        try (InputStream in = plugin.getResource(kit ? "editorkit/web/" + file.substring("kit/".length()) : "editor/" + file)) {
             if (in == null) {
                 send(exchange, 404, "text/plain", "Not found".getBytes(StandardCharsets.UTF_8));
                 return;

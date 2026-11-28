@@ -4,74 +4,121 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Izomap editor</title>
+<script>
+try {
+  const theme = localStorage.getItem('zypec-theme');
+  if (theme === 'light' || theme === 'dark') document.documentElement.setAttribute('data-theme', theme);
+} catch (unavailable) {}
+</script>
+<link rel="stylesheet" href="kit/ui/ui.css">
 <style>
 /* The editor: the world from above on the left, the chosen camera on the right. The relay serves this page
    and carries its calls to the plugin through the editor kit's tunnel (kit/net/relay.js); with no relay, the
-   plugin serves it and every call carries the session key from the link /izocam editor printed. */
-:root{color-scheme:dark;--bg:#0b0b0d;--panel:#141417;--line:#26262b;--ink:#ececf1;--muted:#8d8d98;--yellow:#ffd60a;
-  --mono:ui-monospace,SFMono-Regular,Menlo,monospace;--sans:"Helvetica Neue",Helvetica,Arial,sans-serif}
+   plugin serves it and every call carries the session key from the link /izocam editor printed. Windows,
+   dropdowns, switches, toasts and the theme are the kit's (kit/ui); this file only sets Izomap's colors. */
+:root{--accent:#7a5600;--accent-soft:#7a560014;--on-accent:#fff;--sky:#ffd60a}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--accent:#e3b12a;--accent-soft:#e3b12a1c;--on-accent:#1a1300}}
+:root[data-theme=dark]{--accent:#e3b12a;--accent-soft:#e3b12a1c;--on-accent:#1a1300}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font:14px/1.45 var(--sans)}
-button,input,select{font:inherit;color:inherit}
-.app{display:grid;grid-template-columns:minmax(0,1fr) 380px;height:100vh}
+h3{margin:0;font:600 11px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--dim)}
+.app{display:grid;grid-template-columns:minmax(0,1fr) 400px;height:100vh}
+
+/* the map */
 .mapwrap{position:relative;overflow:hidden;background:#060607;cursor:grab;touch-action:none}
 .mapwrap.dragging{cursor:grabbing}
 .mapwrap.placing{cursor:crosshair}
 .mapwrap img:not([src]){visibility:hidden}
 .mapwrap img{position:absolute;left:0;top:0;transform-origin:0 0;image-rendering:pixelated;user-select:none;pointer-events:none}
 .mapwrap canvas{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
-.toolbar{position:absolute;top:14px;left:14px;display:flex;gap:6px;padding:5px;border-radius:999px;background:rgba(30,30,34,.7);
+.toolbar{position:absolute;top:14px;left:14px;display:flex;gap:4px;padding:4px;border-radius:999px;background:rgba(24,24,27,.72);
   backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);border:1px solid rgba(255,255,255,.12)}
-.toolbar button{height:34px;padding:0 14px;border:0;border-radius:999px;background:transparent;color:var(--muted);cursor:pointer;
-  font:500 12px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase}
-.toolbar button:hover{color:var(--ink)}
-.toolbar button[aria-pressed=true]{background:var(--yellow);color:#1a1500}
-.coords{position:absolute;left:14px;bottom:12px;font:500 11.5px/1 var(--mono);color:var(--muted);letter-spacing:.05em;
-  text-shadow:0 1px 2px #000}
-.hint{position:absolute;right:14px;bottom:12px;font:500 11.5px/1 var(--mono);color:var(--muted);text-shadow:0 1px 2px #000}
-.mapwrap .toolbar button:disabled{opacity:.4;cursor:default}
-.busy{position:absolute;right:14px;top:18px;width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.2);
-  border-top-color:var(--yellow);animation:spin .8s linear infinite;opacity:0;transition:opacity .2s}
-.busy.on{opacity:1}
+.toolbar button{height:32px;padding:0 13px;border:0;border-radius:999px;background:transparent;color:#a1a1aa;
+  font:500 12px/1 var(--mono);letter-spacing:.05em;text-transform:uppercase}
+.toolbar button:hover{color:#fff;background:transparent}
+.toolbar button[aria-pressed=true]{background:var(--sky);color:#1a1500}
+.toolbar button:disabled{opacity:.4}
+.maptext{position:absolute;bottom:12px;font:500 11.5px/1 var(--mono);color:#a1a1aa;letter-spacing:.04em;text-shadow:0 1px 2px #000}
+#coords{left:14px}#hint{right:14px}
+.spin{width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.2);border-top-color:var(--sky);
+  animation:spin .8s linear infinite;opacity:0;transition:opacity .2s;pointer-events:none}
+.spin.on{opacity:1}
+#mapbusy{position:absolute;right:16px;top:22px}
 @keyframes spin{to{transform:rotate(1turn)}}
 
-.side{border-left:1px solid var(--line);background:var(--panel);overflow-y:auto;padding:18px 18px 40px}
-.side h1{margin:0 0 2px;font-size:20px;font-weight:700;letter-spacing:-.02em}
-.side .who{color:var(--muted);font-size:13px;margin-bottom:16px}
-.list{display:flex;flex-direction:column;gap:4px;margin-bottom:16px}
-.list button{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;border:1px solid var(--line);border-radius:10px;
-  background:transparent;cursor:pointer;text-align:left}
-.list button[aria-pressed=true]{border-color:var(--yellow);background:#ffd60a12}
-.list small{color:var(--muted);font-family:var(--mono);font-size:11px}
-.empty{color:var(--muted);font-size:13px;padding:10px 0}
-.preview{position:relative;border-radius:12px;overflow:hidden;background:conic-gradient(#1d1d20 25%,#151517 0 50%,#1d1d20 0 75%,#151517 0) 0 0/18px 18px;
-  margin-bottom:14px;min-height:120px}
-.preview img{display:block;width:100%;image-rendering:pixelated;transition:opacity .25s}
-.preview.loading img{opacity:.55}
+/* the side */
+.side{display:flex;flex-direction:column;min-height:0;border-left:1px solid var(--line);background:var(--raise)}
+.top{display:flex;align-items:center;gap:8px;padding:14px 16px 10px}
+.top b{font-size:17px;letter-spacing:-.02em}
+.top .who{color:var(--dim);font-size:12.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scroll{flex:1;overflow-y:auto;padding:0 16px 16px}
+.cams{display:flex;gap:6px;overflow-x:auto;padding:2px 0 12px;scrollbar-width:thin}
+.cams button{flex:none;display:flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;font-size:12.5px}
+.cams button small{color:var(--faint);font:11px var(--mono)}
+.cams button[aria-pressed=true]{border-color:var(--accent);background:var(--accent-soft);color:var(--ink)}
+.empty{color:var(--dim);font-size:13px;padding:6px 0 12px}
+
+.viewer{position:relative;border-radius:10px;overflow:hidden;margin-bottom:6px;
+  background:conic-gradient(#8881 25%,#8882 0 50%,#8881 0 75%,#8882 0) 0 0/18px 18px}
+.viewer img{display:block;width:100%;height:100%;object-fit:contain;image-rendering:pixelated;transition:opacity .25s}
+.viewer.loading img{opacity:.55}
+.viewer .spin{position:absolute;right:10px;top:10px}
+.thirds{position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(90deg,transparent calc(33.33% - .5px),#fff9 calc(33.33% - .5px) calc(33.33% + .5px),transparent 0,transparent calc(66.66% - .5px),#fff9 calc(66.66% - .5px) calc(66.66% + .5px),transparent 0),
+  linear-gradient(transparent calc(33.33% - .5px),#fff9 calc(33.33% - .5px) calc(33.33% + .5px),transparent 0,transparent calc(66.66% - .5px),#fff9 calc(66.66% - .5px) calc(66.66% + .5px),transparent 0)}
+.readout{display:flex;align-items:center;gap:6px;font:12px var(--mono);color:var(--dim);margin-bottom:12px}
+
 .group{border-top:1px solid var(--line);padding:12px 0}
-.group>b{display:block;font:500 11px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px}
-.row{display:grid;grid-template-columns:96px minmax(0,1fr) 64px;align-items:center;gap:10px;margin:6px 0}
-.row label{color:var(--muted);font-size:13px}
-.row output{font:500 12px/1 var(--mono);text-align:right}
-input[type=range]{width:100%;accent-color:var(--yellow)}
-.seg{display:flex;flex-wrap:wrap;gap:4px}
-.seg button{padding:6px 10px;border:1px solid var(--line);border-radius:999px;background:transparent;cursor:pointer;font-size:12.5px}
-.seg button[aria-pressed=true]{background:var(--yellow);border-color:var(--yellow);color:#1a1500}
-.xyz{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:6px}
-.xyz input{width:100%;padding:7px 8px;border:1px solid var(--line);border-radius:8px;background:#0f0f12;font:12px var(--mono)}
-.btn{padding:9px 14px;border:1px solid var(--line);border-radius:10px;background:#1c1c20;cursor:pointer}
-.btn.primary{background:var(--yellow);border-color:var(--yellow);color:#1a1500;font-weight:700}
-.shoot{display:grid;grid-template-columns:minmax(0,1fr) 110px;gap:8px;margin-top:8px}
-.shoot input,.shoot select,select.full{padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:#0f0f12;width:100%}
-.shoot .btn{grid-column:1/-1}
-.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%) translateY(20px);max-width:min(560px,90vw);padding:12px 18px;border-radius:14px;
-  background:rgba(30,30,34,.92);border:1px solid rgba(255,255,255,.12);opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
-.toast.on{opacity:1;transform:translateX(-50%)}
-.toast.bad{border-color:#ff453a}
-.gate{position:fixed;inset:0;display:none;place-items:center;background:var(--bg);text-align:center;padding:24px}
+.group > header{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.slider{display:grid;grid-template-columns:78px minmax(0,1fr) 62px;align-items:center;gap:10px;margin:4px 0}
+.slider label{color:var(--dim);font-size:12.5px}
+.slider input.num{padding:3px 6px;font:12px var(--mono);text-align:right}
+.row{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.xyz{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:6px;margin-top:8px}
+.xyz input{font:12px var(--mono);padding:5px 7px}
+
+.chips{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.chip{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:7px 10px;border-radius:8px;text-align:left;min-width:0}
+.chip small{font:500 10.5px/1.2 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faint)}
+.chip span{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.chip.on span{color:var(--accent);font-weight:600}
+.chip[aria-expanded=true]{border-color:var(--accent)}
+.slotpick.izpop{width:300px}
+.izpop h4{margin:2px 2px 8px;font-size:13px}
+.izpop .slider{grid-template-columns:70px minmax(0,1fr) 54px}
+.opts{display:grid;gap:2px}
+.opt{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;border-color:transparent;background:transparent;padding:6px 8px}
+.opt.on{color:var(--accent);font-weight:600;background:var(--accent-soft)}
+.opt .lock{font:11px var(--mono);color:var(--faint)}
+.hint{color:var(--dim);font-size:12px;margin:6px 2px}
+.suggest{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.line{display:flex;align-items:center;gap:8px;margin:4px 0 8px}
+.switch .word{display:none}
+
+.photos{display:grid;gap:8px}
+.photo{display:grid;grid-template-columns:76px minmax(0,1fr);gap:10px;align-items:center}
+.photo .thumb{width:76px;height:48px;border-radius:6px;background:var(--sunk);object-fit:contain;image-rendering:pixelated}
+.photo .what{min-width:0}
+.photo .what b{display:block;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.photo .what small{color:var(--faint);font:11px var(--mono)}
+.photo .acts{display:flex;align-items:center;gap:4px;margin-top:4px}
+.photo .acts .choice{width:140px}
+.photo .acts .choicebtn{padding:2px 8px;font-size:12px}
+
+.shoot{border-top:1px solid var(--line);padding:12px 16px 14px;display:grid;gap:8px;background:var(--raise)}
+.shoot .pair{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px}
+.shoot label{display:block;font:500 10.5px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin-bottom:4px}
+.shoot .go{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px}
+.shoot .out{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.shoot .out button{display:inline-flex;align-items:center;justify-content:center}
+button.busy{pointer-events:none;opacity:.7}
+
+.gate{position:fixed;inset:0;display:none;place-items:center;background:var(--bg);text-align:center;padding:24px;z-index:50}
 .gate.on{display:grid}
-.gate p{color:var(--muted);max-width:460px}
-@media (max-width:900px){.app{grid-template-columns:1fr;grid-template-rows:55vh auto;height:auto}.mapwrap{height:55vh}.side{border-left:0}}
+.gate p{color:var(--dim);max-width:460px}
+.keys{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px}
+@media (min-width:901px){#toasts{left:calc((100% - 400px) / 2);width:min(560px,calc(100vw - 460px))}}
+@media (max-width:900px){.app{grid-template-columns:1fr;grid-template-rows:52vh auto;height:auto}.side{border-left:0}.scroll{overflow:visible}}
 </style>
 </head>
 <body>
@@ -81,23 +128,36 @@ input[type=range]{width:100%;accent-color:var(--yellow)}
     <img id="mapimg" alt="The world from above">
     <canvas id="marks"></canvas>
     <div class="toolbar">
-      <button type="button" id="place" aria-pressed="false" title="Then click the map where the camera should stand">Place camera</button>
-      <button type="button" id="moveto" aria-pressed="false" disabled title="Then click the map where the chosen camera should look">Aim here</button>
-      <button type="button" id="recentre">To me</button>
+      <button type="button" id="place" aria-pressed="false" title="Then click the map where the camera should stand (P)">Place camera</button>
+      <button type="button" id="moveto" aria-pressed="false" disabled title="Then click the map where the chosen camera should look (A)">Aim here</button>
+      <button type="button" id="recentre" title="Back to where you stand">To me</button>
     </div>
-    <span class="busy" id="mapbusy"></span>
-    <div class="coords" id="coords"></div>
-    <div class="hint" id="hint">Drag the yellow frame to aim, its handle to turn round it</div>
+    <span class="spin" id="mapbusy"></span>
+    <div class="maptext" id="coords"></div>
+    <div class="maptext" id="hint">Drag the yellow frame to aim, its handle to turn round it</div>
   </div>
   <aside class="side">
-    <h1>Izomap editor</h1>
-    <div class="who" id="who"></div>
-    <div class="list" id="list"></div>
-    <div id="panel"></div>
+    <header class="top">
+      <b>Izomap</b><span class="who" id="who"></span><span class="grow"></span>
+      <button type="button" class="themebtn quiet small" data-themebtn><span data-themetext></span></button>
+      <button type="button" class="iconbtn" id="keyhelp" title="Keyboard shortcuts (?)" aria-label="Keyboard shortcuts">?</button>
+    </header>
+    <div class="scroll">
+      <div class="cams" id="list"></div>
+      <div id="panel"></div>
+    </div>
+    <div class="shoot" id="shoot" hidden></div>
   </aside>
 </div>
-<div class="toast" id="toast"></div>
 
+<script src="kit/ui/base.js"></script>
+<script src="kit/ui/icons.js"></script>
+<script src="kit/ui/controls.js"></script>
+<script src="kit/ui/popups.js"></script>
+<script src="kit/ui/ask.js"></script>
+<script src="kit/ui/dialog.js"></script>
+<script src="kit/ui/toasts.js"></script>
+<script src="kit/ui/theme.js"></script>
 <script src="kit/net/relay.js"></script>
 <script>
 relay.configure({product: 'Izomap', command: '/izocam editor', api: 1, storage: 'izomap-relay'});
@@ -105,7 +165,6 @@ relay.configure({product: 'Izomap', command: '/izocam editor', api: 1, storage: 
 const tunneled = relay.linked() || (!location.hash && !!sessionStorage.getItem('izomap-relay'));
 const key = tunneled ? '' : (location.hash || '').slice(1) || sessionStorage.getItem('izomap-editor') || '';
 if (!tunneled && location.hash) { sessionStorage.setItem('izomap-editor', key); history.replaceState(null, '', location.pathname); }
-const $ = id => document.getElementById(id);
 
 function gate(title, why) {
   $('gate-title').textContent = title;
@@ -121,16 +180,16 @@ async function api(path, options = {}) {
     body: options.body ? JSON.stringify(options.body) : undefined,
   });
   if (response.status === 401) { gate('This link has ended', 'Run /izocam editor in the game for a new one.'); throw new Error('ended'); }
-  if (options.raw) { if (!response.ok) throw new Error((await response.json()).error); return response.blob(); }
+  if (options.raw) {
+    if (!response.ok) throw new Error((await response.json()).error);
+    return new Blob([await response.arrayBuffer()], {type: 'image/png'});
+  }
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || 'The server said no.');
   return data;
 }
-let toastTimer;
-function toast(text, bad) {
-  const t = $('toast'); t.textContent = text; t.classList.toggle('bad', !!bad); t.classList.add('on');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('on'), 3600);
-}
+const said = (text, lines) => toast('ok', text, lines);
+const failed = e => { if (e && e.message !== 'ended') toast('bad', e.message || String(e)); };
 
 /* --- the map: a top-down picture the plugin renders, north up, and the cameras drawn over it --- */
 const view = {x: 0, z: 0, size: 256};
@@ -138,7 +197,7 @@ const view = {x: 0, z: 0, size: 256};
 const HANDLE = 58;
 const shown = {x: 0, z: 0, size: 256};
 const wrap = $('map'), img = $('mapimg'), marks = $('marks');
-let cameras = [], selected = null, mode = null, options = null;
+let cameras = [], selected = null, mode = null, options = null, me = {x: 0, z: 0};
 
 function toScreen(x, z) {
   const w = wrap.clientWidth, h = wrap.clientHeight, scale = Math.min(w, h) / view.size;
@@ -227,7 +286,7 @@ function loadMap() {
       const url = URL.createObjectURL(blob);
       img.onload = () => { Object.assign(shown, want); placeImage(); URL.revokeObjectURL(url); };
       img.src = url;
-    } catch (e) { if (e.message !== 'ended') toast(e.message, true); }
+    } catch (e) { failed(e); }
     finally { if (ticket === mapTicket) $('mapbusy').classList.remove('on'); }
   }, 220);
 }
@@ -250,7 +309,7 @@ wrap.addEventListener('pointerdown', e => {
   const [sx, sy] = local(e);
   let kind = 'pan', camera = null;
   if (onHandle(sx, sy)) { kind = 'turn'; camera = selected; }
-  else if ((camera = cameraAt(sx, sy))) { kind = 'move'; if (!selected || selected.id !== camera.id) select(camera.id); }
+  else if ((camera = cameraAt(sx, sy))) { kind = 'move'; if (!selected || selected.id !== camera.id) choose(camera.id); }
   else if (selected && inFrame(selected, sx, sy)) { kind = 'aim'; camera = selected; }
   const [wx, wz] = toWorld(sx, sy);
   drag = {kind, camera, x: e.clientX, y: e.clientY, vx: view.x, vz: view.z, wx, wz, moved: false};
@@ -277,15 +336,15 @@ wrap.addEventListener('pointerup', async e => {
   if (!d) return;
   if (d.moved) {
     if (d.kind === 'pan') loadMap();
-    else if (d.kind === 'move') change({x: d.camera.x, z: d.camera.z}, true);
-    else if (d.kind === 'aim') change({targetX: d.camera.target.x, targetZ: d.camera.target.z}, true);
-    else change({yaw: d.camera.yaw, orbit: true}, true);
+    else if (d.kind === 'move') change({x: d.camera.x, z: d.camera.z});
+    else if (d.kind === 'aim') change({targetX: d.camera.target.x, targetZ: d.camera.target.z});
+    else change({yaw: d.camera.yaw, orbit: true});
     return;
   }
   const [sx, sy] = local(e), [wx, wz] = toWorld(sx, sy);
   if (mode === 'place') { setMode(null); return placeAt(wx, wz); }
-  if (mode === 'move' && selected) { setMode(null); return change({targetX: wx, targetZ: wz}, true); }
-  if (d.camera) select(d.camera.id);
+  if (mode === 'move' && selected) { setMode(null); return change({targetX: wx, targetZ: wz}); }
+  if (d.camera) choose(d.camera.id);
 });
 wrap.addEventListener('wheel', e => {
   e.preventDefault();
@@ -302,138 +361,445 @@ function setMode(next) {
 }
 $('place').onclick = () => setMode('place');
 $('moveto').onclick = () => setMode('move');
-let me = {x: 0, z: 0};
 $('recentre').onclick = () => { view.x = me.x; view.z = me.z; placeImage(); loadMap(); };
 
 async function placeAt(x, z) {
   try {
     const camera = await api('cameras', {method: 'POST', body: {x, z}});
-    cameras.push(camera); toast(`Camera ${camera.name} placed. Aim it on the right.`);
-    select(camera.id);
-  } catch (e) { if (e.message !== 'ended') toast(e.message, true); }
+    cameras.push(camera); said(`Camera ${camera.name} placed`, ['Aim it on the right.']);
+    choose(camera.id);
+  } catch (e) { failed(e); }
 }
 
 /* --- the chosen camera --- */
-const SKY_NAMES = {NONE: 'Transparent', WORLD: 'Game time', DAWN: 'Dawn', DAY: 'Day', DUSK: 'Dusk', NIGHT: 'Night'};
-const nice = s => s.charAt(0) + s.slice(1).toLowerCase();
+const zoomOf = slider => Math.pow(2, slider);
+const sliderOf = zoom => Math.log2(zoom);
+const named = (list, id) => ((options[list] || []).find(o => o.id === id) || {name: id}).name;
+/** What the shutter bar was last set to, per camera: a layout and a frame. */
+const shot = {};
+const shotOf = c => shot[c.id] || (shot[c.id] = {grid: ((options.grids[c.ratio] || [])[0] || {}).id || '', frame: '', name: c.name});
 
 function list() {
   $('list').innerHTML = cameras.length ? '' : '<div class="empty">No cameras in this world yet. Press Place camera and click the map.</div>';
   for (const c of cameras) {
     const b = document.createElement('button');
-    b.type = 'button'; b.setAttribute('aria-pressed', String(selected && selected.id === c.id));
-    b.innerHTML = `<span>${c.name}</span><small>${c.photos} photo(s)</small>`;
-    b.onclick = () => select(c.id);
+    b.type = 'button'; b.setAttribute('aria-pressed', String(!!selected && selected.id === c.id));
+    b.innerHTML = `<span>${esc(c.name)}</span><small>${c.photos}</small>`;
+    b.title = `${c.photos} photo(s)`;
+    b.onclick = () => choose(c.id);
     $('list').append(b);
   }
 }
-function select(id) {
+function choose(id) {
+  closeSlotPick();
   selected = cameras.find(c => c.id === id) || null;
   $('moveto').disabled = !selected;
-  list(); drawMarks(); panel(); preview();
+  list(); drawMarks(); panel(); shootBar(); preview(); photos();
 }
 
-const range = (field, label, min, max, step, value, show) =>
-  `<div class="row"><label for="f-${field}">${label}</label><input type="range" id="f-${field}" data-field="${field}" min="${min}" max="${max}" step="${step}" value="${value}"><output id="o-${field}">${show(value)}</output></div>`;
-const seg = (field, values, current, names = v => v) =>
-  `<div class="seg" data-seg="${field}">${values.map(v => `<button type="button" data-v="${v}" aria-pressed="${v === current}">${names(v)}</button>`).join('')}</div>`;
-const zoomOf = slider => Math.pow(2, slider);
-const sliderOf = zoom => Math.log2(zoom);
+/** A slider with its value beside it, which can be typed into as well. */
+const slider = (field, label, min, max, step, value, shownAs = v => Math.round(v)) =>
+  `<div class="slider"><label for="f-${field}">${label}</label>`
+  + `<input type="range" id="f-${field}" data-field="${field}" min="${min}" max="${max}" step="${step}" value="${value}">`
+  + `<input class="num" id="n-${field}" data-num="${field}" value="${shownAs(value)}" aria-label="${label}"></div>`;
+
+/** What a slider's number reads as, and what a typed number sends. */
+const FIELDS = {
+  yaw: {show: v => Math.round(v), send: v => ({yaw: v, orbit: true})},
+  pitch: {show: v => Math.round(v), send: v => ({pitch: v, orbit: true})},
+  zoom: {show: v => zoomOf(v).toFixed(2), read: typed => sliderOf(Math.max(0.05, Number(typed))), send: v => ({zoom: zoomOf(v)})},
+};
+const fieldOf = name => FIELDS[name] || {show: v => Math.round(v), send: v => ({[name]: v})};
+
+/** Wires every slider under root: the number follows while dragging, the value is sent when let go or typed. */
+function wireSliders(root) {
+  for (const input of root.querySelectorAll('input[type=range]')) {
+    fillRange(input);
+    const name = input.dataset.field, f = fieldOf(name), num = root.querySelector(`[data-num="${name}"]`);
+    input.oninput = () => { if (num) num.value = f.show(Number(input.value)); };
+    input.onchange = () => change(f.send(Number(input.value)));
+    if (num) num.onchange = () => {
+      const v = f.read ? f.read(num.value) : Number(num.value);
+      if (!Number.isFinite(v)) { num.value = f.show(Number(input.value)); return; }
+      input.value = v; fillRange(input); change(f.send(Number(input.value)));
+    };
+  }
+}
 
 function panel() {
   const c = selected, p = $('panel');
   if (!c) { p.innerHTML = ''; return; }
-  const grids = options.grids[c.ratio] || [];
   p.innerHTML = `
-    <div class="preview" id="preview"><img id="previewimg" alt="What ${c.name} sees"></div>
-    <div class="group"><b>Aim</b>
-      <div class="empty" style="padding:0 0 6px">The yellow frame on the map is what the photo shows. Facing and tilt turn the camera round its middle.</div>
-      ${range('yaw', 'Facing', -180, 180, 1, ((c.yaw + 540) % 360) - 180, v => `${Math.round(v)}°`)}
-      ${range('pitch', 'Tilt', -10, 90, 1, c.pitch, v => `${Math.round(v)}°`)}
-      ${range('zoom', 'Zoom', -4.3, 4, 0.05, sliderOf(c.zoom), v => `${zoomOf(v).toFixed(2)}x`)}
-      <div class="xyz"><input id="px" value="${c.x.toFixed(1)}" aria-label="X"><input id="py" value="${c.y.toFixed(1)}" aria-label="Y"><input id="pz" value="${c.z.toFixed(1)}" aria-label="Z"><button class="btn" id="go" type="button">Move</button></div>
+    <div class="viewer" id="viewer" style="aspect-ratio:${c.ratio.replace(':', ' / ')}">
+      <img id="previewimg" alt="What ${esc(c.name)} sees"><div class="thirds" id="thirds" ${c.thirds ? '' : 'hidden'}></div><span class="spin" id="previewbusy"></span>
     </div>
-    <div class="group"><b>Frame</b>${seg('ratio', ['1:1', '16:9', '4:3'], c.ratio)}</div>
-    <div class="group"><b>Style</b>${seg('style', options.styles, c.style, nice)}</div>
-    <div class="group"><b>Color</b><select class="full" id="filter">${options.filters.map(f => `<option value="${f}" ${f === c.filter ? 'selected' : ''}>${nice(f)}</option>`).join('')}</select></div>
-    <div class="group"><b>Sky</b>${seg('sky', options.skies, c.sky, v => SKY_NAMES[v] || v)}
-      <div class="seg" style="margin-top:8px">${seg('bodies', ['on', 'off'], c.bodies ? 'on' : 'off', v => v === 'on' ? 'Sun, moon and stars' : 'Plain sky')}</div>
-      ${range('sunYaw', 'Sun facing', 0, 355, 5, c.sunYaw, v => `${Math.round(v)}°`)}
-      ${range('sunPitch', 'Sun height', 1, 89, 1, c.sunPitch, v => `${Math.round(v)}°`)}
-    </div>
-    <div class="group"><b>Fog</b>${seg('fog', ['on', 'off'], c.fog ? 'on' : 'off', v => v === 'on' ? 'On' : 'Off')}
-      ${c.fog ? range('fogStart', 'Begins', 0, 2048, 8, c.fogStart, v => Math.round(v)) + range('fogEnd', 'Full', 8, 2048, 8, c.fogEnd, v => Math.round(v)) : ''}
-    </div>
-    <div class="group"><b>Depth of field</b>${seg('focus', ['on', 'off'], c.focus ? 'on' : 'off', v => v === 'on' ? 'On' : 'Off')}
-      ${c.focus ? range('focusDistance', 'Distance', 1, 1024, 1, c.focusDistance, v => Math.round(v)) : ''}
-    </div>
-    <div class="group"><b>Take a photo</b>
-      <div class="shoot"><input id="photoname" value="${c.name}" aria-label="Photo name"><select id="grid" aria-label="Layout">${grids.map(g => `<option>${g}</option>`).join('')}</select>
-        <button class="btn primary" type="button" id="shutter">Take photo</button></div>
-    </div>`;
-
-  for (const input of p.querySelectorAll('input[type=range]')) {
-    const field = input.dataset.field;
-    input.oninput = () => {
-      const v = Number(input.value);
-      $(`o-${field}`).textContent = field === 'zoom' ? `${zoomOf(v).toFixed(2)}x` : field.endsWith('aw') || field.endsWith('itch') ? `${Math.round(v)}°` : Math.round(v);
-    };
-    // Facing and tilt turn the camera round what it shows, rather than round itself.
-    input.onchange = () => change({[field]: field === 'zoom' ? zoomOf(Number(input.value)) : Number(input.value),
-      ...(field === 'yaw' || field === 'pitch' ? {orbit: true} : {})}, true);
-  }
-  for (const group of p.querySelectorAll('[data-seg]')) {
-    const field = group.dataset.seg;
-    for (const b of group.querySelectorAll('button')) b.onclick = () => {
-      const v = b.dataset.v;
-      change({[field]: v === 'on' ? true : v === 'off' ? false : v}, field === 'fog' || field === 'focus' || field === 'ratio');
-    };
-  }
-  $('filter').onchange = () => change({filter: $('filter').value});
-  $('go').onclick = () => change({x: Number($('px').value), y: Number($('py').value), z: Number($('pz').value)});
-  $('shutter').onclick = async () => {
-    try { const r = await api(`cameras/${c.id}/photo`, {method: 'POST', body: {name: $('photoname').value, grid: $('grid').value}}); toast(r.message); }
-    catch (e) { if (e.message !== 'ended') toast(e.message, true); }
+    <div class="readout"><span id="readout"></span><span class="grow"></span>
+      ${iconButton('grid', 'id="thirdsbtn"', c.thirds ? 'on' : '', 'Rule of thirds (T)')}</div>
+    <section class="group"><header><h3>Aim</h3><span class="grow"></span>
+      <button type="button" class="small quiet" id="reset" title="Face where you look, default tilt, zoom 1">${ico('reset', 'ico')}Reset aim</button></header>
+      ${slider('yaw', 'Facing', -180, 180, 1, ((c.yaw + 540) % 360) - 180, FIELDS.yaw.show)}
+      ${slider('pitch', 'Tilt', -10, 90, 1, c.pitch, FIELDS.pitch.show)}
+      ${slider('zoom', 'Zoom', -4.3, 4, 0.05, sliderOf(c.zoom), FIELDS.zoom.show)}
+      <div class="xyz"><input id="px" aria-label="X"><input id="py" aria-label="Y"><input id="pz" aria-label="Z">
+        <button type="button" id="go" title="Move the camera to these coordinates">Move</button></div>
+    </section>
+    <section class="group"><header><h3>Look</h3></header><div class="chips" id="chips"></div></section>
+    <section class="group"><header><h3>Photos</h3><span class="note" id="photocount"></span></header><div class="photos" id="photolist"></div></section>`;
+  wireSliders(p);
+  $('thirdsbtn').onclick = () => change({thirds: !selected.thirds});
+  $('reset').onclick = async () => {
+    try { replace(await api(`cameras/${selected.id}/reset`, {method: 'POST'})); preview(); } catch (e) { failed(e); }
   };
+  $('go').onclick = () => change({x: Number($('px').value), y: Number($('py').value), z: Number($('pz').value)});
+  refresh();
 }
 
-async function change(fields, redraw) {
-  if (!selected) return;
-  try {
-    const updated = await api(`cameras/${selected.id}`, {method: 'PATCH', body: fields});
-    const i = cameras.findIndex(c => c.id === updated.id);
-    cameras[i] = updated; selected = updated;
-    drawMarks(); list();
-    if (redraw || fields.x !== undefined || fields.y !== undefined || fields.z !== undefined) panel();
-    else for (const [field, value] of Object.entries(fields)) syncSeg(field, value);
-    preview();
-  } catch (e) {
-    if (e.message !== 'ended') toast(e.message, true);
-    // Put the marker back where the server still has it.
-    try { const state = await api('state'); cameras = state.cameras; selected = cameras.find(c => c.id === selected.id) || null; drawMarks(); panel(); } catch (ignored) {}
-  }
+/** Puts what the camera now is into the panel without drawing it again, so open boxes and focus stay. */
+function refresh() {
+  const c = selected;
+  if (!c || !$('readout')) return;
+  $('readout').textContent = `${Math.round(c.blocks)} blocks across, ${Math.round(c.distance)} away`;
+  const set = (name, value) => {
+    const input = $(`f-${name}`), num = $(`n-${name}`);
+    if (!input || document.activeElement === input || document.activeElement === num) return;
+    input.value = value; fillRange(input); if (num) num.value = fieldOf(name).show(value);
+  };
+  set('yaw', ((c.yaw + 540) % 360) - 180); set('pitch', c.pitch); set('zoom', sliderOf(c.zoom));
+  for (const [id, v] of [['px', c.x], ['py', c.y], ['pz', c.z]]) if (document.activeElement !== $(id)) $(id).value = v.toFixed(1);
+  $('thirds').hidden = !c.thirds;
+  $('thirdsbtn').classList.toggle('on', c.thirds);
+  $('viewer').style.aspectRatio = c.ratio.replace(':', ' / ');
+  chips();
 }
-function syncSeg(field, value) {
-  const group = document.querySelector(`[data-seg="${field}"]`);
-  if (!group) return;
-  const v = value === true ? 'on' : value === false ? 'off' : value;
-  for (const b of group.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.v === v));
+
+/* --- the look: every setting as a chip with its value, each opening a box of its own --- */
+const sunMatters = () => options.sunShadow || (options.sunDrawn && selected.bodies);
+const LOOKS = [
+  {id: 'ratio', label: 'Ratio', value: c => c.ratio, box: c => listBox('ratios', 'ratio', c.ratio, 'Aspect ratio')},
+  {id: 'style', label: 'Style', value: c => named('styles', c.style), box: c => listBox('styles', 'style', c.style, 'Style')},
+  {id: 'filter', label: 'Color', value: c => named('filters', c.filter), box: c => listBox('filters', 'filter', c.filter, 'Color filter')},
+  {id: 'sky', label: 'Sky', value: c => named('skies', c.sky), box: c => listBox('skies', 'sky', c.sky, 'Sky')},
+  {id: 'sun', label: 'Sun', value: c => (c.bodies ? 'Sun, moon, stars' : 'Plain sky') + (sunMatters() ? `, ${Math.round(c.sunPitch)}° up` : ''),
+    on: c => c.bodies, box: sunBox},
+  {id: 'fog', label: 'Fog', value: c => c.fog ? `${Math.round(c.fogStart)} to ${Math.round(c.fogEnd)}` : 'Off', on: c => c.fog, box: fogBox},
+  {id: 'focus', label: 'Depth of field', value: c => c.focus ? `${Math.round(c.focusDistance)} blocks` : 'Off', on: c => c.focus, box: focusBox},
+];
+let openLook = null;
+
+function chips() {
+  const root = $('chips');
+  if (!root) return;
+  if (!root.children.length) {
+    root.innerHTML = LOOKS.map(l => `<button type="button" class="chip" data-look="${l.id}" aria-haspopup="true" aria-expanded="false"><small>${l.label}</small><span></span></button>`).join('');
+    for (const b of root.children) b.onclick = () => openBox(b.dataset.look, b);
+  }
+  for (const l of LOOKS) {
+    const b = root.querySelector(`[data-look="${l.id}"]`);
+    b.querySelector('span').textContent = l.value(selected);
+    b.classList.toggle('on', !!(l.on && l.on(selected)));
+  }
+  if (openLook) drawBox();
+}
+
+/**
+ * Where a chip's box opens: beside the panel, over the map, level with the chip, so every other chip stays
+ * in sight and in reach; under the chip where the panel is under the map. The same stand-in each time, so a
+ * second click on the chip closes its box.
+ */
+function besideChip(chip) {
+  return chip.besideAnchor || (chip.besideAnchor = {
+    isConnected: true,
+    contains: node => chip.contains(node),
+    getBoundingClientRect() {
+      const at = chip.getBoundingClientRect(), side = document.querySelector('.side').getBoundingClientRect();
+      if (side.left < 300) return at;
+      return {left: side.left - 8, right: side.left - 8, top: at.top - 4, bottom: at.top - 4, width: 0, height: 0};
+    },
+  });
+}
+function openBox(id, chip) {
+  const look = LOOKS.find(l => l.id === id);
+  const box = floatBox(besideChip(chip), 'izpop', '', true, () => { openLook = null; chip.setAttribute('aria-expanded', 'false'); });
+  if (!box.isConnected) return;
+  chip.setAttribute('aria-expanded', 'true');
+  openLook = {look, box};
+  drawBox();
+}
+/** Draws the open box again only when what it says has changed: drawn under a press, it would swallow the click. */
+function drawBox() {
+  const {look, box} = openLook;
+  if (!box.isConnected) { openLook = null; return; }
+  const html = look.box(selected);
+  if (html === openLook.html) return;
+  openLook.html = html;
+  const scroll = box.scrollTop;
+  box.innerHTML = html;
+  wireChoices(box); wireSwitches(box); wireSliders(box);
+  for (const b of box.querySelectorAll('[data-set]')) b.onclick = () => change(JSON.parse(b.dataset.set));
+  for (const s of box.querySelectorAll('.switch input[data-toggle]')) s.onchange = () => change({[s.dataset.toggle]: s.checked});
+  box.scrollTop = scroll;
+}
+const setAttr = fields => `data-set='${esc(JSON.stringify(fields))}'`;
+
+/** A list of choices, the ones this player may not use shown shut, with why. */
+function listBox(list, field, current, title) {
+  return `<h4>${title}</h4><div class="opts">` + options[list].map(o =>
+    `<button type="button" class="opt${o.id === current ? ' on' : ''}" ${o.allowed ? setAttr({[field]: o.id}) : 'disabled title="You do not have the permission for this"'}>`
+    + `<span>${esc(o.name)}</span>${o.allowed ? '' : '<span class="lock">locked</span>'}</button>`).join('') + '</div>';
+}
+function toggleLine(field, label, on, allowed) {
+  return `<div class="line">${switchField(null, on, `data-toggle="${field}"${allowed || on ? '' : ' disabled'}`)}<b>${label}</b>`
+    + (allowed ? '' : '<span class="note">(no permission to turn it on)</span>') + '</div>';
+}
+function sunBox(c) {
+  let html = '<h4>Sun</h4>' + toggleLine('bodies', 'Sun, moon and stars in the sky', c.bodies, options.may.bodies);
+  if (sunMatters()) {
+    html += slider('sunYaw', 'Direction', 0, 355, 5, c.sunYaw) + slider('sunPitch', 'Height', 1, 89, 1, c.sunPitch)
+      + '<div class="suggest">'
+      + (options.sunShadow ? `<button type="button" class="small" ${setAttr(c.suggest.sideLight)}>Side light</button>` : '')
+      + (options.sunDrawn && c.bodies ? `<button type="button" class="small" ${setAttr(c.suggest.sunInFrame)}>Sun in the frame</button>` : '')
+      + '</div>';
+  } else html += '<p class="hint">With no shadows on this server and no sun in the sky, where the sun stands changes nothing.</p>';
+  return html;
+}
+function depthHint(c) {
+  const d = c.suggest.depth;
+  return d ? `<p class="hint">In this frame the ground lies ${d.near} to ${d.far} blocks away, most of it around ${d.median} (${d.sky}% sky).</p>`
+    : '<p class="hint">The preview has not said yet how far this frame sees.</p>';
+}
+function fogBox(c) {
+  let html = '<h4>Fog</h4>' + toggleLine('fog', 'On', c.fog, options.may.fog);
+  if (c.sky === 'NONE') html += '<p class="hint">Fog takes the sky\'s color, and this sky is transparent: pick a sky for it to fade into.</p>';
+  if (c.fog) {
+    html += slider('fogStart', 'Begins', 0, c.depthLimit, 8, c.fogStart) + slider('fogEnd', 'Full', 8, c.depthLimit, 8, c.fogEnd) + depthHint(c);
+    if (c.suggest.fog) html += `<div class="suggest"><button type="button" class="small" ${setAttr({fogStart: c.suggest.fog.start, fogEnd: c.suggest.fog.end})}>Use ${c.suggest.fog.start} to ${c.suggest.fog.end}</button></div>`;
+  }
+  return html;
+}
+function focusBox(c) {
+  let html = '<h4>Depth of field</h4>' + toggleLine('focus', 'On', c.focus, options.may.focus);
+  if (c.focus) {
+    html += slider('focusDistance', 'Distance', 1, c.depthLimit, 1, c.focusDistance) + depthHint(c);
+    const f = c.suggest.focus;
+    if (f) html += '<div class="suggest">'
+      + (f.center ? `<button type="button" class="small" ${setAttr({focusDistance: f.center})}>The middle (${f.center})</button>` : '')
+      + `<button type="button" class="small" ${setAttr({focusDistance: f.near})}>Nearest (${f.near})</button>`
+      + `<button type="button" class="small" ${setAttr({focusDistance: f.median})}>Most of it (${f.median})</button></div>`;
+  }
+  return html;
+}
+
+/** The camera as the server now has it, in place of the one the page held. */
+function replace(updated) {
+  const i = cameras.findIndex(c => c.id === updated.id);
+  if (i >= 0) cameras[i] = updated;
+  if (selected && selected.id === updated.id) selected = updated;
+  drawMarks(); list(); refresh();
+}
+
+let changing = Promise.resolve();
+/** Sends a change, one after another so two quick ones arrive in order, and redraws the preview. */
+function change(fields) {
+  if (!selected) return;
+  const id = selected.id, ratio = selected.ratio;
+  changing = changing.then(async () => {
+    try {
+      replace(await api(`cameras/${id}`, {method: 'PATCH', body: fields}));
+      if (selected && selected.ratio !== ratio) shootBar();
+      preview();
+    } catch (e) {
+      failed(e);
+      // Put the marks back where the server still has them.
+      try { const state = await api('state'); cameras = state.cameras; selected = cameras.find(c => c.id === id) || null; drawMarks(); refresh(); } catch (ignored) {}
+    }
+  });
 }
 
 let previewTicket = 0;
 async function preview() {
   if (!selected) return;
-  const ticket = ++previewTicket, box = $('preview');
-  box.classList.add('loading');
+  const ticket = ++previewTicket, box = $('viewer');
+  box.classList.add('loading'); $('previewbusy').classList.add('on');
+  const s = shotOf(selected);
   try {
-    const blob = await api(`cameras/${selected.id}/preview?w=480`, {raw: true});
+    const blob = await api(`cameras/${selected.id}/preview?w=480` + (s.frame ? `&frame=${encodeURIComponent(s.frame)}&grid=${encodeURIComponent(s.grid)}` : ''), {raw: true});
     if (ticket !== previewTicket) return;
     const url = URL.createObjectURL(blob), image = $('previewimg');
     image.onload = () => URL.revokeObjectURL(url);
     image.src = url;
-  } catch (e) { if (e.message !== 'ended') toast(e.message, true); }
-  finally { if (ticket === previewTicket) box.classList.remove('loading'); }
+    // The preview is what the scene's depth is read off; the suggestions come with the camera.
+    const fresh = await api(`cameras/${selected.id}`);
+    if (ticket === previewTicket) replace(fresh);
+  } catch (e) { failed(e); }
+  finally { if (ticket === previewTicket && $('viewer')) { $('viewer').classList.remove('loading'); $('previewbusy').classList.remove('on'); } }
 }
+
+/* --- the shutter bar: a layout, a frame, take the photo, or save or copy it --- */
+function frameChoices(empty) {
+  return [['', empty]].concat(options.frames.filter(f => f.allowed).map(f => [f.id, f.name]));
+}
+function shootBar() {
+  const c = selected, bar = $('shoot');
+  bar.hidden = !c;
+  if (!c) return;
+  const s = shotOf(c), grids = options.grids[c.ratio] || [];
+  if (!grids.find(g => g.id === s.grid)) s.grid = (grids[0] || {}).id || '';
+  bar.innerHTML = `
+    <div class="pair">
+      <div><label>Layout</label>${select('grid', grids.map(g => [g.id, `${g.id}`, `${g.width}x${g.height}`]), s.grid)}</div>
+      <div><label>Frame</label>${select('frame', frameChoices('None'), s.frame)}</div>
+    </div>
+    <div class="go"><input id="photoname" value="${esc(s.name)}" aria-label="Photo name" placeholder="Photo name">
+      <button type="button" class="primary" id="shutter" title="Into the camera's list, to hang in the game">Take photo</button></div>
+    <div class="out">
+      <button type="button" id="saveshot" title="Shoot it at full size and save it as a PNG">${ico('save', 'ico')}Save PNG</button>
+      <button type="button" id="copyshot" title="Shoot it at full size and copy the picture">${ico('copy', 'ico')}Copy</button>
+    </div>
+    ${options.may.export ? '' : '<p class="note" style="margin:0">Saving and copying need the izomap.export permission.</p>'}`;
+  wireChoices(bar);
+  $('grid').onchange = () => { s.grid = $('grid').value; if (s.frame) preview(); };
+  $('frame').onchange = () => { s.frame = $('frame').value; preview(); };
+  $('photoname').oninput = () => { s.name = $('photoname').value; };
+  $('shutter').onclick = takePhoto;
+  $('saveshot').disabled = $('copyshot').disabled = !options.may.export;
+  $('saveshot').onclick = () => saveImage(busy($('saveshot'), shootFile()), fileName(s.name, s.grid));
+  $('copyshot').onclick = () => copyImage(busy($('copyshot'), shootFile()));
+}
+function shootFile() {
+  const s = shotOf(selected);
+  toast('ok', `Shooting ${s.grid}`, ['It waits in line with the game\'s photos; a wide one takes a while.'], 4000);
+  return api(`cameras/${selected.id}/export`, {method: 'POST', body: {grid: s.grid, frame: s.frame}, raw: true});
+}
+/** Marks a button busy while what it started runs, and hands that on. */
+function busy(button, promise) {
+  button.classList.add('busy');
+  promise.finally(() => button.classList.remove('busy')).catch(() => {});
+  return promise;
+}
+const fileName = (name, grid) => `${(name || 'photo').replace(/[^A-Za-z0-9._-]+/g, '-')}${grid ? '-' + grid : ''}.png`;
+async function saveImage(promise, name) {
+  try {
+    const blob = await promise, url = URL.createObjectURL(blob), a = document.createElement('a');
+    a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    said(`Saved ${name}`);
+  } catch (e) { failed(e); }
+}
+/**
+ * The picture goes to the clipboard as it arrives: the browser lets a page write to it only while the click
+ * that asked is fresh, so the write starts at once and is handed the picture to come.
+ */
+function copyImage(promise) {
+  if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+    promise.catch(() => {});
+    return toast('bad', 'This browser cannot copy pictures', ['Use Save PNG instead.']);
+  }
+  let refused = false;
+  promise.catch(e => { refused = true; failed(e); });
+  navigator.clipboard.write([new ClipboardItem({'image/png': promise})])
+    .then(() => said('Copied to the clipboard'), e => { if (!refused) failed(new Error('Could not copy: ' + e.message)); });
+}
+async function takePhoto() {
+  const c = selected, s = shotOf(c);
+  try {
+    const r = await api(`cameras/${c.id}/photo`, {method: 'POST', body: {name: $('photoname').value, grid: s.grid}});
+    said('Taking the photo', [r.message]);
+    const before = c.photos;
+    for (let i = 0; i < 60; i++) {
+      await new Promise(go => setTimeout(go, 3000));
+      if (!selected || selected.id !== c.id) return;
+      const list = await api(`cameras/${c.id}/photos`);
+      if (list.length > before) { c.photos = list.length; list.length && drawPhotos(list); return refreshCount(); }
+    }
+  } catch (e) { failed(e); }
+}
+
+/* --- the camera's photos: a picture each, its frame, save and copy --- */
+async function photos() {
+  if (!selected) return;
+  try { drawPhotos(await api(`cameras/${selected.id}/photos`)); } catch (e) { failed(e); }
+}
+function refreshCount() { list(); }
+function drawPhotos(items) {
+  const root = $('photolist');
+  if (!root) return;
+  $('photocount').textContent = items.length ? `(${items.length})` : '';
+  if (!items.length) { root.innerHTML = '<div class="empty">None yet. Take one below; in the game it hangs from the camera\'s list.</div>'; return; }
+  root.innerHTML = items.slice().reverse().map(p => `
+    <div class="photo" data-photo="${p.id}">
+      <img class="thumb" alt="">
+      <div class="what"><b title="${esc(p.name)}">${esc(p.name)}</b><small>${p.grid}, ${p.width}x${p.height}${p.placed ? ', hanging' : ''}</small>
+        <div class="acts">
+          ${p.frameEditable ? select2(`data-reframe="${p.id}"`, frameChoices('No frame'), p.frame || '') : `<span class="note">Frame is part of it</span>`}
+          ${iconButton('save', `data-save="${p.id}"${options.may.export ? '' : ' disabled'}`, '', 'Save PNG')}
+          ${iconButton('copy', `data-copy="${p.id}"${options.may.export ? '' : ' disabled'}`, '', 'Copy')}
+        </div></div>
+    </div>`).join('');
+  wireChoices(root);
+  for (const item of items) thumbnail(item);
+  for (const pick of root.querySelectorAll('[data-reframe]')) pick.onchange = async () => {
+    try { const p = await api(`photos/${pick.dataset.reframe}`, {method: 'PATCH', body: {frame: pick.value}}); thumbnail(p); }
+    catch (e) { failed(e); }
+  };
+  for (const b of root.querySelectorAll('[data-save]')) b.onclick = () => {
+    const p = items.find(i => i.id === b.dataset.save);
+    saveImage(busy(b, api(`photos/${p.id}/image`, {raw: true})), fileName(p.name, p.grid));
+  };
+  for (const b of root.querySelectorAll('[data-copy]')) b.onclick = () => copyImage(busy(b, api(`photos/${b.dataset.copy}/image`, {raw: true})));
+}
+async function thumbnail(p) {
+  const at = document.querySelector(`[data-photo="${p.id}"] .thumb`);
+  if (!at) return;
+  try {
+    const url = URL.createObjectURL(await api(`photos/${p.id}/image?w=160`, {raw: true}));
+    at.onload = () => URL.revokeObjectURL(url);
+    at.src = url;
+  } catch (e) { failed(e); }
+}
+
+/* --- keys --- */
+const KEYS = [
+  ['← →', 'Turn the camera (Shift: 15° at a time)'], ['↑ ↓', 'Tilt it'], ['+ −', 'Zoom in and out'],
+  ['T', 'Rule of thirds'], ['P', 'Place a camera'], ['A', 'Aim the chosen camera at a click'],
+  ['[ ]', 'The previous or next camera'], ['?', 'This list'], ['Esc', 'Close a box, or stop placing'],
+];
+$('keyhelp').onclick = showKeys;
+function showKeys() {
+  dialog({title: 'Keyboard shortcuts', only: true, doneLabel: 'Close', body: `<div class="keys">${KEYS.map(([k, what]) => `<kbd>${esc(k)}</kbd><span>${esc(what)}</span>`).join('')}</div>`, done: () => {}});
+}
+let nudgeTimer = null, nudged = {};
+/** Keys move the camera on the page at once and send the change once they stop. */
+function nudge(fields) {
+  const c = selected;
+  if (fields.yaw !== undefined) turn(c, fields.yaw);
+  Object.assign(c, fields);
+  Object.assign(nudged, fields);
+  drawMarks(); refresh();
+  clearTimeout(nudgeTimer);
+  nudgeTimer = setTimeout(() => { const send = nudged; nudged = {}; change({...send, ...(send.yaw !== undefined || send.pitch !== undefined ? {orbit: true} : {})}); }, 300);
+}
+document.addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('input, select, textarea, [contenteditable]')) return;
+  if (dialogOpen || asking || e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.key === '?') { e.preventDefault(); return showKeys(); }
+  if (e.key === 'Escape') { closeSlotPick(); if (mode) setMode(mode); return; }
+  if (e.key === 'p' || e.key === 'P') return setMode('place');
+  if (!selected) return;
+  const step = e.shiftKey ? 15 : 5;
+  const keys = {
+    ArrowLeft: () => nudge({yaw: Math.round(selected.yaw - step)}),
+    ArrowRight: () => nudge({yaw: Math.round(selected.yaw + step)}),
+    ArrowUp: () => nudge({pitch: Math.min(90, selected.pitch + (e.shiftKey ? 10 : 2))}),
+    ArrowDown: () => nudge({pitch: Math.max(-10, selected.pitch - (e.shiftKey ? 10 : 2))}),
+    '+': () => nudge({zoom: Math.min(16, selected.zoom * 1.25)}), '=': () => nudge({zoom: Math.min(16, selected.zoom * 1.25)}),
+    '-': () => nudge({zoom: Math.max(0.05, selected.zoom / 1.25)}),
+    t: () => change({thirds: !selected.thirds}), T: () => change({thirds: !selected.thirds}),
+    a: () => setMode('move'), A: () => setMode('move'),
+    '[': () => cameras.length && choose(cameras[(cameras.indexOf(selected) - 1 + cameras.length) % cameras.length].id),
+    ']': () => cameras.length && choose(cameras[(cameras.indexOf(selected) + 1) % cameras.length].id),
+  };
+  if (keys[e.key]) { e.preventDefault(); keys[e.key](); }
+});
 
 async function enter() {
   try {
@@ -442,8 +808,8 @@ async function enter() {
     $('who').textContent = `${state.player} in ${state.world}`;
     view.x = me.x; view.z = me.z; Object.assign(shown, view);
     list(); placeImage(); loadMap();
-    if (cameras.length) select(cameras[0].id);
-  } catch (e) { if (e.message !== 'ended') toast(e.message, true); }
+    if (cameras.length) choose(cameras[0].id);
+  } catch (e) { failed(e); }
 }
 
 if (!tunneled) enter();

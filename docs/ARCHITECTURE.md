@@ -1079,8 +1079,11 @@ The plugin answers a JSON API itself, with the JDK's `HttpServer`, on `editor.bi
 
 Either way a call acts as that player, with their permissions, while they are online. The page
 (`resources/editor/index.html`) is the same for both: it loads the kit's `kit/net/relay.js` and
-uses `relay.fetch` when the link is a relay link, `fetch` otherwise. The kit's jar carries
-`relay.js` and the relay's `worker.js` beside the Java class, so page, relay and plugin always come
+uses `relay.fetch` when the link is a relay link, `fetch` otherwise. Its windows, dropdowns,
+switches, sliders, boxes, toasts and theme switch are the kit's interface (`kit/ui/*.js`,
+`kit/ui/ui.css`, the same pieces Particles+'s editor runs on); the page sets only Izomap's colors
+and lays them out. The kit's jar carries the web files and the relay's `worker.js` beside the Java
+class, so page, relay and plugin always come
 from one version of the kit: the plugin serves `kit/net/relay.js` from the jar in the direct mode,
 and `./gradlew editorSite` writes the relay's site (`build/editor-site`, the page with `kit/`
 beside it) and its worker (`build/relay/worker.js`) from the same jar. `relay/wrangler.toml` runs
@@ -1089,6 +1092,13 @@ that task before every `npx wrangler deploy`; `npx wrangler dev --port 8788 --ip
 A sibling checkout of `../editor-kit` (or `-PeditorKit=<folder>`) replaces the published kit in the
 build, so a change to it is tried here before it is published.
 
+**Saving and copying.** Save PNG and Copy shoot the camera at the layout's full size through the
+capture queue, so a save waits its turn like any photo and the server never runs more than
+`settings.max-concurrent-captures`. Copy hands the clipboard a `ClipboardItem` whose PNG is the
+promise of that answer: a browser only lets a page write to the clipboard while the click that
+asked is fresh, and a wide shot takes longer than that. A box a Look tile opens is drawn again
+only when what it says has changed; drawn again under a press, it swallowed the click.
+
 `EditorServer.API` is the API's version; the page names the same in `relay.configure({api})`, and
 a page and a plugin that disagree say so instead of misreading each other. Since the relay serves
 one page to every server, a change that an older plugin cannot answer raises both.
@@ -1096,12 +1106,18 @@ one page to every server, a change that an older plugin cannot answer raises bot
 | Call | Does |
 |---|---|
 | `GET /api/alive` | Nothing: a page back from the background asks it to tell a live tunnel from a dead one |
-| `GET /api/state` | The player, their cameras in their world, the choices (filters, styles, skies, grids per ratio) |
+| `GET /api/state` | The player, their cameras in their world, every choice with its name in the server's language and whether the player may use it (filters, styles, skies, ratios, grids per ratio, frames, fog, focus, sun and moon, export) |
+| `GET /api/cameras/<id>` | One camera as the state lists it, with the capture screen's suggestions read off its last preview's `SceneDepth`: focus distances, a fog range, side light and sun in the frame |
 | `GET /api/map?x&z&size` | A top-down PNG, `size` blocks across, rendered by the walk at pitch 90 and turned half round so north is up |
 | `POST /api/cameras {x,z}` | A camera 12 blocks above the ground there (protection asked) |
-| `PATCH /api/cameras/<id>` | Any setting the capture screen has, plus position; only the fields sent. `targetX`/`targetZ` aims the frame there, `orbit: true` turns facing and tilt round the frame's middle |
-| `GET /api/cameras/<id>/preview?w` | The camera at its ratio, `w` wide |
+| `PATCH /api/cameras/<id>` | Any setting the capture screen has, plus position and the thirds guide; only the fields sent. `targetX`/`targetZ` aims the frame there, `orbit: true` turns facing and tilt round the frame's middle |
+| `GET /api/cameras/<id>/preview?w[&frame&grid]` | The camera at its ratio, `w` wide; it records the scene's depth as the in-game preview does. With a frame, it is drawn at the grid's full size and shrunk back, so it is as thick against the picture as on the photo |
 | `POST /api/cameras/<id>/photo {name,grid}` | `PhotoManager#capture`, queue and all |
+| `POST /api/cameras/<id>/export {grid,frame}` | `PhotoManager#shootForExport`: the same checks and queue as a photo, the frame drawn on, a PNG back and no photo filed. `izomap.export` |
+| `POST /api/cameras/<id>/reset` | The capture screen's Reset aim |
+| `GET /api/cameras/<id>/photos` | The camera's photos |
+| `GET /api/photos/<id>/image[?w]` | The photo as it hangs, frame and all: at full size (`izomap.export`) or shrunk to `w` (at most 480) for the list |
+| `PATCH /api/photos/<id> {frame}` | `PhotoManager#applyFrame`; `""` takes it off |
 
 **The editor aims the frame, not the camera.** An orthographic camera's position along its view does
 not change the picture, so a position on a map says little about the shot, and the same was felt in

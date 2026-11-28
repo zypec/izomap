@@ -61,7 +61,7 @@ A photo also keeps every setting that shaped it: shading, water, sky, focus. Cha
 
 ### Exporting to a PNG
 
-`/izocam export <camera>/<photo>` writes the photo at full size to `plugins/Izomap/exports/` (`izomap.export`). `/izocam export as <file> <camera>/<photo>` names the file. The images on this site were made this way.
+`/izocam export <camera>/<photo>` writes the photo at full size to `plugins/Izomap/exports/` (`izomap.export`). `/izocam export as <file> <camera>/<photo>` names the file. The images on this site were made this way. The [web editor](#taking-photos) saves or copies a photo, or a shot that is not a photo yet, straight from the browser, with the same permission.
 
 ### Cleaning up
 

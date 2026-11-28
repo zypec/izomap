@@ -17,7 +17,7 @@ permissions:
     description: Open the web editor with /izocam editor
     default: op
   izomap.export:
-    description: Write a photo to disk as a PNG
+    description: Write a photo to disk as a PNG, and save or copy one from the web editor
     default: op
   izomap.style.sharp:
     description: The sharp style (a ray per pixel); the fast style needs no permission
