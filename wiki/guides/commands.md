@@ -32,7 +32,7 @@ A photo is named `<camera>/<photo>`, for example `garden/sunset`; the photo name
 | `/izocam retake with <camera> <photo>` | Shoots it again with another camera |
 | `/izocam cancel` | Stops placing a photo |
 | `/izocam remove all photos` | Deletes every photo you own |
-| `/izocam editor` | Gives you a link to the web editor (`izomap.editor`): see [Taking photos](#taking-photos) |
+| `/izocam editor` | Gives you a link to the web editor (`izomap.editor`); from the console, the console's own: see [Taking photos](#taking-photos) |
 | `/izocam cleanup` | Fixes photos that lost their frames and removes frames and models nobody owns, around you |
 
 ### Admin

@@ -46,6 +46,7 @@ camera:
 
 editor:
   link: "<prefix> <green>Editörün: <white><u><link></u></white> <gray>(açmak için tıkla; tek bir sekme açar ve sen oyundayken senin adına çalışır, yeniden istersen eski bağlantı kapanır)"
+  link-console: "<prefix> <green>Konsolun editörü: <white><u><link></u></white> <gray>(konsol olarak, bütün izinlerle ve herkesin kameralarıyla çalışır; tek bir sekme açar, yeniden istersen eski bağlantı kapanır)"
   disabled: "<prefix> <red>Bu sunucuda web editörü kapalı (config.yml'de editor.enabled)."
 
 preview:

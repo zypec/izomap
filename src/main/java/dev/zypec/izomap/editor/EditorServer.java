@@ -22,6 +22,9 @@ import dev.zypec.izomap.render.SkyOption;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import org.bukkit.Location;
+import org.bukkit.Bukkit;
+import org.bukkit.World;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import javax.imageio.ImageIO;
@@ -37,6 +40,7 @@ import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -81,7 +85,7 @@ public final class EditorServer {
     private static final float SIDE_LIGHT = 60.0f;
     private static final float SIDE_LIGHT_HEIGHT = 35.0f;
     /** The version of this API, which the page's {@code relay.configure({api})} must name. */
-    public static final int API = 1;
+    public static final int API = 2;
     /** The kit's tunnel and interface, served beside the page when there is no relay to serve them. */
     private static final Pattern KIT_PATH = Pattern.compile("kit/(net|ui)/[a-z]+\\.(js|css)");
 
@@ -153,12 +157,25 @@ public final class EditorServer {
      * The link that opens the editor as this player, or {@code null} when it is off. Any
      * older link of theirs stops working. Through the relay, a link opens one tab.
      */
-    public synchronized String linkFor(Player player) {
+    public synchronized String linkFor(CommandSender sender) {
         if (server == null) return null;
-        if (plugin.config().editorRelay().isEmpty()) return address + "#" + sessions.open(player);
+        var player = inGame(sender);
+        if (plugin.config().editorRelay().isEmpty())
+            return address + "#" + sessions.open(player == null ? null : player.getUniqueId());
         var link = relay();
-        link.revokeAll(player.getUniqueId());
-        return link.link(player.getName(), player.getUniqueId(), 0, Map::of);
+        if (player != null) {
+            link.revokeAll(player.getUniqueId());
+            return link.link(player.getName(), player.getUniqueId(), 0, Map::of);
+        }
+        // The console's links are the ones with nobody's name on them.
+        for (var old : link.links())
+            if (old.ownerId() == null) link.revoke(old.number());
+        return link.link(null, null, 0, Map::of);
+    }
+
+    /** The player behind a sender, or {@code null} for the console. */
+    private static Player inGame(CommandSender sender) {
+        return sender instanceof Player player ? player : null;
     }
 
     /**
@@ -188,20 +205,21 @@ public final class EditorServer {
      * Who a request acts for: the player whose relay link it came through, when it carries
      * the token only the relay link has, otherwise the one whose session key it carries.
      */
-    private Player who(HttpExchange exchange) {
+    private CommandSender who(HttpExchange exchange) {
         var headers = exchange.getRequestHeaders();
         var bearer = headers.getFirst("Authorization");
         if (bearer != null && token != null && MessageDigest.isEqual(bearer.getBytes(StandardCharsets.UTF_8),
                 ("Bearer " + token).getBytes(StandardCharsets.UTF_8))) {
             var id = headers.getFirst(RelayLink.WHO_ID_HEADER);
-            if (id == null) return null;
+            // Only a link the console asked for carries nobody.
+            if (id == null) return plugin.getServer().getConsoleSender();
             try {
                 return plugin.getServer().getPlayer(UUID.fromString(id));
             } catch (IllegalArgumentException malformed) {
                 return null;
             }
         }
-        return sessions.player(headers.getFirst("X-Izomap-Session"));
+        return sessions.sender(headers.getFirst("X-Izomap-Session"));
     }
 
     // --- routing ---
@@ -222,7 +240,10 @@ public final class EditorServer {
             var parts = path.substring("/api/".length()).split("/");
             switch (parts[0]) {
                 case "alive" -> json(exchange, 200, new JsonObject());
-                case "state" -> json(exchange, 200, onMain(() -> state(player)));
+                case "state" -> {
+                    var asked = query(exchange);
+                    json(exchange, 200, onMain(() -> state(player, asked)));
+                }
                 case "map" -> png(exchange, map(player, query(exchange)));
                 case "cameras" -> cameras(exchange, player, method, parts);
                 case "photos" -> photos(exchange, player, method, parts);
@@ -235,10 +256,10 @@ public final class EditorServer {
         }
     }
 
-    private void cameras(HttpExchange exchange, Player player, String method, String[] parts) throws Exception {
+    private void cameras(HttpExchange exchange, CommandSender player, String method, String[] parts) throws Exception {
         if (parts.length == 1 && method.equals("POST")) {
             var body = body(exchange);
-            json(exchange, 200, place(player, body.get("x").getAsDouble(), body.get("z").getAsDouble()));
+            json(exchange, 200, place(player, body));
             return;
         }
         if (parts.length < 2) throw new EditorException(404, "No such call.");
@@ -278,7 +299,7 @@ public final class EditorServer {
         throw new EditorException(404, "No such call.");
     }
 
-    private void photos(HttpExchange exchange, Player player, String method, String[] parts) throws Exception {
+    private void photos(HttpExchange exchange, CommandSender player, String method, String[] parts) throws Exception {
         if (parts.length < 2) throw new EditorException(404, "No such call.");
         var id = parseId(parts[1]);
         if (parts.length == 2 && method.equals("PATCH")) {
@@ -298,21 +319,52 @@ public final class EditorServer {
     /**
      * Who is editing, where they stand, their cameras and the choices the page offers.
      */
-    private JsonObject state(Player player) {
+    private JsonObject state(CommandSender player, Map<String, String> query) {
         var out = new JsonObject();
-        out.addProperty("player", player.getName());
-        var at = player.getLocation();
-        out.addProperty("world", at.getWorld().getName());
+        var shooter = inGame(player);
+        var world = shooter != null ? shooter.getWorld() : world(query.get("world"));
+        out.addProperty("player", shooter != null ? shooter.getName() : "Console");
+        out.addProperty("console", shooter == null);
+        out.addProperty("world", world.getName());
+        var at = shooter != null ? shooter.getLocation() : world.getSpawnLocation();
         out.addProperty("x", at.getX());
         out.addProperty("z", at.getZ());
         var cameras = new JsonArray();
-        for (var camera : plugin.cameras().ownedBy(player.getUniqueId()))
-            if (camera.anchor().getWorld() == at.getWorld()) cameras.add(describe(player, camera));
+        var mine = shooter != null ? plugin.cameras().ownedBy(shooter.getUniqueId()) : List.copyOf(plugin.cameras().all());
+        for (var camera : mine)
+            if (camera.anchor().getWorld() == world) cameras.add(describe(player, camera));
         out.add("cameras", cameras);
-
         out.add("options", options(player));
         out.addProperty("defaultPitch", plugin.config().defaultPitch());
+        if (shooter == null) {
+            // The console looks at any world, and puts a camera up for a player of its choosing.
+            var worlds = new JsonArray();
+            for (var each : plugin.getServer().getWorlds()) worlds.add(each.getName());
+            out.add("worlds", worlds);
+            var owners = new LinkedHashMap<UUID, String>();
+            for (var online : plugin.getServer().getOnlinePlayers()) owners.put(online.getUniqueId(), online.getName());
+            for (var camera : plugin.cameras().all()) owners.putIfAbsent(camera.owner(), nameOf(camera.owner()));
+            var list = new JsonArray();
+            owners.forEach((id, name) -> {
+                var entry = new JsonObject();
+                entry.addProperty("id", id.toString());
+                entry.addProperty("name", name);
+                list.add(entry);
+            });
+            out.add("owners", list);
+        }
         return out;
+    }
+
+    /** A world by name, the first one where there is no such world. */
+    private World world(String name) {
+        var world = name == null ? null : plugin.getServer().getWorld(name);
+        return world != null ? world : plugin.getServer().getWorlds().getFirst();
+    }
+
+    private String nameOf(UUID player) {
+        var name = Bukkit.getOfflinePlayer(player).getName();
+        return name != null ? name : player.toString().substring(0, 8);
     }
 
     /**
@@ -320,7 +372,7 @@ public final class EditorServer {
      * whether this player may use it, so the page shows what is there and why a choice is shut
      * rather than leaving it out.
      */
-    private JsonObject options(Player player) {
+    private JsonObject options(CommandSender player) {
         var options = new JsonObject();
         var filters = new JsonArray();
         for (var filter : plugin.filters().all())
@@ -343,7 +395,10 @@ public final class EditorServer {
             entry.addProperty("allowed", Permissions.ratio(player, ratio));
             ratios.add(entry);
             var list = new JsonArray();
-            for (var grid : GridLayouts.allowedFor(player, ratio, plugin.config().maxMapTiles())) {
+            var allowed = inGame(player) != null
+                    ? GridLayouts.allowedFor(inGame(player), ratio, plugin.config().maxMapTiles())
+                    : GridLayouts.optionsFor(ratio);
+            for (var grid : allowed) {
                 var option = new JsonObject();
                 option.addProperty("id", grid.label());
                 option.addProperty("maps", grid.tileCount());
@@ -384,7 +439,7 @@ public final class EditorServer {
         return PlainTextComponentSerializer.plainText().serialize(plugin.messages().getOr(key, fallback));
     }
 
-    private JsonObject describe(Player player, Camera camera) {
+    private JsonObject describe(CommandSender player, Camera camera) {
         var out = new JsonObject();
         var anchor = camera.anchor();
         out.addProperty("id", camera.id().toString());
@@ -408,7 +463,8 @@ public final class EditorServer {
         out.addProperty("sunYaw", camera.sunYaw());
         out.addProperty("sunPitch", camera.sunPitch());
         out.addProperty("blocks", plugin.config().frameHeight() / camera.zoom());
-        out.addProperty("photos", plugin.photos().takenWith(player.getUniqueId(), camera.name()).size());
+        out.addProperty("photos", plugin.photos().takenWith(camera.owner(), camera.name()).size());
+        out.addProperty("owner", nameOf(camera.owner()));
         // What the picture is of: the point its centre is aimed at and the frame on the ground.
         var frame = plugin.render().frame(camera);
         var target = new JsonObject();
@@ -480,11 +536,11 @@ public final class EditorServer {
      * north at the top. The walk's top-down axes put north at the foot and east on the
      * left, so the picture is turned half round before it is sent.
      */
-    private byte[] map(Player player, Map<String, String> query) throws Exception {
+    private byte[] map(CommandSender player, Map<String, String> query) throws Exception {
         var x = number(query, "x");
         var z = number(query, "z");
         var size = Math.max(16, Math.min(MAX_MAP_BLOCKS, number(query, "size")));
-        var world = player.getWorld();
+        var world = inGame(player) != null ? inGame(player).getWorld() : world(query.get("world"));
         var future = onMain(() -> {
             var top = world.getMaxHeight() - 1;
             var spec = plugin.render().specFor(new Location(world, x, top, z), 0.0f, 90.0f,
@@ -499,28 +555,35 @@ public final class EditorServer {
      * Places a camera above the ground at a spot clicked on the map. The column's chunk is
      * loaded off the main thread first, since reading its height would load it on it.
      */
-    private JsonObject place(Player player, double x, double z) throws Exception {
-        var world = player.getWorld();
+    private JsonObject place(CommandSender player, JsonObject body) throws Exception {
+        var x = body.get("x").getAsDouble();
+        var z = body.get("z").getAsDouble();
+        var shooter = inGame(player);
+        UUID owner;
+        if (shooter != null) owner = shooter.getUniqueId();
+        else if (body.has("owner")) owner = parseId(body.get("owner").getAsString());
+        else throw new EditorException(400, "Whose camera is it? Pick a player to put it up for.");
+        var world = shooter != null ? shooter.getWorld() : world(body.has("world") ? body.get("world").getAsString() : null);
         var loaded = onMain(() -> world.getChunkAtAsync((int) Math.floor(x) >> 4, (int) Math.floor(z) >> 4, false));
         loaded.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
         return onMain(() -> {
             var ground = world.getHighestBlockYAt((int) Math.floor(x), (int) Math.floor(z));
             var anchor = new Location(world, Math.floor(x) + 0.5, ground + PLACE_HEIGHT, Math.floor(z) + 0.5, 45.0f, 0.0f);
-            if (!Protection.mayBuild(player, anchor.getBlock(), plugin.cameras().createCameraItem()))
+            // The console builds where it likes, as its commands do.
+            if (shooter != null && !Protection.mayBuild(shooter, anchor.getBlock(), plugin.cameras().createCameraItem()))
                 throw new EditorException(403, "A protection plugin does not let you build there.");
 
-            var name = "web-" + (plugin.cameras().ownedCount(player.getUniqueId()) + 1);
-            var camera = plugin.cameras().create(player, name, anchor);
+            var name = "web-" + (plugin.cameras().ownedCount(owner) + 1);
+            var camera = shooter != null ? plugin.cameras().create(shooter, name, anchor) : plugin.cameras().createFor(owner, name, anchor);
             if (camera == null)
                 throw new EditorException(409, "You have as many cameras as you may have.");
             return describe(player, camera);
         });
     }
-
     /**
      * Applies what the page changed. Only the fields present are touched.
      */
-    private JsonObject edit(Player player, Camera camera, JsonObject body) {
+    private JsonObject edit(CommandSender player, Camera camera, JsonObject body) {
         // Aimed at a point rather than placed: turning, tilting or moving the target keeps
         // the camera the same distance from what it shows and moves it to suit.
         var before = plugin.render().frame(camera);
@@ -572,15 +635,15 @@ public final class EditorServer {
         return describe(player, camera);
     }
 
-    private void moveTo(Player player, Camera camera, Location anchor) {
+    private void moveTo(CommandSender player, Camera camera, Location anchor) {
         anchor.setYaw(camera.camYaw());
-        if (!anchor.getBlock().equals(camera.anchor().getBlock())
-            && !Protection.mayBuild(player, anchor.getBlock(), plugin.cameras().createCameraItem()))
+        if (inGame(player) != null && !anchor.getBlock().equals(camera.anchor().getBlock())
+            && !Protection.mayBuild(inGame(player), anchor.getBlock(), plugin.cameras().createCameraItem()))
             throw new EditorException(403, "A protection plugin does not let you build there.");
         plugin.cameras().reposition(camera, anchor);
     }
 
-    private byte[] preview(Player player, UUID id, Map<String, String> query) throws Exception {
+    private byte[] preview(CommandSender player, UUID id, Map<String, String> query) throws Exception {
         var width = (int) Math.max(64, Math.min(1024, number(query, "w")));
         var frameId = query.get("frame");
         var gridLabel = query.get("grid");
@@ -620,7 +683,7 @@ public final class EditorServer {
     /**
      * The camera's photos, newest last, as the list on the capture screen has them.
      */
-    private JsonArray photoList(Player player, Camera camera) {
+    private JsonArray photoList(CommandSender player, Camera camera) {
         var out = new JsonArray();
         for (var photo : plugin.photos().takenWith(camera.owner(), camera.name())) out.add(describe(photo));
         return out;
@@ -641,9 +704,9 @@ public final class EditorServer {
         return out;
     }
 
-    private Photo photo(Player player, UUID id) {
+    private Photo photo(CommandSender player, UUID id) {
         var photo = plugin.photos().byId(id).orElseThrow(() -> new EditorException(404, "That photo is gone."));
-        if (!photo.owner().equals(player.getUniqueId()) && !player.hasPermission(Permissions.ADMIN))
+        if (inGame(player) != null && !photo.owner().equals(inGame(player).getUniqueId()) && !player.hasPermission(Permissions.ADMIN))
             throw new EditorException(403, "That is not your photo.");
         return photo;
     }
@@ -652,7 +715,7 @@ public final class EditorServer {
      * A photo as it hangs, frame and all: at full size to save or copy, which takes the
      * export permission, or shrunk to {@code w} for the list.
      */
-    private byte[] photoImage(Player player, UUID id, Map<String, String> query) throws Exception {
+    private byte[] photoImage(CommandSender player, UUID id, Map<String, String> query) throws Exception {
         var width = query.containsKey("w") ? (int) Math.max(32, Math.min(THUMBNAIL_PIXELS, number(query, "w"))) : 0;
         var photo = onMain(() -> photo(player, id));
         if (width == 0 && !player.hasPermission(Permissions.EXPORT))
@@ -663,7 +726,7 @@ public final class EditorServer {
     }
 
     /** Puts a frame on a photo, changes it, or takes it off ({@code frame: ""}). */
-    private JsonObject reframe(Player player, Photo photo, JsonObject body) {
+    private JsonObject reframe(CommandSender player, Photo photo, JsonObject body) {
         if (!body.has("frame")) throw new EditorException(400, "Which frame?");
         if (!photo.frameEditable()) throw new EditorException(409, "This photo's frame is part of the photo; it cannot be changed.");
         var wanted = body.get("frame").isJsonNull() ? "" : body.get("frame").getAsString();
@@ -676,9 +739,9 @@ public final class EditorServer {
         return describe(plugin.photos().byId(photo.id()).orElse(photo));
     }
 
-    /** What the capture screen's Reset aim does: facing the player's way, the default tilt, zoom 1. */
-    private JsonObject resetAim(Player player, Camera camera) {
-        camera.camYaw(player.getLocation().getYaw());
+    /** What the capture screen's Reset aim does: facing the player's way (the console's keeps its own), the default tilt, zoom 1. */
+    private JsonObject resetAim(CommandSender player, Camera camera) {
+        if (inGame(player) != null) camera.camYaw(inGame(player).getLocation().getYaw());
         camera.camPitch((float) plugin.config().defaultPitch());
         camera.zoom(1.0f);
         plugin.cameras().applyAndPersist(camera);
@@ -690,7 +753,7 @@ public final class EditorServer {
      * The camera shot at a layout's full size with a frame, as a PNG for the page to save or
      * copy, filing no photo. Waits in the capture queue like any photo.
      */
-    private byte[] exportShot(Player player, UUID id, JsonObject body) throws Exception {
+    private byte[] exportShot(CommandSender player, UUID id, JsonObject body) throws Exception {
         if (!player.hasPermission(Permissions.EXPORT))
             throw new EditorException(403, "Saving photos takes the izomap.export permission.");
         var frameId = body.has("frame") && !body.get("frame").isJsonNull() && !body.get("frame").getAsString().isEmpty()
@@ -714,11 +777,12 @@ public final class EditorServer {
      * Takes the photo as the player would from the capture screen; the game says how it
      * went, in chat, as it always does.
      */
-    private JsonObject shoot(Player player, Camera camera, JsonObject body) {
+    private JsonObject shoot(CommandSender player, Camera camera, JsonObject body) {
         var name = body.has("name") && !body.get("name").getAsString().isBlank() ? body.get("name").getAsString() : camera.name();
         var grid = body.has("grid") ? GridLayouts.find(camera.aspectRatio(), body.get("grid").getAsString()) : null;
         if (grid == null) grid = GridLayouts.optionsFor(camera.aspectRatio()).getFirst();
-        plugin.photos().capture(player, camera, name, grid);
+        if (inGame(player) != null) plugin.photos().capture(inGame(player), camera, name, grid);
+        else plugin.photos().capture(player, camera.owner(), camera, name, grid);
         var out = new JsonObject();
         out.addProperty("ok", true);
         out.addProperty("message", "Taking the photo; the game will say when it is in the camera's list.");
@@ -727,10 +791,10 @@ public final class EditorServer {
 
     // --- helpers ---
 
-    private Camera camera(Player player, UUID id) {
+    private Camera camera(CommandSender player, UUID id) {
         var camera = plugin.cameras().byId(id);
         if (camera == null) throw new EditorException(404, "That camera is gone.");
-        if (!Permissions.edit(player, camera)) throw new EditorException(403, "That is not your camera.");
+        if (inGame(player) != null && !Permissions.edit(inGame(player), camera)) throw new EditorException(403, "That is not your camera.");
         return camera;
     }
 

@@ -23,6 +23,8 @@ import net.kyori.adventure.text.event.ClickEvent;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Location;
 import org.bukkit.command.CommandSender;
+import org.bukkit.command.ConsoleCommandSender;
+import org.bukkit.command.RemoteConsoleCommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.Collection;
@@ -457,16 +459,20 @@ public final class CameraCommand {
     }
 
     /**
-     * Hands the player a link to the web editor, which acts as them while they are online.
+     * Hands the player a link to the web editor, which acts as them while they are online,
+     * or the console one that acts as the console. A command block gets none: nobody would
+     * read the link it was given.
      */
     private int editor(CommandContext<CommandSourceStack> ctx) throws CommandSyntaxException {
-        var player = requirePlayer(ctx);
-        var link = plugin.editor() != null ? plugin.editor().linkFor(player) : null;
+        CommandSender sender = ctx.getSource().getSender();
+        var console = sender instanceof ConsoleCommandSender || sender instanceof RemoteConsoleCommandSender;
+        if (!console) sender = requirePlayer(ctx);
+        var link = plugin.editor() != null ? plugin.editor().linkFor(sender) : null;
         if (link == null) {
-            plugin.messages().send(player, "editor.disabled");
+            plugin.messages().send(sender, "editor.disabled");
             return 0;
         }
-        plugin.messages().send(player, "editor.link", Placeholder.component("link",
+        plugin.messages().send(sender, console ? "editor.link-console" : "editor.link", Placeholder.component("link",
                 Component.text(link).clickEvent(ClickEvent.openUrl(link))));
         return Command.SINGLE_SUCCESS;
     }

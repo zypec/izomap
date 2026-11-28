@@ -16,6 +16,7 @@ import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
+import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
@@ -71,6 +72,8 @@ public final class PhotoManager {
      * Cameras with a shutter open, mapped to whoever pressed it.
      */
     private final Map<UUID, UUID> watched = new ConcurrentHashMap<>();
+    /** Who watches a capture that nobody in the game started: the console, through the web editor. */
+    private static final UUID NOBODY = new UUID(0L, 0L);
     private ScheduledTask progressTask;
 
     /**
@@ -219,13 +222,18 @@ public final class PhotoManager {
      * <p>A capture takes long enough to look like nothing happened, and the photo only
      * announces itself once it exists. Main thread only.</p>
      */
+    /** The player behind a sender, or {@code null} for the console. */
+    private static Player inGame(CommandSender sender) {
+        return sender instanceof Player player ? player : null;
+    }
+
     private CaptureProgress shutter(Camera camera, Player actor, boolean open) {
         if (camera == null) return null;
 
         var progress = open ? new CaptureProgress() : null;
         camera.captureProgress(progress);
         if (open) {
-            watched.put(camera.id(), actor.getUniqueId());
+            watched.put(camera.id(), actor == null ? NOBODY : actor.getUniqueId());
             startProgressTask();
         } else {
             watched.remove(camera.id());
@@ -291,7 +299,7 @@ public final class PhotoManager {
     /**
      * Reports a capture failure to the player, with a dedicated budget message.
      */
-    private void reportCaptureError(Player player, String cameraName, Throwable error) {
+    private void reportCaptureError(CommandSender player, String cameraName, Throwable error) {
         if (Failures.unwrap(error) instanceof CaptureTooLargeException tooLarge) {
             plugin.runOnMain(() -> plugin.messages().send(player, "photo.too-large",
                     Placeholder.unparsed("required", String.valueOf(tooLarge.required())),
@@ -323,7 +331,7 @@ public final class PhotoManager {
      * <p>Nothing is quietly downgraded. A photo taken at settings other than the ones
      * shown is a worse outcome than a refusal that names the setting.</p>
      */
-    public boolean mayCapture(Player player, Camera camera, GridOption grid) {
+    public boolean mayCapture(CommandSender player, Camera camera, GridOption grid) {
         if (!Permissions.style(player, camera.style()))
             return deny(player, "style", camera.style().name());
 
@@ -345,12 +353,13 @@ public final class PhotoManager {
         if (camera.fogEnabled() && !Permissions.fog(player))
             return deny(player, "fog", "on");
 
-        if (!Permissions.grid(player, grid, plugin.config().maxMapTiles())) {
+        // The console has no tile allowance to read and every permission.
+        if (player instanceof Player shooter && !Permissions.grid(shooter, grid, plugin.config().maxMapTiles())) {
             plugin.messages().send(player, "photo.grid-not-allowed",
                     Placeholder.unparsed("grid", grid.label()),
                     Placeholder.unparsed("tiles", String.valueOf(grid.tileCount())),
                     Placeholder.unparsed("limit", String.valueOf(
-                            Permissions.mapTiles(player, plugin.config().maxMapTiles()))));
+                            Permissions.mapTiles(shooter, plugin.config().maxMapTiles()))));
             return false;
         }
         return true;
@@ -360,7 +369,7 @@ public final class PhotoManager {
      * Reports a setting the player may not shoot with, and returns {@code false} so the
      * caller can hand the answer straight back.
      */
-    private boolean deny(Player player, String setting, String value) {
+    private boolean deny(CommandSender player, String setting, String value) {
         plugin.messages().send(player, "photo.setting-not-allowed",
                 Placeholder.component("setting", plugin.messages().getOr("setting." + setting, setting)),
                 Placeholder.component("value", plugin.messages().getOr(setting + "." + value, value)));
@@ -372,10 +381,20 @@ public final class PhotoManager {
      * up in the world; that is {@link #place}'s job. Must be started on the main thread.
      */
     public void capture(Player player, Camera camera, String name, GridOption grid) {
+        capture(player, player.getUniqueId(), camera, name, grid);
+    }
+
+    /**
+     * The same, shot by {@code actor} and filed under {@code owner}'s photos. The console,
+     * through the web editor, shoots a player's camera this way: the photo is the camera
+     * owner's, the console has no photo limit, and what is said goes to the console.
+     */
+    public void capture(CommandSender actor, UUID owner, Camera camera, String name, GridOption grid) {
+        var player = actor;
         // Checked here rather than only at the button, so no path can shoot past it.
-        if (atLimit(player, camera)) {
+        if (actor instanceof Player shooter && atLimit(shooter, camera)) {
             plugin.messages().send(player, "photo.limit-reached",
-                    Placeholder.unparsed("limit", String.valueOf(limitFor(player))));
+                    Placeholder.unparsed("limit", String.valueOf(limitFor(shooter))));
             return;
         }
         if (!mayCapture(player, camera, grid))
@@ -389,8 +408,8 @@ public final class PhotoManager {
         // Frozen once, so the cache, the record and the image all describe the same shot:
         // the one the player pressed the button on, however long it waits in line.
         var spec = renderService.specFor(camera);
-        var photo = new Photo(UUID.randomUUID(), player.getUniqueId(),
-                uniqueName(player.getUniqueId(), name), camera.name(), spec, grid, null);
+        var photo = new Photo(UUID.randomUUID(), owner,
+                uniqueName(owner, name), camera.name(), spec, grid, null);
 
         queue.submit(camera.id(),
                 () -> shoot(player, camera, spec, grid, photo, start),
@@ -399,11 +418,11 @@ public final class PhotoManager {
                 waited -> plugin.messages().send(player, waited ? "photo.starting" : "photo.capturing"));
     }
 
-    private CompletableFuture<?> shoot(Player player, Camera camera, CaptureSpec spec, GridOption grid,
+    private CompletableFuture<?> shoot(CommandSender player, Camera camera, CaptureSpec spec, GridOption grid,
                                        Photo photo, long start) {
-        var progress = shutter(camera, player, true);
+        var progress = shutter(camera, inGame(player), true);
         return renderService.capture(spec, grid.widthPx(), grid.heightPx(), progress).whenComplete((result, error) -> {
-            plugin.runOnMain(() -> shutter(camera, player, false));
+            plugin.runOnMain(() -> shutter(camera, inGame(player), false));
             if (error != null || result == null) {
                 reportCaptureError(player, camera.name(), error);
                 return;
@@ -430,7 +449,7 @@ public final class PhotoManager {
      *
      * @param frameId a frame the player may use, or {@code null} for none
      */
-    public CompletableFuture<RenderResult> shootForExport(Player player, Camera camera, GridOption grid, String frameId) {
+    public CompletableFuture<RenderResult> shootForExport(CommandSender player, Camera camera, GridOption grid, String frameId) {
         if (!mayCapture(player, camera, grid))
             return CompletableFuture.failedFuture(new IllegalStateException("Those settings are not allowed for you; the game says which."));
         var frame = frameId == null ? null : plugin.frames().byId(frameId);
@@ -440,9 +459,9 @@ public final class PhotoManager {
         var spec = renderService.specFor(camera);
         CompletableFuture<RenderResult> out = new CompletableFuture<>();
         var accepted = queue.submit(camera.id(), () -> {
-            var progress = shutter(camera, player, true);
+            var progress = shutter(camera, inGame(player), true);
             return renderService.capture(spec, grid.widthPx(), grid.heightPx(), progress).whenComplete((result, error) -> {
-                plugin.runOnMain(() -> shutter(camera, player, false));
+                plugin.runOnMain(() -> shutter(camera, inGame(player), false));
                 if (error != null || result == null) {
                     reportCaptureError(player, camera.name(), error);
                     out.completeExceptionally(error != null ? error : new IllegalStateException("The capture came back empty."));
@@ -838,7 +857,7 @@ public final class PhotoManager {
      * setting later cannot go back and strip the frames off photos that were hung with
      * one baked in.</p>
      */
-    public void applyFrame(Player player, Photo photo, String frameId) {
+    public void applyFrame(CommandSender player, Photo photo, String frameId) {
         if (!photo.frameEditable()) {
             plugin.messages().send(player, "frame.locked");
             return;
@@ -894,7 +913,7 @@ public final class PhotoManager {
                 });
     }
 
-    private void announceFrame(Player player, Photo photo, String frameId) {
+    private void announceFrame(CommandSender player, Photo photo, String frameId) {
         plugin.messages().send(player, photo.frameEmbedded() ? "frame.applied-embedded" : "frame.applied",
                 Placeholder.unparsed("name", photo.name()),
                 Placeholder.component("frame", frameName(frameId)));

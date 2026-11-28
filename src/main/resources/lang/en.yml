@@ -56,6 +56,8 @@ camera:
 # The web editor. <link> is the address, clickable.
 editor:
   link: "<prefix> <green>Your editor: <white><u><link></u></white> <gray>(click to open; it opens one tab and acts as you while you are online, and asking again ends the old link)"
+  # From the console: it acts as the console, sees every camera and puts cameras up for a player.
+  link-console: "<prefix> <green>The console's editor: <white><u><link></u></white> <gray>(it acts as the console, with every permission, for every player's cameras; it opens one tab, and asking again ends the old link)"
   disabled: "<prefix> <red>The web editor is turned off on this server (editor.enabled in config.yml)."
 
 # The live preview: one map per camera, any number of viewers, one editor.

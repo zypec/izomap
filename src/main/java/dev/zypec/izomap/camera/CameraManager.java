@@ -205,21 +205,33 @@ public final class CameraManager {
         if (!PermissionLimit.allows(cameraLimitFor(owner), ownedCount(owner.getUniqueId()))) {
             return null;
         }
+        return spawn(owner.getUniqueId(), owner, owner.getLocation().getYaw(), name, anchor, fromItem);
+    }
 
+    /**
+     * A camera put up for a player by the console, through the web editor: no limit is
+     * asked, it faces the anchor's yaw, and the owner's permissions shape its first
+     * settings only while they are online.
+     */
+    public Camera createFor(UUID owner, String name, Location anchor) {
+        return spawn(owner, plugin.getServer().getPlayer(owner), anchor.getYaw(), name, anchor, false);
+    }
+
+    private Camera spawn(UUID ownerId, Player owner, float yaw, String name, Location anchor, boolean fromItem) {
         var world = anchor.getWorld();
         var display = spawnDisplay(world, anchor);
         var interaction = spawnClickBox(world, anchor);
 
-        var camera = new Camera(UUID.randomUUID(), owner.getUniqueId(), name, anchor);
+        var camera = new Camera(UUID.randomUUID(), ownerId, name, anchor);
         camera.placedFromItem(fromItem);
         camera.displayEntityId(display.getUniqueId());
         camera.interactionEntityId(interaction.getUniqueId());
         // Face the player's yaw at the configured downward pitch. Copying the player's
         // pitch would let a camera placed while looking up shoot from below.
-        camera.camYaw(owner.getLocation().getYaw());
+        camera.camYaw(yaw);
         camera.camPitch((float) plugin.config().defaultPitch());
         camera.aspectRatio(AspectRatio.fromString(plugin.config().defaultAspectRatio(), AspectRatio.RATIO_1_1));
-        camera.fogEnabled(plugin.config().defaultFog() && Permissions.fog(owner));
+        camera.fogEnabled(plugin.config().defaultFog() && (owner == null || Permissions.fog(owner)));
         camera.fogRange((float) plugin.config().defaultFogStart(), (float) plugin.config().defaultFogEnd());
         var sun = plugin.config().shading();
         camera.sunYaw(sun.sunYaw());
@@ -227,7 +239,7 @@ public final class CameraManager {
         // A camera starts on the sharp style, which not everyone may shoot with. Handing
         // a player a camera their own capture would be refused for is a bad first
         // minute, so a creator without the permission gets the free style instead.
-        if (!Permissions.style(owner, camera.style()))
+        if (owner != null && !Permissions.style(owner, camera.style()))
             camera.style(PhotoStyle.FAST);
 
         keys.tagCamera(display.getPersistentDataContainer(), camera.id());

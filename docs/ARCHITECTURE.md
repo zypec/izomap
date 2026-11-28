@@ -1077,7 +1077,15 @@ The plugin answers a JSON API itself, with the JDK's `HttpServer`, on `editor.bi
   address can be reached, and every call carries `X-Izomap-Session`, a 128-bit key from the link
   (`EditorSessions`), which stops after `editor.idle-minutes` unused or when a new link is asked for.
 
-Either way a call acts as that player, with their permissions, while they are online. The page
+Either way a call acts as that player, with their permissions, while they are online, or as the
+console: `izocam editor` from the console or RCON hands out a link with nobody's name on it (a relay
+link with no owner, which is the only kind of request that reaches the local server with the token
+and no `X-Editor-Who-Id`; a session key whose player is `null`). The calls take a `CommandSender`;
+the console has every permission, no camera, photo or tile limit, picks the world (`?world=`), sees
+every player's cameras, and names an owner to place one for (`CameraManager#createFor`, no
+protection asked, as for its commands). A photo it takes goes to the camera owner
+(`PhotoManager#capture(CommandSender, UUID, ...)`), what is said about it to the console, and its
+capture progress is watched by nobody in particular (`NOBODY`), so the hologram still counts it. The page
 (`resources/editor/index.html`) is the same for both: it loads the kit's `kit/net/relay.js` and
 uses `relay.fetch` when the link is a relay link, `fetch` otherwise. Its windows, dropdowns,
 switches, sliders, boxes, toasts and theme switch are the kit's interface (`kit/ui/*.js`,
@@ -1106,7 +1114,7 @@ one page to every server, a change that an older plugin cannot answer raises bot
 | Call | Does |
 |---|---|
 | `GET /api/alive` | Nothing: a page back from the background asks it to tell a live tunnel from a dead one |
-| `GET /api/state` | The player, their cameras in their world, every choice with its name in the server's language and whether the player may use it (filters, styles, skies, ratios, grids per ratio, frames, fog, focus, sun and moon, export) |
+| `GET /api/state` | The player (or the console, with the worlds and the players it may place a camera for), their cameras in their world (the console: everybody's in the world asked), every choice with its name in the server's language and whether the player may use it (filters, styles, skies, ratios, grids per ratio, frames, fog, focus, sun and moon, export) |
 | `GET /api/cameras/<id>` | One camera as the state lists it, with the capture screen's suggestions read off its last preview's `SceneDepth`: focus distances, a fog range, side light and sun in the frame |
 | `GET /api/map?x&z&size` | A top-down PNG, `size` blocks across, rendered by the walk at pitch 90 and turned half round so north is up |
 | `POST /api/cameras {x,z}` | A camera 12 blocks above the ground there (protection asked) |

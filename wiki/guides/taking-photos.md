@@ -137,6 +137,10 @@ The panel on the right is the chosen camera, its preview on top, redrawn after e
 
 Saving and copying take `izomap.export`, like `/izocam export`, and wait in line with the game's photos. Press <kbd>?</kbd> in the editor for its keyboard shortcuts: the arrow keys turn and tilt the camera, <kbd>+</kbd> and <kbd>-</kbd> zoom, <kbd>T</kbd> draws the thirds, <kbd>P</kbd> places a camera and <kbd>[</kbd> <kbd>]</kbd> step through your cameras. The theme switch at the top follows your system or stays light or dark.
 
+#### From the console
+
+`izocam editor` typed in the server console (or sent over RCON) gives the console a link of its own. It acts as the console: every permission, no limits, and every player's cameras, each tile naming its owner, in the world picked at the top. It starts at the first camera there, or at the world's spawn. **Place camera** asks whose camera it is, from the players online and the owners of cameras: it is theirs to use in the game, and it goes up without asking protection plugins, as the console's commands do. A photo the console takes with a camera goes to the camera owner's list, with no photo limit, and what the plugin says about it goes to the console. A command block gets no link.
+
 The editor acts as you, with your permissions, while you are online. A link opens one browser tab (a reload is still that tab; another browser is turned away), asking for a new link ends the old one, and a link stops working after `editor.idle-minutes` unused. Do not share it: whoever opens it first edits as you.
 
 #### The relay
