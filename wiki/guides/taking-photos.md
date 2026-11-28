@@ -134,7 +134,7 @@ If a setting on the camera needs a permission you do not have, the photo is refu
 
 The editor is laid out like a phone's camera. The world from above is on the left: drag to move, scroll or the **+** and **−** keys to zoom (up to 2048 blocks across), drawn in tiles that come in as they are ready and are kept for ten minutes, so going back somewhere is instant. The chosen camera's frame is drawn on it in yellow, the ground the photo will show:
 
-- Drag inside the frame to photograph somewhere else; the camera follows at the same distance, and the frame lands where you let it go.
+- Drag inside the frame to photograph somewhere else; the camera follows, standing just in front of the nearest thing the frame shows, and the frame lands where you let it go. On the map the frame lies where its rays meet the world, so a nearly level camera's frame is on the building it photographs, not on the ground far behind it.
 - Drag a side or a corner of the frame (the small squares) to make it bigger or smaller: that is the zoom, twice as wide is half the zoom.
 - Drag the round handle beyond it to turn the shot round its middle.
 - **Esc** while dragging puts it back.

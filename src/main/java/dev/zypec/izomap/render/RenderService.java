@@ -234,19 +234,88 @@ public final class RenderService {
             return new Frame(ahead, List.of(), LEVEL_TARGET);
         }
         // A plane the camera was aimed on stays put as the camera turns, tilts or zooms;
-        // the ground read afresh lands on whatever the middle ray meets first.
-        var ground = !Double.isNaN(aimY) && aimY < centre.getY() ? aimY : groundAt(world, centre, direction, climb);
-        var t = (centre.getY() - ground) / climb;
+        // otherwise the middle is whatever its ray meets first, a wall as much as the ground.
+        double t;
+        if (!Double.isNaN(aimY) && aimY < centre.getY()) t = (centre.getY() - aimY) / climb;
+        else {
+            var hit = firstHit(world, centre, direction, MARCH_REACH);
+            t = !Double.isNaN(hit) ? hit : (centre.getY() - groundAt(world, centre, direction, climb)) / climb;
+        }
         var target = centre.clone().add(direction.clone().multiply(t));
+        var ground = target.getY();
+        // A corner lies where its ray meets the world, or on the plane of the middle when it
+        // meets nothing; never far beyond the middle, or a nearly level camera's frame would
+        // reach hundreds of blocks past what its picture shows.
+        var furthest = t + 2.0 * spanHeight;
         List<Vector> corners = new ArrayList<>(4);
         for (var corner : new double[][]{{-1, 1}, {1, 1}, {1, -1}, {-1, -1}}) {
             var start = centre.clone()
                     .add(basis[0].clone().multiply(corner[0] * spanHeight * ratio / 2.0))
                     .add(basis[1].clone().multiply(corner[1] * spanHeight / 2.0));
-            var reach = Math.max(0.0, (start.getY() - ground) / climb);
+            var hit = firstHit(world, start, direction, furthest);
+            var reach = Double.isNaN(hit) ? Math.min(furthest, Math.max(0.0, (start.getY() - ground) / climb)) : hit;
             corners.add(start.add(direction.clone().multiply(reach)));
         }
         return new Frame(target, corners, t);
+    }
+
+    /** How far a ray is followed over the heightmap looking for what it meets. */
+    private static final double MARCH_REACH = 640.0;
+    /** How many rays across and down the frame are tried for {@link #clearDistance}. */
+    private static final int CLEAR_SAMPLES = 6;
+    /** How far above its aim the world is looked through for what the frame shows: the tallest build worth keeping in a photo. */
+    private static final double CLEAR_RISE = 160.0;
+    /** How far in front of a camera the nearest thing it shows is kept, and how high above its aim it stands at least. */
+    private static final double CLEAR_MARGIN = 2.0;
+    private static final double CLEAR_ABOVE = 4.0;
+
+    /**
+     * How far along a ray, in blocks, it meets the top of the world: the first column whose
+     * highest block reaches the ray, walked a block at a time. NaN when it meets nothing
+     * within {@code reach}. Reads only loaded chunks; an unloaded column counts as open air.
+     */
+    private static double firstHit(World world, Vector from, Vector direction, double reach) {
+        var bottom = world.getMinHeight();
+        for (var t = 0.0; t <= reach; t += 1.0) {
+            var y = from.getY() + direction.getY() * t;
+            if (y < bottom) return t;
+            int x = (int) Math.floor(from.getX() + direction.getX() * t), z = (int) Math.floor(from.getZ() + direction.getZ() * t);
+            if (!world.isChunkLoaded(x >> 4, z >> 4)) continue;
+            if (world.getHighestBlockYAt(x, z) + 1.0 >= y) return t;
+        }
+        return Double.NaN;
+    }
+
+    /**
+     * The least distance back along its view a camera aimed at {@code target} can stand:
+     * just in front of the nearest thing any part of its frame shows. An orthographic
+     * picture is the same from any distance along the view, so the camera is kept as near as
+     * that allows rather than as far as it once was, and does not climb a little more with
+     * every hill it is moved over. Rays are tried across the frame, each from where it is
+     * {@link #CLEAR_RISE} above the aim. Main thread.
+     */
+    public double clearDistance(Location target, float yaw, float pitch, float zoom, double ratio) {
+        var direction = directionFrom(yaw, pitch);
+        var climb = -direction.getY();
+        var least = CLEAR_ABOVE / Math.max(climb, 0.05);
+        var world = target.getWorld();
+        if (world == null || climb < 0.02) return Math.max(least, LEVEL_TARGET);
+        var basis = basisFrom(direction);
+        var spanHeight = plugin.config().frameHeight() / zoom;
+        var spanWidth = spanHeight * ratio;
+        var needed = least;
+        for (var i = 0; i <= CLEAR_SAMPLES; i++)
+            for (var j = 0; j <= CLEAR_SAMPLES; j++) {
+                var through = target.toVector()
+                        .add(basis[0].clone().multiply((i / (double) CLEAR_SAMPLES - 0.5) * spanWidth))
+                        .add(basis[1].clone().multiply((j / (double) CLEAR_SAMPLES - 0.5) * spanHeight));
+                var top = Math.min(world.getMaxHeight(), target.getY() + CLEAR_RISE);
+                var back = Math.min(MARCH_REACH, Math.max(0.0, (top - through.getY()) / climb));
+                var from = through.clone().subtract(direction.clone().multiply(back));
+                var hit = firstHit(world, from, direction, back);
+                if (!Double.isNaN(hit)) needed = Math.max(needed, back - hit + CLEAR_MARGIN);
+            }
+        return needed;
     }
 
     /**

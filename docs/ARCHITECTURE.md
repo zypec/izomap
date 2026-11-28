@@ -1166,11 +1166,17 @@ one page to every server, a change that an older plugin cannot answer raises bot
 
 **The editor aims the frame, not the camera.** An orthographic camera's position along its view does
 not change the picture, so a position on a map says little about the shot, and the same was felt in
-the game. `RenderService#frame` gives what does: the point the frame's middle is aimed at and the
-frame's four corners on the ground there (ground read only in loaded chunks, sea level elsewhere,
-so it never loads one). The map draws that frame; dragging it sends a new target, and the plugin
-puts the camera back along its view at the same distance (`RenderService#standFor`), as it does
-when facing or tilt change with `orbit`. A level camera has no ground to aim at; its target is 96
+the game. `RenderService#frame` gives what does: the point the frame's middle is aimed at, the first thing its
+ray meets walked a block at a time over the heightmap (a wall as much as the ground), and the four
+corners where their own rays meet the world, or on the middle's plane when they meet nothing, never
+more than two frame heights beyond the middle (read only in loaded chunks, so it never loads one).
+Corners read off a ground plane alone put a 2 degree camera's frame hundreds of blocks past the
+cathedral it photographs. The map draws that frame; dragging it sends a new target, and the plugin
+stands the camera back along its view (`RenderService#standFor`), as it does when facing or tilt
+change with `orbit` and when the zoom or ratio does, at `RenderService#clearDistance`: just in front
+of the nearest thing any of 49 rays across the frame meets, coming in from 160 blocks above the aim.
+It used to keep the distance the camera had, which `standClear` only ever lengthened, so a camera
+dragged over hills climbed with each one and stayed up. A level camera has no ground to aim at; its target is 96
 blocks ahead.
 
 Requests run on a pool of four; anything touching the world hops to the main thread and is waited

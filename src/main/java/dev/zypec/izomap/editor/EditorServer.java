@@ -785,16 +785,26 @@ public final class EditorServer {
             return describe(player, camera);
         });
     }
+    /** How far back from {@code aim} the camera stands, at its facing, tilt, zoom and ratio as they are now. */
+    private double clearOf(Camera camera, Location aim) {
+        return plugin.render().clearDistance(aim, camera.camYaw(), camera.camPitch(), camera.zoom(), camera.aspectRatio().value());
+    }
+
     /**
      * Applies what the page changed. Only the fields present are touched.
      */
     private JsonObject edit(CommandSender player, Camera camera, JsonObject body) {
-        // Aimed at a point rather than placed: turning, tilting or moving the target keeps
-        // the camera the same distance from what it shows and moves it to suit.
+        // Aimed at a point rather than placed: moving the target, turning round it or zooming
+        // stands the camera anew, as near what it shows as nothing in the frame being behind it allows.
         var before = plugin.render().frame(camera);
         var orbit = body.has("orbit") && body.get("orbit").getAsBoolean();
         if (body.has("yaw")) camera.camYaw(body.get("yaw").getAsFloat());
         if (body.has("pitch")) camera.camPitch(body.get("pitch").getAsFloat());
+        if (body.has("zoom")) camera.zoom(body.get("zoom").getAsFloat());
+        if (body.has("ratio")) {
+            var ratio = AspectRatio.fromLabel(body.get("ratio").getAsString());
+            if (ratio != null && Permissions.ratio(player, ratio)) camera.aspectRatio(ratio);
+        }
         if (body.has("targetX") && body.has("targetZ")) {
             // A drag keeps the plane the frame lies on (targetY), so it lands where it was
             // let go; a click on a spot aims at the ground there.
@@ -806,19 +816,14 @@ public final class EditorServer {
                     ? world.getHighestBlockYAt((int) Math.floor(tx), (int) Math.floor(tz)) + 1.0
                     : before.target().getY();
             camera.aimY(ty);
-            moveTo(player, camera, plugin.render().standClear(new Location(world, tx, ty, tz),
-                    camera.camYaw(), camera.camPitch(), before.distance()));
-        } else if (orbit && (body.has("yaw") || body.has("pitch"))) {
+            var aim = new Location(world, tx, ty, tz);
+            moveTo(player, camera, plugin.render().standClear(aim, camera.camYaw(), camera.camPitch(), clearOf(camera, aim)));
+        } else if ((orbit && (body.has("yaw") || body.has("pitch"))) || body.has("zoom") || body.has("ratio")) {
+            // A wider frame may take in what stood behind the camera, a narrower one lets it come nearer.
             var target = before.target();
             camera.aimY(target.getY());
-            moveTo(player, camera, plugin.render().standClear(
-                    new Location(camera.anchor().getWorld(), target.getX(), target.getY(), target.getZ()),
-                    camera.camYaw(), camera.camPitch(), before.distance()));
-        }
-        if (body.has("zoom")) camera.zoom(body.get("zoom").getAsFloat());
-        if (body.has("ratio")) {
-            var ratio = AspectRatio.fromLabel(body.get("ratio").getAsString());
-            if (ratio != null && Permissions.ratio(player, ratio)) camera.aspectRatio(ratio);
+            var aim = new Location(camera.anchor().getWorld(), target.getX(), target.getY(), target.getZ());
+            moveTo(player, camera, plugin.render().standClear(aim, camera.camYaw(), camera.camPitch(), clearOf(camera, aim)));
         }
         if (body.has("filter")) camera.colorFilter(plugin.filters().byId(body.get("filter").getAsString(), camera.colorFilter()));
         if (body.has("style")) camera.style(PhotoStyle.fromString(body.get("style").getAsString(), camera.style()));
@@ -1017,8 +1022,7 @@ public final class EditorServer {
                         .add(up.clone().multiply(span * 0.5));
                 var aim = middle.clone().subtract(up.clone().multiply(span * plugin.config().frameShift()));
                 camera.aimY(middle.getY());
-                moveTo(player, camera, plugin.render().standClear(aim, camera.camYaw(), camera.camPitch(),
-                        Math.max(32.0, before.distance())));
+                moveTo(player, camera, plugin.render().standClear(aim, camera.camYaw(), camera.camPitch(), clearOf(camera, aim)));
                 plugin.cameras().applyAndPersist(camera);
                 plugin.preview().refresh(camera);
                 return describe(player, camera);
@@ -1027,8 +1031,8 @@ public final class EditorServer {
         }
         // The other modes turn round what the camera was aimed at.
         camera.aimY(target.getY());
-        moveTo(player, camera, plugin.render().standClear(new Location(world, target.getX(), target.getY(), target.getZ()),
-                camera.camYaw(), camera.camPitch(), before.distance()));
+        var aim = new Location(world, target.getX(), target.getY(), target.getZ());
+        moveTo(player, camera, plugin.render().standClear(aim, camera.camYaw(), camera.camPitch(), clearOf(camera, aim)));
         plugin.cameras().applyAndPersist(camera);
         plugin.preview().refresh(camera);
         return describe(player, camera);
