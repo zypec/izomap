@@ -975,12 +975,15 @@ function drawBox() {
   const island = box.querySelector('.filterisland');
   if (island) {
     for (const label of island.querySelectorAll('.label')) label.style.setProperty('--w', `${label.scrollWidth}px`);
-    // Measured again once the chosen name has opened, which the button is only then as wide as.
+    // The yellow follows the chosen button's own box as its name opens, so it fits it to the pixel.
     const on = island.querySelector('[aria-pressed=true]'), glide = island.querySelector('.glide');
-    const place = () => { if (on && on.isConnected) { glide.style.width = `${on.offsetWidth}px`; glide.style.transform = `translateX(${on.offsetLeft - 5}px)`; } };
-    requestAnimationFrame(place);
-    if (on) on.querySelector('.label').addEventListener('transitionend', place);
-    setTimeout(place, 480);
+    const place = () => {
+      if (!on || !on.isConnected) return;
+      const at = on.getBoundingClientRect(), from = island.getBoundingClientRect();
+      glide.style.width = `${at.width}px`;
+      glide.style.transform = `translateX(${at.left - from.left + island.scrollLeft}px)`;
+    };
+    if (on) { place(); new ResizeObserver(place).observe(on); }
   }
   box.scrollTop = scroll;
 }
