@@ -51,8 +51,13 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
 .pick .choicebtn{height:36px;border:0;background:transparent;color:var(--glass-ink);font-weight:600}
 .pick .choicebtn:hover{background:rgba(255,255,255,.06)}
 .quick{display:flex;align-items:center;gap:2px;padding:4px;margin:0 auto}
-.quick button b{font-weight:500;color:var(--glass-ink);text-transform:uppercase;letter-spacing:.06em}
-.quick button[aria-pressed=true] b{color:#1a1500}
+/* Icons only; a setting that is on says its name, opening as the site's island does. */
+.quick button b{max-width:0;opacity:0;overflow:hidden;white-space:nowrap;font-weight:500;text-transform:uppercase;letter-spacing:.06em;
+  transition:max-width .42s cubic-bezier(.2,.8,.2,1),opacity .25s,margin .42s}
+.quick button svg + b{margin-left:0}
+.quick button[aria-pressed=true] b{max-width:90px;opacity:1;margin-left:2px;color:#1a1500}
+.quick button[data-bar=ratio] b{max-width:none;opacity:1;color:var(--glass-ink)}
+.quick button.shut{opacity:.35}
 .quick button[aria-expanded=true]{box-shadow:inset 0 0 0 1px var(--yellow)}
 /* The filters as the site's front page has them: an island, each filter an icon, the chosen one named on yellow. */
 .filterisland{position:relative;display:flex;align-items:center;gap:2px;padding:5px;border-radius:var(--r);background:var(--sunk);overflow-x:auto;scrollbar-width:none}
@@ -146,6 +151,11 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
 .hud.top{top:12px}.hud.foot{bottom:12px}
 .hud span{opacity:.75}.hud b{font-weight:500;margin-left:6px;color:var(--yellow)}
 #panel{display:grid;gap:12px}
+.layouts{display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px}
+.layouts .layout{display:grid;justify-items:start;gap:2px;padding:8px 10px;text-align:left;background:rgba(255,255,255,.04);border-color:var(--glass-line);color:var(--glass-ink)}
+.layouts .layout small{color:var(--glass-dim);font:11px var(--hud)}
+.layouts .layout.on{background:var(--yellow);border-color:var(--yellow);color:#1a1500}
+.layouts .layout.on small{color:#1a1500}
 .card{padding:12px 14px}
 .card > header{display:flex;align-items:center;gap:8px;margin-bottom:6px}
 .dial{display:grid;grid-template-columns:70px minmax(0,1fr) 64px;align-items:center;gap:10px;margin:4px 0}
@@ -202,9 +212,7 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
 .shutter:active span{transform:scale(.88)}
 .shutter.busy span{background:#ff3b30;transform:scale(.55);border-radius:var(--r)}
 .shutter:disabled{opacity:.4}
-.outs{justify-self:end;display:flex;align-items:center;gap:8px}
-.outs .choice{min-width:132px}
-.outs .choicebtn{height:44px;background:var(--glass);border-color:var(--glass-line);color:var(--glass-ink)}
+.outs{justify-self:end;display:flex;align-items:center;gap:8px;min-width:0}
 .outs .gbtn{flex-direction:column;height:44px;min-width:56px;padding:4px 10px;gap:2px;border:1px solid var(--glass-line);background:var(--glass);font-size:10px;text-transform:uppercase}
 .outs .gbtn svg{width:16px;height:16px}
 .outs .gbtn:disabled{opacity:.35;cursor:default}
@@ -214,11 +222,13 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
 @keyframes flash{0%{opacity:.8}100%{opacity:0}}
 
 /* the sheets: the camera's photos on the left, the server's settings on the right */
-.sheet{position:fixed;z-index:22;top:70px;bottom:150px;width:min(440px,calc(100vw - 48px));display:flex;flex-direction:column;
-  border-radius:calc(var(--r) + 6px);background:var(--raise);color:var(--ink);border:1px solid var(--line);box-shadow:0 30px 60px -20px #000a;
-  transition:transform .42s cubic-bezier(.2,.9,.2,1)}
-#gallery{left:20px;transform:translateX(-115%)}
-#settings{right:20px;width:min(580px,calc(100vw - 48px));transform:translateX(115%)}
+/* Laid over the screen, inside its bezel, so their edges are the screen's own. */
+.sheet{position:absolute;z-index:22;top:6px;bottom:6px;width:min(440px,calc(100% - 12px));display:flex;flex-direction:column;overflow:hidden;
+  border-radius:var(--r);background:var(--raise);color:var(--ink);border:1px solid var(--line);box-shadow:0 20px 50px -20px #000a;
+  opacity:0;pointer-events:none;transition:transform .42s cubic-bezier(.2,.9,.2,1),opacity .3s}
+#gallery{left:6px;transform:translateX(-24px)}
+#settings{right:6px;width:min(600px,calc(100% - 12px));transform:translateX(24px)}
+#gallery.open,#settings.open{opacity:1;pointer-events:auto}
 #gallery.open,#settings.open{transform:none}
 .sheet > header{display:flex;align-items:center;gap:8px;padding:14px 16px 10px}
 .sheet .list{overflow-y:auto;padding:0 16px 16px;display:grid;gap:14px;align-content:start;flex:1}
@@ -266,7 +276,7 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
   .quick{margin:0}
   .top{flex-wrap:wrap}
   .outs .choice{min-width:96px}
-  .sheet{left:10px!important;right:10px!important;width:auto!important;top:10px;bottom:10px}
+  .sheet{left:6px!important;right:6px!important;width:auto!important}
 }
 @media (prefers-reduced-motion:reduce){#island,#island *,.modes .track,.sheet{transition:none!important;animation:none!important}}
 </style>
@@ -285,8 +295,6 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
 <div class="app">
   <header class="top">
     <span class="brand"><i></i>Izomap</span>
-    <div class="pick glass"><span class="who" id="who"></span><span id="worldpick"></span><span id="campick"></span>
-      <button type="button" id="rename" title="Rename the camera" aria-label="Rename the camera"></button></div>
     <div class="quick glass" role="toolbar" aria-label="Quick settings" id="quick"></div>
     <div class="right">
       <div class="glass"><button type="button" id="undo" title="Undo (Ctrl+Z)" aria-label="Undo" disabled></button><button type="button" id="redo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo" disabled></button></div>
@@ -311,6 +319,16 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
       <div class="lcdtext" id="hint">Drag the frame to aim, its edges to zoom, its handle to turn. Esc takes a drag back.</div>
       <div id="zoomtip"></div>
     </div>
+<div class="sheet" id="gallery" aria-hidden="true">
+  <header><b>Photos</b><span class="note" id="photocount"></span><span class="grow"></span><button type="button" class="iconbtn" id="closegallery" aria-label="Close" title="Close the photos (Esc)"></button></header>
+  <div class="list" id="photolist"></div>
+</div>
+<div class="sheet" id="settings" aria-hidden="true">
+  <header><b>Server settings</b><span class="note">config.yml</span><span class="grow"></span><button type="button" class="iconbtn" id="closesettings" aria-label="Close" title="Close the settings (Esc); what waits is kept"></button></header>
+  <input class="find" id="settingsfind" type="search" placeholder="Find a setting" aria-label="Find a setting">
+  <div class="list" id="settinglist"></div>
+  <div class="pending" id="pending" hidden><span id="pendingcount"></span><span class="grow"></span><button type="button" class="quiet" id="discard" title="Forget the changes that wait">Discard</button><button type="button" class="primary" id="apply" title="Write the changes into config.yml and reload the plugin">Apply changes</button></div>
+</div>
   </section>
 
   <aside class="side">
@@ -329,23 +347,11 @@ button,input,select,.choicebtn,.choicelist,.iconbtn,.toast,.slotpick,#dialog .sh
       <button type="button" class="last" id="last" title="The camera's photos (G)"><img id="lastimg" alt=""><span><b id="lastname">No photos yet</b><small id="lastcount"></small></span></button>
       <button type="button" class="shutter" id="shutter" title="Take the photo, into the camera's list to hang in the game (Space)" aria-label="Take photo"><span></span></button>
       <div class="outs">
-        <span id="gridfield" title="How many maps the photo spans"></span>
-        <button type="button" class="gbtn" id="saveshot" title="Shoot it at full size and save it as a PNG"><span id="saveicon"></span>Save</button>
-        <button type="button" class="gbtn" id="copyshot" title="Shoot it at full size and copy the picture"><span id="copyicon"></span>Copy</button>
+        <div class="pick glass"><span class="who" id="who" title="Who the editor acts as, and the world it shows"></span><span id="worldpick"></span><span id="campick" title="The camera being set up"></span>
+          <button type="button" id="rename" title="Rename the camera; its photos follow it" aria-label="Rename the camera"></button></div>
       </div>
     </div>
   </footer>
-</div>
-
-<div class="sheet" id="gallery" aria-hidden="true">
-  <header><b>Photos</b><span class="note" id="photocount"></span><span class="grow"></span><button type="button" class="iconbtn" id="closegallery" aria-label="Close" title="Close the photos (Esc)"></button></header>
-  <div class="list" id="photolist"></div>
-</div>
-<div class="sheet" id="settings" aria-hidden="true">
-  <header><b>Server settings</b><span class="note">config.yml</span><span class="grow"></span><button type="button" class="iconbtn" id="closesettings" aria-label="Close" title="Close the settings (Esc); what waits is kept"></button></header>
-  <input class="find" id="settingsfind" type="search" placeholder="Find a setting" aria-label="Find a setting">
-  <div class="list" id="settinglist"></div>
-  <div class="pending" id="pending" hidden><span id="pendingcount"></span><span class="grow"></span><button type="button" class="quiet" id="discard" title="Forget the changes that wait">Discard</button><button type="button" class="primary" id="apply" title="Write the changes into config.yml and reload the plugin">Apply changes</button></div>
 </div>
 
 <script src="kit/ui/base.js"></script>
@@ -364,7 +370,7 @@ const tunneled = relay.linked() || (!location.hash && !!sessionStorage.getItem('
 const key = tunneled ? '' : (location.hash || '').slice(1) || sessionStorage.getItem('izomap-editor') || '';
 if (!tunneled && location.hash) { sessionStorage.setItem('izomap-editor', key); history.replaceState(null, '', location.pathname); }
 for (const [id, glyph] of [['rename', 'pencil'], ['undo', 'undo'], ['redo', 'redo'], ['opensettings', 'settings'],
-  ['saveicon', 'save'], ['copyicon', 'copy'], ['closegallery', 'close'], ['closesettings', 'close']]) $(id).innerHTML = ico(glyph);
+  ['closegallery', 'close'], ['closesettings', 'close']]) $(id).innerHTML = ico(glyph);
 /** A dropdown row drawn rather than written: a frame round its own name. */
 kit.drawn = drawn => drawn;
 
@@ -848,6 +854,7 @@ function panel() {
       ${dial('pitch', 'Tilt', -10, 90, 1, c.pitch, FIELDS.pitch.show)}
       ${dial('zoom', 'Zoom', -4.3, 4, 0.05, sliderOf(c.zoom), FIELDS.zoom.show)}
     </section>
+    <section class="card glass"><header><span class="caps">Layout</span></header><div class="layouts" id="layouts"></div><p class="hint" style="margin:8px 0 0;color:var(--glass-dim)">The more maps, the more detail, and the longer the photo takes.</p></section>
     `;
   wireDials(p);
   $('reset').onclick = () => run(`cameras/${selected.id}/reset`, 'resetting the aim');
@@ -869,7 +876,7 @@ function refresh() {
   $('stage').style.setProperty('--ar', String(rw / rh));
   $('h-style').textContent = named('styles', c.style); $('h-sky').textContent = named('skies', c.sky); $('h-filter').textContent = named('filters', c.filter);
   $('h-blocks').textContent = `${Math.round(c.blocks)} blocks`; $('h-zoom').textContent = `${c.zoom.toFixed(2)}x`; $('h-tilt').textContent = `${Math.round(c.pitch)}°`;
-  bar(); modes();
+  bar(); modes(); layouts();
 }
 /* --- the modes along the foot: a kind of shot, from where the camera is aimed --- */
 const MODES = [['top', 'Top', 'Straight down: a map of the place'], ['photo', 'Photo', '16:9 at the default tilt'],
@@ -898,7 +905,7 @@ const ICON = {
   fog: '<path d="M4 9h11M7 13h13M3 17h12"/><path d="M15 9a3.5 3.5 0 1 1 3.2 3.5"/>',
   sun: '<circle cx="12" cy="12" r="3.8"/><path d="M12 2.8v2.4M12 18.8v2.4M2.8 12h2.4M18.8 12h2.4M5.5 5.5l1.7 1.7M16.8 16.8l1.7 1.7M5.5 18.5l1.7-1.7M16.8 7.2l1.7-1.7"/>',
   focus: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5 15.5 9M20.5 12l-6.2.2M16.3 19.3 13 14M7.7 19.3 9.5 13M3.5 12l6 .8M7.7 4.7 11 10"/>',
-  style: '<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="M14 6l3 3"/>',
+  style: '<path d="M12 3 20 7.5v9L12 21l-8-4.5v-9z"/><path d="M12 12 20 7.5M12 12v9M12 12 4 7.5"/>',
   sky: '<path d="M7 18h10a4 4 0 0 0 .5-8 6 6 0 0 0-11.4 1.5A3.3 3.3 0 0 0 7 18z"/>',
 };
 /** The filters' glyphs, the site's front page's own, by filter id; one of the server's own gets the plain one. */
@@ -918,13 +925,13 @@ function nextOf(list, current) {
   return allowed.length ? allowed[(i + 1) % allowed.length].id : current;
 }
 const BAR = [
-  {id: 'ratio', label: c => `<b>${c.ratio}</b> ${esc(c.layout || '')}`, tip: 'Ratio and layout: a click goes to the next ratio, a right-click opens both lists',
+  {id: 'ratio', label: c => `<b>${c.ratio}</b>`, tip: c => `Ratio, ${c.ratio}: a click goes to the next, a right-click lists them`,
     click: c => change({ratio: nextOf('ratios', c.ratio)}, 'the ratio'), box: ratioBox},
-  {id: 'style', label: c => `${glyph(ICON.style)}<b>${esc(named('styles', c.style))}</b>`, tip: 'Style: a click goes to the next, a right-click lists them',
+  {id: 'style', label: c => `${glyph(ICON.style)}<b>${esc(named('styles', c.style))}</b>`, tip: c => `Style, ${named('styles', c.style)}: a click goes to the next, a right-click lists them`,
     click: c => change({style: nextOf('styles', c.style)}, 'the style'), box: c => listBox('styles', 'style', c.style, 'Style')},
   {id: 'filter', label: c => `${glyph(FILTER_ICONS[c.filter.toLowerCase()] || FILTER_ICONS.original)}<b>${esc(named('filters', c.filter))}</b>`,
-    tip: 'Color: a click goes to the next filter, a right-click shows them all', click: c => change({filter: nextOf('filters', c.filter)}, 'the color'), box: filterBox, wide: true},
-  {id: 'sky', label: c => `${glyph(ICON.sky)}<b>${esc(named('skies', c.sky))}</b>`, tip: 'Sky: a click goes to the next, a right-click lists them',
+    tip: c => `Color, ${named('filters', c.filter)}: a click goes to the next filter, a right-click shows them all`, click: c => change({filter: nextOf('filters', c.filter)}, 'the color'), box: filterBox, wide: true},
+  {id: 'sky', label: c => `${glyph(ICON.sky)}<b>${esc(named('skies', c.sky))}</b>`, tip: c => `Sky, ${named('skies', c.sky)}: a click goes to the next, a right-click lists them`,
     click: c => change({sky: nextOf('skies', c.sky)}, 'the sky'), box: c => listBox('skies', 'sky', c.sky, 'Sky')},
   {id: 'fog', label: () => `${glyph(ICON.fog)}<b>Fog</b>`, on: c => c.fog, may: c => options.may.fog || c.fog,
     tip: 'Fog: a click turns it on or off, a right-click sets how far it begins and ends', click: c => change({fog: !c.fog}, 'fog'), box: fogBox},
@@ -938,18 +945,24 @@ let openLook = null;
 function bar() {
   const root = $('quick');
   if (!root.children.length) {
-    root.innerHTML = BAR.map(b => `<button type="button" data-bar="${b.id}" title="${esc(b.tip)}"${b.box ? ' aria-haspopup="true" aria-expanded="false"' : ''}></button>`).join('');
+    root.innerHTML = BAR.map(b => `<button type="button" data-bar="${b.id}"${b.box ? ' aria-haspopup="true" aria-expanded="false"' : ''}></button>`).join('');
     for (const el of root.children) {
       const item = BAR.find(b => b.id === el.dataset.bar);
-      el.onclick = () => selected && item.click(selected);
+      // Never disabled: a disabled button gets no right-click, and its box is where it says why it is shut.
+      el.onclick = () => {
+        if (!selected) return;
+        if (item.may && !item.may(selected)) return toast('bad', 'You do not have the permission for this', ['A right-click shows what it would set.']);
+        item.click(selected);
+      };
       if (item.box) el.oncontextmenu = e => { e.preventDefault(); if (selected) openBox(item, el); };
     }
   }
   for (const item of BAR) {
     const el = root.querySelector(`[data-bar="${item.id}"]`);
     el.innerHTML = item.label(selected);
+    el.title = typeof item.tip === 'function' ? item.tip(selected) : item.tip;
     if (item.on) el.setAttribute('aria-pressed', String(!!item.on(selected)));
-    if (item.may) el.disabled = !item.may(selected);
+    el.classList.toggle('shut', !!item.may && !item.may(selected));
   }
   if (openLook) drawBox();
 }
@@ -995,11 +1008,19 @@ function filterBox(c) {
 }
 /** The ratios, then the layouts of the one chosen: how the photo is cut, and how many maps it spans. */
 function ratioBox(c) {
+  return listBox('ratios', 'ratio', c.ratio, 'Ratio');
+}
+/** The layouts of the camera's ratio, in the side: how many maps the photo spans. */
+function layouts() {
+  const c = selected, root = $('layouts');
+  if (!c || !root) return;
   const grids = options.grids[c.ratio] || [];
-  return listBox('ratios', 'ratio', c.ratio, 'Ratio') + '<h4 style="margin-top:12px">Layout</h4><div class="opts">' + grids.map(g =>
-    `<button type="button" class="opt${g.id === c.layout ? ' on' : ''}" ${setAttr({layout: g.id}, 'the layout')} title="${g.maps} maps, ${g.width}x${g.height} pixels">`
-    + `<span>${g.id}</span><span class="lock">${g.maps} maps, ${g.width}x${g.height}</span></button>`).join('') + '</div>'
-    + '<p class="hint">The bigger the layout, the more detail and the longer the photo takes.</p>';
+  const html = grids.map(g => `<button type="button" class="layout${g.id === c.layout ? ' on' : ''}" data-layout="${g.id}" title="${g.maps} map${g.maps === 1 ? '' : 's'}, ${g.width}x${g.height} pixels">`
+    + `<b>${g.id}</b><small>${g.maps} map${g.maps === 1 ? '' : 's'}</small></button>`).join('');
+  if (root.dataset.drawn === html) return;
+  root.dataset.drawn = html;
+  root.innerHTML = html;
+  for (const b of root.children) b.onclick = () => change({layout: b.dataset.layout}, 'the layout');
 }
 const setAttr = (fields, what) => `data-set='${esc(JSON.stringify(fields))}'${what ? ` data-what="${esc(what)}"` : ''}`;
 function listBox(list, field, current, title) {
@@ -1130,31 +1151,12 @@ async function preview() {
   finally { if (ticket === previewTicket) { $('stage').classList.remove('loading'); $('previewbusy').classList.remove('on'); } }
 }
 
-/* --- the foot: layout, the shutter, save and copy --- */
-function deck() {
-  const c = selected;
-  if (!c) return;
-  const s = shotOf(c), grids = options.grids[c.ratio] || [];
-  if (!grids.find(g => g.id === s.grid)) s.grid = (grids[0] || {}).id || '';
-  $('gridfield').innerHTML = select('grid', grids.map(g => [g.id, g.id, `${g.width}x${g.height}`]), s.grid);
-  wireChoices($('gridfield'));
-  $('grid').onchange = () => change({layout: $('grid').value}, 'the layout');
-  $('saveshot').disabled = $('copyshot').disabled = !options.may.export;
-  $('saveshot').title = options.may.export ? 'Shoot it at full size and save it as a PNG' : 'Saving takes the izomap.export permission';
-  $('copyshot').title = options.may.export ? 'Shoot it at full size and copy the picture' : 'Copying takes the izomap.export permission';
-}
+/* --- the foot: the last photo, the shutter, the camera --- */
+function deck() {}
 $('shutter').onclick = takePhoto;
-$('saveshot').onclick = () => { const s = shotOf(selected); saveImage(busy($('saveshot'), shootFile()), fileName(selected.name, s.grid)); };
-$('copyshot').onclick = () => copyImage(busy($('copyshot'), shootFile()));
 $('last').onclick = () => openSheet('gallery', true);
 $('closegallery').onclick = () => openSheet('gallery', false);
 function openSheet(id, open) { $(id).classList.toggle('open', open); $(id).setAttribute('aria-hidden', String(!open)); }
-function shootFile() {
-  const c = selected, s = shotOf(c);
-  const shooting = api(`cameras/${c.id}/export`, {method: 'POST', body: {grid: s.grid}, raw: true});
-  follow(c.id, `Shooting ${s.grid}`, shooting);
-  return shooting;
-}
 function busy(button, promise) {
   button.classList.add('busy');
   promise.finally(() => button.classList.remove('busy')).catch(() => {});
